@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Preview Arctic Assets</title>
+  <style>
+    body { margin: 0; background: #121820; overflow: hidden; font-family: sans-serif; }
+    #label { position: absolute; top: 12px; left: 12px; color: #fff; background: rgba(15,23,42,0.85); padding: 14px 20px; border-radius: 8px; font-size: 14px; line-height: 1.6; z-index: 10; border: 1px solid #38bdf8; box-shadow: 0 4px 16px rgba(0,0,0,0.5); }
+    .badge { color: #38bdf8; font-weight: bold; font-size: 15px; }
+  </style>
+</head>
+<body>
+  <div id="label">
+    <span class="badge">BIOMA ÁRTICO - CANDIDATOS VISUALES</span><br>
+    ❄️ Suelo (#F3F3F6) &nbsp;|&nbsp; 🌲 Árbol con Nieve &nbsp;|&nbsp; 🌿 Arbustos con Nieve &nbsp;|&nbsp; 🪨 Rocas Nevadas &nbsp;|&nbsp; 🌾 Césped Nevado
+  </div>
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "./vendor/three.module.js",
+        "three/addons/": "./vendor/"
+      }
+    }
+  </script>
+  <script type="module">
+    import * as THREE from 'three';
+    import { GLTFLoader } from './vendor/GLTFLoader.js';
+
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0xdbeafe);
+    scene.fog = new THREE.FogExp2(0xdbeafe, 0.015);
+
+    const camera = new THREE.PerspectiveCamera(40, window.innerWidth / window.innerHeight, 0.1, 100);
+    camera.position.set(0, 4.5, 16);
+    camera.lookAt(0, 1.6, 0);
+
+    const renderer = new THREE.WebGLRenderer({ antialias: true });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.shadowMap.enabled = true;
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    renderer.toneMappingExposure = 1.1;
+    document.body.appendChild(renderer.domElement);
+
+    // Arctic Cold Lighting
+    const hemi = new THREE.HemisphereLight(0xecfdf5, 0x527267, 1.2);
+    scene.add(hemi);
+
+    const sun = new THREE.DirectionalLight(0xeef6ff, 2.8);
+    sun.position.set(14, 18, 10);
+    sun.castShadow = true;
+    sun.shadow.mapSize.width = 2048;
+    sun.shadow.mapSize.height = 2048;
+    scene.add(sun);
+
+    // Ground plane with requested #F3F3F6
+    const groundGeo = new THREE.PlaneGeometry(60, 40);
+    groundGeo.rotateX(-Math.PI / 2);
+    const groundMat = new THREE.MeshStandardMaterial({
+      color: 0xF3F3F6,
+      roughness: 0.85,
+      metalness: 0.05
+    });
+    const groundMesh = new THREE.Mesh(groundGeo, groundMat);
+    groundMesh.receiveShadow = true;
+    scene.add(groundMesh);
+
+    const loader = new GLTFLoader();
+
+    // Helper: Material with Procedural Snow Top
+    function createSnowCapMaterial(baseColor, roughness = 0.85) {
+      const mat = new THREE.MeshStandardMaterial({
+        color: baseColor,
+        roughness: roughness,
+        metalness: 0.0
+      });
+      mat.onBeforeCompile = (shader) => {
+        shader.vertexShader = `
+          varying vec3 vWorldNormal;
+          ${shader.vertexShader}
+        `.replace(
+          '#include <begin_vertex>',
+          `
+          #include <begin_vertex>
+          vWorldNormal = normalize((modelMatrix * vec4(normal, 0.0)).xyz);
+          `
+        );
+
+        shader.fragmentShader = `
+          varying vec3 vWorldNormal;
+          ${shader.fragmentShader}
+        `.replace(
+          '#include <dithering_fragment>',
+          `
+          #include <dithering_fragment>
+          // Snow accumulation on upward facing surfaces
+          float snowAmount = smoothstep(0.25, 0.75, vWorldNormal.y);
+          vec3 snowCol = vec3(0.953, 0.953, 0.965); // #F3F3F6
+          gl_FragColor.rgb = mix(gl_FragColor.rgb, snowCol, snowAmount * 0.92);
+          `
+        );
+      };
+      return mat;
+    }
+
+    // 1. Bushes with Green Texture + Snow Top
+    const bushSnowMat = createSnowCapMaterial(0x386632, 0.80); // Pine green base + snow top
+    loader.load('./assets/arctic/plant_bushDetailed.glb', (gltf) => {
+      const m = gltf.scene;
+      m.traverse(c => {
+        if (c.isMesh) {
+          c.material = bushSnowMat;
+          c.castShadow = true;
+          c.receiveShadow = true;
+        }
+      });
+      m.position.set(-4.5, 0, 0);
+      m.scale.setScalar(2.4);
+      scene.add(m);
+    });
+
+    loader.load('./assets/arctic/plant_bushSmall.glb', (gltf) => {
+      const m = gltf.scene;
+      m.traverse(c => {
+        if (c.isMesh) {
+          c.material = bushSnowMat;
+          c.castShadow = true;
+          c.receiveShadow = true;
+        }
+      });
+      m.position.set(-2.8, 0, 1.2);
+      m.scale.setScalar(2.0);
+      scene.add(m);
+    });
+
+    // 2. Rocks with Snow Top
+    const rockSnowMat = createSnowCapMaterial(0x6b7280, 0.90); // Slate rock base + snow top
+    loader.load('./assets/arctic/stone_smallA.glb', (gltf) => {
+      const m = gltf.scene;
+      m.traverse(c => {
+        if (c.isMesh) {
+          c.material = rockSnowMat;
+          c.castShadow = true;
+          c.receiveShadow = true;
+        }
+      });
+      m.position.set(-0.8, 0, 0.8);
+      m.scale.setScalar(2.5);
+      scene.add(m);
+    });
+
+    loader.load('./assets/arctic/rock_smallFlatA.glb', (gltf) => {
+      const m = gltf.scene;
+      m.traverse(c => {
+        if (c.isMesh) {
+          c.material = rockSnowMat;
+          c.castShadow = true;
+          c.receiveShadow = true;
+        }
+      });
+      m.position.set(0.8, 0, 1.0);
+      m.scale.setScalar(2.6);
+      scene.add(m);
+    });
+
+    // 3. Tree from Forest with Snow on Leaves
+    const trunkMat = new THREE.MeshStandardMaterial({
+      color: 0x5a4635,
+      roughness: 0.85,
+      metalness: 0.0
+    });
+    loader.load('./assets/stylized/tree-tronk.glb', (gltf) => {
+      const m = gltf.scene;
+      m.traverse(c => {
+        if (c.isMesh) {
+          c.material = trunkMat;
+          c.castShadow = true;
+          c.receiveShadow = true;
+        }
+      });
+      m.position.set(4.2, 0, -0.5);
+      m.scale.setScalar(10.0);
+      scene.add(m);
+    });
+
+    const leafSnowMat = createSnowCapMaterial(0x3a5e2c, 0.80);
+    loader.load('./assets/stylized/tree-leaves-mesh.glb', (gltf) => {
+      const m = gltf.scene;
+      m.traverse(c => {
+        if (c.isMesh) {
+          c.material = leafSnowMat;
+          c.castShadow = true;
+          c.receiveShadow = true;
+        }
+      });
+      m.position.set(4.2, 6.2, -0.5);
+      m.scale.setScalar(0.9);
+      scene.add(m);
+    });
+
+    window.__previewReady = true;
+
+    function animate() {
+      requestAnimationFrame(animate);
+      renderer.render(scene, camera);
+    }
+    animate();
+  </script>
+</body>
+</html>

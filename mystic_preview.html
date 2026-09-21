@@ -1,0 +1,352 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Mystic Biome Preview</title>
+  <style>
+    body { margin: 0; overflow: hidden; background: #0c1824; font-family: sans-serif; }
+    #label {
+      position: absolute; top: 15px; left: 20px; color: #fff;
+      background: rgba(12, 24, 36, 0.85); padding: 12px 18px; border-radius: 8px;
+      font-size: 13px; line-height: 1.6; border: 1px solid #7c3aed;
+      box-shadow: 0 4px 15px rgba(0,0,0,0.5);
+    }
+    .badge { color: #f472b6; font-weight: bold; font-size: 15px; }
+  </style>
+</head>
+<body>
+  <div id="label">
+    <span class="badge">🔮 BIOMA MÍSTICO - PREVISUALIZACIÓN DE CANDIDATOS</span><br>
+    🌊 Suelo (#1E6E84) &nbsp;|&nbsp; 🌸 Árboles Hojas (#FCA6B0 / Sombra #B66C8A)<br>
+    🌿 Arbustos (#FD9DA9) &nbsp;|&nbsp; 🌾 Césped (#FD9DA9) &nbsp;|&nbsp; 🪨 Rocas con Flores (#FDADB4) &nbsp;|&nbsp; 🍄 Setas (#D4595D)
+  </div>
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "./vendor/three.module.js",
+        "three/addons/": "./vendor/"
+      }
+    }
+  </script>
+  <script type="module">
+    import * as THREE from 'three';
+    import { GLTFLoader } from './vendor/GLTFLoader.js';
+
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x0f1c2b);
+    scene.fog = new THREE.FogExp2(0x13273b, 0.012);
+
+    const camera = new THREE.PerspectiveCamera(40, window.innerWidth / window.innerHeight, 0.1, 100);
+    camera.position.set(0, 4.2, 14.5);
+    camera.lookAt(0, 1.8, 0);
+
+    const renderer = new THREE.WebGLRenderer({ antialias: true });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.shadowMap.enabled = true;
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    renderer.toneMappingExposure = 1.15;
+    document.body.appendChild(renderer.domElement);
+
+    // Mystic Lights
+    const hemi = new THREE.HemisphereLight(0xf5f3ff, 0x1e3a47, 1.25);
+    scene.add(hemi);
+
+    const sun = new THREE.DirectionalLight(0xfdf2f8, 2.8);
+    sun.position.set(12, 18, 10);
+    sun.castShadow = true;
+    sun.shadow.mapSize.width = 2048;
+    sun.shadow.mapSize.height = 2048;
+    scene.add(sun);
+
+    // Subtle magical fill point light
+    const magicLight = new THREE.PointLight(0xf472b6, 1.8, 25);
+    magicLight.position.set(-2, 3, 2);
+    scene.add(magicLight);
+
+    // Ground plane with requested #1E6E84
+    const groundGeo = new THREE.PlaneGeometry(60, 40);
+    groundGeo.rotateX(-Math.PI / 2);
+    const groundMat = new THREE.MeshStandardMaterial({
+      color: 0x1E6E84,
+      roughness: 0.85,
+      metalness: 0.05
+    });
+    const groundMesh = new THREE.Mesh(groundGeo, groundMat);
+    groundMesh.receiveShadow = true;
+    scene.add(groundMesh);
+
+    const loader = new GLTFLoader();
+
+    // 1. Forest Tree with Mystic Pink Leaves (#FCA6B0) and Mauve Shadows (#B66C8A)
+    const trunkMat = new THREE.MeshStandardMaterial({
+      color: 0x4a3728,
+      roughness: 0.88,
+      metalness: 0.0
+    });
+    loader.load('./assets/stylized/tree-tronk.glb', (gltf) => {
+      const m = gltf.scene;
+      m.traverse(c => {
+        if (c.isMesh) {
+          c.material = trunkMat;
+          c.castShadow = true;
+          c.receiveShadow = true;
+        }
+      });
+      m.position.set(3.8, 0, -1.0);
+      m.scale.setScalar(10.0);
+      scene.add(m);
+    });
+
+    // Custom Shader for Mystic Tree Foliage (Dual-Tone #FCA6B0 / #B66C8A)
+    const treeLeafMat = new THREE.MeshStandardMaterial({
+      color: 0xFCA6B0,
+      roughness: 0.78,
+      metalness: 0.0
+    });
+    treeLeafMat.onBeforeCompile = (shader) => {
+      shader.vertexShader = `
+        varying vec3 vLeafWorldPos;
+        varying vec3 vLeafWorldNormal;
+        ${shader.vertexShader}
+      `.replace(
+        '#include <begin_vertex>',
+        `
+        #include <begin_vertex>
+        vLeafWorldPos = (modelMatrix * vec4(transformed, 1.0)).xyz;
+        vLeafWorldNormal = normalize((modelMatrix * vec4(normal, 0.0)).xyz);
+        `
+      );
+
+      shader.fragmentShader = `
+        varying vec3 vLeafWorldPos;
+        varying vec3 vLeafWorldNormal;
+        ${shader.fragmentShader}
+      `.replace(
+        '#include <color_fragment>',
+        `
+        #include <color_fragment>
+        vec3 lightPink = vec3(0.988, 0.651, 0.690); // #FCA6B0
+        vec3 shadowMauve = vec3(0.714, 0.424, 0.541); // #B66C8A
+        float shadowBlend = smoothstep(-0.25, 0.55, vLeafWorldNormal.y);
+        diffuseColor.rgb = mix(shadowMauve, lightPink, shadowBlend);
+        `
+      );
+    };
+
+    loader.load('./assets/stylized/tree-leaves-mesh.glb', (gltf) => {
+      const m = gltf.scene;
+      m.traverse(c => {
+        if (c.isMesh) {
+          c.material = treeLeafMat;
+          c.castShadow = true;
+          c.receiveShadow = true;
+        }
+      });
+      m.position.set(3.8, 6.2, -1.0);
+      m.scale.setScalar(0.9);
+      scene.add(m);
+    });
+
+    // 2. Bushes in #FD9DA9
+    const bushMat = new THREE.MeshStandardMaterial({
+      color: 0xFD9DA9,
+      roughness: 0.82,
+      metalness: 0.0
+    });
+    loader.load('./assets/mystic/plant_bushDetailed.glb', (gltf) => {
+      const m = gltf.scene;
+      m.traverse(c => {
+        if (c.isMesh) {
+          c.material = bushMat;
+          c.castShadow = true;
+          c.receiveShadow = true;
+        }
+      });
+      m.position.set(-3.5, 0, 1.2);
+      m.scale.setScalar(3.2);
+      scene.add(m);
+    });
+
+    loader.load('./assets/mystic/plant_bushSmall.glb', (gltf) => {
+      const m = gltf.scene;
+      m.traverse(c => {
+        if (c.isMesh) {
+          c.material = bushMat;
+          c.castShadow = true;
+          c.receiveShadow = true;
+        }
+      });
+      m.position.set(-2.0, 0, 2.2);
+      m.scale.setScalar(2.6);
+      scene.add(m);
+    });
+
+    // 3. Rocks with Flowers (#FDADB4)
+    const rockMat = new THREE.MeshStandardMaterial({
+      color: 0x3b4a54, // Slate mystic stone
+      roughness: 0.90,
+      metalness: 0.0
+    });
+    loader.load('./assets/mystic/stone_smallA.glb', (gltf) => {
+      const m = gltf.scene;
+      m.traverse(c => {
+        if (c.isMesh) {
+          c.material = rockMat;
+          c.castShadow = true;
+          c.receiveShadow = true;
+        }
+      });
+      m.position.set(0.2, 0, 1.6);
+      m.scale.setScalar(3.0);
+      scene.add(m);
+    });
+
+    loader.load('./assets/mystic/rock_smallFlatA.glb', (gltf) => {
+      const m = gltf.scene;
+      m.traverse(c => {
+        if (c.isMesh) {
+          c.material = rockMat;
+          c.castShadow = true;
+          c.receiveShadow = true;
+        }
+      });
+      m.position.set(-0.8, 0, 2.0);
+      m.scale.setScalar(3.2);
+      scene.add(m);
+    });
+
+    // Flowers #FDADB4 on/near rocks
+    const flowerMat = new THREE.MeshStandardMaterial({
+      color: 0xFDADB4,
+      roughness: 0.75,
+      metalness: 0.0
+    });
+    const stemMat = new THREE.MeshStandardMaterial({
+      color: 0x226655,
+      roughness: 0.85
+    });
+    loader.load('./assets/mystic/flower_redA.glb', (gltf) => {
+      const m = gltf.scene;
+      m.traverse(c => {
+        if (c.isMesh) {
+          c.material = flowerMat;
+          c.castShadow = true;
+          c.receiveShadow = true;
+        }
+      });
+      m.position.set(0.9, 0, 2.0);
+      m.scale.setScalar(2.2);
+      scene.add(m);
+    });
+
+    loader.load('./assets/mystic/flower_redB.glb', (gltf) => {
+      const m = gltf.scene;
+      m.traverse(c => {
+        if (c.isMesh) {
+          c.material = flowerMat;
+          c.castShadow = true;
+          c.receiveShadow = true;
+        }
+      });
+      m.position.set(-0.2, 0, 2.5);
+      m.scale.setScalar(2.0);
+      scene.add(m);
+    });
+
+    // 4. Mushrooms in #D4595D (Crimson / Cherry Red Cap)
+    const capMat = new THREE.MeshStandardMaterial({
+      color: 0xD4595D,
+      roughness: 0.70,
+      metalness: 0.05
+    });
+    const stemMushroomMat = new THREE.MeshStandardMaterial({
+      color: 0xf1e4e8,
+      roughness: 0.85,
+      metalness: 0.0
+    });
+
+    const setupMushroom = (gltf, pos, scale, rotY = 0) => {
+      const m = gltf.scene;
+      m.traverse(c => {
+        if (c.isMesh) {
+          c.castShadow = true;
+          c.receiveShadow = true;
+          // Kenney mushroom materials: 'red' or 'tan' for cap, 'beige' for stem
+          if (c.material && (c.material.name.includes('beige') || c.material.name.includes('stem'))) {
+            c.material = stemMushroomMat;
+          } else {
+            c.material = capMat;
+          }
+        }
+      });
+      m.position.set(...pos);
+      m.scale.setScalar(scale);
+      m.rotation.y = rotY;
+      scene.add(m);
+    };
+
+    loader.load('./assets/mystic/mushroom_redGroup.glb', (gltf) => {
+      setupMushroom(gltf, [-0.5, 0, 0.4], 3.2, 0.4);
+    });
+
+    loader.load('./assets/mystic/mushroom_redTall.glb', (gltf) => {
+      setupMushroom(gltf, [1.4, 0, 0.8], 3.0, 1.2);
+    });
+
+    // 5. Grass Blades in #FD9DA9
+    const bladeGeo = new THREE.PlaneGeometry(0.12, 0.85, 1, 3);
+    bladeGeo.translate(0, 0.42, 0);
+    const grassMat = new THREE.MeshStandardMaterial({
+      color: 0xFD9DA9,
+      roughness: 0.85,
+      side: THREE.DoubleSide
+    });
+    grassMat.onBeforeCompile = (shader) => {
+      shader.vertexShader = `
+        varying float vHeight;
+        ${shader.vertexShader}
+      `.replace(
+        '#include <begin_vertex>',
+        `
+        #include <begin_vertex>
+        vHeight = position.y / 0.85;
+        `
+      );
+      shader.fragmentShader = `
+        varying float vHeight;
+        ${shader.fragmentShader}
+      `.replace(
+        '#include <color_fragment>',
+        `
+        #include <color_fragment>
+        vec3 rootCol = vec3(0.714, 0.424, 0.541); // #B66C8A
+        vec3 tipCol = vec3(0.992, 0.616, 0.663);  // #FD9DA9
+        diffuseColor.rgb = mix(rootCol, tipCol, clamp(vHeight, 0.0, 1.0));
+        `
+      );
+    };
+
+    const grassInst = new THREE.InstancedMesh(bladeGeo, grassMat, 300);
+    const dummy = new THREE.Object3D();
+    for (let i = 0; i < 300; i++) {
+      const rx = (Math.random() - 0.5) * 14;
+      const rz = (Math.random() - 0.5) * 8 + 1.0;
+      dummy.position.set(rx, 0, rz);
+      dummy.rotation.y = Math.random() * Math.PI * 2;
+      dummy.scale.setScalar(0.8 + Math.random() * 0.6);
+      dummy.updateMatrix();
+      grassInst.setMatrixAt(i, dummy.matrix);
+    }
+    grassInst.instanceMatrix.needsUpdate = true;
+    scene.add(grassInst);
+
+    function animate() {
+      requestAnimationFrame(animate);
+      renderer.render(scene, camera);
+    }
+    animate();
+    window.previewReady = true;
+  </script>
+</body>
+</html>

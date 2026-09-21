@@ -1,0 +1,25 @@
+{
+  "name": "lunakai-chronicles-of-lunacia",
+  "version": "1.0.0",
+  "description": "Lunakai: Chronicles of Lunacia - 3D Turn-Based Tactical RPG",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js",
+    "build": "echo 'Static build ready'"
+  },
+  "keywords": [
+    "rpg",
+    "tactics",
+    "threejs",
+    "3d",
+    "lunakai",
+    "lunacia",
+    "turn-based"
+  ],
+  "author": "",
+  "license": "MIT",
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}

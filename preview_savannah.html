@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Preview Savannah Assets</title>
+  <style>
+    body { margin: 0; background: #1a1510; overflow: hidden; font-family: sans-serif; }
+    #label { position: absolute; top: 12px; left: 12px; color: #fff; background: rgba(0,0,0,0.85); padding: 14px 20px; border-radius: 8px; font-size: 14px; line-height: 1.6; z-index: 10; border: 1px solid #da7635; box-shadow: 0 4px 16px rgba(0,0,0,0.5); }
+    .badge { color: #facc15; font-weight: bold; font-size: 15px; }
+  </style>
+</head>
+<body>
+  <div id="label">
+    <span class="badge">BIOMA SABANA (DESIERTO) - MODELOS CANDIDATOS</span><br>
+    🌵 Cacti (#DA7635) &nbsp;|&nbsp; 🪨 Rocas (#9e8a75) &nbsp;|&nbsp; 🌳 Árbol Acacia/Curvado &nbsp;|&nbsp; 🌾 Suelo (#FAC651)
+  </div>
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "./vendor/three.module.js",
+        "three/addons/": "./vendor/"
+      }
+    }
+  </script>
+  <script type="module">
+    import * as THREE from 'three';
+    import { GLTFLoader } from './vendor/GLTFLoader.js';
+
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0xfef3c7);
+    scene.fog = new THREE.FogExp2(0xfef3c7, 0.012);
+
+    const camera = new THREE.PerspectiveCamera(40, window.innerWidth / window.innerHeight, 0.1, 100);
+    camera.position.set(0, 5.0, 17);
+    camera.lookAt(0, 1.8, 0);
+
+    const renderer = new THREE.WebGLRenderer({ antialias: true });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.shadowMap.enabled = true;
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    renderer.toneMappingExposure = 1.15;
+    document.body.appendChild(renderer.domElement);
+
+    // Warm Sun & Sky
+    const hemi = new THREE.HemisphereLight(0xfff3e0, 0x6e6332, 1.3);
+    scene.add(hemi);
+
+    const sun = new THREE.DirectionalLight(0xfff4d6, 3.2);
+    sun.position.set(16, 20, 10);
+    sun.castShadow = true;
+    sun.shadow.mapSize.width = 2048;
+    sun.shadow.mapSize.height = 2048;
+    scene.add(sun);
+
+    // Ground plane with requested #FAC651
+    const groundGeo = new THREE.PlaneGeometry(60, 40);
+    groundGeo.rotateX(-Math.PI / 2);
+    const groundMat = new THREE.MeshStandardMaterial({ color: 0xFAC651, roughness: 0.88, metalness: 0.02 });
+    const ground = new THREE.Mesh(groundGeo, groundMat);
+    ground.receiveShadow = true;
+    scene.add(ground);
+
+    const loader = new GLTFLoader();
+
+    async function loadItem(url, pos, scale, colorOverride = null) {
+      try {
+        const gltf = await loader.loadAsync(url);
+        const model = gltf.scene;
+        model.scale.setScalar(scale);
+        model.position.set(...pos);
+        model.traverse(child => {
+          if (child.isMesh) {
+            child.castShadow = true;
+            child.receiveShadow = true;
+            if (colorOverride) {
+              child.material = child.material.clone();
+              child.material.color = new THREE.Color(colorOverride);
+              child.material.roughness = 0.75;
+              child.material.metalness = 0.05;
+            }
+          }
+        });
+        scene.add(model);
+        return model;
+      } catch (e) {
+        console.error('Failed to load:', url, e);
+      }
+    }
+
+
+    // Helper for Palm models
+    async function loadPalm(url, pos, scale) {
+      const gltf = await loader.loadAsync(url);
+      const root = gltf.scene.clone(true);
+      root.updateMatrixWorld(true);
+      const box = new THREE.Box3().setFromObject(root);
+      const center = box.getCenter(new THREE.Vector3());
+      root.traverse(child => {
+        if (child.isMesh) {
+          child.castShadow = true;
+          child.receiveShadow = true;
+        }
+      });
+      const wrapper = new THREE.Group();
+      root.position.x -= center.x;
+      root.position.z -= center.z;
+      root.position.y -= box.min.y;
+      wrapper.add(root);
+      wrapper.position.set(...pos);
+      wrapper.scale.setScalar(scale);
+      scene.add(wrapper);
+      return wrapper;
+    }
+
+    // Helper for TwistedTree with shader tint
+    async function loadTwisted(url, pos, scale, leafColorHex) {
+      const gltf = await loader.loadAsync(url);
+      const root = gltf.scene.clone(true);
+      root.updateMatrixWorld(true);
+      const box = new THREE.Box3().setFromObject(root);
+      const center = box.getCenter(new THREE.Vector3());
+      root.traverse(child => {
+        if (child.isMesh) {
+          child.castShadow = true;
+          child.receiveShadow = true;
+          const mat = child.material;
+          if (mat) {
+            const matName = (mat.name || '').toLowerCase();
+            if (matName.includes('leaf') || matName.includes('leaves')) {
+              const leafMat = mat.clone();
+              leafMat.side = THREE.DoubleSide;
+              leafMat.alphaTest = 0.45;
+              leafMat.transparent = true;
+              leafMat.onBeforeCompile = (shader) => {
+                shader.uniforms.uLeafTint = { value: new THREE.Color(leafColorHex) };
+                shader.fragmentShader = `
+                  uniform vec3 uLeafTint;
+                  ${shader.fragmentShader}
+                `.replace(
+                  '#include <color_fragment>',
+                  `
+                  #include <color_fragment>
+                  float leafLum = dot(diffuseColor.rgb, vec3(0.299, 0.587, 0.114));
+                  diffuseColor.rgb = uLeafTint * (leafLum * 0.55 + 0.65);
+                  `
+                );
+              };
+              child.material = leafMat;
+            }
+          }
+        }
+      });
+      const wrapper = new THREE.Group();
+      root.position.x -= center.x;
+      root.position.z -= center.z;
+      root.position.y -= box.min.y;
+      wrapper.add(root);
+      wrapper.position.set(...pos);
+      wrapper.scale.setScalar(scale);
+      scene.add(wrapper);
+      return wrapper;
+    }
+
+    // Helper for Sandstone Rock models
+    async function loadSandstoneRock(url, pos, scale, sandstoneHex = 0xD48E55) {
+      const gltf = await loader.loadAsync(url);
+      const root = gltf.scene.clone(true);
+      root.updateMatrixWorld(true);
+      const box = new THREE.Box3().setFromObject(root);
+      const center = box.getCenter(new THREE.Vector3());
+      root.traverse(child => {
+        if (child.isMesh) {
+          child.castShadow = true;
+          child.receiveShadow = true;
+          if (child.material) {
+            const mat = child.material.clone();
+            mat.roughness = 0.90;
+            mat.metalness = 0.02;
+            mat.onBeforeCompile = (shader) => {
+              shader.uniforms.uSandstoneTint = { value: new THREE.Color(sandstoneHex) };
+              shader.fragmentShader = `
+                uniform vec3 uSandstoneTint;
+                ${shader.fragmentShader}
+              `.replace(
+                '#include <color_fragment>',
+                `
+                #include <color_fragment>
+                float rockLum = dot(diffuseColor.rgb, vec3(0.299, 0.587, 0.114));
+                diffuseColor.rgb = uSandstoneTint * (rockLum * 0.70 + 0.40);
+                `
+              );
+            };
+            child.material = mat;
+          }
+        }
+      });
+      const wrapper = new THREE.Group();
+      root.position.x -= center.x;
+      root.position.z -= center.z;
+      root.position.y -= box.min.y;
+      wrapper.add(root);
+      wrapper.position.set(...pos);
+      wrapper.scale.setScalar(scale);
+      scene.add(wrapper);
+      return wrapper;
+    }
+
+    // 1. Left: Cacti in #DA7635
+    await loadItem('./assets/savannah/cactus_tall.glb', [-9.5, 0, 0], 2.8, '#DA7635');
+    await loadItem('./assets/savannah/cactus_short.glb', [-7.5, 0, 1.5], 2.4, '#DA7635');
+
+    // 2. Small Rocks
+    await loadItem('./assets/savannah/stone_smallA.glb', [-5.5, 0, 2.0], 2.2);
+
+    // 3. New Desert Sandstone Rocks (Rock_sabana)
+    await loadSandstoneRock('./assets/nature/rocks/Rock_sabana1.glb', [-3.8, 0, 1.5], 2.4, 0xD48E55);
+    await loadSandstoneRock('./assets/nature/rocks/Rock_sabana2.glb', [0.2, 0, 2.0], 2.6, 0xCE854E);
+    await loadSandstoneRock('./assets/nature/rocks/Rock_sabana3.glb', [4.5, 0, 2.2], 2.5, 0xDE965B);
+
+    // 4. New Twisted Trees (Orange & Greenish-Yellow)
+    await loadTwisted('./assets/nature/TwistedTree_1.gltf', [-1.5, 0, -1.5], 0.55, 0xDF6226);
+    await loadTwisted('./assets/nature/TwistedTree_2.gltf', [2.8, 0, -1.0], 0.50, 0xBFA832);
+
+    // 5. New Palm Trees
+    await loadPalm('./assets/nature/palms/PalmTree_1.glb', [7.5, 0, -0.5], 2.0);
+    await loadPalm('./assets/nature/palms/PalmTree_2.glb', [11.2, 0, 1.0], 2.2);
+
+    renderer.render(scene, camera);
+    window.__READY__ = true;
+  </script>
+</body>
+</html>

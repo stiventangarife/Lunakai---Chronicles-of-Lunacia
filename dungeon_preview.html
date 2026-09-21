@@ -1,0 +1,294 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Dungeon / Corrupted Chimera Biome Preview</title>
+  <style>
+    body { margin: 0; overflow: hidden; background: #0c0a10; font-family: sans-serif; }
+    #label {
+      position: absolute; top: 15px; left: 20px; color: #fff;
+      background: rgba(18, 14, 24, 0.90); padding: 12px 18px; border-radius: 8px;
+      font-size: 13px; line-height: 1.6; border: 1px solid #dc2626;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.8);
+    }
+    .badge { color: #f87171; font-weight: bold; font-size: 15px; }
+  </style>
+</head>
+<body>
+  <div id="label">
+    <span class="badge">🏰 BIOMA MAZMORRA (BOSQUE CORRUPTO) - PREVISUALIZACIÓN</span><br>
+    🌑 Suelo Corrupto (#231D28) &nbsp;|&nbsp; 🪵 Árboles sin Hojas (Madera Retorcida y Quemada)<br>
+    🥀 Arbustos y Zarzas Marchitas (#3D2D38) &nbsp;|&nbsp; 🌾 Césped Decrépito (#42343F / #1C1521)<br>
+    🪨 Rocas de Obsidiana Maldita (#201B24) &nbsp;|&nbsp; 🌺 Flores Corruptas Quiméricas (#5C1D38)<br>
+    🌫️ Niebla Densa Tétrica de Corrupción
+  </div>
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "./vendor/three.module.js",
+        "three/addons/": "./vendor/"
+      }
+    }
+  </script>
+  <script type="module">
+    import * as THREE from 'three';
+    import { GLTFLoader } from './vendor/GLTFLoader.js';
+
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x110d18);
+    // Dense vision-shrouding fog as requested, tuned for spooky visibility
+    scene.fog = new THREE.FogExp2(0x181220, 0.018);
+
+    const camera = new THREE.PerspectiveCamera(40, window.innerWidth / window.innerHeight, 0.1, 100);
+    camera.position.set(0, 3.2, 11.5);
+    camera.lookAt(0, 1.6, 0);
+
+    const renderer = new THREE.WebGLRenderer({ antialias: true });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.shadowMap.enabled = true;
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    renderer.toneMappingExposure = 1.15;
+    document.body.appendChild(renderer.domElement);
+
+    // Eerie Ominous Lights: Sickly moon/sun and corruption rim lights
+    const hemi = new THREE.HemisphereLight(0x4c3361, 0x181022, 1.1);
+    scene.add(hemi);
+
+    const sun = new THREE.DirectionalLight(0xe9d5ff, 2.2);
+    sun.position.set(10, 16, 8);
+    sun.castShadow = true;
+    sun.shadow.mapSize.width = 2048;
+    sun.shadow.mapSize.height = 2048;
+    scene.add(sun);
+
+    // Chimeric corruption spotlight / eerie ambient glow
+    const cursedLight = new THREE.PointLight(0xa855f7, 3.2, 22);
+    cursedLight.position.set(-2, 3.5, 2);
+    scene.add(cursedLight);
+
+    const rimLight = new THREE.DirectionalLight(0xef4444, 1.2);
+    rimLight.position.set(-10, 8, -6);
+    scene.add(rimLight);
+
+    // Corrupted Ground Plane (#231D28)
+    const groundGeo = new THREE.PlaneGeometry(60, 40);
+    groundGeo.rotateX(-Math.PI / 2);
+    const groundMat = new THREE.MeshStandardMaterial({
+      color: 0x231D28,
+      roughness: 0.92,
+      metalness: 0.02
+    });
+    const groundMesh = new THREE.Mesh(groundGeo, groundMat);
+    groundMesh.receiveShadow = true;
+    scene.add(groundMesh);
+
+    const loader = new GLTFLoader();
+
+    // 1. Leafless Gnarled Dead Tree (Trunk and bare branches only)
+    const deadWoodMat = new THREE.MeshStandardMaterial({
+      color: 0x1E1820,
+      roughness: 0.92,
+      metalness: 0.0
+    });
+
+    loader.load('./assets/stylized/tree-tronk.glb', (gltf) => {
+      const m = gltf.scene;
+      m.traverse(c => {
+        if (c.isMesh) {
+          c.material = deadWoodMat;
+          c.castShadow = true;
+          c.receiveShadow = true;
+        }
+      });
+      m.position.set(3.5, 0, -1.0);
+      m.scale.setScalar(10.0);
+      scene.add(m);
+    });
+
+    // Second Dead Tree with twisted branching
+    loader.load('./assets/dungeon/tree_oak.glb', (gltf) => {
+      const m = gltf.scene;
+      m.traverse(c => {
+        if (c.isMesh) {
+          const name = (c.name || '').toLowerCase();
+          const matName = (c.material && c.material.name) ? c.material.name.toLowerCase() : '';
+          // Hide leaf meshes completely, showing only the bare dead trunk & branches!
+          if (name.includes('leaf') || name.includes('green') || matName.includes('leaf') || matName.includes('green')) {
+            c.visible = false;
+          } else {
+            c.material = deadWoodMat;
+            c.castShadow = true;
+            c.receiveShadow = true;
+          }
+        }
+      });
+      m.position.set(-4.2, 0, -2.5);
+      m.scale.setScalar(3.2);
+      scene.add(m);
+    });
+
+    // 2. Withered / Corrupted Bramble Bushes (#3D2D38)
+    const witheredBushMat = new THREE.MeshStandardMaterial({
+      color: 0x3D2D38,
+      roughness: 0.90,
+      metalness: 0.0
+    });
+
+    loader.load('./assets/dungeon/plant_bushDetailed.glb', (gltf) => {
+      const m = gltf.scene;
+      m.traverse(c => {
+        if (c.isMesh) {
+          c.material = witheredBushMat;
+          c.castShadow = true;
+          c.receiveShadow = true;
+        }
+      });
+      m.position.set(-3.2, 0, 1.2);
+      m.scale.setScalar(3.2);
+      scene.add(m);
+    });
+
+    loader.load('./assets/dungeon/plant_bushSmall.glb', (gltf) => {
+      const m = gltf.scene;
+      m.traverse(c => {
+        if (c.isMesh) {
+          c.material = witheredBushMat;
+          c.castShadow = true;
+          c.receiveShadow = true;
+        }
+      });
+      m.position.set(-1.8, 0, 2.2);
+      m.scale.setScalar(2.6);
+      scene.add(m);
+    });
+
+    // 3. Corrupted Obsidian Rocks (#201B24)
+    const obsidianRockMat = new THREE.MeshStandardMaterial({
+      color: 0x201B24,
+      roughness: 0.88,
+      metalness: 0.05
+    });
+
+    loader.load('./assets/dungeon/stone_smallA.glb', (gltf) => {
+      const m = gltf.scene;
+      m.traverse(c => {
+        if (c.isMesh) {
+          c.material = obsidianRockMat;
+          c.castShadow = true;
+          c.receiveShadow = true;
+        }
+      });
+      m.position.set(0.4, 0, 1.6);
+      m.scale.setScalar(3.0);
+      scene.add(m);
+    });
+
+    loader.load('./assets/dungeon/rock_smallFlatA.glb', (gltf) => {
+      const m = gltf.scene;
+      m.traverse(c => {
+        if (c.isMesh) {
+          c.material = obsidianRockMat;
+          c.castShadow = true;
+          c.receiveShadow = true;
+        }
+      });
+      m.position.set(-0.8, 0, 2.0);
+      m.scale.setScalar(3.2);
+      scene.add(m);
+    });
+
+    // 4. Corrupted / Wilted Flowers (#5C1D38) with dark stems
+    const corruptedFlowerMat = new THREE.MeshStandardMaterial({
+      color: 0x5C1D38,
+      roughness: 0.82,
+      metalness: 0.0
+    });
+
+    loader.load('./assets/dungeon/flower_redA.glb', (gltf) => {
+      const m = gltf.scene;
+      m.traverse(c => {
+        if (c.isMesh) {
+          c.material = corruptedFlowerMat;
+          c.castShadow = true;
+          c.receiveShadow = true;
+        }
+      });
+      m.position.set(1.1, 0, 1.9);
+      m.scale.setScalar(2.2);
+      scene.add(m);
+    });
+
+    loader.load('./assets/dungeon/flower_redB.glb', (gltf) => {
+      const m = gltf.scene;
+      m.traverse(c => {
+        if (c.isMesh) {
+          c.material = corruptedFlowerMat;
+          c.castShadow = true;
+          c.receiveShadow = true;
+        }
+      });
+      m.position.set(-0.2, 0, 2.5);
+      m.scale.setScalar(2.0);
+      scene.add(m);
+    });
+
+    // 5. Sparse Corrupted Withered Grass Blades
+    const bladeGeo = new THREE.PlaneGeometry(0.12, 0.95);
+    bladeGeo.translate(0, 0.47, 0);
+
+    const grassMat = new THREE.ShaderMaterial({
+      side: THREE.DoubleSide,
+      uniforms: {
+        uRoot: { value: new THREE.Color(0x1C1521) },
+        uTip: { value: new THREE.Color(0x42343F) }
+      },
+      vertexShader: `
+        varying vec2 vUv;
+        void main() {
+          vUv = uv;
+          gl_Position = projectionMatrix * modelViewMatrix * instanceMatrix * vec4(position, 1.0);
+        }
+      `,
+      fragmentShader: `
+        uniform vec3 uRoot;
+        uniform vec3 uTip;
+        varying vec2 vUv;
+        void main() {
+          vec3 col = mix(uRoot, uTip, smoothstep(0.0, 1.0, vUv.y));
+          gl_FragColor = vec4(col, 1.0);
+        }
+      `
+    });
+
+    // Sparse density: only 140 blades spread out
+    const grassMesh = new THREE.InstancedMesh(bladeGeo, grassMat, 140);
+    const dummy = new THREE.Object3D();
+    let idx = 0;
+    for (let i = -10; i <= 10; i += 2.0) {
+      for (let j = -7; j <= 7; j += 1.8) {
+        if (idx < 140) {
+          const jx = (Math.random() - 0.5) * 1.5;
+          const jz = (Math.random() - 0.5) * 1.5;
+          dummy.position.set(i + jx, 0, j + jz);
+          dummy.rotation.y = Math.random() * Math.PI * 2;
+          const s = 0.6 + Math.random() * 0.4;
+          dummy.scale.set(s, s * 0.9, s);
+          dummy.updateMatrix();
+          grassMesh.setMatrixAt(idx++, dummy.matrix);
+        }
+      }
+    }
+    grassMesh.instanceMatrix.needsUpdate = true;
+    scene.add(grassMesh);
+
+    window.__PREVIEW_READY__ = true;
+
+    function animate() {
+      requestAnimationFrame(animate);
+      renderer.render(scene, camera);
+    }
+    animate();
+  </script>
+</body>
+</html>

@@ -1,0 +1,5 @@
+.git
+.vite
+scratch
+node_modules
+*.log
