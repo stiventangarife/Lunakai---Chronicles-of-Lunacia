@@ -778,6 +778,12 @@ export class ZoneParticleManager {
     });
   }
 
+  setVisible(visible) {
+    if (this.group) {
+      this.group.visible = visible;
+    }
+  }
+
   destroy() {
     Object.keys(this.emitters).forEach((key) => {
       const em = this.emitters[key];

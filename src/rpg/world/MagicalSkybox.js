@@ -12,20 +12,20 @@ export class MagicalSkybox {
     // Palette Definitions per Biome
     this.biomeThemes = {
       forest: {
-        topColor: new THREE.Color(0x0c4a6e),      // Deep Sapphire Zenith
-        midColor: new THREE.Color(0x38bdf8),      // Vibrant Cyan Anime Sky
-        horizonColor: new THREE.Color(0xcbe5ff),  // Matches forest atmospheric fog
-        voidColor: new THREE.Color(0x274e13),     // Earthy green-brown floor
-        sunPosition: new THREE.Vector3(18, 16, 10),
-        sunColor: new THREE.Color(0xfff1cf),     // Warm radiant daylight
-        sunSize: 1.0,
-        coronaIntensity: 0.45,
-        coronaExponent: 12.0,
-        starDensity: 0.08,                        // Subtle daylight fairy sparkles
+        topColor: new THREE.Color(0x18608d),      // Soft, slightly desaturated sapphire anime zenith
+        midColor: new THREE.Color(0x4ebce8),      // Vibrant fantasy anime sky transition
+        horizonColor: new THREE.Color(0xcde4f7),  // Atmospheric fog blend on horizon
+        voidColor: new THREE.Color(0x2a441e),     // Earthy green-brown floor
+        sunPosition: new THREE.Vector3(22, 26, 14),
+        sunColor: new THREE.Color(0xfff6e0),     // Warm radiant daylight sun disc
+        sunSize: 1.15,
+        coronaIntensity: 0.48,
+        coronaExponent: 10.0,
+        starDensity: 0.04,                        // Subtle daylight fairy sparkles
         starBrightness: 0.5,
         cloudColor: new THREE.Color(0xffffff),
-        cloudDensity: 0.42,
-        cloudSpeed: 1.0,
+        cloudDensity: 0.38,
+        cloudSpeed: 0.9,
         auroraIntensity: 0.0,
         auroraColorA: new THREE.Color(0x22c55e),
         auroraColorB: new THREE.Color(0x38bdf8)
@@ -327,7 +327,14 @@ export class MagicalSkybox {
     console.log(`[MagicalSkybox] Transitioning celestial sky to: ${biomeId}`);
   }
 
+  setVisible(visible) {
+    if (this.mesh) {
+      this.mesh.visible = visible;
+    }
+  }
+
   update(dt, camera = null) {
+    if (this.mesh && !this.mesh.visible) return;
     this.time += dt;
     this.uniforms.uTime.value = this.time;
 

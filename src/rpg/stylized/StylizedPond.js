@@ -151,6 +151,39 @@ export class StylizedPond {
         leavesTex.flipY = false;
         leavesTex.colorSpace = THREE.SRGBColorSpace;
         leavesTex.needsUpdate = true;
+
+        const sharedGeoms = new Set();
+        const sharedMats = new Set();
+        const sharedTexs = new Set([canyonNorm, leavesTex]);
+
+        const recordShared = (obj) => {
+          if (!obj) return;
+          obj.traverse(c => {
+            if (c.geometry) sharedGeoms.add(c.geometry);
+            if (c.material) {
+              const mats = Array.isArray(c.material) ? c.material : [c.material];
+              mats.forEach(m => {
+                sharedMats.add(m);
+                for (const k of Object.keys(m)) {
+                  if (m[k] && m[k].isTexture) sharedTexs.add(m[k]);
+                }
+              });
+            }
+          });
+        };
+
+        pebbleGltfs.forEach(g => recordShared(g.scene));
+        recordShared(rocks4Gltf.scene);
+        recordShared(clover1Gltf.scene);
+        recordShared(clover2Gltf.scene);
+        recordShared(bushSmallGltf.scene);
+        recordShared(plant1BigGltf.scene);
+        recordShared(fern1Gltf.scene);
+
+        StylizedPond._sharedGeometries = sharedGeoms;
+        StylizedPond._sharedMaterials = sharedMats;
+        StylizedPond._sharedTextures = sharedTexs;
+
         return { canyonNorm, pebbleGltfs, rocks4Gltf, clover1Gltf, clover2Gltf, bushSmallGltf, leavesTex, plant1BigGltf, fern1Gltf };
       })();
     }
@@ -1264,5 +1297,51 @@ export class StylizedPond {
         this.lavaLight.intensity = Math.max(1.5, 2.5 + pulse);
       }
     }
+  }
+
+  dispose() {
+    this.setVisible(false);
+    if (this.collisions) {
+      this.collisions.removeCirclesByTag(this.collisionTagPrefix);
+    }
+    if (this.group) {
+      if (this.group.parent) {
+        this.group.parent.remove(this.group);
+      }
+      const sharedGeoms = StylizedPond._sharedGeometries || new Set();
+      const sharedMats = StylizedPond._sharedMaterials || new Set();
+      const sharedTexs = StylizedPond._sharedTextures || new Set();
+
+      this.group.traverse(child => {
+        if (child.geometry && !sharedGeoms.has(child.geometry)) {
+          child.geometry.dispose();
+        }
+        if (child.material) {
+          const mats = Array.isArray(child.material) ? child.material : [child.material];
+          mats.forEach(m => {
+            if (!sharedMats.has(m)) {
+              for (const k of Object.keys(m)) {
+                const val = m[k];
+                if (val && val.isTexture && !sharedTexs.has(val)) {
+                  val.dispose();
+                  if (val.image && typeof val.image.close === 'function') {
+                    try { val.image.close(); } catch (_) {}
+                  }
+                  val.image = null;
+                  if (val.source) val.source.data = null;
+                }
+              }
+              m.dispose();
+            }
+          });
+        }
+      });
+      this.group.clear();
+    }
+    this.floatingLeaves = [];
+    this.fishMeshes = [];
+    this.fishData = [];
+    this.lavaBubbles = [];
+    this.isLoaded = false;
   }
 }

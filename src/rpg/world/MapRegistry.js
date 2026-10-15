@@ -1,4 +1,5 @@
 // MapRegistry.js - Master 3x3 World Grid (9 Macro-Zones, 5 Biomes & 2x2 Sub-Quadrants)
+import { MERGED_ZONES, MERGED_NPC_POSITIONS, mergedZonesOf, createFerryNpcDef } from './islands/IslandWorldLayout.js';
 
 /**
  * Biome distribution strictly matching the user's 3x3 diagram:
@@ -35,6 +36,133 @@ export const BIOME_LABELS = {
   forest: '🌲 Forest',
   mystic: '🔮 Mystic',
   dungeon: '🏰 Dungeon'
+};
+
+/**
+ * 5 Grand Islands layout:
+ * - Top (Row 0, Col 1): Arctic Island (Cyan) [Norte]
+ * - Left (Row 1, Col 0): Mystic Island (Blue/Indigo) [Oeste]
+ * - Center (Row 1, Col 1): Forest Island (Green) [Centro - Demo Activa]
+ * - Right (Row 1, Col 2): Savannah Island (Yellow) [Este]
+ * - Bottom (Row 2, Col 1): Dungeon Island (Red) [Sur]
+ */
+export const ISLANDS_LAYOUT = [
+  [null, 'island_arctic', null],
+  ['island_mystic', 'island_forest', 'island_savannah'],
+  [null, 'island_dungeon', null]
+];
+
+export const ISLANDS_REGISTRY = {
+  island_forest: {
+    id: 'island_forest',
+    position: 'center',
+    direction: 'CENTRO',
+    name: 'Isla del Bosque',
+    tagline: 'Corazón Ancestral y Valle del Dojō',
+    biome: 'forest',
+    color: '#22c55e',
+    accentColor: '#4ade80',
+    gridPos: { row: 1, col: 1 },
+    zoneId: 'zone_2_2',
+    isCurrent: true,
+    status: 'active',
+    levelRange: 'Nivel 1',
+    icon: '🌲',
+    description: 'Valle templado y verde custodiado por el Gran Árbol Sagrado de Atia. Centro de entrenamiento marcial donde el Maestro Paladill instruye a los jóvenes reclutas de Lunacia.',
+    landmarks: [
+      { id: 'dojo', name: 'Valle del Dojō', icon: '🥋', coords: { x: -87.9, z: 74.0 }, desc: 'Centro de entrenamiento marcial y dojo del Maestro Paladill.' },
+      { id: 'elder_tree', name: 'Gran Árbol Ancestral de Atia', icon: '🌳', coords: { x: -8.0, z: -25.0 }, desc: 'Monumento natural místico que irradia bendición y vida.' },
+      { id: 'ancient_shrine', name: 'Santuario del Portal Antiguo', icon: '🏛️', coords: { x: 115.0, z: 65.0 }, desc: 'Monolitos flotantes con levitación mágica y runas antiguas.' }
+    ]
+  },
+  island_savannah: {
+    id: 'island_savannah',
+    position: 'right',
+    direction: 'DERECHA (ESTE)',
+    name: 'Isla de la Sabana',
+    tagline: 'Tierras Áridas y Cañón Solar',
+    biome: 'savannah',
+    color: '#FAC651',
+    accentColor: '#fde047',
+    gridPos: { row: 1, col: 2 },
+    zoneId: 'zone_3_2',
+    isCurrent: false,
+    status: 'active',
+    levelRange: 'Nivel 1 - 3',
+    icon: '🏜️',
+    description: 'Vastas mesetas doradas, cañones escarpados y calor abrasador. Hogar de los duelistas nómadas, el arquero Bing y feroces quimeras del desierto.',
+    landmarks: [
+      { id: 'desert_sun', name: 'Altar de Atia', icon: '☀️', coords: { x: 68.0, z: -30.0 }, desc: 'Altar escalonado de arenisca con la estatua del espíritu de Atia, custodiado por el Centinela del Desierto.' },
+      { id: 'bing_post', name: 'Campamento de Bing', icon: '🏹', coords: { x: -28.0, z: -35.0 }, desc: 'Refugio nómada del arquero alado con mirador sobre el oasis.' },
+      { id: 'blacksmith', name: 'Fragua Nómada de Baruk', icon: '🔨', coords: { x: 42.0, z: 48.0 }, desc: 'Gran herrería del cañón forjando acero de Atia.' }
+    ]
+  },
+  island_arctic: {
+    id: 'island_arctic',
+    position: 'top',
+    direction: 'ARRIBA (NORTE)',
+    name: 'Isla del Ártico',
+    tagline: 'Picos Glaciares y Escarcha Eterna',
+    biome: 'arctic',
+    color: '#38bdf8',
+    accentColor: '#7dd3fc',
+    gridPos: { row: 0, col: 1 },
+    zoneId: 'zone_2_1',
+    isCurrent: false,
+    status: 'active',
+    levelRange: 'Nivel 4 - 6',
+    icon: '❄️',
+    description: 'Tierras heladas azotadas por tormentas de nieve perpetuas. Lagos de permafrost y cumbres donde el guardián Pomodoro preserva semillas resistentes al frío extremo.',
+    landmarks: [
+      { id: 'frost_valley', name: 'Valle de la Escarcha Eterna', icon: '🏔️', desc: 'Santuario congelado protegido por tótems sagrados.' },
+      { id: 'pomodoro_post', name: 'Invernadero de Pomodoro', icon: '🌱', desc: 'Refugio botánico aclimatado contra las ventiscas.' },
+      { id: 'boreal_chef', name: 'Campamento de Cocina Boreal', icon: '🍲', desc: 'Puesto de provisiones y estofado de nieve.' }
+    ]
+  },
+  island_mystic: {
+    id: 'island_mystic',
+    position: 'left',
+    direction: 'IZQUIERDA (OESTE)',
+    name: 'Isla Mística',
+    tagline: 'Vacío Astral y Santuario Cósmico',
+    biome: 'mystic',
+    color: '#6366f1',
+    accentColor: '#818cf8',
+    gridPos: { row: 1, col: 0 },
+    zoneId: 'zone_1_2',
+    isCurrent: false,
+    status: 'active',
+    levelRange: 'Nivel 7 - 9',
+    icon: '🔮',
+    description: 'Islas flotantes impregnadas de energía de las estrellas y líneas ley ancestrales. Los sabios astrales descifran los susurros cósmicos antes del cataclismo.',
+    landmarks: [
+      { id: 'astral_void', name: 'Santuario del Vacío Astral', icon: '✨', desc: 'Monolitos celestes que resuenan con las constelaciones.' },
+      { id: 'astral_nebula', name: 'Nebulosa de Lunacia', icon: '🌌', desc: 'Fisura mágica de polvo estelar y tiempo distorsionado.' },
+      { id: 'oracle_tower', name: 'Observatorio del Oráculo', icon: '🔮', desc: 'Torre de contemplación cósmica y profecías.' }
+    ]
+  },
+  island_dungeon: {
+    id: 'island_dungeon',
+    position: 'bottom',
+    direction: 'ABAJO (SUR)',
+    name: 'Isla de la Mazmorra',
+    tagline: 'Fortaleza Ígnea y Cripta Profunda',
+    biome: 'dungeon',
+    color: '#ef4444',
+    accentColor: '#f87171',
+    gridPos: { row: 2, col: 1 },
+    zoneId: 'zone_2_3',
+    isCurrent: false,
+    status: 'active',
+    levelRange: 'Nivel > 10',
+    icon: '🏰',
+    description: 'Epicentro volcánico de roca fundida y catacumbas ancestrales. En lo más profundo aguardan las trampas de la cripta y el combate definitivo.',
+    landmarks: [
+      { id: 'dungeon_threshold', name: 'Caldera de Magma', icon: '🌋', desc: 'Epicentro volcánico activo sobre ríos de lava y azufre.' },
+      { id: 'crypt_catacombs', name: 'Cráter de la Cripta Lunar', icon: '🌑', desc: 'Cuenca de impacto cósmica y catacumbas ancestrales.' },
+      { id: 'boss_altar', name: 'Fortaleza de las Sombras', icon: '🏰', desc: 'Cámara volcánica suprema y combate definitivo de Lunacia.' }
+    ]
+  }
 };
 
 // Notable landmarks in the 3x3 world matching the user capture
@@ -85,25 +213,24 @@ function generateZoneName(gx, gy, biome) {
 export const ZONE_NPCS = {
   // Center Dojo [2, 2]: Paladill (Main 1), Xia (Side 1), Postman (Side 2), Rosalba (Side 3)
   '2_2': [
-    { id: 'paladill', type: 'mentor', position: { x: -14.5, y: 0, z: -8.5 }, name: 'Master Paladill', model: 'paladill.glb', collisionRadius: 1.2, auraRadius: 1.4, title: '🥋 Dojo Mentor', avatar: './assets/portraits/paladill.png' },
-    { id: 'cartographer', type: 'quest_giver', questId: 'quest_world_cartographer', position: { x: -21.2, y: 0, z: 16.4 }, name: 'Xia', model: 'xia.glb', scale: 1.45, collisionRadius: 0.75, auraRadius: 1.15, rotation: 1.2, title: '🗺️ Imperial Explorer', bubbleQuote: 'Hey, traveler! Got a map handy?', avatar: 'xia' },
-    { id: 'postman', type: 'quest_giver', questId: 'quest_lost_mail', position: { x: 15.4, y: 0, z: 26.0 }, rotation: (24.0 * Math.PI) / 180, name: 'Postman', model: 'sapidae-m-a.glb', title: '📬 Royal Messenger', bubbleQuote: 'Please help me! My letters scattered across the meadow!', avatar: 'sapidae-m-a' },
-    { id: 'herbalist', type: 'quest_giver', questId: 'quest_forest_elixir', position: { x: 27.7, y: 0, z: -17.7 }, rotation: (-15 * Math.PI) / 180, name: 'Rosalba', model: 'sapidae-f-a.glb', title: '🌿 Flower Alchemist', bubbleQuote: 'Psst! Looking for fresh sprouts from the Sacred Atia Tree...', avatar: 'sapidae-f-a' }
+    { id: 'paladill', type: 'mentor', position: { x: -90.3, y: 0, z: 63.3 }, rotation: Math.PI, name: 'Master Paladill', model: 'paladill.glb', scale: 2.80, collisionRadius: 1.3, auraRadius: 1.8, title: '🥋 Dojo Mentor', avatar: 'paladill' },
+    { id: 'cartographer', type: 'quest_giver', questId: 'quest_world_cartographer', position: { x: 8.4, y: 0, z: 46.7 }, name: 'Xia', model: 'xia.glb', scale: 2.70, collisionRadius: 1.1, auraRadius: 1.6, rotation: 1.2, title: '🗺️ Imperial Explorer', bubbleQuote: 'Hey, traveler! Got a map handy?', avatar: 'xia' },
+    { id: 'postman', type: 'quest_giver', questId: 'quest_lost_mail', position: { x: 15.4, y: 0, z: 26.0 }, rotation: (24.0 * Math.PI) / 180, name: 'Postman', model: 'sapidae-m-a.glb', scale: 2.80, collisionRadius: 1.1, auraRadius: 1.6, title: '📬 Royal Messenger', bubbleQuote: 'Please help me! My letters scattered across the meadow!', avatar: 'sapidae-m-a' },
+    { id: 'herbalist', type: 'quest_giver', questId: 'quest_forest_elixir', position: { x: -15.9, y: 0, z: -30.1 }, rotation: (-15 * Math.PI) / 180, name: 'Rosalba', model: 'sapidae-f-a.glb', scale: 2.80, collisionRadius: 1.1, auraRadius: 1.6, title: '🌿 Flower Alchemist', bubbleQuote: 'Psst! Looking for fresh sprouts from the Sacred Atia Tree...', avatar: 'sapidae-f-a' }
   ],
-  // East Savannah [3, 2]: Bing (Main 2 Recruit), Sentinel (Main 3 & 4)
+  // East Savannah Island [3, 2]: Bing (Main 2 Recruit), Sentinel (Main 3 & 4), Blacksmith Baruk (Side 4), Hunter Zarek (Side 5)
   '3_2': [
-    { id: 'bing_npc', type: 'recruit', heroId: 'bing', questId: 'quest_prove_ferocity', position: { x: -13.1, y: 0, z: 20.3 }, rotation: (90 * Math.PI) / 180, name: 'Bing', model: 'bing.glb', title: '🏹 Winged Archer', bubbleQuote: 'Over here! Help me drive off these chimeras!', avatar: './assets/portraits/bing.png' },
-    { id: 'sentinel', type: 'quest_giver', questId: 'quest_hostile_sands', position: { x: 24.0, y: 0, z: -18.5 }, name: 'Desert Sentinel', model: 'kibo.glb', title: '🏜️ Dune Watcher', bubbleQuote: 'Beware the scorching sun and the desert chimeras!', avatar: 'kibo' }
+    { id: 'bing_npc', type: 'recruit', heroId: 'bing', questId: 'quest_prove_ferocity', position: { x: -30.24, y: 0, z: -37.24 }, rotation: Math.PI / 4, name: 'Bing', model: 'bing.glb', title: '🏹 Winged Archer', bubbleQuote: 'Over here! Help me drive off these chimeras!', avatar: 'bing' },
+    { id: 'sentinel', type: 'quest_giver', questId: 'quest_hostile_sands', position: { x: 58.5, y: 0, z: -24.0 }, rotation: -1.8, name: 'Desert Sentinel', model: 'kibo.glb', title: '🏜️ Dune Watcher', bubbleQuote: 'Beware the scorching sun and the desert chimeras!', avatar: 'kibo' },
+    { id: 'blacksmith', type: 'quest_giver', questId: 'quest_nomad_steel', position: { x: 42.39, y: 0, z: 48.73 }, rotation: -2.356, name: 'Blacksmith Baruk', model: 'sapidae-m-b.glb', title: '🔨 Canyon Smith', bubbleQuote: 'By fire and hammer! Looking to forge true savannah steel?', avatar: 'sapidae-m-b' },
+    { id: 'hunter', type: 'quest_giver', questId: 'quest_keen_eye_trial', position: { x: 2.5, y: 0, z: -10.0 }, rotation: (80 * Math.PI) / 180, name: 'Hunter Zarek', model: 'sapidae-m-c.glb', title: '🎯 Savannah Marksman', bubbleQuote: 'Hey, duelist! Think your aim rivals the desert wind?', avatar: 'sapidae-m-c' }
   ],
-  // North-East Savannah [3, 1]: Blacksmith Baruk (Side 4), Hunter Zarek (Side 5)
-  '3_1': [
-    { id: 'blacksmith', type: 'quest_giver', questId: 'quest_nomad_steel', position: { x: 2.7, y: 0, z: -19.5 }, name: 'Blacksmith Baruk', model: 'sapidae-m-b.glb', title: '🔨 Canyon Smith', bubbleQuote: 'By fire and hammer! Looking to forge true savannah steel?', avatar: 'sapidae-m-b' },
-    { id: 'hunter', type: 'quest_giver', questId: 'quest_keen_eye_trial', position: { x: -10.3, y: 0, z: -12.2 }, name: 'Hunter Zarek', model: 'sapidae-m-c.glb', title: '🏹 Savannah Marksman', bubbleQuote: 'Hey, duelist! Think your aim rivals the desert wind?', avatar: 'sapidae-m-c' }
-  ],
+  // Previous North-East Savannah [3, 1] consolidated into Savannah Island [3, 2]
+  '3_1': [],
   // North Arctic [2, 1]: Pomodoro (Main 5 Recruit & Main 6), Chef Boreal (Side 6)
   '2_1': [
-    { id: 'pomodoro_npc', type: 'recruit', heroId: 'pomodoro', questId: 'quest_frozen_seed', position: { x: 5.8, y: 0, z: 23.2 }, name: 'Pomodoro', model: 'pomodoro.glb', title: '🌿 Botanical Guardian', bubbleQuote: 'My roots are freezing! Help me against these ice chimeras!', avatar: './assets/portraits/pomodoro.png' },
-    { id: 'chef', type: 'quest_giver', questId: 'quest_blizzard_stew', position: { x: -7.0, y: 0, z: -22.1 }, name: 'Chef Boreal', model: 'sapidae-m-d.glb', title: '🍲 Snow Cook', bubbleQuote: 'Brrr! Even my cauldron freezes among these ice floes!', avatar: 'sapidae-m-d' }
+    { id: 'pomodoro_npc', type: 'recruit', heroId: 'pomodoro', questId: 'quest_frozen_seed', position: { x: 8.0, y: 0, z: 18.6 }, rotation: -0.5, name: 'Pomodoro', model: 'pomodoro.glb', title: '🌿 Botanical Guardian', bubbleQuote: 'My roots are freezing! Help me against these ice chimeras!', avatar: 'pomodoro' },
+    { id: 'chef', type: 'quest_giver', questId: 'quest_blizzard_stew', position: { x: -5.4, y: 0, z: -39.0 }, rotation: -0.3, name: 'Chef Boreal', model: 'sapidae-m-d.glb', title: '🍲 Snow Cook', bubbleQuote: 'Brrr! Even my cauldron freezes among these ice floes!', avatar: 'sapidae-m-d' }
   ],
   // North-West Arctic [1, 1]: Glacial Hermit (Side 7)
   '1_1': [
@@ -232,6 +359,23 @@ for (let gy = 1; gy <= 3; gy++) {
     // Default Spawns & NPCs
     let defaultSpawn = { x: 0, y: 0, z: 2, yaw: Math.PI };
     const npcs = (ZONE_NPCS[`${gx}_${gy}`] || []).map(npc => ({ ...npc }));
+    // Islands: host the NPCs of the retired corner zones (relocated onto the island terrain)
+    // and Pomodoro the ferryman on the beach (replaces the cardinal portal arrows).
+    if (!MERGED_ZONES[`${gx}_${gy}`]) {
+      mergedZonesOf(`${gx}_${gy}`).forEach((mk) => {
+        (ZONE_NPCS[mk] || []).forEach((npc) => {
+          const def = { ...npc, mergedFrom: mk };
+          const p = MERGED_NPC_POSITIONS[npc.id];
+          if (p) {
+            def.position = { x: p.x, y: 0, z: p.z };
+            if (p.rotation !== undefined) def.rotation = p.rotation;
+          }
+          npcs.push(def);
+        });
+      });
+      const ferryDef = createFerryNpcDef(id);
+      if (ferryDef) npcs.push(ferryDef);
+    }
     const monsters = [];
 
     // Dojo Center [2, 2]: Tutorial Chimera Slime
@@ -276,7 +420,8 @@ for (let gy = 1; gy <= 3; gy++) {
       portals,
       subQuadrants,
       npcs,
-      monsters
+      monsters,
+      mergedInto: MERGED_ZONES[`${gx}_${gy}`] ? `zone_${MERGED_ZONES[`${gx}_${gy}`]}` : null
     };
 
     MAP_REGISTRY[id] = zoneDef;

@@ -26,7 +26,7 @@ export class InventoryModal {
     this.equipmentManager = equipmentManager;
     this.audio = audioSystem;
     this.isOpen = false;
-    this.selectedHeroId = 'kotaro';
+    this.selectedHeroId = 'sapidae';
     this.activeHeroTab = 'equipment'; // 'equipment' | 'skills'
     this.activeCategoryFilter = 'all'; // 'all', 'weapon', 'hat', 'shield', 'body', 'boots'
     this.isTutorialEquipLocked = false;
@@ -430,39 +430,50 @@ export class InventoryModal {
 
     // If current selected hero is not unlocked, default to first unlocked hero
     if (!this.equipmentManager.isHeroUnlocked(this.selectedHeroId)) {
-      this.selectedHeroId = (this.equipmentManager.unlockedHeroes && this.equipmentManager.unlockedHeroes[0]) || 'kotaro';
+      this.selectedHeroId = (this.equipmentManager.unlockedHeroes && this.equipmentManager.unlockedHeroes[0]) || 'sapidae';
     }
 
-    // Only render heroes that have been unlocked/acquired in the player's party
     const unlockedHeroIds = this.equipmentManager.unlockedHeroes && this.equipmentManager.unlockedHeroes.length > 0
       ? this.equipmentManager.unlockedHeroes
-      : ['kotaro'];
+      : ['sapidae', 'kotaro'];
 
-    unlockedHeroIds.forEach(heroId => {
+    const sapidaeHeroIds = unlockedHeroIds.filter(id => id === 'sapidae' || this.equipmentManager.heroesBase[id]?.isSapidae);
+    const axieHeroIds = unlockedHeroIds.filter(id => id !== 'sapidae' && !this.equipmentManager.heroesBase[id]?.isSapidae);
+
+    const renderCard = (heroId, isSapidae) => {
       const base = this.equipmentManager.heroesBase[heroId];
-      if (!base) return;
+      if (!base) return null;
 
       const isSelected = (this.selectedHeroId === heroId);
       const prog = this.equipmentManager.getProgression(heroId);
       const totalUnspent = (prog.unspentStatPoints || 0) + (prog.unspentSkillPoints || 0);
 
-      const portraitKey = base.axieId || heroId;
-      const portraitUrl = portraitService.getPortraitSync(portraitKey) || portraitService.getPortraitSync(heroId);
+      const portraitKey = isSapidae ? (base.modelType || 'sapidae-f-a') : (base.axieId || heroId);
+      let portraitUrl = portraitService.getPortraitSync(portraitKey);
+      if (!portraitUrl && isSapidae) {
+        portraitUrl = `./assets/portraits/${portraitKey}.png`;
+      }
       if (!portraitUrl) {
         portraitService.getPortrait(portraitKey);
       }
 
       const card = document.createElement('div');
-      card.className = `inv-roster-card ${isSelected ? 'active' : ''}`;
+      card.className = `inv-roster-card ${isSelected ? 'active' : ''} ${isSapidae ? 'roster-card-sapidae' : ''}`;
+      if (isSapidae) {
+        card.style.borderColor = isSelected ? '#fbbf24' : 'rgba(251, 191, 36, 0.4)';
+        card.style.background = isSelected ? 'rgba(251, 191, 36, 0.12)' : 'rgba(15, 23, 42, 0.6)';
+      }
       card.innerHTML = `
-        <div class="inv-roster-avatar"><img class="inv-roster-avatar" src="${portraitUrl || ''}" alt="${base.name}" style="${portraitUrl ? '' : 'display: none;'}"></div>
+        <div class="inv-roster-avatar">
+          <img class="inv-roster-avatar" src="${portraitUrl || ''}" alt="${base.name}" style="${portraitUrl ? '' : 'display: none;'} ${isSapidae ? 'border: 1.5px solid #fbbf24;' : ''}">
+        </div>
         <div class="inv-roster-info">
           <div class="inv-roster-name-row">
-            <span class="inv-roster-name">${base.name}</span>
-            <span class="inv-roster-level-badge">Lv. ${prog.level}</span>
+            <span class="inv-roster-name" style="${isSapidae ? 'color:#fef08a; font-weight:800;' : ''}">${base.name}</span>
+            <span class="inv-roster-level-badge" style="${isSapidae ? 'background:rgba(251, 191, 36, 0.25); color:#fbbf24; border-color:#fbbf24;' : ''}">Lv. ${prog.level}</span>
           </div>
           <div class="inv-roster-meta-row">
-            <span class="inv-roster-role">${base.archetype}</span>
+            <span class="inv-roster-role" style="${isSapidae ? 'color:#fbbf24;' : ''}">${base.archetype}</span>
             ${totalUnspent > 0 ? `<span class="inv-roster-notify-badge" title="${prog.unspentStatPoints} stats, ${prog.unspentSkillPoints} skills available">⚡</span>` : ''}
           </div>
         </div>
@@ -476,8 +487,36 @@ export class InventoryModal {
         this._renderBackpackItems();
       });
 
-      container.appendChild(card);
-    });
+      return card;
+    };
+
+    // 1. SECTION: Sapidae (Líder)
+    if (sapidaeHeroIds.length > 0) {
+      const headerSap = document.createElement('div');
+      headerSap.className = 'inv-roster-section-header';
+      headerSap.style.cssText = 'display:flex; align-items:center; gap:6px; font-size:11px; font-weight:800; color:#fbbf24; text-transform:uppercase; letter-spacing:0.8px; margin:4px 0 6px 4px;';
+      headerSap.innerHTML = `<span>👑</span><span>Sapidae</span>`;
+      container.appendChild(headerSap);
+
+      sapidaeHeroIds.forEach(id => {
+        const el = renderCard(id, true);
+        if (el) container.appendChild(el);
+      });
+    }
+
+    // 2. SECTION: Axies (Compañeros)
+    if (axieHeroIds.length > 0) {
+      const headerAxie = document.createElement('div');
+      headerAxie.className = 'inv-roster-section-header';
+      headerAxie.style.cssText = 'display:flex; align-items:center; gap:6px; font-size:11px; font-weight:800; color:#38bdf8; text-transform:uppercase; letter-spacing:0.8px; margin:14px 0 6px 4px; border-top:1px solid rgba(255,255,255,0.08); padding-top:10px;';
+      headerAxie.innerHTML = `<span>🐾</span><span>Axies</span>`;
+      container.appendChild(headerAxie);
+
+      axieHeroIds.forEach(id => {
+        const el = renderCard(id, false);
+        if (el) container.appendChild(el);
+      });
+    }
   }
 
   _renderHeroDetails() {
@@ -569,6 +608,9 @@ export class InventoryModal {
             this._hideTooltip();
             if (this.audio && this.audio.playStep) this.audio.playStep();
             this.equipmentManager.unequipItem(this.selectedHeroId, slotDef.key);
+            if (typeof this.onItemUnequipped === 'function') {
+              this.onItemUnequipped(this.selectedHeroId, slotDef.key);
+            }
             this._renderHeroDetails();
             this._renderBackpackItems();
           });

@@ -1,5 +1,9 @@
 # Hito 6: Sistema de Skybox Mágico Procedural y Partículas Ambientales por Zona
 
+> [!IMPORTANT]
+> **Estado actual (13-oct-2026):** `MagicalSkybox` y `ZoneParticleManager` pertenecen al mundo demo de 80 m y **ya no se crean** (`LEGACY_DEMO_WORLD = false` en `OverworldManager`). Cada isla tiene su propio cielo y sus partículas: `GenshinSky` en el Bosque, e `IslandSky` e `IslandParticles` en las demás islas.
+
+
 ## 1. Visión General
 El sexto hito visual de **Axie Tactics** transforma la estética del Overworld de un plano básico a un entorno tridimensional inmersivo y mágico con calidad cinematográfica anime (*inspirado en Genshin Impact y Studio Ghibli*). Integra dos grandes subsistemas coordinados:
 1. **Skybox Mágico Procedural Dinámico (`src/rpg/world/MagicalSkybox.js`)**: Una cúpula celeste infinita con gradientes atmosféricos multicapa, disco solar/lunar radiante con dispersión Mie, manto estelar titilante, capas de nubes procedurales a la deriva y auroras boreales/astrales reactivas.

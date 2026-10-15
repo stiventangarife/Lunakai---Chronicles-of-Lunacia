@@ -138,30 +138,52 @@ export class StylizedTreeVines {
   }
 
   
+  _disposeVines() {
+    this.group.traverse((child) => {
+      if (child.isMesh) {
+        if (child.geometry) child.geometry.dispose();
+        if (child.material) {
+          if (Array.isArray(child.material)) {
+            child.material.forEach((m) => m && m.dispose && m.dispose());
+          } else if (child.material.dispose) {
+            child.material.dispose();
+          }
+        }
+      }
+    });
+    this.group.clear();
+  }
+
   setZone(gx, gy) {
-    this.currentGx = gx || 3;
-    this.currentGy = gy || 3;
-    // Defer vine rebuild to next event loop tick so zone transition doesn't block the main thread
-    setTimeout(() => this._buildVines(), 0);
+    this.currentGx = gx || 2;
+    this.currentGy = gy || 2;
+    const isForest = (gx === 2 && gy === 2);
+    this.visible = isForest;
+    this.group.visible = isForest;
+
+    if (isForest) {
+      if (!this.vinesBuilt || this.group.children.length === 0) {
+        this._buildVines();
+        this.vinesBuilt = true;
+      }
+    }
   }
 
   async load() {
-    this.currentGx = 3;
-    this.currentGy = 3;
+    this.currentGx = 2;
+    this.currentGy = 2;
     this._buildVines();
+    this.vinesBuilt = true;
     return this.group;
   }
 
-  
   _buildVines() {
-    this.group.clear();
-    let seed = (this.currentGx || 3) * 821 + (this.currentGy || 3) * 128 + 92;
+    this._disposeVines();
+    let seed = (this.currentGx || 2) * 821 + (this.currentGy || 2) * 128 + 92;
     const rand = () => {
       seed = (seed * 9301 + 49297) % 233280;
       return seed / 233280;
     };
-
-    this.group.clear();
 
     const clusterGeometry = createIvyClusterGeometry();
     const singleLeafGeometry = createIvyLeafGeometry();

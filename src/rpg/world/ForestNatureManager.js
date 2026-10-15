@@ -1223,6 +1223,9 @@ export class ForestNatureManager {
 
   setVisible(visible) {
     this.group.visible = visible;
+    if (!visible && this.collisions && typeof this.collisions.removeCirclesByTag === 'function') {
+      this.collisions.removeCirclesByTag('forest_nature_');
+    }
   }
 
   update(delta) {

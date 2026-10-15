@@ -42,7 +42,8 @@ export class QuestInteractablesManager {
       const q = this.questManager.getQuest('quest_forest_elixir');
       const stepGather = q?.objective?.steps?.find(s => s.id === 'gather_moss');
       if (q && q.status === 'active' && stepGather && !stepGather.done) {
-        this._spawnLuminousPlantNode({ x: 17.5, y: 0, z: -7.5 });
+        // Moved out of the stream bed onto the west bank (was x 17.5, z -7.5, under the water)
+        this._spawnLuminousPlantNode({ x: 11.0, y: 0, z: -6.5 });
       }
     }
 
@@ -53,7 +54,7 @@ export class QuestInteractablesManager {
       if (q && q.status === 'active' && stepGather && !stepGather.done) {
         const spots = [
           { id: 'mush_1', x: -16.0, z: 12.0 },
-          { id: 'mush_2', x: 14.0, z: -10.0 },
+          { id: 'mush_2', x: 11.5, z: -9.5 }, // clear of the island rock at (14, -10)
           { id: 'mush_3', x: 22.0, z: 15.0 }
         ];
         spots.forEach(sp => {
@@ -83,11 +84,21 @@ export class QuestInteractablesManager {
     }
   }
 
+  /** Ground height of the active island (nodes used to sit at y = 0, buried under the new terrains). */
+  _groundY(x, z) {
+    const om = this.overworldManager;
+    if (om && typeof om.getGroundHeight === 'function') {
+      const y = om.getGroundHeight(x, z);
+      if (Number.isFinite(y)) return y;
+    }
+    return 0;
+  }
+
   // --- NODE BUILDERS ---
 
   _spawnLuminousPlantNode(pos) {
     const group = new THREE.Group();
-    group.position.set(pos.x, 0, pos.z);
+    group.position.set(pos.x, this._groundY(pos.x, pos.z), pos.z);
 
     // Glowing base ring
     const ringGeo = new THREE.RingGeometry(0.8, 1.15, 24);
@@ -152,7 +163,7 @@ export class QuestInteractablesManager {
 
   _spawnMushroomNode(spot) {
     const group = new THREE.Group();
-    group.position.set(spot.x, 0, spot.z);
+    group.position.set(spot.x, this._groundY(spot.x, spot.z), spot.z);
 
     // Frost aura base ring
     const ringGeo = new THREE.RingGeometry(0.5, 0.75, 20);
@@ -245,7 +256,7 @@ export class QuestInteractablesManager {
 
   _spawnStardustNode(spot) {
     const group = new THREE.Group();
-    group.position.set(spot.x, 0, spot.z);
+    group.position.set(spot.x, this._groundY(spot.x, spot.z), spot.z);
 
     // Cosmic Astral Ring
     const ringGeo = new THREE.RingGeometry(0.55, 0.85, 24);

@@ -2,9 +2,411 @@ import * as THREE from 'three';
 import { VFXManager } from './VFXManager.js';
 
 export const SPELLS_DB = {
+  // === SAPIDAE CLASS SPELLS (6 per Class) ===
+  // 1. El Forjacubiles (Crafter)
+  craft_anvil: {
+    id: 'craft_anvil',
+    name: 'Yunque Táctico',
+    icon: './assets/skills/heroes/crafter/1.png',
+    paCost: 3,
+    minRange: 1,
+    maxRange: 2,
+    requiresLoS: true,
+    isLinear: true,
+    targetType: 'enemy',
+    areaType: 'single',
+    pushDistance: 1,
+    baseMinDamage: 45,
+    baseMaxDamage: 60,
+    sound: 'melee',
+    description: 'Golpe contundente con yunque de forja que inflige 45-60 de daño y empuja al enemigo 1 casilla provocando daño de colisión.'
+  },
+  craft_totem: {
+    id: 'craft_totem',
+    name: 'Tótem de Resguardo',
+    icon: './assets/skills/heroes/crafter/2.png',
+    paCost: 2,
+    minRange: 1,
+    maxRange: 3,
+    requiresLoS: true,
+    isLinear: false,
+    targetType: 'ally',
+    areaType: 'single',
+    shieldAmount: 50,
+    buffTargetPM: 1,
+    sound: 'buff',
+    description: 'Sapidae Craft: Erige un tótem de protección ancestral que otorga +50 de Escudo y +1 PM al objetivo durante 1 turno.'
+  },
+  craft_barricade: {
+    id: 'craft_barricade',
+    name: 'Barricada de Lunacia',
+    icon: './assets/skills/heroes/crafter/3.png',
+    paCost: 2,
+    minRange: 1,
+    maxRange: 3,
+    requiresLoS: false,
+    isLinear: false,
+    targetType: 'empty',
+    areaType: 'single',
+    shieldAmount: 30,
+    isBarricade: true,
+    sound: 'push',
+    description: 'Despliega una barricada de madera en una casilla vacía para bloquear paso y línea de visión, ganando +30 de Escudo.'
+  },
+  craft_quake: {
+    id: 'craft_quake',
+    name: 'Impacto Sísmico',
+    icon: './assets/skills/heroes/crafter/4.png',
+    paCost: 3,
+    minRange: 1,
+    maxRange: 2,
+    requiresLoS: true,
+    isLinear: false,
+    targetType: 'enemy',
+    areaType: 'cross1',
+    baseMinDamage: 40,
+    baseMaxDamage: 52,
+    debuffPM: 1,
+    sound: 'melee',
+    description: 'Martillazo telúrico que causa 40-52 de daño en cruz y reduce -1 PM a todos los enemigos impactados.'
+  },
+  craft_reinforce: {
+    id: 'craft_reinforce',
+    name: 'Refuerzo de Placas',
+    icon: './assets/skills/heroes/crafter/5.png',
+    paCost: 2,
+    minRange: 1,
+    maxRange: 3,
+    requiresLoS: true,
+    isLinear: false,
+    targetType: 'ally',
+    areaType: 'single',
+    shieldAmount: 70,
+    sound: 'buff',
+    description: 'Refuerza la armadura del Sapidae o de su Axie con metal lunar: otorga +70 de Escudo protector.'
+  },
+  craft_turret: {
+    id: 'craft_turret',
+    name: 'Balista de Lunacia',
+    icon: './assets/skills/heroes/crafter/6.png',
+    paCost: 4,
+    minRange: 1,
+    maxRange: 4,
+    requiresLoS: true,
+    isLinear: false,
+    targetType: 'enemy',
+    areaType: 'single',
+    baseMinDamage: 55,
+    baseMaxDamage: 72,
+    sound: 'bow',
+    description: 'Despliega artilugio de artesanía Sapidae que dispara a distancia causando 55-72 de daño perforante.'
+  },
+
+  // 2. El Susurrador Cósmico (Axie Shepard)
+  shepard_astral_strike: {
+    id: 'shepard_astral_strike',
+    name: 'Fulgor Cósmico',
+    icon: './assets/skills/heroes/shepard/1.png',
+    paCost: 3,
+    minRange: 1,
+    maxRange: 3,
+    requiresLoS: true,
+    isLinear: false,
+    targetType: 'enemy',
+    areaType: 'single',
+    baseMinDamage: 48,
+    baseMaxDamage: 62,
+    sound: 'buff',
+    description: 'Canaliza la energía cósmica de las estrellas de Lunacia para infligir 48-62 de daño mágico a distancia.'
+  },
+  shepard_balsam: {
+    id: 'shepard_balsam',
+    name: 'Bálsamo Astral',
+    icon: './assets/skills/heroes/shepard/2.png',
+    paCost: 2,
+    minRange: 1,
+    maxRange: 3,
+    requiresLoS: true,
+    isLinear: false,
+    targetType: 'ally',
+    areaType: 'single',
+    baseMinHeal: 30,
+    baseMaxHeal: 42,
+    shieldAmount: 40,
+    sound: 'heal',
+    description: 'Bálsamo místico curativo: sana 30-42 HP y envuelve al compañero Axie en +40 de Escudo protector.'
+  },
+  shepard_attunement: {
+    id: 'shepard_attunement',
+    name: 'Sintonía Genética',
+    icon: './assets/skills/heroes/shepard/3.png',
+    paCost: 2,
+    minRange: 1,
+    maxRange: 4,
+    requiresLoS: false,
+    isLinear: false,
+    targetType: 'ally',
+    areaType: 'single',
+    baseMinHeal: 50,
+    baseMaxHeal: 65,
+    buffPA: 1,
+    sound: 'heal',
+    description: 'Despierta la energía mística de los genes del Axie aliado: restaura 50-65 HP y le concede +1 PA de energía cósmica.'
+  },
+  shepard_pack_howl: {
+    id: 'shepard_pack_howl',
+    name: 'Aullido de Manada',
+    icon: './assets/skills/heroes/shepard/4.png',
+    paCost: 2,
+    minRange: 0,
+    maxRange: 0,
+    requiresLoS: false,
+    isLinear: false,
+    targetType: 'self',
+    areaType: 'cross2',
+    isPackHowl: true,
+    sound: 'push',
+    description: 'Aullido que resuena con los Axies aliados en un radio de 2 casillas, otorgándoles +1 PM y +1 PA para su próximo turno.'
+  },
+  shepard_spirit_bond: {
+    id: 'shepard_spirit_bond',
+    name: 'Lazo Simbiótico',
+    icon: './assets/skills/heroes/shepard/5.png',
+    paCost: 3,
+    minRange: 1,
+    maxRange: 4,
+    requiresLoS: false,
+    isLinear: false,
+    targetType: 'ally',
+    areaType: 'single',
+    shieldAmount: 45,
+    baseMinHeal: 25,
+    baseMaxHeal: 35,
+    sound: 'heal',
+    description: 'Enlaza las almas del Sapidae y su Axie: otorga +45 Escudo y restaura 25-35 HP de inmediato.'
+  },
+  shepard_chimeric_awakening: {
+    id: 'shepard_chimeric_awakening',
+    name: 'Despertar Quimérico',
+    icon: './assets/skills/heroes/shepard/6.png',
+    paCost: 4,
+    minRange: 1,
+    maxRange: 3,
+    requiresLoS: true,
+    isLinear: false,
+    targetType: 'ally',
+    areaType: 'single',
+    shieldAmount: 60,
+    buffTargetPM: 2,
+    sound: 'buff',
+    description: 'Desata el verdadero potencial genético del Axie: +2 PM de agilidad y +60 de Escudo protector inmediato.'
+  },
+
+  // 3. El Cultivador de Esencias (Lunalogist)
+  lunalogist_bramble: {
+    id: 'lunalogist_bramble',
+    name: 'Zarzas Lunares',
+    icon: './assets/skills/heroes/lunalogist/1.png',
+    paCost: 3,
+    minRange: 1,
+    maxRange: 3,
+    requiresLoS: true,
+    isLinear: false,
+    targetType: 'enemy',
+    areaType: 'single',
+    baseMinDamage: 38,
+    baseMaxDamage: 48,
+    debuffPM: 1,
+    debuffPA: 1,
+    sound: 'bow',
+    description: 'Zarzas botánicas que inmovilizan al enemigo: causan 38-48 de daño de naturaleza y drenan 1 PM y 1 PA.'
+  },
+  lunalogist_spores: {
+    id: 'lunalogist_spores',
+    name: 'Esporas Vigorizantes',
+    icon: './assets/skills/heroes/lunalogist/2.png',
+    paCost: 3,
+    minRange: 1,
+    maxRange: 3,
+    requiresLoS: true,
+    isLinear: false,
+    targetType: 'enemy',
+    areaType: 'cross1',
+    baseMinDamage: 30,
+    baseMaxDamage: 40,
+    drainHeal: 25,
+    sound: 'heal',
+    description: 'Nube de esporas en cruz que daña enemigos por 30-40 y restaura 25 HP al Sapidae y aliados cercanos.'
+  },
+  lunalogist_berry: {
+    id: 'lunalogist_berry',
+    name: 'Baya Lunar Alquímica',
+    icon: './assets/skills/heroes/lunalogist/3.png',
+    paCost: 2,
+    minRange: 1,
+    maxRange: 3,
+    requiresLoS: true,
+    isLinear: false,
+    targetType: 'ally',
+    areaType: 'single',
+    shieldAmount: 40,
+    buffTargetPM: 1,
+    sound: 'heal',
+    description: 'Alimenta al compañero con una baya de rocío lunar: otorga +40 de Escudo y +1 PM.'
+  },
+  lunalogist_seed: {
+    id: 'lunalogist_seed',
+    name: 'Semilla Parásita',
+    icon: './assets/skills/heroes/lunalogist/4.png',
+    paCost: 3,
+    minRange: 1,
+    maxRange: 3,
+    requiresLoS: true,
+    isLinear: false,
+    targetType: 'enemy',
+    areaType: 'single',
+    baseMinDamage: 35,
+    baseMaxDamage: 45,
+    drainHeal: 22,
+    sound: 'heal',
+    description: 'Implanta una semilla botánica que inflige 35-45 de daño y sana al Sapidae 22 HP de vitalidad robada.'
+  },
+  lunalogist_cloak: {
+    id: 'lunalogist_cloak',
+    name: 'Manto Clorofílico',
+    icon: './assets/skills/heroes/lunalogist/5.png',
+    paCost: 2,
+    minRange: 0,
+    maxRange: 0,
+    requiresLoS: false,
+    isLinear: false,
+    targetType: 'self',
+    areaType: 'single',
+    shieldAmount: 55,
+    sound: 'buff',
+    description: 'Se envuelve en hojas densas de Lunacia ganando +55 de Escudo protector natural.'
+  },
+  lunalogist_bloom: {
+    id: 'lunalogist_bloom',
+    name: 'Brotación Primigenia',
+    icon: './assets/skills/heroes/lunalogist/6.png',
+    paCost: 4,
+    minRange: 1,
+    maxRange: 3,
+    requiresLoS: true,
+    isLinear: false,
+    targetType: 'enemy',
+    areaType: 'cross1',
+    baseMinDamage: 45,
+    baseMaxDamage: 60,
+    debuffPM: 2,
+    sound: 'bow',
+    description: 'Eclosión botánica masiva: inflige 45-60 de daño en área e inmoviliza a los enemigos drenando -2 PM.'
+  },
+
+  // 4. El Astrólogo Lunar (Stargazer)
+  stargazer_vortex: {
+    id: 'stargazer_vortex',
+    name: 'Vórtice Gravitacional',
+    icon: './assets/skills/heroes/stargazer/1.png',
+    paCost: 3,
+    minRange: 1,
+    maxRange: 3,
+    requiresLoS: true,
+    isLinear: false,
+    targetType: 'enemy',
+    areaType: 'single',
+    pushDistance: 2,
+    baseMinDamage: 40,
+    baseMaxDamage: 52,
+    sound: 'push',
+    description: 'Onda cósmica que inflige 40-52 de daño y empuja al enemigo 2 casillas con daño masivo de colisión.'
+  },
+  stargazer_transpose: {
+    id: 'stargazer_transpose',
+    name: 'Transposición Estelar',
+    icon: './assets/skills/heroes/stargazer/2.png',
+    paCost: 2,
+    minRange: 1,
+    maxRange: 4,
+    requiresLoS: false,
+    isLinear: false,
+    targetType: 'ally',
+    areaType: 'single',
+    isTranspose: true,
+    shieldAmount: 25,
+    sound: 'buff',
+    description: 'Curvatura espacial: intercambia instantáneamente de posición con el Axie compañero, otorgando +25 de Escudo a ambos.'
+  },
+  stargazer_jump: {
+    id: 'stargazer_jump',
+    name: 'Salto Astral',
+    icon: './assets/skills/heroes/stargazer/3.png',
+    paCost: 2,
+    minRange: 2,
+    maxRange: 4,
+    requiresLoS: false,
+    isLinear: false,
+    targetType: 'empty',
+    areaType: 'cross1',
+    shieldAmount: 35,
+    debuffPM: 1,
+    sound: 'buff',
+    description: 'Teletransporte dimensional hacia cualquier casilla vacía (2-4 de alcance): gana +35 de Escudo y ralentiza (-1 PM) a los enemigos adyacentes.'
+  },
+  stargazer_nova: {
+    id: 'stargazer_nova',
+    name: 'Nova Estelar',
+    icon: './assets/skills/heroes/stargazer/4.png',
+    paCost: 3,
+    minRange: 1,
+    maxRange: 3,
+    requiresLoS: true,
+    isLinear: false,
+    targetType: 'enemy',
+    areaType: 'cross1',
+    baseMinDamage: 45,
+    baseMaxDamage: 58,
+    sound: 'buff',
+    description: 'Detona una estrella comprimida: causa 45-58 de daño cósmico en cruz alrededor del objetivo.'
+  },
+  stargazer_gravity_well: {
+    id: 'stargazer_gravity_well',
+    name: 'Pozo Gravitatorio',
+    icon: './assets/skills/heroes/stargazer/5.png',
+    paCost: 2,
+    minRange: 1,
+    maxRange: 4,
+    requiresLoS: false,
+    isLinear: false,
+    targetType: 'ally',
+    areaType: 'single',
+    buffTargetPM: 2,
+    sound: 'buff',
+    description: 'Altera la masa espacial alrededor del aliado concediéndole +2 PM de aceleración gravitatoria.'
+  },
+  stargazer_eclipse: {
+    id: 'stargazer_eclipse',
+    name: 'Eclipse Cataclísmico',
+    icon: './assets/skills/heroes/stargazer/6.png',
+    paCost: 4,
+    minRange: 1,
+    maxRange: 4,
+    requiresLoS: true,
+    isLinear: false,
+    targetType: 'enemy',
+    areaType: 'cross1',
+    baseMinDamage: 60,
+    baseMaxDamage: 78,
+    sound: 'push',
+    description: 'Invoca un eclipse total desatando 60-78 de daño cósmico masivo en área sobre los enemigos.'
+  },
+
   kotaro_slash: {
     id: 'kotaro_slash',
     name: 'Fierce Slash',
+    part: 'eyes',
+    partIcon: './assets/parts/beast-eyes.png',
     icon: './assets/skills/heroes/shinji/1.png',
     paCost: 3,
     minRange: 1,
@@ -21,6 +423,8 @@ export const SPELLS_DB = {
   kotaro_push: {
     id: 'kotaro_push',
     name: 'Repelling Charge',
+    part: 'ears',
+    partIcon: './assets/parts/beast-ears.png',
     icon: './assets/skills/heroes/shinji/2.png',
     paCost: 2,
     minRange: 1,
@@ -38,6 +442,8 @@ export const SPELLS_DB = {
   kotaro_jump: {
     id: 'kotaro_jump',
     name: 'Tactical Leap',
+    part: 'mouth',
+    partIcon: './assets/parts/beast-mouth.png',
     icon: './assets/skills/heroes/shinji/3.png',
     paCost: 3,
     minRange: 2,
@@ -52,9 +458,65 @@ export const SPELLS_DB = {
     baseMaxDamage: 28,
     sound: 'explosion'
   },
+  kotaro_bite: {
+    id: 'kotaro_bite',
+    name: 'Mordisco Bestial',
+    part: 'horn',
+    partIcon: './assets/parts/beast-horn.png',
+    icon: './assets/skills/heroes/shinji/4.png',
+    paCost: 2,
+    minRange: 1,
+    maxRange: 1,
+    requiresLoS: true,
+    isLinear: false,
+    targetType: 'enemy',
+    areaType: 'single',
+    description: 'Mordisco feroz a quemarropa que inflige 45-58 de daño físico directo y desgarra la defensa enemiga.',
+    baseMinDamage: 45,
+    baseMaxDamage: 58,
+    sound: 'melee'
+  },
+  kotaro_roar: {
+    id: 'kotaro_roar',
+    name: 'Rugido Territorial',
+    part: 'back',
+    partIcon: './assets/parts/beast-back.png',
+    icon: './assets/skills/heroes/shinji/5.png',
+    paCost: 2,
+    minRange: 0,
+    maxRange: 2,
+    requiresLoS: false,
+    isLinear: false,
+    targetType: 'ally',
+    areaType: 'cross1',
+    buffTargetPM: 1,
+    shieldAmount: 25,
+    description: 'Rugido salvaje que infunde bravura a la manada: otorga +1 PM y +25 de Escudo protector a los aliados cercanos.',
+    sound: 'buff'
+  },
+  kotaro_frenzy: {
+    id: 'kotaro_frenzy',
+    name: 'Furia Lunar',
+    part: 'tail',
+    partIcon: './assets/parts/beast-tail.png',
+    icon: './assets/skills/heroes/shinji/6.png',
+    paCost: 4,
+    minRange: 1,
+    maxRange: 1,
+    requiresLoS: true,
+    isLinear: false,
+    targetType: 'enemy',
+    areaType: 'single',
+    description: 'Desata el instinto depredador de la Bestia: asesta un golpe devastador de 85-110 de daño letal.',
+    baseMinDamage: 85,
+    baseMaxDamage: 110,
+    sound: 'melee'
+  },
   bird_cupid: {
     id: 'bird_cupid',
     name: 'Cupid Arrow',
+    part: 'eyes',
+    partIcon: './assets/parts/beast-eyes.png',
     icon: './assets/skills/heroes/early-bird/1.png',
     paCost: 3,
     minRange: 1,
@@ -71,6 +533,8 @@ export const SPELLS_DB = {
   bird_owl: {
     id: 'bird_owl',
     name: 'Owl Gaze',
+    part: 'ears',
+    partIcon: './assets/parts/beast-ears.png',
     icon: './assets/skills/heroes/early-bird/2.png',
     paCost: 2,
     minRange: 1,
@@ -88,6 +552,8 @@ export const SPELLS_DB = {
   bird_aerial_jump: {
     id: 'bird_aerial_jump',
     name: 'Aerial Leap',
+    part: 'mouth',
+    partIcon: './assets/parts/beast-mouth.png',
     icon: './assets/skills/heroes/early-bird/3.png',
     paCost: 3,
     minRange: 2,
@@ -102,9 +568,66 @@ export const SPELLS_DB = {
     baseMaxDamage: 28,
     sound: 'explosion'
   },
+  bird_feather_barrage: {
+    id: 'bird_feather_barrage',
+    name: 'Lluvia de Plumas',
+    part: 'horn',
+    partIcon: './assets/parts/beast-horn.png',
+    icon: './assets/skills/heroes/early-bird/4.png',
+    paCost: 3,
+    minRange: 2,
+    maxRange: 5,
+    requiresLoS: true,
+    isLinear: false,
+    targetType: 'enemy',
+    areaType: 'cross1',
+    description: 'Lanza una ráfaga de plumas celestiales que causa 42-55 de daño a todos los enemigos en el área.',
+    baseMinDamage: 42,
+    baseMaxDamage: 55,
+    sound: 'bow'
+  },
+  bird_tailwind: {
+    id: 'bird_tailwind',
+    name: 'Viento de Cola',
+    part: 'back',
+    partIcon: './assets/parts/beast-back.png',
+    icon: './assets/skills/heroes/early-bird/5.png',
+    paCost: 2,
+    minRange: 1,
+    maxRange: 3,
+    requiresLoS: false,
+    isLinear: false,
+    targetType: 'ally',
+    areaType: 'single',
+    buffTargetPM: 2,
+    shieldAmount: 20,
+    description: 'Invoca corrientes ascendentes favorables que otorgan +2 PM inmediatos y +20 de Escudo a un aliado.',
+    sound: 'buff'
+  },
+  bird_sky_dive: {
+    id: 'bird_sky_dive',
+    name: 'Picado Celestial',
+    part: 'tail',
+    partIcon: './assets/parts/beast-tail.png',
+    icon: './assets/skills/heroes/early-bird/6.png',
+    paCost: 4,
+    minRange: 1,
+    maxRange: 3,
+    requiresLoS: true,
+    isLinear: false,
+    targetType: 'enemy',
+    areaType: 'single',
+    debuffPA: 1,
+    description: 'Picado a velocidad terminal desde las alturas que inflige 80-105 de daño masivo y aturde al objetivo (-1 PA).',
+    baseMinDamage: 80,
+    baseMaxDamage: 105,
+    sound: 'melee'
+  },
   plant_cactus: {
     id: 'plant_cactus',
     name: 'Cactus Strike',
+    part: 'eyes',
+    partIcon: './assets/parts/beast-eyes.png',
     icon: './assets/skills/heroes/big-yak/1.png',
     paCost: 3,
     minRange: 1,
@@ -121,6 +644,8 @@ export const SPELLS_DB = {
   plant_drain: {
     id: 'plant_drain',
     name: 'Zigzag Bite',
+    part: 'ears',
+    partIcon: './assets/parts/beast-ears.png',
     icon: './assets/skills/heroes/big-yak/2.png',
     paCost: 2,
     minRange: 1,
@@ -138,6 +663,8 @@ export const SPELLS_DB = {
   plant_shield: {
     id: 'plant_shield',
     name: 'Bidens Carapace',
+    part: 'mouth',
+    partIcon: './assets/parts/beast-mouth.png',
     icon: './assets/skills/heroes/big-yak/3.png',
     paCost: 2,
     minRange: 0,
@@ -149,6 +676,61 @@ export const SPELLS_DB = {
     shieldAmount: 90,
     description: 'Deploys a dense carapace of thorns granting a massive +90 shield protection to an ally or self.',
     sound: 'buff'
+  },
+  plant_bramble_trap: {
+    id: 'plant_bramble_trap',
+    name: 'Trampa de Espinas',
+    part: 'horn',
+    partIcon: './assets/parts/beast-horn.png',
+    icon: './assets/skills/heroes/big-yak/4.png',
+    paCost: 2,
+    minRange: 1,
+    maxRange: 3,
+    requiresLoS: false,
+    isLinear: false,
+    targetType: 'enemy',
+    areaType: 'single',
+    debuffPM: 2,
+    baseMinDamage: 30,
+    baseMaxDamage: 40,
+    description: 'Siembra raíces espinosas que apresan al objetivo causando 30-40 de daño y reduciendo -2 PM.',
+    sound: 'push'
+  },
+  plant_photosynthesis: {
+    id: 'plant_photosynthesis',
+    name: 'Fotosíntesis',
+    part: 'back',
+    partIcon: './assets/parts/beast-back.png',
+    icon: './assets/skills/heroes/big-yak/5.png',
+    paCost: 2,
+    minRange: 0,
+    maxRange: 0,
+    requiresLoS: false,
+    isLinear: false,
+    targetType: 'ally',
+    areaType: 'single',
+    healAmount: 55,
+    shieldAmount: 30,
+    description: 'Absorbe la luz de Lunacia restaurando 55 HP de inmediato y envolviendo al coloso en +30 de Escudo protector.',
+    sound: 'buff'
+  },
+  plant_seed_burst: {
+    id: 'plant_seed_burst',
+    name: 'Estallido de Semillas',
+    part: 'tail',
+    partIcon: './assets/parts/beast-tail.png',
+    icon: './assets/skills/heroes/big-yak/6.png',
+    paCost: 4,
+    minRange: 1,
+    maxRange: 3,
+    requiresLoS: true,
+    isLinear: false,
+    targetType: 'enemy',
+    areaType: 'cross1',
+    description: 'Detona semillas explosivas orgánicas que causan 50-65 de daño en cruz a todos los enemigos adyacentes.',
+    baseMinDamage: 50,
+    baseMaxDamage: 65,
+    sound: 'explosion'
   },
   bing_explosive: {
     id: 'bing_explosive',
@@ -1137,6 +1719,151 @@ export const SPELLS_DB = {
     baseMaxDamage: 68,
     sound: 'melee',
     description: 'Unleashes full weight into a crushing blow.'
+  },
+
+  // === ALIASES FOR LEGACY / ENCOUNTER TEMPLATES ===
+  wolf_alpha_howl: {
+    id: 'wolf_alpha_howl',
+    name: 'Aullido Alfa',
+    icon: './assets/skills/mobs/wolf-alpha/alpha-wolf-03-00.png',
+    paCost: 2,
+    minRange: 0,
+    maxRange: 0,
+    requiresLoS: false,
+    isLinear: false,
+    targetType: 'self',
+    areaType: 'single',
+    buffTargetPA: 1,
+    buffTargetPM: 1,
+    sound: 'buff',
+    description: 'Aullido intimidante que otorga +1 PA y +1 PM.'
+  },
+  dryad_mage_orb: {
+    id: 'dryad_mage_orb',
+    name: 'Orbe Arcano',
+    icon: './assets/skills/mobs/dryad-mage/dryad-mage-01-00.png',
+    paCost: 3,
+    minRange: 1,
+    maxRange: 4,
+    requiresLoS: true,
+    isLinear: false,
+    targetType: 'enemy',
+    areaType: 'single',
+    baseMinDamage: 38,
+    baseMaxDamage: 52,
+    sound: 'explosion',
+    description: 'Proyectil mágico concentrado que inflige 38-52 de daño arcano a distancia.'
+  },
+  dryad_mage_blast: {
+    id: 'dryad_mage_blast',
+    name: 'Ráfaga de la Espesura',
+    icon: './assets/skills/mobs/dryad-mage/dryad-mage-03-00.png',
+    paCost: 4,
+    minRange: 1,
+    maxRange: 3,
+    requiresLoS: true,
+    isLinear: false,
+    targetType: 'enemy',
+    areaType: 'single',
+    baseMinDamage: 50,
+    baseMaxDamage: 68,
+    sound: 'explosion',
+    description: 'Descarga devastadora de energía que inflige 50-68 de daño.'
+  },
+  dryad_mage_barrier: {
+    id: 'dryad_mage_barrier',
+    name: 'Barrera Silvestre',
+    icon: './assets/skills/mobs/dryad-mage/dryad-mage-02-00.png',
+    paCost: 2,
+    minRange: 0,
+    maxRange: 3,
+    requiresLoS: true,
+    isLinear: false,
+    targetType: 'ally',
+    areaType: 'single',
+    shieldAmount: 45,
+    sound: 'buff',
+    description: 'Crea un escudo de corteza que otorga +45 de Escudo.'
+  },
+  treant_spore: {
+    id: 'treant_spore',
+    name: 'Esporas Tóxicas',
+    icon: './assets/skills/mobs/treant-flower/flowering-treant-02-00.png',
+    paCost: 3,
+    minRange: 1,
+    maxRange: 3,
+    requiresLoS: true,
+    isLinear: false,
+    targetType: 'enemy',
+    areaType: 'single',
+    baseMinDamage: 30,
+    baseMaxDamage: 44,
+    sound: 'explosion',
+    description: 'Nube de esporas venenosas que infligen 30-44 de daño.'
+  },
+  treant_entangle: {
+    id: 'treant_entangle',
+    name: 'Enredo de Raíces',
+    icon: './assets/skills/mobs/treant-flower/flowering-treant-03-00.png',
+    paCost: 3,
+    minRange: 1,
+    maxRange: 2,
+    requiresLoS: true,
+    isLinear: false,
+    targetType: 'enemy',
+    areaType: 'single',
+    baseMinDamage: 35,
+    baseMaxDamage: 48,
+    sound: 'melee',
+    description: 'Lanza raíces que atrapan al enemigo infligiendo 35-48 de daño.'
+  },
+  werewolf_crush: {
+    id: 'werewolf_crush',
+    name: 'Aplastamiento Feral',
+    icon: './assets/skills/mobs/werewolf-boss/werewolf-01-00.png',
+    paCost: 4,
+    minRange: 1,
+    maxRange: 1,
+    requiresLoS: true,
+    isLinear: false,
+    targetType: 'enemy',
+    areaType: 'single',
+    baseMinDamage: 55,
+    baseMaxDamage: 75,
+    sound: 'melee',
+    description: 'Golpe demoledor cuerpo a cuerpo con 55-75 de daño.'
+  },
+  werewolf_slam: {
+    id: 'werewolf_slam',
+    name: 'Embate de Hielo',
+    icon: './assets/skills/mobs/werewolf-boss/werewolf-03-00.png',
+    paCost: 3,
+    minRange: 1,
+    maxRange: 2,
+    requiresLoS: true,
+    isLinear: false,
+    targetType: 'enemy',
+    areaType: 'single',
+    baseMinDamage: 42,
+    baseMaxDamage: 58,
+    sound: 'melee',
+    description: 'Embate brutal que inflige 42-58 de daño glacial.'
+  },
+  werewolf_roar: {
+    id: 'werewolf_roar',
+    name: 'Rugido Cataclísmico',
+    icon: './assets/skills/mobs/werewolf-boss/tool-chimerafragilebeing-02-00.png',
+    paCost: 2,
+    minRange: 0,
+    maxRange: 0,
+    requiresLoS: false,
+    isLinear: false,
+    targetType: 'self',
+    areaType: 'single',
+    shieldAmount: 50,
+    buffTargetPA: 1,
+    sound: 'buff',
+    description: 'Rugido ensordecedor que otorga +50 de Escudo y +1 PA.'
   }
 };
 
@@ -1151,7 +1878,8 @@ export class SpellManager {
   }
 
   getSpell(spellId) {
-    return SPELLS_DB[spellId] || null;
+    if (!spellId) return null;
+    return SPELLS_DB[spellId] || SPELLS_DB.chimera_bite || null;
   }
 
   getValidTargetCells(caster, spell) {
@@ -1173,11 +1901,13 @@ export class SpellManager {
         const tile = this.gridManager.getTile(x, z);
 
         if (spell.targetType === 'empty') {
-          if (!tile.walkable || tile.obstacle || tile.unit) continue;
+          if (!tile || !tile.walkable || tile.obstacle || tile.unit) continue;
+        } else if (spell.targetType === 'self') {
+          if (x !== fromX || z !== fromZ) continue;
         } else if (spell.targetType === 'enemy') {
-          if (tile.unit && tile.unit.team === caster.team && dist > 0) continue;
+          if (!tile || !tile.unit || tile.unit.team === caster.team) continue;
         } else if (spell.targetType === 'ally') {
-          if (tile.unit && tile.unit.team !== caster.team) continue;
+          if (!tile || !tile.unit || tile.unit.team !== caster.team) continue;
         }
 
         validCells.push({ x, z });
@@ -1223,6 +1953,77 @@ export class SpellManager {
     }
 
     this._playSpellSound(spell.sound);
+
+    // Sapidae Class Special Spell Mechanics
+    if (spell.isBarricade) {
+      this.gridManager.setObstacle(targetCell.x, targetCell.z, 'wood_post');
+      const wPos = this.gridManager.gridToWorld(targetCell.x, targetCell.z);
+      this._spawnImpactVFX(wPos, { id: 'barricade' });
+      this.combatText.spawn(wPos, '🧱 BARRICADA', 'shield');
+      if (spell.shieldAmount && caster) {
+        caster.shield = (caster.shield || 0) + spell.shieldAmount;
+        caster.updateHUD();
+        const cwPos = this.gridManager.gridToWorld(caster.gridX, caster.gridZ);
+        this.combatText.spawn(cwPos, '🛡️ +' + spell.shieldAmount, 'shield');
+      }
+      return true;
+    }
+
+    if (spell.isTranspose) {
+      const tileTarget = this.gridManager.getTile(targetCell.x, targetCell.z);
+      const targetUnit = tileTarget ? tileTarget.unit : null;
+      if (targetUnit && targetUnit !== caster) {
+        const tileCaster = this.gridManager.getTile(caster.gridX, caster.gridZ);
+        const origCx = caster.gridX;
+        const origCz = caster.gridZ;
+        const origTx = targetUnit.gridX;
+        const origTz = targetUnit.gridZ;
+
+        tileCaster.unit = targetUnit;
+        tileTarget.unit = caster;
+
+        caster.gridX = origTx;
+        caster.gridZ = origTz;
+        targetUnit.gridX = origCx;
+        targetUnit.gridZ = origCz;
+
+        caster.updateWorldPosition();
+        targetUnit.updateWorldPosition();
+        caster.updateHUD();
+        targetUnit.updateHUD();
+
+        if (spell.shieldAmount) {
+          caster.shield = (caster.shield || 0) + spell.shieldAmount;
+          targetUnit.shield = (targetUnit.shield || 0) + spell.shieldAmount;
+        }
+
+        const wPosC = this.gridManager.gridToWorld(caster.gridX, caster.gridZ);
+        const wPosT = this.gridManager.gridToWorld(targetUnit.gridX, targetUnit.gridZ);
+        this.vfx.playHealPillar(wPosC);
+        this.vfx.playHealPillar(wPosT);
+        this.combatText.spawn(wPosC, '🌌 TRANSPOSICIÓN', 'buff');
+        this.combatText.spawn(wPosT, '🌌 TRANSPOSICIÓN', 'buff');
+        return true;
+      }
+    }
+
+    if (spell.isPackHowl) {
+      if (this.game && this.game.units) {
+        this.game.units.filter(u => u.team === caster.team && !u.isDead).forEach(ally => {
+          const d = Math.abs(ally.gridX - caster.gridX) + Math.abs(ally.gridZ - caster.gridZ);
+          if (d <= 2) {
+            ally.currentPM = Math.min(ally.maxPM + 1, ally.currentPM + 1);
+            ally.currentPA = Math.min(ally.maxPA + 1, ally.currentPA + 1);
+            ally.updateHUD();
+            const awPos = this.gridManager.gridToWorld(ally.gridX, ally.gridZ);
+            this.combatText.spawn(awPos, '+1 PM  +1 PA', 'buff');
+          }
+        });
+      }
+      const cwPos = this.gridManager.gridToWorld(caster.gridX, caster.gridZ);
+      this.vfx.playSonicBellow(cwPos, cwPos);
+      return true;
+    }
 
     if (spell.targetType === 'empty') {
       await this._executeJump(caster, spell, targetCell);
@@ -1312,6 +2113,13 @@ export class SpellManager {
         this.combatText.spawn(wPos, '🛡️ +' + sAmt, 'shield');
       }
 
+      if (spell.buffTargetPM && targetUnit) {
+        targetUnit.currentPM = Math.min(targetUnit.maxPM + 1, targetUnit.currentPM + spell.buffTargetPM);
+        targetUnit.updateHUD();
+        const wPos = this.gridManager.gridToWorld(targetUnit.gridX, targetUnit.gridZ);
+        this.combatText.spawn(wPos, '+' + spell.buffTargetPM + ' PM', 'buff');
+      }
+
       if (spell.baseMinDamage && targetUnit) {
         const mult = this._getSpellMultiplier(caster, spell);
         let dmg = Math.floor((spell.baseMinDamage + Math.random() * (spell.baseMaxDamage - spell.baseMinDamage + 1)) * mult);
@@ -1337,9 +2145,19 @@ export class SpellManager {
           dmg = Math.round(dmg * 1.5);
         }
 
-        // In tutorial step_attack_2, Quimera Guardián must NEVER die on the first attack (must take its turn and attack Kotaro)
+        // In tutorial step_attack_1, quimera_scout is defeated by the Sapidae
+        if (isTutorial && targetUnit.id === 'quimera_scout' && this.game.tutorialManager.getCurrentStepId() === 'step_attack_1') {
+          dmg = Math.max(dmg, targetUnit.currentHP);
+        }
+
+        // In tutorial step_attack_2, Axie strikes quimera_guard leaving it primed for final battle flow
         if (isTutorial && targetUnit.id === 'quimera_guard' && this.game.tutorialManager.getCurrentStepId() === 'step_attack_2') {
-          dmg = Math.min(dmg, Math.max(1, targetUnit.currentHP - 25));
+          dmg = Math.min(Math.max(dmg, 45), Math.max(1, targetUnit.currentHP - 15));
+        }
+
+        // In tutorial, quimera_guard must not die before step_battle_flow
+        if (isTutorial && targetUnit.id === 'quimera_guard' && this.game.tutorialManager.getCurrentStepId() !== 'step_battle_flow') {
+          dmg = Math.min(dmg, Math.max(1, targetUnit.currentHP - 15));
         }
 
         const initialShield = targetUnit.shield || 0;
@@ -1364,6 +2182,12 @@ export class SpellManager {
         if (spell.debuffPM) {
           targetUnit.buffs.push({ type: 'minusPM', value: spell.debuffPM, duration: 1 });
           this.combatText.spawn(wPos, '-' + spell.debuffPM + ' PM', 'pm');
+        }
+
+        if (spell.debuffPA) {
+          targetUnit.currentPA = Math.max(0, targetUnit.currentPA - spell.debuffPA);
+          targetUnit.updateHUD();
+          this.combatText.spawn(wPos, '-' + spell.debuffPA + ' PA', 'pa');
         }
 
         if (spell.drainHeal && caster && !caster.isDead) {

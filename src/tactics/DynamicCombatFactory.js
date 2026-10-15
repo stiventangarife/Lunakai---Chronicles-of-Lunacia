@@ -123,17 +123,17 @@ export class DynamicCombatFactory {
         ];
       } else if (encounterData.monsterId === 'mob_pomodoro_battle') {
         members = [
-          { id: 'frost_chimera_1', name: 'Glacial Chimera', type: 'wolf-alpha', scale: 1.35, tintColor: 0x38bdf8, maxHP: 210, maxPA: 5, maxPM: 3, initiative: 65, initialShield: 35, spellIds: ['wolf_alpha_bite', 'wolf_alpha_howl'], expValue: 110, role: 'pack_hunter' },
+          { id: 'frost_chimera_1', name: 'Glacial Chimera', type: 'wolf-alpha', scale: 1.35, tintColor: 0x38bdf8, maxHP: 210, maxPA: 5, maxPM: 3, initiative: 65, initialShield: 35, spellIds: ['wolf_alpha_bite', 'wolf_alpha_roar'], expValue: 110, role: 'pack_hunter' },
           { id: 'frost_chimera_2', name: 'Polar Stalker', type: 'wolf-gray', scale: 1.25, tintColor: 0x93c5fd, maxHP: 180, maxPA: 5, maxPM: 4, initiative: 70, initialShield: 25, spellIds: ['wolf_gray_slash'], expValue: 90, role: 'skirmisher' }
         ];
       } else if (encounterData.monsterId === 'mob_oracle_chimera') {
         members = [
-          { id: 'arcane_sapidae_1', name: 'Arcane Sapidae Chimera', type: 'dryad-mage', scale: 1.55, tintColor: 0x7e22ce, maxHP: 310, maxPA: 6, maxPM: 4, initiative: 80, initialShield: 70, bonusDamage: 12, spellIds: ['dryad_mage_orb', 'dryad_mage_blast', 'dryad_mage_barrier'], expValue: 200, role: 'arcane_sorcerer' },
-          { id: 'void_sprout_2', name: 'Void Spectre', type: 'treant-flower', scale: 1.25, tintColor: 0x6b21a8, maxHP: 190, maxPA: 5, maxPM: 3, initiative: 65, initialShield: 30, bonusDamage: 6, spellIds: ['treant_spore', 'treant_entangle'], expValue: 100, role: 'void_minion' }
+          { id: 'arcane_sapidae_1', name: 'Arcane Sapidae Chimera', type: 'dryad-mage', scale: 1.55, tintColor: 0x7e22ce, maxHP: 310, maxPA: 6, maxPM: 4, initiative: 80, initialShield: 70, bonusDamage: 12, spellIds: ['dryad_mage_spark', 'dryad_mage_heal', 'dryad_mage_burst'], expValue: 200, role: 'arcane_sorcerer' },
+          { id: 'void_sprout_2', name: 'Void Spectre', type: 'treant-flower', scale: 1.25, tintColor: 0x6b21a8, maxHP: 190, maxPA: 5, maxPM: 3, initiative: 65, initialShield: 30, bonusDamage: 6, spellIds: ['treant_flower_slam', 'treant_flower_nova'], expValue: 100, role: 'void_minion' }
         ];
       } else if (encounterData.monsterId === 'mob_polar_golem') {
         members = [
-          { id: 'polar_golem_1', name: 'Armored Polar Golem', type: 'werewolf-boss', scale: 1.65, tintColor: 0x0284c7, maxHP: 360, maxPA: 6, maxPM: 3, initiative: 60, initialShield: 110, bonusDamage: 14, spellIds: ['werewolf_crush', 'werewolf_slam', 'werewolf_roar'], expValue: 240, role: 'armored_titan' }
+          { id: 'polar_golem_1', name: 'Armored Polar Golem', type: 'werewolf-boss', scale: 1.65, tintColor: 0x0284c7, maxHP: 360, maxPA: 6, maxPM: 3, initiative: 60, initialShield: 110, bonusDamage: 14, spellIds: ['werewolf_boss_bite', 'werewolf_boss_roar', 'werewolf_boss_cataclysm'], expValue: 240, role: 'armored_titan' }
         ];
       } else {
         members = [{

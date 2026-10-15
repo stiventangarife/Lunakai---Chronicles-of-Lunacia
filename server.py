@@ -3,7 +3,7 @@ import sys
 import mimetypes
 from http.server import ThreadingHTTPServer, SimpleHTTPRequestHandler
 
-PORT = 8081
+PORT = int(os.environ.get('PORT', sys.argv[1] if len(sys.argv) > 1 else 8082))
 DIRECTORY = os.path.dirname(os.path.abspath(__file__))
 
 mimetypes.init()

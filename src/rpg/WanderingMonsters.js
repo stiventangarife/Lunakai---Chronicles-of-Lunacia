@@ -1,5 +1,6 @@
 // WanderingMonsters.js - Overworld Chimera Monsters with AI Patrol, Alert ! & Procedural Biome Packs
 import * as THREE from 'three';
+import { ISLAND_MONSTER_LAYOUT, patrolAround } from './world/islands/IslandWorldLayout.js';
 import { GLTFLoader } from '../../vendor/GLTFLoader.js';
 import { generatePackForBiome } from './world/BiomeEnemyCatalog.js';
 import { applyToonOutline } from './stylized/ToonOutline.js';
@@ -148,6 +149,15 @@ export class WanderingMonsters {
    * to ensure no mob ever attempts to traverse the riverbed or its canyon banks.
    */
   _getSafeSpawnPresets(gx, gy, biome) {
+    // 0. Islands (480 m terrains): anchors validated against the real island ground
+    const islandLayout = ISLAND_MONSTER_LAYOUT[`${gx}_${gy}`];
+    if (islandLayout) {
+      return islandLayout.packs.map((a) => ({
+        x: a.x, z: a.z,
+        patrol: patrolAround(a).map((p) => new THREE.Vector3(p.x, 0, p.z))
+      }));
+    }
+
     // 1. River Corridor Zones (gx === 2): River flows vertically at x ~ 7.0..11.5
     // Segregate patrols strictly: Pack 0 on East bank (x >= 16), Pack 1 on West bank (x <= -15).
     if (gx === 2) {
@@ -363,6 +373,9 @@ export class WanderingMonsters {
     // Spawn 1 or 2 wandering monster encounters per zone
     const packCount = Math.random() < 0.6 ? 1 : 2;
     const spawnPresets = this._getSafeSpawnPresets(gx, gy, mapDef.biome || 'forest');
+    const islandLayout = ISLAND_MONSTER_LAYOUT[`${gx}_${gy}`] || null;
+    // Islands have 4 validated anchors: start at a random one so packs roam different areas
+    const presetOffset = islandLayout ? Math.floor(Math.random() * spawnPresets.length) : 0;
 
     for (let i = 0; i < packCount; i++) {
       let forcedLeader = null;
@@ -372,7 +385,9 @@ export class WanderingMonsters {
       else if (gx === 3 && gy === 3 && i === 0) forcedLeader = 'werewolf_boss';
 
       const pack = generatePackForBiome(mapDef.biome || 'forest', [gx, gy], forcedLeader);
-      const preset = spawnPresets[i] || spawnPresets[0];
+      const preset = islandLayout
+        ? spawnPresets[(presetOffset + i * 2) % spawnPresets.length]
+        : (spawnPresets[i] || spawnPresets[0]);
       const leader = pack.leader;
 
       let displayName = leader.name;
@@ -404,31 +419,74 @@ export class WanderingMonsters {
       });
     }
 
-    // Special Quest Encounters for Sabana / Yermos Áridos in [3, 1]
-    if (gx === 3 && gy === 1) {
+    // Retired corner zone merged into this island: its pack keeps the old zone key for quests
+    if (islandLayout && islandLayout.merged) {
+      const mg = islandLayout.merged;
+      const [lgx, lgy] = mg.logicalZone.split('_').map(Number);
+      const pack = generatePackForBiome(mg.biome, [lgx, lgy], mg.forcedLeader || null);
+      const leader = pack.leader;
+      let displayName = leader.name;
+      let badge = '👾';
+      if (mg.forcedLeader) {
+        badge = '👑';
+      } else if (pack.packSize > 1) {
+        displayName = `${pack.packTitle} (x${pack.packSize})`;
+        badge = '🐺';
+      }
+      await this.spawnMonster({
+        id: `mob_${pack.packId}_${mg.logicalZone}`,
+        name: displayName,
+        badge,
+        tier: pack.tier,
+        modelType: leader.type,
+        x: mg.anchor.x,
+        z: mg.anchor.z,
+        scale: leader.scale,
+        tintColor: leader.tintColor,
+        packData: pack,
+        biome: mg.biome,
+        logicalZone: mg.logicalZone,
+        patrolPoints: patrolAround(mg.anchor).map((p) => new THREE.Vector3(p.x, 0, p.z)),
+        detectionRadius: 7.5,
+        encounterRadius: 1.85,
+        patrolSpeed: 1.8,
+        chaseSpeed: 4.8
+      });
+    }
+
+    // Special Quest Encounters for Sabana / Yermos Áridos (old [3, 1], now part of the Savanna island)
+    const questMobSpots = islandLayout && islandLayout.questMobs ? islandLayout.questMobs : null;
+    if ((gx === 3 && gy === 1) || questMobSpots) {
+      const spotOf = (id, fx, fz, legacyPatrol) => {
+        const a = questMobSpots && questMobSpots[id];
+        if (!a) return { x: fx, z: fz, patrol: legacyPatrol };
+        return { x: a.x, z: a.z, patrol: patrolAround(a).map((p) => new THREE.Vector3(p.x, 0, p.z)) };
+      };
       const qm = this.questManager || (typeof window !== 'undefined' ? window.overworldManager?.questManager : null);
       
       // 1. Armored Chimera for "Nomad Steel" (Herrero Baruk)
       const qNomad = qm?.getQuest('quest_nomad_steel');
       const stepOre = qNomad?.objective?.steps?.find(s => s.id === 'gather_ores');
-      if (qNomad && qNomad.status === 'active' && stepOre && !stepOre.done) {
+      if (qNomad?.status !== 'completed' && (!stepOre || !stepOre.done)) {
+        const armoredSpot = spotOf('mob_armored_chimera', 16.0, 8.0, [
+          new THREE.Vector3(16, 0, 8),
+          new THREE.Vector3(22, 0, 14),
+          new THREE.Vector3(14, 0, 18),
+          new THREE.Vector3(8, 0, 10)
+        ]);
         const mobArmored = await this.spawnMonster({
           id: 'mob_armored_chimera',
           name: '🛡️ Armored Chimera (Quest)',
           badge: '🛡️',
           tier: 2,
           modelType: 'wolf-aquatic-alpha',
-          x: 16.0,
-          z: 8.0,
+          x: armoredSpot.x,
+          z: armoredSpot.z,
           scale: 1.65,
           tintColor: 0x78716c,
           biome: 'savannah',
-          patrolPoints: [
-            new THREE.Vector3(16, 0, 8),
-            new THREE.Vector3(22, 0, 14),
-            new THREE.Vector3(14, 0, 18),
-            new THREE.Vector3(8, 0, 10)
-          ],
+          logicalZone: '3_1',
+          patrolPoints: armoredSpot.patrol,
           detectionRadius: 8.5,
           encounterRadius: 2.2,
           patrolSpeed: 1.6,
@@ -444,24 +502,61 @@ export class WanderingMonsters {
       // 2. Beaked Alpha Chimera for "The Hunt for the Beaked Chimera" (Centinela)
       const qBeaked = qm?.getQuest('quest_hunt_beaked_chimera');
       const stepAlpha = qBeaked?.objective?.steps?.find(s => s.id === 'defeat_beaked_alpha');
-      if (qBeaked && qBeaked.status === 'active' && stepAlpha && !stepAlpha.done) {
+      if (qBeaked?.status !== 'completed' && (!stepAlpha || !stepAlpha.done)) {
+        const beakedSpot = spotOf('mob_beaked_chimera', -14.0, -10.0, [
+          new THREE.Vector3(-14, 0, -10),
+          new THREE.Vector3(-20, 0, -6),
+          new THREE.Vector3(-16, 0, -18),
+          new THREE.Vector3(-8, 0, -14)
+        ]);
         const mobBeaked = await this.spawnMonster({
           id: 'mob_beaked_chimera',
           name: '🦅 Alpha Beaked Chimera (Quest)',
           badge: '🦅',
           tier: 2,
-          modelType: 'bird-early',
-          x: -14.0,
-          z: -10.0,
+          // 'bird-early' is an Axie hero (no overworld .glb): it fell back to a sphere half sunk in the ground.
+          // The overworld marker uses the pack's winged member model, tinted amber.
+          modelType: 'wolf-aquatic',
+          x: beakedSpot.x,
+          z: beakedSpot.z,
           scale: 1.55,
           tintColor: 0xf59e0b,
           biome: 'savannah',
-          patrolPoints: [
-            new THREE.Vector3(-14, 0, -10),
-            new THREE.Vector3(-20, 0, -6),
-            new THREE.Vector3(-16, 0, -18),
-            new THREE.Vector3(-8, 0, -14)
-          ],
+          logicalZone: '3_1',
+          patrolPoints: beakedSpot.patrol,
+          detectionRadius: 8.5,
+          encounterRadius: 2.2,
+          patrolSpeed: 1.7,
+          chaseSpeed: 4.6
+        });
+        if (mobBeaked && mobBeaked.group && !mobBeaked.questArrow) {
+          const arrow = createQuestBeaconArrow3D(2.0);
+          mobBeaked.group.add(arrow);
+          mobBeaked.questArrow = arrow;
+        }
+      }
+    }
+  }
+
+  async ensureSavannahQuestMonsters() {
+    const qm = this.questManager || (typeof window !== 'undefined' ? window.overworldManager?.questManager : null);
+    const qBeaked = qm?.getQuest('quest_hunt_beaked_chimera');
+    const stepAlpha = qBeaked?.objective?.steps?.find(s => s.id === 'defeat_beaked_alpha');
+    if (qBeaked?.status !== 'completed' && (!stepAlpha || !stepAlpha.done)) {
+      if (!this.monsters.some(m => m.id === 'mob_beaked_chimera')) {
+        const mobBeaked = await this.spawnMonster({
+          id: 'mob_beaked_chimera',
+          name: '🦅 Alpha Beaked Chimera (Quest)',
+          badge: '🦅',
+          tier: 2,
+          modelType: 'wolf-aquatic',
+          x: -40.0,
+          z: -8.0,
+          scale: 1.55,
+          tintColor: 0xf59e0b,
+          biome: 'savannah',
+          logicalZone: '3_1',
+          patrolPoints: patrolAround({ x: -40.0, z: -8.0 }).map((p) => new THREE.Vector3(p.x, 0, p.z)),
           detectionRadius: 8.5,
           encounterRadius: 2.2,
           patrolSpeed: 1.7,
@@ -519,7 +614,11 @@ export class WanderingMonsters {
     const mobRadius = Math.max(0.65, (config.scale || 1.0) * 0.60);
     const safeSpawn = this._sanitizePoint(config.x, config.z, mobRadius);
     const group = new THREE.Group();
-    group.position.set(safeSpawn.x, 0, safeSpawn.z);
+    // Spawn on the island ground (it used to start at y = 0, under the terrain, until it moved)
+    const spawnGroundY = (this.om && typeof this.om.getGroundHeight === 'function')
+      ? this.om.getGroundHeight(safeSpawn.x, safeSpawn.z)
+      : 0;
+    group.position.set(safeSpawn.x, Number.isFinite(spawnGroundY) ? spawnGroundY : 0, safeSpawn.z);
 
     // Chimera dark corruption aura at feet
     const auraGeo = new THREE.RingGeometry(0.65, 0.95, 24);
@@ -667,7 +766,7 @@ export class WanderingMonsters {
 
       // Apply Inverted Hull Toon Style Outline
       const toonOutline = applyToonOutline(mesh, {
-        thickness: 0.022,
+        thickness: 0.012,
         color: 0x15161e,
         mode: 'view'
       });
@@ -704,6 +803,7 @@ export class WanderingMonsters {
       name: config.name,
       packData: config.packData || null,
       biome: config.biome || null,
+      logicalZone: config.logicalZone || null,
       group: group,
       mesh: mesh,
       toonOutline: mesh?.userData?.toonOutline || null,
@@ -817,11 +917,11 @@ export class WanderingMonsters {
     m.group.position.x = newPos.x;
     m.group.position.z = newPos.z;
 
-    // 3. Dynamic bridge elevation
-    if (this.om && this.om.stylizedRiver && this.om.stylizedRiver.group.visible && typeof this.om.stylizedRiver.getBridgeHeight === 'function') {
-      const targetY = this.om.stylizedRiver.getBridgeHeight(newPos.x, newPos.z);
-      m.group.position.y += (targetY - m.group.position.y) * Math.min(1.0, 15.0 * dt);
-    }
+    // 3. Dynamic bridge & terrain elevation
+    const targetY = (this.om && typeof this.om.getGroundHeight === 'function')
+      ? this.om.getGroundHeight(newPos.x, newPos.z)
+      : 0.0;
+    m.group.position.y += (targetY - m.group.position.y) * Math.min(1.0, 15.0 * dt);
 
     // 4. Smooth rotation towards movement direction
     const moveDist = Math.hypot(steered.dirX, steered.dirZ);
@@ -849,7 +949,23 @@ export class WanderingMonsters {
     if (this.isEncounterTriggered) return;
 
     this.monsters.forEach(m => {
-      if (m.mixer) m.mixer.update(dt);
+      if (m.mixer) {
+        if (m._lodThrottled) {
+          m._lodSkip = !m._lodSkip;
+          m._accumDt = (m._accumDt || 0) + dt;
+          if (!m._lodSkip) {
+            m.mixer.update(m._accumDt);
+            m._accumDt = 0;
+          }
+        } else {
+          if (m._accumDt) {
+            m.mixer.update(dt + m._accumDt);
+            m._accumDt = 0;
+          } else {
+            m.mixer.update(dt);
+          }
+        }
+      }
 
       if (!playerPos) return;
 

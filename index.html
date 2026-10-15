@@ -5,6 +5,13 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>Lunakai: Chronicles of Lunacia | 3D Turn-Based Tactical RPG</title>
   <link rel="stylesheet" href="styles.css">
+  <!-- Lunakai UI · Crónica Celeste (capa nueva, prefijo lk-) -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;700&family=JetBrains+Mono:wght@500&family=Marcellus&family=Nunito+Sans:wght@600;700;800;900&display=swap">
+  <link rel="stylesheet" href="src/ui/ds.generated.css">
+  <link rel="stylesheet" href="src/ui/lunakai-ui.css">
+  <link rel="icon" type="image/png" href="./assets/portraits/sapidae-m-a.png">
   <script type="importmap">
   {
     "imports": {
@@ -438,6 +445,24 @@
           <!-- Dynamically populated 10 mission cards -->
         </div>
       </div>
+    </div>
+  </div>
+
+  <!-- Biome Loading & Zone Transition Screen -->
+  <div id="zone-transition-curtain" class="zone-curtain hidden">
+    <div class="zone-loading-container">
+      <div class="zone-loading-runic-emblem">
+        <div class="zone-loading-orb"></div>
+        <div class="zone-loading-glow"></div>
+        <div id="zone-loading-icon" class="zone-loading-icon"></div>
+      </div>
+      <div id="zone-loading-badge" class="zone-loading-badge">LUNAKAI</div>
+      <h2 id="zone-loading-title" class="zone-loading-title">Loading Biome...</h2>
+      <div id="zone-loading-subtitle" class="zone-loading-subtitle">Dojo Valley [2, 2]</div>
+      <div class="zone-loading-bar-track">
+        <div class="zone-loading-bar-fill"></div>
+      </div>
+      <div id="zone-loading-hint" class="zone-loading-hint">Preparing 3D environment and textures...</div>
     </div>
   </div>
 

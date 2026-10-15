@@ -13,6 +13,7 @@ import { CinematicFlythrough } from './CinematicFlythrough.js';
 import { TextureGenerator } from '../tactics/TextureGenerator.js';
 import { StylizedEnvironment } from './stylized/StylizedEnvironment.js';
 import { WorldMapManager } from './world/WorldMapManager.js';
+import { MAP_REGISTRY } from './world/MapRegistry.js';
 import { createQuestBeaconArrow3D } from './world/ZoneTransitionManager.js';
 import { BiomeDecorationManager } from './world/BiomeDecorationManager.js';
 import { MagicalSkybox } from './world/MagicalSkybox.js';
@@ -28,9 +29,25 @@ import { QuestManager } from './QuestManager.js';
 import { QuestBookModal } from './ui/QuestBookModal.js';
 import { OverworldTutorialManager } from './OverworldTutorialManager.js';
 import { SquadHUD } from './ui/SquadHUD.js';
+import { MinimapHUD } from './ui/MinimapHUD.js';
 import { portraitService } from '../tactics/CharacterPortraitService.js';
+import { SAPIDAE_CLASSES } from './SaveSlotManager.js';
 import { QuestInteractablesManager } from './world/QuestInteractablesManager.js';
 import { SettingsModal } from './ui/SettingsModal.js';
+import { OverworldLODManager } from './world/OverworldLODManager.js';
+import { EnvironmentSystem } from './world/EnvironmentSystem.js';
+import { DemoScenaZone22 } from './world/demo_scena/DemoScenaZone22.js';
+import { DemoScenaDebugUI } from './world/demo_scena/DemoScenaDebugUI.js';
+import { SavannaZone } from './world/savanna/SavannaZone.js';
+import { createGrandIslands, getActiveGrandIsland } from './world/islands/GrandIslands.js';
+import { canonicalZoneId, FERRY_DOCKS, mergedBattleAnchor } from './world/islands/IslandWorldLayout.js';
+
+/**
+ * The 80 m terrains of the demo 1.0.0 grid (9 macro-zones) are retired: every zone is now one of the
+ * 5 islands. Their builders stay in the codebase but are not created; StylizedEnvironment only provides
+ * the base lights and fog that EnvironmentSystem expects.
+ */
+const LEGACY_DEMO_WORLD = false;
 
 export class OverworldManager {
   constructor(renderer, audioSystem, onStartBattle, equipmentManager = null) {
@@ -45,6 +62,7 @@ export class OverworldManager {
     // Subsystems
     this.collisions = new OverworldCollisions();
     this.cameraController = new OverworldCamera(this.container);
+    this.cameraController.om = this;
     this.camera = this.cameraController.camera;
     this.dialogSystem = new DialogSystem(this.audio);
     this.npcManager = new NPCManager(this.scene, this.dialogSystem, this.audio);
@@ -75,6 +93,14 @@ export class OverworldManager {
     this.questInteractables = new QuestInteractablesManager(this.scene, this.questManager, this.audio, this);
     this.questBookModal = new QuestBookModal(this.questManager, this.audio);
     this.tutorialManager = new OverworldTutorialManager(this);
+    this.lodManager = new OverworldLODManager(this);
+    window.overworldLODManager = this.lodManager;
+    this.environmentSystem = null;
+    this.demoScenaZone = new DemoScenaZone22(this);
+    this.demoScenaDebugUI = null;
+    this.savannaZone = new SavannaZone(this);
+    // Hito 23: Arctic / Mystic / Dungeon grand islands (built lazily on first visit)
+    this.grandIslands = createGrandIslands(this);
 
     this.settingsModal = new SettingsModal({
       renderer: this.renderer,
@@ -121,11 +147,32 @@ export class OverworldManager {
         }
       };
       this.inventoryModal.onItemEquipped = (heroId, slot, itemId) => {
-        if (heroId === 'kotaro' && slot === 'weapon' && itemId === 'wood_sword') {
-          this.tutorialManager.onSwordEquipped();
+        if (this.player && typeof this.player.applyEquipment === 'function') {
+          const currentEquipped = this.equipmentManager ? (this.equipmentManager.equipped.sapidae || this.equipmentManager.equipped.kotaro || {}) : {};
+          this.player.applyEquipment(currentEquipped);
+        }
+        if (this.equipmentManager && typeof this.equipmentManager._updateSapidaePortrait === 'function') {
+          this.equipmentManager._updateSapidaePortrait();
+        }
+        if (slot === 'weapon' && itemId === 'wood_sword') {
+          if (this.tutorialManager && typeof this.tutorialManager.onSwordEquipped === 'function') {
+            this.tutorialManager.onSwordEquipped();
+          }
+          if (this.questManager) {
+            this.questManager.advanceStep('quest_slime_purification', 'equip_sword', true);
+          }
           if (this.questDescEl) {
             this.questDescEl.textContent = this.questManager.getActiveHUDTrackerText();
           }
+        }
+      };
+      this.inventoryModal.onItemUnequipped = (heroId, slot) => {
+        if (this.player && typeof this.player.applyEquipment === 'function') {
+          const currentEquipped = this.equipmentManager ? (this.equipmentManager.equipped.sapidae || this.equipmentManager.equipped.kotaro || {}) : {};
+          this.player.applyEquipment(currentEquipped);
+        }
+        if (this.equipmentManager && typeof this.equipmentManager._updateSapidaePortrait === 'function') {
+          this.equipmentManager._updateSapidaePortrait();
         }
       };
     }
@@ -269,6 +316,7 @@ export class OverworldManager {
           <div class="guide-item"><kbd>I</kbd> Inventory</div>
           <div class="guide-item"><kbd>J / L</kbd> Quests</div>
           <div class="guide-item"><kbd>M</kbd> World Map</div>
+          <div class="guide-item"><kbd>ESC</kbd> Options</div>
           <div class="guide-item"><kbd>Q / R</kbd> Rotate View</div>
           <div class="guide-item"><kbd>Wheel</kbd> Zoom</div>
           <div class="guide-item" id="hud-player-coord-display" style="color: #67e8f9; font-weight: bold; font-family: monospace;">📍 Pos: X 0.0 | Z 0.0</div>
@@ -276,7 +324,7 @@ export class OverworldManager {
             <button id="btn-open-inventory" class="hud-inv-btn" title="Open Inventory & Equipment [I]">🎒 Inventory [I]</button>
             <button id="btn-open-quest-book" class="hud-quest-btn" title="Open Quest Log [J]">📖 Quests [J]</button>
             <button id="btn-open-world-map" class="hud-map-btn" title="Open World Map [M]">🗺️ View Map [M]</button>
-            <button id="btn-open-options" class="hud-options-btn" title="Game Options: Graphics, Audio, and Exit [ESC]">⚙️ Options</button>
+            <button id="btn-open-options" class="hud-options-btn" title="Game Options: Graphics, Audio, and Exit [ESC]">⚙️ Options [ESC]</button>
           </div>
         </div>
       `;
@@ -358,8 +406,25 @@ export class OverworldManager {
     this.navCompassArrowEl = document.getElementById('hud-nav-compass-arrow');
     this.navDirectionTextEl = document.getElementById('hud-nav-direction-text');
 
+    let pinEl = document.getElementById('hud-3d-quest-pin');
+    if (!pinEl) {
+      pinEl = document.createElement('div');
+      pinEl.id = 'hud-3d-quest-pin';
+      pinEl.className = 'hud-3d-quest-pin hidden';
+      pinEl.innerHTML = `
+        <span class="hud-quest-pin-icon">🎯</span>
+        <span id="hud-quest-pin-title" class="hud-quest-pin-title">Target</span>
+        <span id="hud-quest-pin-dist" class="hud-quest-pin-dist">0m</span>
+      `;
+      document.body.appendChild(pinEl);
+    }
+    this.questPinEl = pinEl;
+
     if (!this.squadHUD) {
       this.squadHUD = new SquadHUD(el, this.equipmentManager, this.inventoryModal);
+    }
+    if (!this.minimapHUD) {
+      this.minimapHUD = new MinimapHUD(this);
     }
   }
 
@@ -377,6 +442,11 @@ export class OverworldManager {
   }
 
   isAnyModalOpen() {
+    if (this.isLoadingZone) return true;
+    if (this.worldMapManager?.transitionManager?.isTransitioning) return true;
+    const curtain = document.getElementById('zone-transition-curtain');
+    if (curtain && (!curtain.classList.contains('hidden') || curtain.classList.contains('active'))) return true;
+
     if (this.inventoryModal && this.inventoryModal.isOpen) return true;
     if (this.questBookModal && this.questBookModal.isOpen) return true;
     if (this.settingsModal && this.settingsModal.isOpen) return true;
@@ -394,13 +464,36 @@ export class OverworldManager {
       '#gameover-modal:not(.hidden), ' +
       '#equipment-screen:not(.hidden), ' +
       '.dialog-overlay:not(.hidden), ' +
-      '#dialog-box-overlay:not(.hidden)'
+      '#dialog-box-overlay:not(.hidden), ' +
+      '#start-screen-overlay:not(.hidden), ' +
+      '#hero-select-modal:not(.hidden), ' +
+      '.hero-select-modal:not(.hidden), ' +
+      '#confirm-delete-modal:not(.hidden), ' +
+      '#ferry-travel-modal:not(.hidden)'
     );
     return Boolean(activeModal);
   }
 
   _setupInput() {
     window.addEventListener('keydown', (e) => {
+      // 0. Si el usuario está escribiendo en cualquier input o textarea, NO interceptar ninguna tecla (ej. nombre de personaje)
+      const activeTag = document.activeElement?.tagName;
+      const targetTag = e.target?.tagName;
+      if (activeTag === 'INPUT' || activeTag === 'TEXTAREA' || targetTag === 'INPUT' || targetTag === 'TEXTAREA' || e.target?.isContentEditable) {
+        if (e.code === 'Escape' && document.activeElement?.blur) {
+          document.activeElement.blur();
+        }
+        return;
+      }
+
+      // Si la pantalla de inicio o el creador de personajes está abierto, no procesar atajos del Overworld
+      const isStartOrCreatorOpen = document.querySelector(
+        '#start-screen-overlay:not(.hidden), #hero-select-modal:not(.hidden), .hero-select-modal:not(.hidden), #confirm-delete-modal:not(.hidden)'
+      );
+      if (isStartOrCreatorOpen) {
+        return;
+      }
+
       // Prioridad máxima: Escape para cerrar modales y menús abiertos en cualquier momento (incluso durante tutorial)
       if (e.code === 'Escape') {
         if (this.settingsModal && this.settingsModal.isOpen) {
@@ -546,13 +639,15 @@ export class OverworldManager {
     // 1. Build Stylized Meadow Environment (Grass, Flowers, Cobblestone SDF Path, Trees, Wind)
     if (!this.stylizedEnv) {
       console.log('[DIAG] Iniciando StylizedEnvironment...');
-      this.stylizedEnv = new StylizedEnvironment(this.scene);
+      this.stylizedEnv = new StylizedEnvironment(this.scene, { lightingOnly: !LEGACY_DEMO_WORLD });
       await this.stylizedEnv.init();
       console.log('[DIAG] StylizedEnvironment OK');
 
-      // 1b. Build Magical Skybox and Zone Environmental Particles
-      this.magicalSkybox = new MagicalSkybox(this.scene);
-      this.zoneParticleManager = new ZoneParticleManager(this.scene);
+      // 1b. Build Magical Skybox and Zone Environmental Particles (legacy demo world only)
+      if (LEGACY_DEMO_WORLD) {
+        this.magicalSkybox = new MagicalSkybox(this.scene);
+        this.zoneParticleManager = new ZoneParticleManager(this.scene);
+      }
 
       // World boundaries (80x80 continuous ground with safe margin)
       this.collisions.bounds = {
@@ -565,7 +660,7 @@ export class OverworldManager {
       // Procedural trees handled in StylizedTrees setZone
 
       // 1c. Build Dojo Sanctuary Rock Formations & Column Ruins with Cascading Ivy [Zone 3, 3]
-      if (!this.dojoRockSanctuary) {
+      if (LEGACY_DEMO_WORLD && !this.dojoRockSanctuary) {
         console.log('[DIAG] Iniciando DojoRockSanctuary...');
         this.dojoRockSanctuary = new DojoRockSanctuary(this.scene, this.collisions);
         await this.dojoRockSanctuary.init();
@@ -573,7 +668,7 @@ export class OverworldManager {
       }
 
       // 1d. Build Dojo Stylized River, Stepping Stones & Swimming Fish [Zone 3, 3]
-      if (!this.stylizedRiver) {
+      if (LEGACY_DEMO_WORLD && !this.stylizedRiver) {
         console.log('[DIAG] Iniciando StylizedRiver...');
         this.stylizedRiver = new StylizedRiver(this.scene, this.collisions);
         await this.stylizedRiver.init();
@@ -581,7 +676,7 @@ export class OverworldManager {
       }
 
       // 1e. Build Dojo Bamboo Groves with GPU Wind Animation [Zone 3, 3]
-      if (!this.dojoBambooGrove) {
+      if (LEGACY_DEMO_WORLD && !this.dojoBambooGrove) {
         console.log('[DIAG] Iniciando DojoBambooGrove...');
         this.dojoBambooGrove = new DojoBambooGrove(this.scene, this.collisions);
         await this.dojoBambooGrove.init();
@@ -589,7 +684,7 @@ export class OverworldManager {
       }
 
       // 1f. Build Dojo Pagoda Temple Sanctuary [Zone 3, 3]
-      if (!this.dojoBuilding) {
+      if (LEGACY_DEMO_WORLD && !this.dojoBuilding) {
         console.log('[DIAG] Iniciando DojoBuilding...');
         this.dojoBuilding = new DojoBuilding(this.scene, this.collisions);
         await this.dojoBuilding.init();
@@ -597,7 +692,7 @@ export class OverworldManager {
       }
 
       // 1g. Build Forest Nature Elements (Stylized Nature MegaKit) [Zone 3, 3 and all Forest zones]
-      if (!this.forestNatureManager) {
+      if (LEGACY_DEMO_WORLD && !this.forestNatureManager) {
         console.log('[DIAG] Iniciando ForestNatureManager...');
         this.forestNatureManager = new ForestNatureManager(this.scene, this.collisions);
         this.dojoNatureManager = this.forestNatureManager;
@@ -606,7 +701,7 @@ export class OverworldManager {
       }
 
       // 1h. Build Dojo Stylized Pond with Pebble Border [Zone 3, 3]
-      if (!this.dojoPond) {
+      if (LEGACY_DEMO_WORLD && !this.dojoPond) {
         console.log('[DIAG] Iniciando Dojo StylizedPond [3, 3]...');
         this.dojoPond = new StylizedPond(this.scene, this.collisions, {
           id: 'dojo_stylized_pond',
@@ -625,9 +720,14 @@ export class OverworldManager {
       // are now lazy-loaded on-demand via ensureZonePonds() when entering their respective zones.
     }
 
-    // Clean up previous hero model if switching heroes or slots
-    if (this.player && this.player.group) {
-      this.scene.remove(this.player.group);
+    // Clean up previous hero model and companion if switching heroes or slots
+    if (this.player) {
+      if (this.player.companionGroup && this.player.companionGroup.parent) {
+        this.scene.remove(this.player.companionGroup);
+      }
+      if (this.player.group && this.player.group.parent) {
+        this.scene.remove(this.player.group);
+      }
       this.player = null;
     }
 
@@ -658,27 +758,70 @@ export class OverworldManager {
       visitedZones = ['zone_2_2', 'zone_3_2', 'zone_3_1', 'zone_2_1'];
     }
 
-    // 2. Initialize Hero Entity
+    // Saves made in a retired corner zone resume on its island, at the ferry dock
+    const canonicalInitialId = canonicalZoneId(initialMapId);
+    if (canonicalInitialId !== initialMapId) {
+      initialMapId = canonicalInitialId;
+      const dock = FERRY_DOCKS[initialMapId] && FERRY_DOCKS[initialMapId].arrive;
+      if (dock) {
+        spawnX = dock.x;
+        spawnZ = dock.z;
+        spawnYaw = dock.yaw;
+      }
+    }
+
+    // 2. Initialize Sapidae Hero Entity with Companion Axie
     this.player = new PlayerEntity({
+      om: this,
       heroId: heroConfig.id || 'kotaro',
-      axieId: heroConfig.axieId || (heroConfig.modelType === 'axie' ? '10455' : null),
+      isSapidae: true,
+      sapidaeModel: slotData?.sapidaeModel || heroConfig.sapidaeModel || 'sapidae-f-a',
+      playerName: slotData?.playerName || heroConfig.playerName || 'Ema',
+      sapidaeClass: slotData?.sapidaeClass || heroConfig.sapidaeClass || 'crafter',
+      customization: slotData?.customization || heroConfig.customization || null,
+      equipped: this.equipmentManager ? (this.equipmentManager.equipped.kotaro || {}) : {},
+      axieId: heroConfig.axieId || '10455',
       genes: heroConfig.genes || null,
       name: (heroConfig.name && heroConfig.name !== 'Kotaro') ? heroConfig.name : 'Shinji',
-      heroClass: heroConfig.archetype || 'Bestia Duelista',
-      archetype: heroConfig.archetype || 'Axie Bestia (Duelista Melee)',
-      avatar: heroConfig.avatar || '⚔️',
-      modelType: heroConfig.modelType || (heroConfig.axieId ? 'axie' : (heroConfig.id || 'kotaro')),
-      scale: (heroConfig.modelType === 'axie' || heroConfig.axieId) ? 0.88 : (heroConfig.scale || 1.05),
+      heroClass: 'Sapidae Adventurer',
+      archetype: `Sapidae Explorer (Companion: ${heroConfig.name || 'Shinji'})`,
+      avatar: (slotData?.sapidaeModel || heroConfig.sapidaeModel || 'sapidae-f-a').includes('f') ? '👩‍🌾' : '🧑‍🌾',
+      scale: 1.0,
       x: spawnX,
       y: spawnY,
       z: spawnZ,
       yaw: spawnYaw
     });
 
-    console.log('[DIAG] Cargando modelo del jugador...');
+    console.log('[DIAG] Cargando modelo del jugador Sapidae y compañero Axie...');
     await this.player.loadModel(this.renderer);
+    const initialEquipped = this.equipmentManager ? (this.equipmentManager.equipped.sapidae || this.equipmentManager.equipped.kotaro) : null;
+    if (initialEquipped) {
+      this.player.applyEquipment(initialEquipped);
+    }
     this.scene.add(this.player.group);
-    console.log('[DIAG] Modelo jugador OK');
+    if (this.player.companionGroup && !this.player.companionGroup.parent) {
+      this.scene.add(this.player.companionGroup);
+    }
+    console.log('[DIAG] Modelo jugador Sapidae OK');
+
+    // Link player entity with equipmentManager and pre-render live portrait
+    if (this.equipmentManager) {
+      this.equipmentManager.playerEntity = this.player;
+      if (this.equipmentManager.heroesBase && this.equipmentManager.heroesBase.sapidae) {
+        this.equipmentManager.heroesBase.sapidae.customization = this.player.customization;
+        this.equipmentManager.heroesBase.sapidae.modelType = this.player.sapidaeModel || 'sapidae-f-a';
+        this.equipmentManager.heroesBase.sapidae.sapidaeClassKey = this.player.sapidaeClass || 'crafter';
+        const cDef = SAPIDAE_CLASSES[this.player.sapidaeClass || 'crafter'];
+        if (cDef) {
+          this.equipmentManager.heroesBase.sapidae.class = cDef.name;
+          this.equipmentManager.heroesBase.sapidae.classIcon = cDef.icon;
+        }
+      }
+      if (typeof this.equipmentManager._updateSapidaePortrait === 'function') {
+        this.equipmentManager._updateSapidaePortrait();
+      }
+    }
 
     // Dialog context with dynamic hero details
     this.dialogSystem.setHeroContext(this.player);
@@ -717,14 +860,16 @@ export class OverworldManager {
       this.audio,
       this
     );
-    this.cameraController.setFollowTarget(this.player);
+    this.playerController.setEnabled(false);
+    this.cameraController.setFollowTarget(this.player, true);
 
     // 4. Initialize NPCs
     console.log('[DIAG] Iniciando NPCManager...');
-    await this.npcManager.init();
+    const initialMapDef = MAP_REGISTRY[initialMapId] || MAP_REGISTRY.zone_2_2;
+    await this.npcManager.init(initialMapDef);
     console.log('[DIAG] NPCManager OK');
     if (initialMapId === 'zone_2_2') {
-      this.collisions.addCircle(-14.5, -8.5, 1.2, 'npc_paladill');
+      this.collisions.addCircle(-90.3, 63.3, 1.2, 'npc_paladill');
     }
 
     // 5. Initialize Wandering Monsters
@@ -749,8 +894,19 @@ export class OverworldManager {
     await this.biomeDecorationManager.init();
     console.log('[DIAG] BiomeDecorationManager OK');
 
+    // 7b. Initialize DemoScenaZone22 for Macro-Zone [2, 2]
+    console.log('[DIAG] Iniciando DemoScenaZone22...');
+    await this.demoScenaZone.init();
+    this.demoScenaDebugUI = new DemoScenaDebugUI(this);
+    console.log('[DIAG] DemoScenaZone22 OK');
+
+    // 7c. Initialize SavannaZone for Macro-Zone [3, 2] (Isla de la Sabana)
+    console.log('[DIAG] Iniciando SavannaZone...');
+    await this.savannaZone.init();
+    console.log('[DIAG] SavannaZone OK');
+
     // 8. Initialize Continuous Map & Biome System with loaded zone
-    this.worldMapManager.init(
+    await this.worldMapManager.init(
       this.stylizedEnv,
       this.biomeDecorationManager,
       this.magicalSkybox,
@@ -782,7 +938,30 @@ export class OverworldManager {
       };
     }
 
-    console.log('[OverworldManager] Initialized successfully with stylized assets and continuous map system!');
+    // Initialize 3-Tier LOD & Culling for Overworld Scene
+    if (this.lodManager) {
+      this.lodManager.scanScene();
+      this.worldMapManager.onMapChanged = () => {
+        if (this.lodManager) {
+          this.lodManager.scanScene();
+        }
+      };
+    }
+
+    // Initialize Centralized Environment System (Lighting, Atmosphere, Shadows, Presets & Post-Processing)
+    if (!this.environmentSystem) {
+      this.environmentSystem = new EnvironmentSystem(this);
+      this.environmentSystem.init();
+      window.environmentSystem = this.environmentSystem;
+    }
+
+    // Si estamos en la macro-zona [2, 2], reaplicar sus visuales, niebla cálida y luces dedicadas
+    if (this.demoScenaZone && this.demoScenaZone.isActive && this.worldMap) {
+      this.worldMap._updateZone22Visuals(true);
+    }
+
+    console.log('[OverworldManager] Initialized successfully with stylized assets, EnvironmentSystem and continuous map system!');
+    this.isReadyToRender = true;
   }
 
   startPrologue() {
@@ -793,6 +972,7 @@ export class OverworldManager {
     // Hide gameplay HUD during cinematic flight
     if (this.overworldHudEl) this.overworldHudEl.classList.add('hidden');
     if (this.squadHUD && this.squadHUD.container) this.squadHUD.container.classList.add('hidden');
+    if (this.minimapHUD) this.minimapHUD.hide();
     const tutBanner = document.getElementById('overworld-tutorial-banner');
     if (tutBanner) tutBanner.classList.add('hidden');
 
@@ -810,6 +990,7 @@ export class OverworldManager {
     // Keep gameplay HUD hidden while presenting hero card
     if (this.overworldHudEl) this.overworldHudEl.classList.add('hidden');
     if (this.squadHUD && this.squadHUD.container) this.squadHUD.container.classList.add('hidden');
+    if (this.minimapHUD) this.minimapHUD.hide();
     const tutBanner = document.getElementById('overworld-tutorial-banner');
     if (tutBanner) tutBanner.classList.add('hidden');
 
@@ -828,16 +1009,20 @@ export class OverworldManager {
 
     const avatarEl = document.getElementById('intro-hero-avatar');
     if (avatarEl && this.player) {
-      const portraitKey = this.player.axieId || (this.player.heroId === 'kotaro' ? 'shinji' : this.player.heroId);
-      const snap = portraitService.getPortraitSync(portraitKey) || portraitService.getPortraitSync(this.player.heroId);
-      if (snap) {
-        avatarEl.innerHTML = `<img src="${snap}" alt="${this.player.name}" style="width: 100%; height: 100%; object-fit: contain; transform: scale(1.15); filter: drop-shadow(0 2px 8px rgba(0,0,0,0.85));">`;
+      if (this.player.isSapidae) {
+        avatarEl.innerHTML = `<img src="./assets/portraits/${this.player.sapidaeModel}.png" alt="${this.player.name}" style="width: 100%; height: 100%; object-fit: contain; transform: scale(1.15); filter: drop-shadow(0 2px 8px rgba(0,0,0,0.85));">`;
       } else {
-        portraitService.getPortrait(portraitKey).then(src => {
-          if (src && avatarEl) {
-            avatarEl.innerHTML = `<img src="${src}" alt="${this.player.name}" style="width: 100%; height: 100%; object-fit: contain; transform: scale(1.15); filter: drop-shadow(0 2px 8px rgba(0,0,0,0.85));">`;
-          }
-        });
+        const portraitKey = this.player.axieId || (this.player.heroId === 'kotaro' ? 'shinji' : this.player.heroId);
+        const snap = portraitService.getPortraitSync(portraitKey) || portraitService.getPortraitSync(this.player.heroId);
+        if (snap) {
+          avatarEl.innerHTML = `<img src="${snap}" alt="${this.player.name}" style="width: 100%; height: 100%; object-fit: contain; transform: scale(1.15); filter: drop-shadow(0 2px 8px rgba(0,0,0,0.85));">`;
+        } else {
+          portraitService.getPortrait(portraitKey).then(src => {
+            if (src && avatarEl) {
+              avatarEl.innerHTML = `<img src="${src}" alt="${this.player.name}" style="width: 100%; height: 100%; object-fit: contain; transform: scale(1.15); filter: drop-shadow(0 2px 8px rgba(0,0,0,0.85));">`;
+            }
+          });
+        }
       }
     }
 
@@ -881,6 +1066,9 @@ export class OverworldManager {
     if (this.overworldHudEl) this.overworldHudEl.classList.remove('hidden');
     if (this.squadHUD && this.squadHUD.container) {
       this.squadHUD.container.classList.remove('hidden');
+    }
+    if (this.minimapHUD) {
+      this.minimapHUD.show();
     }
 
     const isTutorialCompleted = (slotData && (slotData.level > 1 || !slotData.tutorialProgress?.isActive || slotData.tutorialProgress?.currentStep === 'COMPLETED'))
@@ -950,11 +1138,17 @@ export class OverworldManager {
       this.zoneParticleManager.group.visible = false;
     }
 
+    if (this.player) {
+      if (this.player.group) this.player.group.visible = false;
+      if (this.player.companionGroup) this.player.companionGroup.visible = false;
+    }
+
     this.currentBattlingMonsterId = monster.id;
     this.transition.playEncounter(
       async () => {
         // Blackout hook: hide Overworld UI and trigger battle in main
         this.overworldHudEl.classList.add('hidden');
+        if (this.minimapHUD) this.minimapHUD.hide();
         if (this.npcManager) {
           this.npcManager.hideAllOverlays();
         }
@@ -967,7 +1161,8 @@ export class OverworldManager {
         if (this.onStartBattle) {
           this.state = 'COMBAT';
           const curMap = this.worldMapManager?.currentMapDef;
-          const zoneKey = curMap ? `${curMap.gx}_${curMap.gy}` : '3_3';
+          // Packs of a retired corner zone keep that zone's key for quest progress
+          const zoneKey = monster.logicalZone || (curMap ? `${curMap.gx}_${curMap.gy}` : '3_3');
           this.currentBattlingZoneKey = zoneKey;
           await this.onStartBattle({
             level: 1,
@@ -975,7 +1170,7 @@ export class OverworldManager {
             packData: monster.packData || null,
             biome: monster.biome || curMap?.biome || 'forest',
             zoneKey: zoneKey,
-            zoneCoords: curMap ? [curMap.gx, curMap.gy] : [3, 3],
+            zoneCoords: monster.logicalZone ? monster.logicalZone.split('_').map(Number) : (curMap ? [curMap.gx, curMap.gy] : [3, 3]),
             isTutorial: monster.id === 'slime_garden_1'
           });
         }
@@ -1005,8 +1200,15 @@ export class OverworldManager {
     await this.transition.playReturn(
       () => {
         // Place player exactly where they encountered the monster (slightly stepped back)
-        if (this.player && this.savedPlayerPosition) {
-          this.player.teleport(this.savedPlayerPosition.x, this.savedPlayerPosition.y, this.savedPlayerPosition.z);
+        if (this.player) {
+          if (this.player.group) this.player.group.visible = true;
+          if (this.player.companionGroup) this.player.companionGroup.visible = true;
+          if (this.savedPlayerPosition) {
+            this.player.teleport(this.savedPlayerPosition.x, this.savedPlayerPosition.y, this.savedPlayerPosition.z);
+          }
+          if (this.cameraController) {
+            this.cameraController.setFollowTarget(this.player, true);
+          }
         }
 
         const curBiome = curMap ? curMap.biome : 'forest';
@@ -1018,6 +1220,9 @@ export class OverworldManager {
         const monsterId = battlingMonsterId;
         if (monsterId && this.monsters) {
           this.monsters.despawnMonster(monsterId);
+        }
+        if (monsterId && this.demoScenaZone && this.demoScenaZone.slimeCreaturesManager) {
+          this.demoScenaZone.slimeCreaturesManager.despawnSlime(monsterId);
         }
 
         const key = battlingZoneKey;
@@ -1059,7 +1264,7 @@ export class OverworldManager {
           }
 
           // Main quest battles in 3x3 Grid
-          if (monsterId === 'mob_beaked_chimera' || (key === '3_1' && monsterId === 'mob_beaked_chimera')) {
+          if (monsterId === 'mob_beaked_chimera' || monsterId?.includes('beaked') || (key === '3_1' && monsterId === 'mob_beaked_chimera') || (key === '3_2' && monsterId?.includes('beaked'))) {
             this.questManager.advanceStep('quest_hunt_beaked_chimera', 'defeat_beaked_alpha', true);
           }
           if (monsterId === 'mob_pomodoro_battle' || (key === '2_1' && monsterId === 'mob_pomodoro_battle')) {
@@ -1071,7 +1276,7 @@ export class OverworldManager {
             this.questManager.advanceStep('quest_blizzard_core', 'defeat_golem', true);
             this.questManager.completeQuest('quest_blizzard_core');
           }
-          if (monsterId === 'mob_oracle_chimera' || (key === '1_3' && monsterId === 'mob_oracle_chimera')) {
+          if (monsterId === 'mob_oracle_chimera' || key === '1_3') {
             this.questManager.advanceStep('quest_forbidden_resonance', 'reach_sanctuary', true);
             this.questManager.advanceStep('quest_forbidden_resonance', 'defeat_sapidae', true);
           }
@@ -1103,6 +1308,9 @@ export class OverworldManager {
         this.overworldHudEl.classList.remove('hidden');
         if (this.squadHUD) {
           this.squadHUD.render();
+        }
+        if (this.minimapHUD) {
+          this.minimapHUD.show();
         }
         if (this.zoneParticleManager) {
           this.zoneParticleManager.group.visible = true;
@@ -1158,14 +1366,25 @@ export class OverworldManager {
           this.player.teleport(0, 0, 2, Math.PI);
         }
 
+        if (this.player) {
+          if (this.player.group) this.player.group.visible = true;
+          if (this.player.companionGroup) this.player.companionGroup.visible = true;
+        }
+
         this.currentBattlingMonsterId = null;
         if (this.monsters) {
           this.monsters.isEncounterTriggered = false;
+        }
+        if (this.demoScenaZone && this.demoScenaZone.slimeCreaturesManager) {
+          this.demoScenaZone.slimeCreaturesManager.resetCombatEncounter();
         }
 
         this.overworldHudEl.classList.remove('hidden');
         if (this.squadHUD) {
           this.squadHUD.render();
+        }
+        if (this.minimapHUD) {
+          this.minimapHUD.show();
         }
         if (this.zoneParticleManager) {
           this.zoneParticleManager.group.visible = true;
@@ -1223,45 +1442,89 @@ export class OverworldManager {
     }
   }
 
+  getGroundHeight(x, z) {
+    const grand = getActiveGrandIsland(this);
+    if (grand) {
+      return grand.getHeight(x, z);
+    }
+    if (this.savannaZone && this.savannaZone.isActive && typeof this.savannaZone.getHeight === 'function') {
+      return this.savannaZone.getHeight(x, z);
+    }
+    if (this.demoScenaZone && this.demoScenaZone.isActive && typeof this.demoScenaZone.getHeight === 'function') {
+      return this.demoScenaZone.getHeight(x, z);
+    }
+    if (this.stylizedRiver && this.stylizedRiver.group && this.stylizedRiver.group.visible && typeof this.stylizedRiver.getBridgeHeight === 'function') {
+      return this.stylizedRiver.getBridgeHeight(x, z);
+    }
+    if (this.terrain && typeof this.terrain.getHeight === 'function') {
+      return this.terrain.getHeight(x, z);
+    }
+    return 0.0;
+  }
+
   update(dt, time) {
-    if (this.stylizedEnv) {
-      this.stylizedEnv.update(dt);
+    if (this.demoScenaZone && this.demoScenaZone.isActive) {
+      this.demoScenaZone.update(dt, this.player?.position);
+      if (this.demoScenaDebugUI) {
+        this.demoScenaDebugUI.update();
+      }
+    } else if (this.savannaZone && this.savannaZone.isActive) {
+      this.savannaZone.update(dt, this.player?.position);
+    } else if (getActiveGrandIsland(this)) {
+      getActiveGrandIsland(this).update(dt, this.player?.position);
+    } else {
+      if (this.stylizedEnv) {
+        this.stylizedEnv.update(dt);
+      }
+      if (this.dojoRockSanctuary) {
+        this.dojoRockSanctuary.update(dt);
+      }
+      if (this.stylizedRiver) {
+        this.stylizedRiver.update(dt);
+      }
+      if (this.dojoBambooGrove) {
+        this.dojoBambooGrove.update(dt);
+      }
+      if (this.dojoBuilding) {
+        this.dojoBuilding.update(dt);
+      }
+      if (this.forestNatureManager) {
+        this.forestNatureManager.update(dt);
+      } else if (this.dojoNatureManager && this.dojoNatureManager.group && this.dojoNatureManager.group.visible) {
+        this.dojoNatureManager.update(dt);
+      }
+      if (this.magicalSkybox) {
+        this.magicalSkybox.update(dt, this.camera);
+      }
+      if (this.zoneParticleManager && this.state !== 'COMBAT') {
+        const pPos = (this.player && this.player.position) ? this.player.position : null;
+        this.zoneParticleManager.update(dt, pPos, this.camera);
+      }
     }
-    if (this.dojoRockSanctuary) {
-      this.dojoRockSanctuary.update(dt);
+    if (this.environmentSystem && !this.demoScenaZone?.isActive && !this.savannaZone?.isActive && !getActiveGrandIsland(this)) {
+      this.environmentSystem.update(dt);
     }
-    if (this.stylizedRiver) {
-      this.stylizedRiver.update(dt);
-    }
-    if (this.dojoBambooGrove) {
-      this.dojoBambooGrove.update(dt);
-    }
-    if (this.dojoBuilding) {
-      this.dojoBuilding.update(dt);
-    }
-    if (this.forestNatureManager) {
-      this.forestNatureManager.update(dt);
-    } else if (this.dojoNatureManager) {
-      this.dojoNatureManager.update(dt);
-    }
-    if (this.dojoPond) {
-      this.dojoPond.update(dt);
-    }
-    if (this.westPond) {
-      this.westPond.update(dt);
-    }
-    if (this.magicalSkybox) {
-      this.magicalSkybox.update(dt, this.camera);
-    }
-    if (this.zoneParticleManager && this.state !== 'COMBAT') {
-      const pPos = (this.player && this.player.position) ? this.player.position : null;
-      this.zoneParticleManager.update(dt, pPos, this.camera);
+    if (this.lodManager) {
+      this.lodManager.update(this.camera, this.player?.position, dt);
     }
 
     // Live Player Coordinate HUD display
     const coordEl = document.getElementById('hud-player-coord-display');
     if (coordEl && this.player && this.player.position) {
       coordEl.textContent = `📍 Pos: X ${this.player.position.x.toFixed(1)} | Z ${this.player.position.z.toFixed(1)}`;
+    }
+
+    // Update real-time minimap radar HUD
+    if (this.minimapHUD && this.state !== 'COMBAT' && this.state !== 'CINEMATIC') {
+      const npcs = this.zoneTransitionManager?.zoneNPCs || [];
+      const playerYaw = this.player?.yaw ?? this.player?.targetYaw ?? this.player?.rotation?.y ?? 0;
+      this.minimapHUD.update(
+        dt,
+        this.player?.position,
+        playerYaw,
+        npcs,
+        this.questTargetPos
+      );
     }
 
     if (this.state === 'CINEMATIC') {
@@ -1301,27 +1564,12 @@ export class OverworldManager {
       }
 
       this._updateQuestNavigation(dt, time);
-      if (this.dojoPond) {
-        this.dojoPond.update(dt);
-      }
-      if (this.westPond) {
-        this.westPond.update(dt);
-      }
-      if (this.savannahOasis) {
-        this.savannahOasis.update(dt);
-      }
-      if (this.arcticFrozenLake) {
-        this.arcticFrozenLake.update(dt);
-      }
-      if (this.arcticFrozenLake2) {
-        this.arcticFrozenLake2.update(dt);
-      }
-      if (this.mysticPond) {
-        this.mysticPond.update(dt);
-      }
-      if (this.dojoNatureManager) {
-        this.dojoNatureManager.update(dt);
-      }
+      if (this.dojoPond && this.dojoPond.group && this.dojoPond.group.visible) this.dojoPond.update(dt);
+      if (this.westPond && this.westPond.group && this.westPond.group.visible) this.westPond.update(dt);
+      if (this.arcticFrozenLake && this.arcticFrozenLake.group && this.arcticFrozenLake.group.visible) this.arcticFrozenLake.update(dt);
+      if (this.arcticFrozenLake2 && this.arcticFrozenLake2.group && this.arcticFrozenLake2.group.visible) this.arcticFrozenLake2.update(dt);
+      if (this.mysticPond && this.mysticPond.group && this.mysticPond.group.visible) this.mysticPond.update(dt);
+      if (this.dojoNatureManager && this.dojoNatureManager.group && this.dojoNatureManager.group.visible) this.dojoNatureManager.update(dt);
       if (this.biomeDecorationManager && typeof this.biomeDecorationManager.update === 'function') {
         this.biomeDecorationManager.update(dt);
       }
@@ -1330,27 +1578,12 @@ export class OverworldManager {
         this.npcManager.hideAllOverlays();
       }
       this._updateQuestNavigation(dt, time);
-      if (this.dojoPond) {
-        this.dojoPond.update(dt);
-      }
-      if (this.westPond) {
-        this.westPond.update(dt);
-      }
-      if (this.savannahOasis) {
-        this.savannahOasis.update(dt);
-      }
-      if (this.arcticFrozenLake) {
-        this.arcticFrozenLake.update(dt);
-      }
-      if (this.arcticFrozenLake2) {
-        this.arcticFrozenLake2.update(dt);
-      }
-      if (this.mysticPond) {
-        this.mysticPond.update(dt);
-      }
-      if (this.dojoNatureManager) {
-        this.dojoNatureManager.update(dt);
-      }
+      if (this.dojoPond && this.dojoPond.group && this.dojoPond.group.visible) this.dojoPond.update(dt);
+      if (this.westPond && this.westPond.group && this.westPond.group.visible) this.westPond.update(dt);
+      if (this.arcticFrozenLake && this.arcticFrozenLake.group && this.arcticFrozenLake.group.visible) this.arcticFrozenLake.update(dt);
+      if (this.arcticFrozenLake2 && this.arcticFrozenLake2.group && this.arcticFrozenLake2.group.visible) this.arcticFrozenLake2.update(dt);
+      if (this.mysticPond && this.mysticPond.group && this.mysticPond.group.visible) this.mysticPond.update(dt);
+      if (this.dojoNatureManager && this.dojoNatureManager.group && this.dojoNatureManager.group.visible) this.dojoNatureManager.update(dt);
       if (this.biomeDecorationManager && typeof this.biomeDecorationManager.update === 'function') {
         this.biomeDecorationManager.update(dt);
       }
@@ -1380,6 +1613,9 @@ export class OverworldManager {
       if (this.questNavigatorEl) {
         this.questNavigatorEl.classList.add('hidden');
       }
+      if (this.questPinEl) {
+        this.questPinEl.classList.add('hidden');
+      }
       return;
     }
 
@@ -1401,12 +1637,19 @@ export class OverworldManager {
           if (paladill && paladill.group) {
             nav.targetWorldPos = { x: paladill.group.position.x, z: paladill.group.position.z };
           } else {
-            nav.targetWorldPos = { x: -14.5, z: -8.5 };
+            nav.targetWorldPos = { x: -90.3, z: 63.3 };
           }
         }
       } else if (nav.quest.id === 'quest_hunt_beaked_chimera') {
-        const isHuntStep = Boolean(nav.stepDesc && (nav.stepDesc.toLowerCase().includes('purif') || nav.stepDesc.toLowerCase().includes('chimera') || nav.stepDesc.toLowerCase().includes('quimera') || nav.stepDesc.toLowerCase().includes('beaked') || nav.stepDesc.toLowerCase().includes('picuda') || nav.stepDesc.toLowerCase().includes('alpha') || nav.stepDesc.toLowerCase().includes('alfa')));
-        if (isHuntStep) {
+        const reachStep = nav.quest.objective?.steps?.find(s => s.id === 'reach_wastes');
+        if (reachStep && !reachStep.done && this.worldMapManager?.currentMapId === 'zone_3_2') {
+          this.questManager.advanceStep('quest_hunt_beaked_chimera', 'reach_wastes', true);
+          if (this.questDescEl) {
+            this.questDescEl.textContent = this.questManager.getActiveHUDTrackerText();
+          }
+        }
+        const isReportStep = Boolean(nav.stepDesc && (nav.stepDesc.toLowerCase().includes('inform') || nav.stepDesc.toLowerCase().includes('centinela') || nav.stepDesc.toLowerCase().includes('sentinel') || nav.stepDesc.toLowerCase().includes('report')));
+        if (!isReportStep) {
           const beakedMob = this.monsters?.monsters?.find(m => m.id === 'mob_beaked_chimera');
           if (beakedMob && beakedMob.group) {
             nav.targetWorldPos = { x: beakedMob.group.position.x, z: beakedMob.group.position.z };
@@ -1414,6 +1657,9 @@ export class OverworldManager {
             if (beakedMob.questArrow) {
               hasAttachedMobArrow = true;
             }
+          } else {
+            nav.targetWorldPos = { x: -40.0, z: -8.0 };
+            nav.targetName = 'Alpha Beaked Chimera';
           }
         }
       } else if (nav.quest.id === 'quest_nomad_steel') {
@@ -1431,7 +1677,10 @@ export class OverworldManager {
       } else if (nav.quest.id === 'quest_blizzard_core') {
         const isGolemStep = Boolean(nav.stepDesc && (nav.stepDesc.toLowerCase().includes('golem') || nav.stepDesc.toLowerCase().includes('gólem') || nav.stepDesc.toLowerCase().includes('defeat') || nav.stepDesc.toLowerCase().includes('derrotar')));
         if (isGolemStep) {
-          nav.targetWorldPos = { x: 18.0, z: -8.0 };
+          const golemPack = this.monsters?.monsters?.find(m => m.logicalZone === '1_1');
+          nav.targetWorldPos = golemPack && golemPack.group
+            ? { x: golemPack.group.position.x, z: golemPack.group.position.z }
+            : (mergedBattleAnchor('1_1') || { x: 18.0, z: -8.0 });
           nav.targetName = 'Armored Polar Golem';
         }
       } else if (nav.quest.id === 'quest_frozen_seed') {
@@ -1440,22 +1689,101 @@ export class OverworldManager {
           nav.targetWorldPos = { x: pomoNpc.group.position.x, z: pomoNpc.group.position.z };
           nav.targetName = 'Pomodoro';
         }
-      } else if (nav.quest.id === 'quest_astral_void_echoes' || nav.quest.id === 'quest_forbidden_resonance') {
-        const isOracleStep = Boolean(nav.stepDesc && (nav.stepDesc.toLowerCase().includes('oracle') || nav.stepDesc.toLowerCase().includes('oráculo') || nav.stepDesc.toLowerCase().includes('oraculo') || nav.stepDesc.toLowerCase().includes('sanctuary') || nav.stepDesc.toLowerCase().includes('santurario')));
-        if (isOracleStep || nav.quest.id === 'quest_forbidden_resonance') {
+      } else if (nav.quest.id === 'quest_forbidden_resonance') {
+        const isDefeatStep = Boolean(nav.stepDesc && (nav.stepDesc.toLowerCase().includes('defeat') || nav.stepDesc.toLowerCase().includes('derrotar') || nav.stepDesc.toLowerCase().includes('sapidae') || nav.stepDesc.toLowerCase().includes('quimera') || nav.stepDesc.toLowerCase().includes('chimera')));
+        if (isDefeatStep) {
+          const arcanePack = this.monsters?.monsters?.find(m => m.logicalZone === '1_3');
+          nav.targetWorldPos = arcanePack && arcanePack.group
+            ? { x: arcanePack.group.position.x, z: arcanePack.group.position.z }
+            : (mergedBattleAnchor('1_3') || { x: -80.0, z: 16.0 });
+          nav.targetName = 'Arcane Chimera Pack';
+        } else {
           const oracleNpc = this.npcManager?.npcs?.find(n => n.id === 'oracle');
           if (oracleNpc && oracleNpc.group) {
             nav.targetWorldPos = { x: oracleNpc.group.position.x, z: oracleNpc.group.position.z };
             nav.targetName = 'Astral Oracle';
           } else {
-            nav.targetWorldPos = { x: 13.6, z: -24.2 };
+            nav.targetWorldPos = { x: 34.0, z: -36.0 };
             nav.targetName = 'Astral Oracle';
+          }
+        }
+      } else if (nav.quest.id === 'quest_astral_void_echoes') {
+        const isOracleStep = Boolean(nav.stepDesc && (nav.stepDesc.toLowerCase().includes('oracle') || nav.stepDesc.toLowerCase().includes('oráculo') || nav.stepDesc.toLowerCase().includes('oraculo') || nav.stepDesc.toLowerCase().includes('sanctuary') || nav.stepDesc.toLowerCase().includes('santurario')));
+        if (isOracleStep) {
+          const oracleNpc = this.npcManager?.npcs?.find(n => n.id === 'oracle');
+          if (oracleNpc && oracleNpc.group) {
+            nav.targetWorldPos = { x: oracleNpc.group.position.x, z: oracleNpc.group.position.z };
+            nav.targetName = 'Astral Oracle';
+          } else {
+            nav.targetWorldPos = { x: 34.0, z: -36.0 };
+            nav.targetName = 'Astral Oracle';
+          }
+        }
+      } else if (nav.quest.id === 'quest_forest_elixir') {
+        const isGatherStep = Boolean(nav.stepDesc && (nav.stepDesc.toLowerCase().includes('moss') || nav.stepDesc.toLowerCase().includes('musgo') || nav.stepDesc.toLowerCase().includes('gather') || nav.stepDesc.toLowerCase().includes('harvest') || nav.stepDesc.toLowerCase().includes('recolectar')));
+        if (isGatherStep) {
+          const mossNode = this.questInteractables?.nodes?.find(n => n.id === 'luminous_moss_plant');
+          if (mossNode && mossNode.group) {
+            nav.targetWorldPos = { x: mossNode.group.position.x, z: mossNode.group.position.z };
+            nav.targetName = 'Luminous Moss Sprout';
+          }
+        }
+      } else if (nav.quest.id === 'quest_blizzard_stew') {
+        const isGatherStep = Boolean(nav.stepDesc && (nav.stepDesc.toLowerCase().includes('mushroom') || nav.stepDesc.toLowerCase().includes('seta') || nav.stepDesc.toLowerCase().includes('hongo') || nav.stepDesc.toLowerCase().includes('gather')));
+        if (isGatherStep) {
+          const mushNodes = this.questInteractables?.nodes?.filter(n => n.type === 'gathering_mushroom');
+          if (mushNodes && mushNodes.length > 0) {
+            let closest = mushNodes[0];
+            let minDist = Infinity;
+            const px = this.player?.position?.x || 0;
+            const pz = this.player?.position?.z || 0;
+            mushNodes.forEach(m => {
+              const d = Math.hypot(m.group.position.x - px, m.group.position.z - pz);
+              if (d < minDist) { minDist = d; closest = m; }
+            });
+            nav.targetWorldPos = { x: closest.group.position.x, z: closest.group.position.z };
+            nav.targetName = closest.promptText || 'Polar Mushroom';
+          }
+        }
+      } else if (nav.quest.id === 'quest_fallen_stardust') {
+        const isGatherStep = Boolean(nav.stepDesc && (nav.stepDesc.toLowerCase().includes('stardust') || nav.stepDesc.toLowerCase().includes('fragment') || nav.stepDesc.toLowerCase().includes('gather')));
+        if (isGatherStep) {
+          const starNodes = this.questInteractables?.nodes?.filter(n => n.type === 'gathering_stardust');
+          if (starNodes && starNodes.length > 0) {
+            let closest = starNodes[0];
+            let minDist = Infinity;
+            const px = this.player?.position?.x || 0;
+            const pz = this.player?.position?.z || 0;
+            starNodes.forEach(s => {
+              const d = Math.hypot(s.group.position.x - px, s.group.position.z - pz);
+              if (d < minDist) { minDist = d; closest = s; }
+            });
+            nav.targetWorldPos = { x: closest.group.position.x, z: closest.group.position.z };
+            nav.targetName = closest.promptText || 'Luminescent Stardust';
           }
         }
       }
     }
 
-    // 1. 3D ground arrow around player
+    // Battle steps of a retired corner zone: point at its pack on the island
+    const MERGED_BATTLE_STEPS = {
+      quest_primeval_purification: 'defeat_crypt_lord',
+      quest_dark_frost_totems: 'purify_totems',
+      quest_blizzard_core: 'defeat_golem',
+      quest_forbidden_resonance: 'defeat_sapidae'
+    };
+    if (nav && nav.isCurrentZone && nav.logicalZone && nav.quest && MERGED_BATTLE_STEPS[nav.quest.id]) {
+      const step = nav.quest.objective && nav.quest.objective.steps ? nav.quest.objective.steps.find(s => !s.done) : null;
+      if (step && step.id === MERGED_BATTLE_STEPS[nav.quest.id]) {
+        const pack = this.monsters?.monsters?.find(m => m.logicalZone === nav.logicalZone);
+        if (pack && pack.group) {
+          nav.targetWorldPos = { x: pack.group.position.x, z: pack.group.position.z };
+          nav.targetName = pack.name || nav.targetName;
+        }
+      }
+    }
+
+    // 1. 3D Floating Guidance Compass on player
     if (this.player.setNavTarget) {
       this.player.setNavTarget(nav.targetWorldPos, true);
     }
@@ -1465,20 +1793,87 @@ export class OverworldManager {
       this.worldMapManager.transitionManager.setHighlightedPortal(nav.portalDirection);
     }
 
-    // 3. 3D tutorial arrow above objective in current zone
-    if (nav.isCurrentZone && nav.targetWorldPos && !hasAttachedMobArrow) {
+    // 3. 3D Quest Arrow floating directly above objective (or ferryman if travel needed)
+    let targetX = nav.targetWorldPos?.x ?? 0;
+    let targetZ = nav.targetWorldPos?.z ?? 0;
+    let targetY = 0;
+    const hasLocalTarget = Boolean(nav.targetWorldPos && !hasAttachedMobArrow);
+
+    if (hasLocalTarget) {
+      // Check if target corresponds to an active NPC (e.g. Master Paladill, Xia, Ferry Pomodoro, etc.)
+      const targetNpc = this.npcManager?.npcs?.find(n => {
+        if (!n.group || !n.group.visible) return false;
+        const d = Math.hypot(n.group.position.x - targetX, n.group.position.z - targetZ);
+        return d < 3.2;
+      });
+
+      if (targetNpc && targetNpc.group) {
+        targetX = targetNpc.group.position.x;
+        targetZ = targetNpc.group.position.z;
+        // Position directly above the NPC's head / straw hat
+        const headOffset = targetNpc.bubbleHeight ? (targetNpc.bubbleHeight + 0.5) : 4.2;
+        targetY = targetNpc.group.position.y + headOffset;
+      } else {
+        const groundH = (this.demoScenaZone && typeof this.demoScenaZone.getHeight === 'function')
+          ? this.demoScenaZone.getHeight(targetX, targetZ)
+          : (this.terrain ? this.terrain.getHeight(targetX, targetZ) : 0);
+        targetY = groundH + 3.0;
+      }
+
       if (!this.questTargetArrow) {
-        this.questTargetArrow = createQuestBeaconArrow3D(2.2);
+        this.questTargetArrow = createQuestBeaconArrow3D(0);
         this.scene.add(this.questTargetArrow);
       }
       this.questTargetArrow.visible = true;
-      this.questTargetArrow.position.set(nav.targetWorldPos.x, 0, nav.targetWorldPos.z);
+      this.questTargetArrow.position.set(targetX, targetY, targetZ);
       if (typeof this.questTargetArrow.updateAnimation === 'function') {
         this.questTargetArrow.updateAnimation(dt);
       }
     } else {
       if (this.questTargetArrow) {
         this.questTargetArrow.visible = false;
+      }
+    }
+
+    // 4. Screen-Space 3D Quest Pin Beacon with dynamic distance
+    if (this.questPinEl) {
+      if (hasLocalTarget && this.camera && this.player && !this.isCombatActive()) {
+        const playerPos = this.player.position;
+        const dist = Math.hypot(targetX - playerPos.x, targetZ - playerPos.z);
+
+        // Hide pin when player is close to target (< 5.0m) as requested
+        if (dist < 5.0) {
+          this.questPinEl.classList.add('hidden');
+        } else {
+          // Project target world position to screen (slightly above the 3D arrow)
+          const pinWorldPos = new THREE.Vector3(targetX, targetY + 1.2, targetZ);
+          const proj = pinWorldPos.project(this.camera);
+
+          // Only display when NPC is in front of camera and inside screen view (no border clamping)
+          const inFront = proj.z > -1.0 && proj.z < 1.0;
+          const insideScreen = proj.x >= -0.95 && proj.x <= 0.95 && proj.y >= -0.92 && proj.y <= 0.92;
+
+          if (!inFront || !insideScreen) {
+            this.questPinEl.classList.add('hidden');
+          } else {
+            const screenX = (proj.x * 0.5 + 0.5) * window.innerWidth;
+            const screenY = (-proj.y * 0.5 + 0.5) * window.innerHeight;
+
+            const titleEl = document.getElementById('hud-quest-pin-title');
+            const distEl = document.getElementById('hud-quest-pin-dist');
+            const iconEl = this.questPinEl.querySelector('.hud-quest-pin-icon');
+
+            if (titleEl) titleEl.textContent = nav.targetName || 'Objective';
+            if (distEl) distEl.textContent = `${Math.round(dist)}m`;
+            if (iconEl) iconEl.textContent = nav.isCurrentZone ? '🎯' : '⛵';
+
+            this.questPinEl.style.left = `${screenX}px`;
+            this.questPinEl.style.top = `${screenY}px`;
+            this.questPinEl.classList.remove('hidden');
+          }
+        }
+      } else {
+        this.questPinEl.classList.add('hidden');
       }
     }
 
@@ -1506,6 +1901,31 @@ export class OverworldManager {
     }
   }
 
+  unloadSecondaryPonds(activeBiome = null) {
+    if (activeBiome !== 'dungeon' && this.westPond) {
+      console.log('[OverworldManager] ♻️ Disposing Dungeon Lava Pond to free VRAM/RAM...');
+      this.westPond.dispose();
+      this.westPond = null;
+    }
+    if (activeBiome !== 'arctic') {
+      if (this.arcticFrozenLake) {
+        console.log('[OverworldManager] ♻️ Disposing Arctic Frozen Lake 1 to free VRAM/RAM...');
+        this.arcticFrozenLake.dispose();
+        this.arcticFrozenLake = null;
+      }
+      if (this.arcticFrozenLake2) {
+        console.log('[OverworldManager] ♻️ Disposing Arctic Frozen Lake 2 to free VRAM/RAM...');
+        this.arcticFrozenLake2.dispose();
+        this.arcticFrozenLake2 = null;
+      }
+    }
+    if (activeBiome !== 'mystic' && this.mysticPond) {
+      console.log('[OverworldManager] ♻️ Disposing Mystic Astral Pond to free VRAM/RAM...');
+      this.mysticPond.dispose();
+      this.mysticPond = null;
+    }
+  }
+
   async ensureZonePonds(targetMapId, gx, gy) {
     // 1. Dungeon Lava Pond [Zone 2, 3] at [-16.0, 14.0]
     if (gx === 2 && gy === 3) {
@@ -1528,33 +1948,10 @@ export class OverworldManager {
           zoneName: 'Igneous Stronghold Threshold [2, 3]'
         });
         await this.westPond.init();
-        this.westPond.setVisible(true);
       }
-    }
-
-    // 2. Savannah Desert Oasis [Zone 3, 1] at [0.0, 0.0]
-    if (gx === 3 && gy === 1) {
-      if (!this.savannahOasis) {
-        console.log('[OverworldManager] Lazy-loading Savannah Desert Oasis [3, 1] on-demand...');
-        this.savannahOasis = new StylizedPond(this.scene, this.collisions, {
-          id: 'savannah_oasis',
-          cx: 0.0,
-          cz: 0.0,
-          radH: 7.2,
-          radV: 5.4,
-          isOasis: true,
-          waterShallowColor: '#5ce1e6', // Crystal clear tropical cyan / azure
-          waterDeepColor: '#1e88e5',    // Luminous sky blue azure
-          waterFoamColor: '#f0fdff',    // Crisp foam white
-          basinColor: 0xa47c4c,         // Golden wet sand basin
-          boulderColor: 0xd48e55,       // Warm sandstone rocks
-          collisionTag: 'savannah_oasis_water',
-          collisionTagPrefix: 'savannah_oasis',
-          zoneName: 'Savannah Oasis [3, 1]'
-        });
-        await this.savannahOasis.init();
-        this.savannahOasis.setVisible(true);
-      }
+      this.westPond.setVisible(true);
+    } else if (this.westPond) {
+      this.westPond.setVisible(false);
     }
 
     // 3. Arctic Frozen Lakes [Zone 1, 1]
@@ -1578,8 +1975,9 @@ export class OverworldManager {
           zoneName: 'Eternal Frost Valley [1, 1]'
         });
         await this.arcticFrozenLake.init();
-        this.arcticFrozenLake.setVisible(true);
       }
+      this.arcticFrozenLake.setVisible(true);
+
       if (!this.arcticFrozenLake2) {
         console.log('[OverworldManager] Lazy-loading Arctic Frozen Lake 2 [1, 1] on-demand...');
         this.arcticFrozenLake2 = new StylizedPond(this.scene, this.collisions, {
@@ -1599,8 +1997,11 @@ export class OverworldManager {
           zoneName: 'Eternal Frost Valley [1, 1]'
         });
         await this.arcticFrozenLake2.init();
-        this.arcticFrozenLake2.setVisible(true);
       }
+      this.arcticFrozenLake2.setVisible(true);
+    } else {
+      if (this.arcticFrozenLake) this.arcticFrozenLake.setVisible(false);
+      if (this.arcticFrozenLake2) this.arcticFrozenLake2.setVisible(false);
     }
 
     // 4. Mystic Astral Pond [Zone 1, 2] at [-16.0, 14.0]
@@ -1623,12 +2024,62 @@ export class OverworldManager {
           zoneName: 'Astral Glade of Lunacia [1, 2]'
         });
         await this.mysticPond.init();
-        this.mysticPond.setVisible(true);
       }
+      this.mysticPond.setVisible(true);
+    } else if (this.mysticPond) {
+      this.mysticPond.setVisible(false);
     }
   }
 
   render(time, dt) {
-    this.renderer.render(this.scene, this.camera);
+    if (this.environmentSystem) {
+      this.environmentSystem.render(time, dt);
+    } else {
+      this.renderer.render(this.scene, this.camera);
+    }
+    this.renderedFrameCount = (this.renderedFrameCount || 0) + 1;
+    this.hasRenderedFrame = true;
+
+    if (this._onNextFrameCallbacks && this._onNextFrameCallbacks.length > 0) {
+      const callbacks = this._onNextFrameCallbacks;
+      this._onNextFrameCallbacks = [];
+      for (let i = 0; i < callbacks.length; i++) {
+        try {
+          callbacks[i]();
+        } catch (err) {
+          console.error('[OverworldManager] Frame callback error:', err);
+        }
+      }
+    }
+  }
+
+  waitForNextRenderFrame(count = 2, timeoutMs = 2500) {
+    return new Promise((resolve) => {
+      let remaining = count;
+      let settled = false;
+
+      const timer = setTimeout(() => {
+        if (!settled) {
+          settled = true;
+          resolve();
+        }
+      }, timeoutMs);
+
+      const onFrame = () => {
+        if (settled) return;
+        remaining--;
+        if (remaining <= 0) {
+          settled = true;
+          clearTimeout(timer);
+          resolve();
+        } else {
+          this._onNextFrameCallbacks = this._onNextFrameCallbacks || [];
+          this._onNextFrameCallbacks.push(onFrame);
+        }
+      };
+
+      this._onNextFrameCallbacks = this._onNextFrameCallbacks || [];
+      this._onNextFrameCallbacks.push(onFrame);
+    });
   }
 }

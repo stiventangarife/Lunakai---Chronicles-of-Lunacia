@@ -13,9 +13,9 @@ export const BIOMES = {
       grassTip: '#c6ea4c',           // Amarillo-lima luminoso en las puntas (matching the texture)
       grassRootB: '#6cb830',
       grassTipB: '#d2f256',
-      grassDensityFactor: 0.65,      // Mechones ligeros para apreciar el suelo artístico
-      grassScale: 0.22,              // Briznas finas y delicadas
-      grassAO: 0.14,                 // AO suave para mantener la pureza y luminosidad del suelo
+      grassDensityFactor: 1.0,       // 100% Máxima densidad de briznas instanciadas
+      grassScale: 0.28,              // Briznas finas con cobertura completa sin perder forma
+      grassAO: 0.18,                 // Contact AO suave para asentar el césped
       flowerTint: 0xffffff,
       flowerTintStrength: 0.85,
       treeCanopy: 0x38b44a,          // Verde esmeralda vivo y soleado para el follaje
@@ -24,14 +24,14 @@ export const BIOMES = {
       groundMossTint: [0.557, 0.596, 0.325],
     },
     lighting: {
-      sunColor: 0xfffae8,            // Sol cálido, dorado y brillante
-      sunIntensity: 3.2,
-      sunPosition: [18, 18, 10],
-      hemiSky: 0xfaffeb,             // Luz de cielo clara y luminosa
-      hemiGround: 0x78b846,          // Luz ambiental verde viva rebotada desde el césped
-      hemiIntensity: 1.1,
-      fogColor: 0xd8eeff,
-      fogDensity: 0.003
+      sunColor: 0xfff2d6,            // Luz solar cálida y ligeramente dorada
+      sunIntensity: 2.95,            // Intensidad equilibrada que evita quemar el terreno blanco
+      sunPosition: [22, 26, 14],     // Ángulo oblicuo (~52°) con sombras direccionales definidas
+      hemiSky: 0xbedaf5,             // Cielo azul anime desaturado (sombras ligeramente frías)
+      hemiGround: 0x445f32,          // Rebote ambiental verde musgo / tierra cálida
+      hemiIntensity: 0.92,           // Iluminación ambiental que equilibra y suaviza las sombras
+      fogColor: 0xcde4f7,            // Niebla atmosférica suave celeste armonizada con el horizonte
+      fogDensity: 0.0030             // Sutil y gradual (cristalina de cerca, suave profundidad lejana)
     },
     particles: 'pollen'
   },
@@ -207,6 +207,15 @@ export class BiomeThemeManager {
 
     console.log(`[BiomeThemeManager] Transitioning environment to biome: ${biome.name} (${biome.id})`);
 
+    // Synchronize centralized EnvironmentSystem preset for Macro-Zone [2, 2]
+    if (window.environmentSystem) {
+      if (gx === 2 && gy === 2) {
+        window.environmentSystem.setPreset('dojo_day');
+      } else if (biome.id === 'forest') {
+        window.environmentSystem.setPreset('forest_day');
+      }
+    }
+
     // 1. Update Sun & Sky Lighting
     if (this.env && this.env.sunLight) {
       this.env.sunLight.color.set(biome.lighting.sunColor);
@@ -233,6 +242,9 @@ export class BiomeThemeManager {
       u.uTipColor.value.set(biome.palette.grassTip);
       u.uRootColorB.value.set(biome.palette.grassRootB);
       u.uTipColorB.value.set(biome.palette.grassTipB);
+      if (u.uSunPosition) {
+        u.uSunPosition.value.set(...biome.lighting.sunPosition).normalize();
+      }
     }
 
     // 4. Update Grass Density Factor & Scale

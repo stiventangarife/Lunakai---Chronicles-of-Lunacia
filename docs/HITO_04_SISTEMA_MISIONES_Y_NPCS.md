@@ -1,5 +1,9 @@
 # Hito 4: Sistema de Misiones, Diario de Aventuras y Gestión de NPCs en Lunacia
 
+> [!IMPORTANT]
+> **Estado actual (13-oct-2026):** los NPC de las zonas de esquina retiradas viven ahora en su isla: Ermitaño Glacial → Ártico (−52, −66); Oráculo (34, −36) y Chamán (−40, 40) → Mística; Espíritu de Atia → Mazmorra (0, −13). Las misiones conservan sus coordenadas lógicas (`zoneCoords`), y la brújula traduce la zona antigua a su isla. Si el objetivo está en otra isla, la brújula apunta al barquero Pomodoro (`ferry_pomodoro`). Ver la sección 6 del Hito 23.
+
+
 ## 1. Visión General
 El cuarto hito del proyecto estructuró el flujo narrativo y de objetivos guiados para **Axie Tactics**. Conecta la exploración en el Overworld con el motor de combate táctico mediante un **Sistema de Misiones Progresivo**, un **Diario de Aventuras (Libro de Misiones)** accesible vía interfaz y tecla rápida **`[L]`**, y un **Control Territorial de NPCs**, corrigiendo la duplicación de entidades entre macro-zonas y garantizando la integridad de las recompensas otorgadas al jugador.
 

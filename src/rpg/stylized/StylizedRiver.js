@@ -400,13 +400,16 @@ export class StylizedRiver {
           // 3. Water depth color blending: deep sapphire in center, turquoise at walls
           vec3 waterCol = mix(uDeepColor, uShallowColor, smoothstep(0.15, 0.80, edgeDist));
 
-          // 4. Subtle sunlight specular glint
+          // 4. Subtle sunlight specular glint & soft Fresnel sky reflection
           vec3 viewDir = normalize(cameraPosition - vWorldPos);
           vec3 halfVec = normalize(uSunDir + viewDir);
-          float spec = pow(max(dot(vNormal, halfVec), 0.0), 38.0) * 0.45;
+          float spec = pow(max(dot(vNormal, halfVec), 0.0), 42.0) * 0.38;
 
-          // 5. Combine water color with current lines & foam
-          vec3 finalColor = waterCol + vec3(spec);
+          float fresnel = pow(1.0 - max(dot(vNormal, viewDir), 0.0), 3.5);
+          vec3 skyReflection = vec3(0.58, 0.78, 0.95) * (fresnel * 0.26);
+
+          // 5. Combine water color with specular, sky reflection, current lines & foam
+          vec3 finalColor = waterCol + vec3(spec) + skyReflection;
           float totalFoam = max(currentLines * 0.80, shoreFoam * 0.92);
           finalColor = mix(finalColor, uFoamColor, totalFoam);
 

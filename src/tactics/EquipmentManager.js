@@ -1,10 +1,41 @@
 // EquipmentManager.js - Party Inventory, 5-Slot Equipment Management and Stat Calculation
 import { ITEMS_DB } from './ItemDatabase.js';
-import { getHeroSpells } from '../rpg/SaveSlotManager.js';
+import { getHeroSpells, SAPIDAE_CLASSES } from '../rpg/SaveSlotManager.js';
+import { portraitService } from './CharacterPortraitService.js';
 
 export class EquipmentManager {
   constructor() {
     this.heroesBase = {
+      sapidae: {
+        id: 'sapidae',
+        isSapidae: true,
+        modelType: 'sapidae-f-a',
+        name: 'Ema',
+        class: 'Constructor Táctico',
+        archetype: 'Sapidae Adventurer (Líder)',
+        avatar: '👩‍🌾',
+        baseHP: 360,
+        basePA: 6,
+        basePM: 3,
+        baseInitiative: 90,
+        baseShield: 0,
+        baseDamage: 0
+      },
+      sapidae_hero: {
+        id: 'sapidae_hero',
+        isSapidae: true,
+        modelType: 'sapidae-f-a',
+        name: 'Ema',
+        class: 'Constructor Táctico',
+        archetype: 'Sapidae Adventurer (Líder)',
+        avatar: '👩‍🌾',
+        baseHP: 360,
+        basePA: 6,
+        basePM: 3,
+        baseInitiative: 90,
+        baseShield: 0,
+        baseDamage: 0
+      },
       kotaro: {
         id: 'kotaro',
         axieId: '10455',
@@ -49,12 +80,12 @@ export class EquipmentManager {
       }
     };
 
-    // Initially only the starting hero (Kotaro) is unlocked in the player's party
-    this.unlockedHeroes = ['kotaro'];
+    // Sapidae protagonist and companion Axie (Kotaro / Shinji) are active by default
+    this.unlockedHeroes = ['sapidae', 'kotaro'];
 
     // 5 equipment slots per hero: weapon, hat, shield, body, boots
-    // Kotaro and allies start without any items equipped
     this.equipped = {
+      sapidae: { weapon: null, hat: null, shield: null, body: null, boots: null },
       kotaro: { weapon: null, hat: null, shield: null, body: null, boots: null },
       bing: { weapon: null, hat: null, shield: null, body: null, boots: null },
       pomodoro: { weapon: null, hat: null, shield: null, body: null, boots: null }
@@ -64,8 +95,24 @@ export class EquipmentManager {
     this.inventory = ['potion_health_small', 'potion_health_small', 'potion_energy'];
     this.gold = 0;
 
-    // Progression & Leveling for each Axie hero (Level, EXP, Stat & Skill points)
     this.heroProgression = {
+      sapidae: {
+        level: 1,
+        currentExp: 0,
+        unspentStatPoints: 0,
+        unspentSkillPoints: 0,
+        allocatedStats: {
+          vitality: 0,
+          ferocity: 0,
+          agility: 0,
+          essence: 0
+        },
+        skillLevels: {
+          sapidae_strike: 1,
+          sapidae_buff: 1,
+          sapidae_special: 1
+        }
+      },
       kotaro: {
         level: 1,
         currentExp: 0,
@@ -217,6 +264,26 @@ export class EquipmentManager {
       if (h.baseInitiative) base.baseInitiative = h.baseInitiative;
     }
 
+    // Update Sapidae protagonist identity from slot data
+    if (this.heroesBase.sapidae) {
+      if (slotData.playerName) this.heroesBase.sapidae.name = slotData.playerName;
+      if (slotData.sapidaeModel) this.heroesBase.sapidae.modelType = slotData.sapidaeModel;
+      this.heroesBase.sapidae.customization = slotData.customization ? JSON.parse(JSON.stringify(slotData.customization)) : null;
+      const sapidaeClassKey = slotData.sapidaeClass || 'crafter';
+      this.heroesBase.sapidae.sapidaeClassKey = sapidaeClassKey;
+      if (SAPIDAE_CLASSES[sapidaeClassKey]) {
+        const cDef = SAPIDAE_CLASSES[sapidaeClassKey];
+        this.heroesBase.sapidae.class = cDef.name;
+        this.heroesBase.sapidae.classIcon = cDef.icon;
+        this.heroesBase.sapidae.archetype = `${cDef.name} (Líder)`;
+        this.heroesBase.sapidae.baseHP = cDef.maxHP;
+        this.heroesBase.sapidae.basePA = cDef.maxPA;
+        this.heroesBase.sapidae.basePM = cDef.maxPM;
+        this.heroesBase.sapidae.baseInitiative = cDef.initiative || 90;
+        this.heroesBase.sapidae.spellIds = [...cDef.spells];
+      }
+    }
+
     if (slotData.inventory) {
       this.inventory = [...slotData.inventory];
     }
@@ -226,21 +293,28 @@ export class EquipmentManager {
     if (slotData.equipped) {
       this.equipped = JSON.parse(JSON.stringify(slotData.equipped));
     }
+    if (!this.equipped.sapidae) {
+      this.equipped.sapidae = { weapon: null, hat: null, shield: null, body: null, boots: null };
+    }
+
+    let heroesList = [];
     if (slotData.unlockedHeroes && Array.isArray(slotData.unlockedHeroes)) {
-      this.unlockedHeroes = Array.from(new Set(slotData.unlockedHeroes));
+      heroesList = slotData.unlockedHeroes;
     } else {
       // Legacy fallback
       if (slotData.level >= 5) {
-        this.unlockedHeroes = ['kotaro', 'bing', 'pomodoro'];
+        heroesList = ['kotaro', 'bing', 'pomodoro'];
       } else if (slotData.level >= 3) {
-        this.unlockedHeroes = ['kotaro', 'bing'];
+        heroesList = ['kotaro', 'bing'];
       } else {
-        this.unlockedHeroes = ['kotaro'];
+        heroesList = ['kotaro'];
       }
     }
+    // Sapidae is always the squad leader at index 0
+    this.unlockedHeroes = ['sapidae', ...Array.from(new Set(heroesList.filter(h => h !== 'sapidae')))];
 
     if (slotData.progression) {
-      if (slotData.progression.kotaro) {
+      if (slotData.progression.kotaro || slotData.progression.sapidae) {
         for (const hId of Object.keys(this.heroProgression)) {
           if (slotData.progression[hId]) {
             this.heroProgression[hId] = JSON.parse(JSON.stringify(slotData.progression[hId]));
@@ -249,6 +323,16 @@ export class EquipmentManager {
       } else if (this.heroProgression[heroId]) {
         this.heroProgression[heroId] = JSON.parse(JSON.stringify(slotData.progression));
       }
+    }
+    if (!this.heroProgression.sapidae) {
+      this.heroProgression.sapidae = {
+        level: slotData.level || 1,
+        currentExp: 0,
+        unspentStatPoints: 0,
+        unspentSkillPoints: 0,
+        allocatedStats: { vitality: 0, ferocity: 0, agility: 0, essence: 0 },
+        skillLevels: {}
+      };
     }
 
     // Ensure skillLevels contains active hero spells
@@ -263,6 +347,7 @@ export class EquipmentManager {
 
     this.restoreAllPartyHP();
     this._notifyChange();
+    this._updateSapidaePortrait();
 
     if (typeof window !== 'undefined') {
       window.dispatchEvent(new CustomEvent('heroAxieChanged', {
@@ -382,6 +467,9 @@ export class EquipmentManager {
 
     this.equipped[heroId][slot] = itemId;
     this._notifyChange();
+    if (heroId === 'sapidae' || this.heroesBase[heroId]?.isSapidae) {
+      this._updateSapidaePortrait();
+    }
     return true;
   }
 
@@ -393,7 +481,28 @@ export class EquipmentManager {
     this.inventory.push(currentId);
     this.equipped[heroId][slot] = null;
     this._notifyChange();
+    if (heroId === 'sapidae' || this.heroesBase[heroId]?.isSapidae) {
+      this._updateSapidaePortrait();
+    }
     return true;
+  }
+
+  _updateSapidaePortrait() {
+    try {
+      const base = this.heroesBase?.sapidae;
+      if (!base) return;
+      const modelId = base.modelType || 'sapidae-f-a';
+      const custom = base.customization || this.playerEntity?.customization || null;
+      const equipped = this.equipped?.sapidae || null;
+      portraitService.getSapidaeCustomPortrait(modelId, custom, equipped, {
+        fullBody: true,
+        zoomFactor: 1.10,
+        yaw: -0.18,
+        pitch: 0.03
+      });
+    } catch (e) {
+      console.warn('[EquipmentManager] Could not update Sapidae portrait:', e);
+    }
   }
 
   getEquipped(heroId) {

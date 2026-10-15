@@ -1,89 +1,77 @@
 import * as THREE from 'three';
 
-// TutorialManager.js - Guided Tutorial State Machine with Strict Action Restrictions
+// TutorialManager.js - Guided Duo Tactical Tutorial (Sapidae Protagonist + Companion Axie)
 export class TutorialManager {
   constructor(game) {
     this.game = game;
     this.isActive = false;
     this.currentStep = 0;
     this.arrowGroup = null;
-    this.arrowBaseY = 1.4;
+    this.arrowBaseY = 1.45;
 
     this.steps = [
       {
         id: 'step_intro',
-        title: 'Welcome to the Lunacia Dojo!',
-        text: 'Learn the tactical fundamentals of Axie Infinity. You have <b>Movement Points (MP)</b> and <b>Action Points (AP)</b>.',
-        btnText: 'Start Training',
+        title: '¡Combate Táctico en Pareja!',
+        text: '¡En Lunacia luchas como un <b>Sapidae</b> junto a tu <b>Axie Compañero</b>!<br>Tienes <b>Puntos de Movimiento (PM)</b> para posicionarte en la cuadrícula y <b>Puntos de Acción (PA)</b> para desatar tus habilidades.<br>¡Coordinen sus turnos para purificar el Dojo!',
+        btnText: '¡Comenzar Batalla!',
         targetType: 'dialog'
       },
       {
         id: 'step_move_1',
-        title: 'Step 1: Tactical Movement',
-        text: 'You have <b>3 MP</b>. Advance 2 tiles by clicking on the highlighted tile <b>(4, 5)</b> to approach the first Chimera.',
+        title: 'Paso 1: Mueve a tu Sapidae',
+        text: '¡Tu <b>Sapidae</b> lidera la ofensiva! Haz clic en la casilla dorada señalada por la flecha en <b>(4, 5)</b> para avanzar gastando 2 PM y encarar a la Quimera.',
         allowedCell: { x: 4, z: 5 },
         targetType: 'cell'
       },
       {
         id: 'step_select_spell_1',
-        title: 'Step 2: Ability Selection',
-        text: 'You have <b>6 AP</b>. Click on your first ability <b>[1] Sword of Lunacia</b> (Cost: 3 AP) in the bottom hotbar.',
+        title: 'Paso 2: Prepara el Ataque del Sapidae',
+        text: '¡Excelente posición! Ahora selecciona la <b>Habilidad de Clase [1]</b> de tu Sapidae en la barra inferior (costo en PA).',
         allowedSpellIndex: 0,
         targetType: 'spell_slot'
       },
       {
         id: 'step_attack_1',
-        title: 'Step 3: Eliminate the First Enemy',
-        text: 'Strike! Click on the <b>Scout Chimera</b> at tile <b>(4, 6)</b>. It will fall in a single hit.',
+        title: 'Paso 3: ¡Ataca y Purifica a la Primera Quimera!',
+        text: '¡Rango de ataque listo! Haz clic directamente sobre la <b>Quimera Slime</b> en <b>(4, 6)</b> para que tu Sapidae aseste un golpe contundente y la derrote.',
         allowedCell: { x: 4, z: 6 },
         targetType: 'cell'
       },
       {
+        id: 'step_end_turn',
+        title: 'Paso 4: Finaliza el Turno de tu Sapidae',
+        text: '¡Primera quimera derrotada con éxito! Ahora cede la iniciativa a tu compañero presionando <b>[Espacio]</b> o el botón <b>FIN DEL TURNO</b>.',
+        targetType: 'end_turn'
+      },
+      {
         id: 'step_move_2',
-        title: 'Step 4: Use Remaining Movement',
-        text: 'Your turn is still active! You have <b>1 MP</b> left (your remaining tile) and <b>3 AP</b>. Move by clicking on <b>(4, 6)</b> to reach the second Chimera.',
+        title: 'Paso 5: Posiciona a tu Axie Compañero',
+        text: '¡Es el turno de tu <b>Axie Compañero</b>! Haz clic en la casilla dorada en <b>(4, 6)</b> para avanzar y encarar a la <b>Quimera Guardián</b>.',
         allowedCell: { x: 4, z: 6 },
+        allowedCells: [{ x: 4, z: 6 }, { x: 3, z: 6 }, { x: 3, z: 7 }],
         targetType: 'cell'
       },
       {
         id: 'step_select_spell_2',
-        title: 'Step 5: Prepare Second Attack',
-        text: 'You still have <b>3 AP</b>, enough for another attack. Select <b>[1] Sword of Lunacia</b> again.',
+        title: 'Paso 6: Selecciona el Ataque de tu Axie',
+        text: '¡En posición de ataque! Ahora selecciona la habilidad <b>[1]</b> de tu Axie en la barra inferior.',
         allowedSpellIndex: 0,
         targetType: 'spell_slot'
       },
       {
         id: 'step_attack_2',
-        title: 'Step 6: Strike the Guardian Chimera',
-        text: 'Attack the <b>Guardian Chimera</b> at <b>(4, 7)</b>. This enemy is tough and will survive this initial strike.',
+        title: 'Paso 7: ¡Ataca a la Quimera Guardián con tu Axie!',
+        text: '¡Usa el ataque de tu Axie sobre la <b>Quimera Guardián</b> en <b>(4, 7)</b> para debilitar su defensa!',
         allowedCell: { x: 4, z: 7 },
         targetType: 'cell'
       },
       {
-        id: 'step_end_turn',
-        title: 'Step 7: End Your Turn',
-        text: 'You have spent all your AP and MP. Click the golden <b>END TURN [Space]</b> button to pass the turn.',
-        targetType: 'end_turn'
-      },
-      {
-        id: 'step_enemy_turn',
-        title: "Guardian Chimera's Turn",
-        text: 'Watch as the Guardian Chimera takes its turn and counters Kotaro with its Fierce Bite...',
-        targetType: 'waiting'
-      },
-      {
-        id: 'step_finish_select',
-        title: 'Step 8: Final Blow!',
-        text: 'Your turn again! You recovered all 6 AP and 3 MP. Select <b>[1] Sword of Lunacia</b> from your hotbar.',
-        allowedSpellIndex: 0,
-        targetType: 'spell_slot'
-      },
-      {
-        id: 'step_finish_attack',
-        title: 'Step 9: Victory in Lunacia!',
-        text: 'Deliver the finishing blow! Click on the <b>Guardian Chimera</b> at <b>(4, 7)</b> to finish the battle.',
-        allowedCell: { x: 4, z: 7 },
-        targetType: 'cell'
+        id: 'step_battle_flow',
+        title: '¡Victoria al Alcance!',
+        text: '¡Excelente trabajo en equipo! Ambos luchan en sincronía. Ahora derrota por completo a la Quimera Guardián combinando libremente los turnos de tu Sapidae y tu Axie.',
+        btnText: '¡A la Carga! ⚔️',
+        targetType: 'free_action'
       }
     ];
 
@@ -98,12 +86,27 @@ export class TutorialManager {
 
     if (this.btnNext) {
       this.btnNext.addEventListener('click', () => {
-        if (this.steps[this.currentStep] && this.steps[this.currentStep].id === 'step_intro') {
+        const step = this.steps[this.currentStep];
+        if (step && step.id === 'step_intro') {
+          if (this.game) {
+            this.game.activeUnit = (this.game.turnManager && this.game.turnManager.getActiveUnit()) || this.game.units?.[0];
+            if (this.game.activeUnit) {
+              if (this.game.activeUnit.currentPM === 0) {
+                this.game.activeUnit.startTurn();
+              }
+              this.game._updateHUD(this.game.activeUnit);
+            }
+          }
           this.advanceStep();
-          // Officially start the battle and Kotaro's turn now!
-          if (this.game && this.game.turnManager) {
+          if (this.game && this.game.turnManager && this.game.turnManager.currentIndex === -1) {
             this.game.turnManager.startCombat();
           }
+        } else if (step && (step.id === 'step_battle_flow' || step.targetType === 'free_action')) {
+          if (this.overlay) {
+            this.overlay.classList.add('hidden');
+          }
+        } else {
+          this.advanceStep();
         }
       });
     }
@@ -114,11 +117,10 @@ export class TutorialManager {
     this.arrowGroup.name = 'tutorial_target_arrow';
     this.arrowGroup.visible = false;
 
-    // Glowing golden material
     const arrowMat = new THREE.MeshStandardMaterial({
       color: 0xffd700,
       emissive: 0xff9900,
-      emissiveIntensity: 0.7,
+      emissiveIntensity: 0.75,
       roughness: 0.25,
       metalness: 0.5
     });
@@ -126,12 +128,12 @@ export class TutorialManager {
     // 1. Cone pointing down
     const coneGeo = new THREE.ConeGeometry(0.32, 0.6, 16);
     const cone = new THREE.Mesh(coneGeo, arrowMat);
-    cone.rotation.x = Math.PI; // point downwards
+    cone.rotation.x = Math.PI;
     cone.position.y = 0.3;
     cone.castShadow = true;
     this.arrowGroup.add(cone);
 
-    // 2. Shaft / stem cylinder above the cone
+    // 2. Shaft / stem cylinder
     const stemGeo = new THREE.CylinderGeometry(0.14, 0.14, 0.45, 16);
     const stem = new THREE.Mesh(stemGeo, arrowMat);
     stem.position.y = 0.75;
@@ -139,7 +141,7 @@ export class TutorialManager {
     this.arrowGroup.add(stem);
 
     // 3. Ground ring marker
-    const ringGeo = new THREE.RingGeometry(0.36, 0.48, 32);
+    const ringGeo = new THREE.RingGeometry(0.36, 0.52, 32);
     const ringMat = new THREE.MeshBasicMaterial({
       color: 0xffd700,
       side: THREE.DoubleSide,
@@ -185,14 +187,10 @@ export class TutorialManager {
   update(time) {
     if (!this.isActive || !this.arrowGroup || !this.arrowGroup.visible) return;
 
-    // Smooth sinusoidal bobbing up and down
     const bounce = Math.sin(time * 5.0) * 0.22;
     this.arrowGroup.position.y = this.arrowBaseY + bounce;
-
-    // Gentle rotation
     this.arrowGroup.rotation.y = time * 1.5;
 
-    // Pulse ground ring scale
     if (this.groundRing) {
       const pulse = 1.0 + Math.sin(time * 6.0) * 0.12;
       this.groundRing.scale.set(pulse, pulse, 1.0);
@@ -204,7 +202,7 @@ export class TutorialManager {
     this.currentStep = 0;
     this.hideArrow();
     if (this.game) {
-      this.game.activeUnit = null;
+      this.game.activeUnit = (this.game.turnManager && this.game.turnManager.getActiveUnit()) || this.game.units?.[0];
       this.game.reachableCells = [];
       if (this.game.gridManager) {
         this.game.gridManager.clearHighlights();
@@ -217,8 +215,16 @@ export class TutorialManager {
     if (!this.isActive) return;
     this.currentStep++;
     if (this.currentStep >= this.steps.length) {
-      this.completeTutorial();
-    } else {
+      this.currentStep = this.steps.length - 1;
+    }
+    this._renderStep();
+  }
+
+  setStepById(id) {
+    if (!this.isActive) return;
+    const idx = this.steps.findIndex(s => s.id === id);
+    if (idx !== -1) {
+      this.currentStep = idx;
       this._renderStep();
     }
   }
@@ -233,48 +239,57 @@ export class TutorialManager {
     const step = this.steps[this.currentStep];
     if (!step) return;
 
+    if (this.game) {
+      if (!this.game.activeUnit) {
+        this.game.activeUnit = (this.game.turnManager && this.game.turnManager.getActiveUnit()) || this.game.units?.[0];
+      }
+      if (this.game.activeUnit) {
+        this.game._updateHUD(this.game.activeUnit);
+      }
+    }
+
     if (this.overlay) {
       this.overlay.classList.remove('hidden');
       if (this.titleEl) this.titleEl.textContent = step.title;
       let text = step.text;
       const heroFirstSpellId = this.game?.activeUnit?.spellIds?.[0];
       const spell = heroFirstSpellId ? this.game?.spellManager?.getSpell(heroFirstSpellId) : null;
-      if (spell && (text.includes('Sword of Lunacia') || text.includes('Espada de Lunacia'))) {
-        text = text.replace(/Sword of Lunacia|Espada de Lunacia/g, spell.name);
+      if (spell && text.includes('Habilidad de Clase [1]')) {
+        text = text.replace('Habilidad de Clase [1]', `<b>[1] ${spell.name}</b>`);
       }
       if (this.textEl) this.textEl.innerHTML = text;
 
       if (step.id === 'step_intro') {
         this.btnNext.classList.remove('hidden');
-        this.btnNext.textContent = step.btnText;
+        this.btnNext.textContent = step.btnText || '¡Comenzar Batalla!';
+      } else if (step.id === 'step_battle_flow' || step.targetType === 'free_action') {
+        this.btnNext.classList.remove('hidden');
+        this.btnNext.textContent = step.btnText || '¡A la Carga! ⚔️';
       } else {
         this.btnNext.classList.add('hidden');
       }
     }
 
-    // Refresh grid highlights based on allowed action
+    // Refresh movement and attack highlights
     if (this.game) {
       this.game._refreshMovementHighlights();
-      if ((step.id === 'step_attack_1' || step.id === 'step_attack_2' || step.id === 'step_finish_attack') && step.allowedCell) {
+      if ((step.id === 'step_attack_1' || step.id === 'step_attack_2') && step.allowedCell) {
         this.game.gridManager.highlightSpellRange([step.allowedCell]);
+        this.showArrowAt(step.allowedCell.x, step.allowedCell.z);
+      } else if ((step.id === 'step_move_1' || step.id === 'step_move_2') && step.allowedCell) {
+        this.showArrowAt(step.allowedCell.x, step.allowedCell.z);
+      } else {
+        this.hideArrow();
       }
-    }
-
-    // Show 3D bouncing arrow above designated movement target
-    if (step && (step.id === 'step_move_1' || step.id === 'step_move_2') && step.allowedCell) {
-      this.showArrowAt(step.allowedCell.x, step.allowedCell.z);
-    } else {
-      this.hideArrow();
     }
 
     // Highlight bottom bar UI elements
     const slot0 = document.getElementById('spell-slot-0');
-    const slot1 = document.getElementById('spell-slot-1');
     const btnEnd = document.getElementById('btn-end-turn');
 
-    [slot0, slot1, btnEnd].forEach(el => el && el.classList.remove('tut-highlight'));
+    [slot0, btnEnd].forEach(el => el && el.classList.remove('tut-highlight'));
 
-    if ((step.id === 'step_select_spell_1' || step.id === 'step_select_spell_2' || step.id === 'step_finish_select') && slot0) {
+    if ((step.id === 'step_select_spell_1' || step.id === 'step_select_spell_2') && slot0) {
       slot0.classList.add('tut-highlight');
     } else if (step.id === 'step_end_turn' && btnEnd) {
       btnEnd.classList.add('tut-highlight');
@@ -285,7 +300,11 @@ export class TutorialManager {
     if (!this.isActive) return true;
     const step = this.steps[this.currentStep];
     if (!step) return true;
+    if (step.targetType === 'free_action' || step.id === 'step_battle_flow') return true;
 
+    if (step.allowedCells && Array.isArray(step.allowedCells)) {
+      return step.allowedCells.some(c => c.x === x && c.z === z);
+    }
     if (step.allowedCell) {
       return x === step.allowedCell.x && z === step.allowedCell.z;
     }
@@ -296,6 +315,7 @@ export class TutorialManager {
     if (!this.isActive) return true;
     const step = this.steps[this.currentStep];
     if (!step) return true;
+    if (step.targetType === 'free_action' || step.id === 'step_battle_flow') return true;
 
     if (step.allowedSpellIndex !== undefined) {
       return spellIndex === step.allowedSpellIndex;
@@ -313,12 +333,16 @@ export class TutorialManager {
     if (!this.isActive) return true;
     const step = this.steps[this.currentStep];
     if (!step) return true;
+    if (step.targetType === 'free_action' || step.id === 'step_battle_flow') return true;
     return step.id === 'step_end_turn';
   }
 
   completeTutorial() {
     this.isActive = false;
     this.hideArrow();
+    const slot0 = document.getElementById('spell-slot-0');
+    const btnEnd = document.getElementById('btn-end-turn');
+    [slot0, btnEnd].forEach(el => el && el.classList.remove('tut-highlight'));
     if (this.overlay) {
       this.overlay.classList.add('hidden');
     }

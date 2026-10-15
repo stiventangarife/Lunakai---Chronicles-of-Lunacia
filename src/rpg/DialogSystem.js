@@ -217,6 +217,7 @@ export class DialogSystem {
   _initInput() {
     window.addEventListener('keydown', (e) => {
       if (!this.isActive) return;
+      if (['INPUT', 'TEXTAREA'].includes(document.activeElement?.tagName) || ['INPUT', 'TEXTAREA'].includes(e.target?.tagName) || e.target?.isContentEditable) return;
       if (e.code === 'Space' || e.code === 'Enter') {
         e.preventDefault();
         this.advance();

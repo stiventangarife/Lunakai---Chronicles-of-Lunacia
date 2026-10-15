@@ -9,7 +9,7 @@ export class PlayerController {
     this.audio = audioSystem;
     this.om = overworldManager;
 
-    this.enabled = true;
+    this.enabled = false;
     this.speed = 6.8; // units per second
 
     this.keys = {
@@ -28,10 +28,12 @@ export class PlayerController {
   _initInput() {
     window.addEventListener('keydown', (e) => {
       if (!this.enabled) return;
+      if (['INPUT', 'TEXTAREA'].includes(document.activeElement?.tagName) || ['INPUT', 'TEXTAREA'].includes(e.target?.tagName) || e.target?.isContentEditable) return;
       this._updateKey(e.code, true);
     });
 
     window.addEventListener('keyup', (e) => {
+      if (['INPUT', 'TEXTAREA'].includes(document.activeElement?.tagName) || ['INPUT', 'TEXTAREA'].includes(e.target?.tagName) || e.target?.isContentEditable) return;
       this._updateKey(e.code, false);
     });
   }
@@ -80,11 +82,10 @@ export class PlayerController {
       return;
     }
 
-    // Dynamic vertical elevation: smoothly adjust Y on bridge/stairs whether moving or standing
-    let targetY = 0.0;
-    if (this.om && this.om.stylizedRiver && this.om.stylizedRiver.group.visible && typeof this.om.stylizedRiver.getBridgeHeight === 'function') {
-      targetY = this.om.stylizedRiver.getBridgeHeight(this.player.position.x, this.player.position.z);
-    }
+    // Dynamic vertical elevation: smoothly adjust Y on bridge/stairs or 3D terrain whether moving or standing
+    const targetY = (this.om && typeof this.om.getGroundHeight === 'function')
+      ? this.om.getGroundHeight(this.player.position.x, this.player.position.z)
+      : 0.0;
     this.player.position.y += (targetY - this.player.position.y) * Math.min(1.0, 18.0 * dt);
 
     // Determine raw input
@@ -123,12 +124,11 @@ export class PlayerController {
     this.player.position.x = newPos.x;
     this.player.position.z = newPos.z;
 
-    // Dynamic vertical elevation: smoothly climb stair rocks and bridge deck
-    targetY = 0.0;
-    if (this.om && this.om.stylizedRiver && this.om.stylizedRiver.group.visible && typeof this.om.stylizedRiver.getBridgeHeight === 'function') {
-      targetY = this.om.stylizedRiver.getBridgeHeight(newPos.x, newPos.z);
-    }
-    this.player.position.y += (targetY - this.player.position.y) * Math.min(1.0, 18.0 * dt);
+    // Dynamic vertical elevation: smoothly climb stair rocks, hills and bridge deck
+    const moveTargetY = (this.om && typeof this.om.getGroundHeight === 'function')
+      ? this.om.getGroundHeight(newPos.x, newPos.z)
+      : 0.0;
+    this.player.position.y += (moveTargetY - this.player.position.y) * Math.min(1.0, 18.0 * dt);
 
     // Play run animation
     this.player.setAnimation('run');

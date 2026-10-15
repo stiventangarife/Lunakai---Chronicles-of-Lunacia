@@ -18,7 +18,7 @@ import { DynamicCombatFactory } from './tactics/DynamicCombatFactory.js';
 import { OverworldManager } from './rpg/OverworldManager.js';
 import { portraitService } from './tactics/CharacterPortraitService.js';
 import { StartScreenUI } from './rpg/ui/StartScreenUI.js';
-import { saveSlotManager, getHeroSpells } from './rpg/SaveSlotManager.js';
+import { saveSlotManager, getHeroSpells, SAPIDAE_CLASSES } from './rpg/SaveSlotManager.js';
 
 class AxieTacticsGame {
   constructor() {
@@ -157,6 +157,23 @@ class AxieTacticsGame {
     const gx = currentMapDef?.gx !== undefined ? currentMapDef.gx : 2;
     const gy = currentMapDef?.gy !== undefined ? currentMapDef.gy : 2;
 
+    const activeSlot = saveSlotManager.getActiveSlot();
+    let currentPortrait = activeSlot?.sapidaePortrait || null;
+    if (this.overworldManager?.player?.mesh && portraitService) {
+      try {
+        const dynSnap = portraitService.captureModel('active_player_slot', this.overworldManager.player.mesh, {
+          fullBody: true,
+          isHumanoid: true,
+          zoomFactor: 0.98,
+          yaw: -0.15,
+          pitch: 0.02
+        });
+        if (dynSnap) {
+          currentPortrait = dynSnap;
+        }
+      } catch (_) {}
+    }
+
     saveSlotManager.updateActiveSlot({
       level: this.equipmentManager.heroProgression?.kotaro?.level || 1,
       currentExp: this.equipmentManager.heroProgression?.kotaro?.currentExp || 0,
@@ -164,6 +181,9 @@ class AxieTacticsGame {
       inventory: exported.inventory,
       equipped: exported.equipped,
       progression: exported.progression,
+      sapidaeModel: p?.sapidaeModel || activeSlot?.sapidaeModel || 'sapidae-f-a',
+      customization: p?.customization || activeSlot?.customization,
+      sapidaePortrait: currentPortrait,
       unlockedHeroes: exported.unlockedHeroes || ['kotaro'],
       zone: {
         mapId: mapId,
@@ -231,7 +251,7 @@ class AxieTacticsGame {
         return;
       }
       if (this.activeUnit && this.activeUnit.team === 'player' && !this.activeUnit.isMoving) {
-        if (this.tutorialManager.isActive) {
+        if (this.tutorialManager.isActive && this.tutorialManager.getCurrentStepId() === 'step_end_turn') {
           this.tutorialManager.advanceStep();
         }
         this.turnManager.endCurrentTurn();
@@ -401,7 +421,7 @@ class AxieTacticsGame {
           return;
         }
         if (this.activeUnit && this.activeUnit.team === 'player' && !this.activeUnit.isMoving) {
-          if (this.tutorialManager.isActive) {
+          if (this.tutorialManager.isActive && this.tutorialManager.getCurrentStepId() === 'step_end_turn') {
             this.tutorialManager.advanceStep();
           }
           this.turnManager.endCurrentTurn();
@@ -474,17 +494,78 @@ class AxieTacticsGame {
   }
 
   async _startOverworld(withPrologue = true, slotData = null) {
-    this.gameState = withPrologue ? 'INTRO' : 'OVERWORLD';
+    this.gameState = 'LOADING';
     this._showBattleHUD(false);
+
+    // Initial loading screen: "Loading Biome..."
+    const curtain = document.getElementById('zone-transition-curtain');
+    if (curtain) {
+      const badgeEl = document.getElementById('zone-loading-badge');
+      const titleEl = document.getElementById('zone-loading-title');
+      const subtitleEl = document.getElementById('zone-loading-subtitle');
+      const iconEl = document.getElementById('zone-loading-icon');
+      const hintEl = document.getElementById('zone-loading-hint');
+      if (badgeEl) badgeEl.textContent = 'LUNAKAI';
+      if (titleEl) titleEl.textContent = 'Loading Biome...';
+      const initialMap = slotData?.currentZone || 'zone_2_2';
+      if (subtitleEl) subtitleEl.textContent = initialMap === 'zone_2_2' ? 'Dojo Valley [2, 2]' : initialMap;
+      if (iconEl) iconEl.textContent = '';
+      if (hintEl) hintEl.textContent = 'Preparing 3D environment and textures...';
+      curtain.classList.remove('hidden');
+      curtain.classList.add('active');
+    }
+
+    if (this.overworldManager) {
+      this.overworldManager.isLoadingZone = true;
+      if (this.overworldManager.playerController) {
+        this.overworldManager.playerController.setEnabled(false);
+      }
+    }
 
     // Get active hero config from equipmentManager (flexible for dynamic user-owned Axies)
     const activeHero = this.equipmentManager.heroesBase[this.selectedHeroId] || this.equipmentManager.heroesBase['kotaro'];
     await this.overworldManager.init(activeHero, slotData);
 
+    // Ensure player controls are kept disabled while loading screen is active
+    if (this.overworldManager.playerController) {
+      this.overworldManager.playerController.setEnabled(false);
+    }
+
+    this.gameState = withPrologue ? 'INTRO' : 'OVERWORLD';
+
     if (withPrologue) {
       this.overworldManager.startPrologue();
     } else {
       this.overworldManager.startFreeExploration(slotData);
+      // Keep player controls disabled during the fade-out
+      if (this.overworldManager.playerController) {
+        this.overworldManager.playerController.setEnabled(false);
+      }
+    }
+
+    // Wait until the first useful frame is fully drawn and stabilized by Three.js
+    if (typeof this.overworldManager.waitForNextRenderFrame === 'function') {
+      await this.overworldManager.waitForNextRenderFrame(2);
+    } else {
+      await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+    }
+
+    // Clean exit transition: Smooth fade out once first useful frame is drawn
+    if (this.overworldManager.worldMapManager?.transitionManager) {
+      await this.overworldManager.worldMapManager.transitionManager.hideLoading(500);
+    } else if (curtain) {
+      curtain.classList.remove('active');
+      await new Promise((r) => setTimeout(r, 500));
+      curtain.classList.add('hidden');
+    }
+
+    if (this.overworldManager) {
+      this.overworldManager.isLoadingZone = false;
+    }
+
+    // Hand control to the player ONLY when the world is completely drawn and responsive in real time
+    if (!withPrologue && this.overworldManager.state === 'EXPLORING' && this.overworldManager.playerController) {
+      this.overworldManager.playerController.setEnabled(true);
     }
   }
 
@@ -668,14 +749,82 @@ class AxieTacticsGame {
       pomodoro: { type: 'pomodoro', scale: 1.0 }
     };
 
-    // Setup Heroes based on config.heroPositions
-    config.heroPositions.forEach(hp => {
+    // 1. Setup Sapidae Hero Combat Unit (The Protagonist & Squad Leader!)
+    const activeSlot = saveSlotManager.getActiveSlot();
+    const sapidaeClassKey = (activeSlot && activeSlot.sapidaeClass) || 'crafter';
+    const sapidaeClassDef = SAPIDAE_CLASSES[sapidaeClassKey] || SAPIDAE_CLASSES.crafter;
+    const sapidaeModel = (activeSlot && activeSlot.sapidaeModel) || 'sapidae-m-a';
+    const sapidaePlayerName = (activeSlot && activeSlot.playerName) || 'Sapidae Adventurer';
+    const sapidaeCustomization = (activeSlot && activeSlot.customization) || null;
+
+    // Primary player position on grid
+    const primaryHeroPos = config.sapidaePosition || (config.heroPositions && config.heroPositions[0]) || { x: 3, z: 2 };
+
+    this.units.push(new Unit({
+      id: 'sapidae_hero',
+      name: sapidaePlayerName,
+      archetype: sapidaeClassDef.archetype,
+      type: 'sapidae',
+      modelType: sapidaeModel,
+      team: 'player',
+      x: primaryHeroPos.x,
+      z: primaryHeroPos.z,
+      maxHP: sapidaeClassDef.maxHP,
+      maxPA: sapidaeClassDef.maxPA,
+      maxPM: sapidaeClassDef.maxPM,
+      initiative: sapidaeClassDef.initiative || 90,
+      bonusDamage: 0,
+      initialShield: 0,
+      critRate: 15,
+      supportPower: 25,
+      skillLevels: {},
+      spellIds: sapidaeClassDef.spells,
+      scale: 1.05,
+      isSapidae: true,
+      customization: sapidaeCustomization,
+      equipped: this.equipmentManager ? (this.equipmentManager.equipped.sapidae || this.equipmentManager.equipped.kotaro || {}) : {},
+      sapidaeClass: sapidaeClassKey
+    }, this.gridManager, this.sceneManager, this.audio));
+
+    // 2. Setup Companion Axie & allies adjacent to the Sapidae
+    const candidateOffsets = [
+      { dx: 1, dz: 0 },
+      { dx: -1, dz: 0 },
+      { dx: 0, dz: 1 },
+      { dx: 1, dz: 1 },
+      { dx: -1, dz: 1 },
+      { dx: 0, dz: -1 }
+    ];
+
+    config.heroPositions.forEach((hp) => {
       const heroId = hp.id;
       const baseInfo = this.equipmentManager.heroesBase[heroId] || {};
       const stats = this.equipmentManager.getCalculatedStats(heroId);
       const prog = this.equipmentManager.getProgression(heroId);
       const heroMeta = HERO_CONFIGS[heroId] || { type: heroId, scale: 1.0 };
       const isAxie = baseInfo.modelType === 'axie' || Boolean(baseInfo.axieId);
+
+      let spawnX = hp.x;
+      let spawnZ = hp.z;
+
+      // Prevent companion from overlapping the Sapidae
+      if (spawnX === primaryHeroPos.x && spawnZ === primaryHeroPos.z) {
+        for (const off of candidateOffsets) {
+          const cx = primaryHeroPos.x + off.dx;
+          const cz = primaryHeroPos.z + off.dz;
+          if (cx >= 0 && cx < this.gridManager.width && cz >= 0 && cz < this.gridManager.height) {
+            const tile = this.gridManager.getTile(cx, cz);
+            const occupied = this.units.some(u => u.gridX === cx && u.gridZ === cz) ||
+                             (config.enemies && config.enemies.some(e => e.x === cx && e.z === cz)) ||
+                             (config.obstacles && config.obstacles.some(o => o.x === cx && o.z === cz));
+            if (tile && tile.walkable && !tile.obstacle && !occupied) {
+              spawnX = cx;
+              spawnZ = cz;
+              break;
+            }
+          }
+        }
+      }
 
       this.units.push(new Unit({
         id: heroId,
@@ -686,12 +835,12 @@ class AxieTacticsGame {
         axieId: baseInfo.axieId || null,
         genes: baseInfo.genes || null,
         team: 'player',
-        x: hp.x,
-        z: hp.z,
+        x: spawnX,
+        z: spawnZ,
         maxHP: stats.maxHP,
         maxPA: stats.maxPA,
         maxPM: stats.maxPM,
-        initiative: stats.initiative,
+        initiative: 85, // Companion acts right alongside Sapidae
         bonusDamage: stats.bonusDamage,
         bonusMeleeDamage: stats.bonusMeleeDamage || 0,
         bonusRangedDamage: stats.bonusRangedDamage || 0,
@@ -740,18 +889,7 @@ class AxieTacticsGame {
     this.turnManager.setUnits(this.units);
 
     if (config.isTutorial) {
-      this.activeUnit = null;
-      this.reachableCells = [];
-      this.gridManager.clearHighlights();
-      this._updateTimelineUI(this.turnManager.queue);
-      const kotaroUnit = this.units.find(u => u.team === 'player');
-      if (kotaroUnit) {
-        this._updateHUD(kotaroUnit);
-        for (let i = 0; i < 3; i++) {
-          const slot = document.getElementById('spell-slot-' + i);
-          if (slot) slot.classList.add('disabled');
-        }
-      }
+      this.turnManager.startCombat();
       this.tutorialManager.startTutorial();
     } else {
       this.tutorialManager.completeTutorial();
@@ -770,8 +908,8 @@ class AxieTacticsGame {
       document.getElementById('round-number').textContent = round;
 
       if (activeUnit.team === 'player') {
-        if (this.tutorialManager.isActive && this.tutorialManager.getCurrentStepId() === 'step_enemy_turn') {
-          this.tutorialManager.advanceStep();
+        if (this.tutorialManager.isActive) {
+          this.tutorialManager._renderStep();
         }
         this._refreshMovementHighlights();
       } else {
@@ -1351,9 +1489,10 @@ class AxieTacticsGame {
       else if (unit.type.includes('slime')) avatar = '🟢';
       else if (unit.type.includes('brawler') || unit.type === 'buba') avatar = '🥊';
       else if (unit.type.includes('stalker') || unit.type === 'fox') avatar = '🦊';
-      else if (unit.type.includes('shaman') || unit.type === 'sapidae') avatar = '🔮';
+      else if (unit.type === 'sapidae') avatar = unit.modelType?.includes('f') ? '👩‍🌾' : '🧑‍🌾';
+      else if (unit.type.includes('shaman')) avatar = '🔮';
 
-      const portraitKey = (unit.config && unit.config.axieId) ? unit.config.axieId : (unit.type || unit.id);
+      const portraitKey = (unit.config && unit.config.axieId) ? unit.config.axieId : (unit.modelType || unit.type || unit.id);
       const portraitUrl = portraitService.getPortraitSync(portraitKey) || 
                           portraitService.getPortraitSync(unit.type) || 
                           portraitService.getPortraitSync(unit.id) || 
@@ -1395,14 +1534,14 @@ class AxieTacticsGame {
       else if (unit.type.includes('treant')) { archetype = 'Ancient Botanical Treant'; avatar = '🌲'; }
       else if (unit.type.includes('slime')) { archetype = 'Slime Chimera'; avatar = '🟢'; }
       else if (unit.type.includes('brawler') || unit.type === 'buba') { archetype = 'Assault Beast'; avatar = '🥊'; }
-      else if (unit.type.includes('stalker') || unit.type === 'fox') { archetype = 'Agile Hunter'; avatar = '🦊'; }
-      else if (unit.type.includes('shaman') || unit.type === 'sapidae') { archetype = 'Botanical Shaman'; avatar = '🔮'; }
+      else if (unit.type === 'sapidae') { archetype = unit.archetype || 'Sapidae Adventurer'; avatar = unit.modelType?.includes('f') ? '👩‍🌾' : '🧑‍🌾'; }
+      else if (unit.type.includes('shaman')) { archetype = 'Botanical Shaman'; avatar = '🔮'; }
       else { archetype = 'Beast Axie (Melee Duelist)'; }
     }
 
     document.getElementById('unit-archetype').textContent = archetype;
     const avatarEl = document.getElementById('unit-avatar');
-    const portraitKey = (unit.config && unit.config.axieId) ? unit.config.axieId : (unit.type || unit.id);
+    const portraitKey = (unit.config && unit.config.axieId) ? unit.config.axieId : (unit.modelType || unit.type || unit.id);
     const portraitUrl = portraitService.getPortraitSync(portraitKey) || 
                         portraitService.getPortraitSync(unit.type) || 
                         portraitService.getPortraitSync(unit.id) || 
@@ -1413,9 +1552,11 @@ class AxieTacticsGame {
       avatarEl.textContent = avatar;
     }
 
-    const hpPercent = Math.max(0, Math.min(100, (unit.currentHP / unit.maxHP) * 100));
+    const safeHP = (typeof unit.currentHP === 'number' && !isNaN(unit.currentHP)) ? Math.max(0, unit.currentHP) : 0;
+    const safeMaxHP = (typeof unit.maxHP === 'number' && !isNaN(unit.maxHP) && unit.maxHP > 0) ? unit.maxHP : 1;
+    const hpPercent = Math.max(0, Math.min(100, (safeHP / safeMaxHP) * 100));
     document.getElementById('hud-hp-fill').style.width = hpPercent + '%';
-    document.getElementById('hud-hp-text').textContent = unit.currentHP + ' / ' + unit.maxHP;
+    document.getElementById('hud-hp-text').textContent = safeHP + ' / ' + safeMaxHP;
 
     document.getElementById('hud-pa-count').textContent = unit.currentPA + ' / ' + unit.maxPA;
     document.getElementById('hud-pm-count').textContent = unit.currentPM + ' / ' + unit.maxPM;
@@ -1425,17 +1566,22 @@ class AxieTacticsGame {
       const spellId = unit.spellIds[i];
       if (spellId) {
         const spell = this.spellManager.getSpell(spellId);
+        if (!spell) {
+          console.warn(`[AxieTacticsGame] Spell '${spellId}' not found for unit '${unit.name}', skipping slot ${i}`);
+          slot.style.display = 'none';
+          continue;
+        }
         slot.style.display = 'flex';
-        slot.querySelector('.pa-cost-badge').textContent = spell.paCost + ' AP';
+        slot.querySelector('.pa-cost-badge').textContent = (spell.paCost ?? 0) + ' AP';
         const iconEl = slot.querySelector('.spell-icon');
         if (spell.icon && (spell.icon.includes('/') || spell.icon.endsWith('.png') || spell.icon.endsWith('.webp'))) {
-          iconEl.innerHTML = `<img src="${spell.icon}" alt="${spell.name}" class="spell-img-icon">`;
+          iconEl.innerHTML = `<img src="${spell.icon}" alt="${spell.name || 'Habilidad'}" class="spell-img-icon">`;
         } else {
-          iconEl.textContent = spell.icon;
+          iconEl.textContent = spell.icon || '⚔️';
         }
         slot.querySelector('.range-badge').textContent = (spell.minRange === spell.maxRange ? spell.minRange : spell.minRange + '-' + spell.maxRange) + ' RNG';
 
-        if (unit.currentPA < spell.paCost || unit.team !== 'player' || this.activeUnit !== unit) {
+        if (unit.currentPA < (spell.paCost ?? 0) || unit.team !== 'player' || this.activeUnit !== unit) {
           slot.classList.add('disabled');
         } else {
           slot.classList.remove('disabled');
@@ -1468,8 +1614,12 @@ class AxieTacticsGame {
   }
 
   _refreshMovementHighlights() {
+    if (this.selectedSpell) return;
     this.gridManager.clearHighlights();
-    if (!this.activeUnit || this.activeUnit.team !== 'player' || this.selectedSpell) return;
+    if (!this.activeUnit && this.turnManager) {
+      this.activeUnit = this.turnManager.getActiveUnit() || this.units?.[0];
+    }
+    if (!this.activeUnit || this.activeUnit.team !== 'player') return;
 
     if (this.tutorialManager.isActive) {
       const step = this.tutorialManager.steps[this.tutorialManager.currentStep];
@@ -1624,7 +1774,17 @@ class AxieTacticsGame {
   }
 
   async _handleGridClick() {
+    if (!this.activeUnit && this.turnManager) {
+      this.activeUnit = this.turnManager.getActiveUnit() || this.units?.[0];
+    }
     if (!this.activeUnit || this.activeUnit.team !== 'player' || this.activeUnit.isMoving) return;
+
+    if (!this.hoverCell && this.sceneManager && this.mouse) {
+      this.raycaster.setFromCamera(this.mouse, this.sceneManager.camera);
+      const planeHit = new THREE.Vector3();
+      this.raycaster.ray.intersectPlane(this.planeIntersect, planeHit);
+      this.hoverCell = this.gridManager.worldToGrid(planeHit.x, planeHit.z);
+    }
     if (!this.hoverCell) return;
 
     const cell = this.hoverCell;
@@ -1635,7 +1795,8 @@ class AxieTacticsGame {
         return;
       }
 
-      const isValid = this.validSpellCells.some(c => c.x === cell.x && c.z === cell.z);
+      const isValid = this.validSpellCells.some(c => c.x === cell.x && c.z === cell.z) ||
+                      (this.tutorialManager.isActive && this.tutorialManager.isCellAllowed(cell.x, cell.z));
       if (isValid) {
         const spell = this.selectedSpell;
         await this.spellManager.castSpell(this.activeUnit, spell, cell);
@@ -1664,6 +1825,15 @@ class AxieTacticsGame {
         return;
       }
 
+      if ((!this.reachableCells || this.reachableCells.length === 0) && this.activeUnit.currentPM > 0) {
+        this.reachableCells = this.gridManager.getReachableCells(
+          this.activeUnit.gridX,
+          this.activeUnit.gridZ,
+          this.activeUnit.currentPM,
+          this.activeUnit
+        );
+      }
+
       const reachable = this.reachableCells.find(c => c.x === cell.x && c.z === cell.z);
       if (reachable && reachable.path) {
         await this.activeUnit.moveAlongPath(reachable.path);
@@ -1680,9 +1850,15 @@ class AxieTacticsGame {
   }
 
   _showForecast(targetUnit, spell) {
+    if (!targetUnit || targetUnit.isDead) {
+      this._hideForecast();
+      return;
+    }
     const el = document.getElementById('combat-forecast');
-    document.getElementById('forecast-target-name').textContent = targetUnit.name;
-    document.getElementById('forecast-target-hp').textContent = targetUnit.currentHP + ' / ' + targetUnit.maxHP + ' HP';
+    document.getElementById('forecast-target-name').textContent = targetUnit.name || 'Enemigo';
+    const curHP = (typeof targetUnit.currentHP === 'number' && !isNaN(targetUnit.currentHP)) ? targetUnit.currentHP : 0;
+    const maxHP = (typeof targetUnit.maxHP === 'number' && !isNaN(targetUnit.maxHP)) ? targetUnit.maxHP : 1;
+    document.getElementById('forecast-target-hp').textContent = curHP + ' / ' + maxHP + ' HP';
 
     const dmgVal = document.getElementById('forecast-damage-val');
     if (spell.baseMinDamage) {
@@ -1763,7 +1939,7 @@ class AxieTacticsGame {
     const dt = Math.min(this.clock.getDelta(), 0.1);
     const time = this.clock.getElapsedTime();
 
-    if (this.gameState === 'INTRO' || this.gameState === 'OVERWORLD') {
+    if (this.gameState === 'INTRO' || this.gameState === 'OVERWORLD' || (this.gameState === 'LOADING' && this.overworldManager && this.overworldManager.isReadyToRender)) {
       this.overworldManager.update(dt, time);
       this.overworldManager.render(time, dt);
     } else if (this.gameState === 'BATTLE') {

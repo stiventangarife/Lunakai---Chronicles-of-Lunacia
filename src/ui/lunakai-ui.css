@@ -1,0 +1,42 @@
+/* ==========================================================================
+   Lunakai · Crónica Celeste — capa del juego
+   ds.generated.css = el sistema de diseño exacto (generado con
+   tools/port_css.py desde celeste.html; no editar a mano).
+   Este archivo solo añade lo que el juego necesita y el sistema no tiene:
+   el contenedor .lk-ui, la ventana modal sobre el canvas, retratos con
+   imagen real y capas (z-index) por encima del HUD actual.
+   ========================================================================== */
+
+/* Raíz de cualquier pantalla nueva (equivale al body del sistema de diseño) */
+.lk-ui {
+  font-family: var(--lk-font-ui);
+  font-size: 15px;
+  line-height: 1.6;
+  font-weight: 600;
+  color: var(--lk-ivory-100);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Capas por encima del HUD existente */
+.lk-tooltip-float { z-index: 2000; }
+.lk-toast { z-index: 2100; }
+
+/* Ventana modal sobre el juego: fondo que oscurece + .lk-panel-modal-window */
+.lk-backdrop {
+  position: fixed; inset: 0; z-index: 1500; display: grid; place-items: center; padding: 20px;
+  background: radial-gradient(80% 70% at 50% 40%, rgba(11, 15, 28, .45), rgba(8, 10, 18, .82));
+  opacity: 0; visibility: hidden; transition: opacity .2s, visibility .2s;
+}
+.lk-backdrop.lk-is-open { opacity: 1; visibility: visible; }
+.lk-backdrop > .lk-panel-modal-window {
+  width: min(980px, 100%); max-height: calc(100vh - 40px); display: flex; flex-direction: column;
+  transform: translateY(10px) scale(.985); transition: transform .3s var(--lk-ease);
+}
+.lk-backdrop.lk-is-open > .lk-panel-modal-window { transform: none; }
+
+/* Retrato con imagen real (assets/portraits) dentro del medallón del sistema */
+.lk-med > img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: 50% 22%; }
+
+@media (prefers-reduced-motion: reduce) {
+  .lk-backdrop, .lk-backdrop > .lk-panel-modal-window { transition: none; }
+}

@@ -1757,11 +1757,30 @@ export class BiomeDecorationManager {
           if (!mat || disposedMaterials.has(mat)) return;
           disposedMaterials.add(mat);
 
+          const texKeys = ['map', 'normalMap', 'roughnessMap', 'metalnessMap', 'aoMap', 'alphaMap', 'emissiveMap', 'bumpMap', 'displacementMap', 'envMap', 'lightMap'];
+          for (const key of texKeys) {
+            const val = mat[key];
+            if (val && val.isTexture && !disposedTextures.has(val)) {
+              disposedTextures.add(val);
+              disposeTextureDeep(val);
+            }
+          }
+
           for (const key of Object.keys(mat)) {
             const val = mat[key];
             if (val && val.isTexture && !disposedTextures.has(val)) {
               disposedTextures.add(val);
               disposeTextureDeep(val);
+            }
+          }
+
+          if (mat.uniforms) {
+            for (const uKey of Object.keys(mat.uniforms)) {
+              const uVal = mat.uniforms[uKey]?.value;
+              if (uVal && uVal.isTexture && !disposedTextures.has(uVal)) {
+                disposedTextures.add(uVal);
+                disposeTextureDeep(uVal);
+              }
             }
           }
 
@@ -1912,7 +1931,9 @@ export class BiomeDecorationManager {
 
     let loadPromise = null;
     if (biomeId === 'savannah') {
-      loadPromise = this._loadSavannah();
+      // Bioma de sabana anterior desactivado en favor de la nueva Isla de la Sabana (SavannaZone)
+      this.loadedBiomes.add('savannah');
+      return;
     } else if (biomeId === 'arctic') {
       loadPromise = this._loadArctic();
     } else if (biomeId === 'mystic') {
@@ -4985,7 +5006,7 @@ export class BiomeDecorationManager {
       this.collisions.removeCirclesByTag('dungeon_prop');
     }
 
-    this.savannahGroup.visible = (biomeId === 'savannah' && this.loadedBiomes.has('savannah'));
+    this.savannahGroup.visible = false; // Macro-zonas anteriores desactivadas en favor de SavannaZone
     this.arcticGroup.visible = (biomeId === 'arctic' && this.loadedBiomes.has('arctic'));
     this.mysticGroup.visible = (biomeId === 'mystic' && this.loadedBiomes.has('mystic'));
     this.dungeonGroup.visible = (biomeId === 'dungeon' && this.loadedBiomes.has('dungeon'));
@@ -5102,46 +5123,11 @@ export class BiomeDecorationManager {
           });
         }
       }
-    } else if (biomeId === 'savannah' && this.loadedBiomes.has('savannah')) {
-      const is31 = (this.currentGx === 3 && this.currentGy === 1);
-      if (this.savannahGroup_3_1) this.savannahGroup_3_1.visible = is31;
-      if (this.savannahGroup_3_2) this.savannahGroup_3_2.visible = !is31;
-
-      if (this.collisions) {
-        const treeList = is31 ? this.savannahTrees_3_1 : this.savannahTrees_3_2;
-        if (treeList) {
-          treeList.forEach((t, idx) => {
-            this.collisions.addCircle(t.x, t.z, t.radius || 0.9, 'savannah_tree_' + idx);
-          });
-        }
-        const cactusList = is31 ? this.tallCactusPositions_3_1 : this.tallCactusPositions_3_2;
-        if (cactusList) {
-          cactusList.forEach((c, idx) => {
-            this.collisions.addCircle(c.x, c.z, 0.85, 'savannah_cactus_' + idx);
-          });
-        }
-        const rockList = is31 ? this.savannahRocks_3_1 : this.savannahRocks_3_2;
-        if (rockList) {
-          rockList.forEach((r, idx) => {
-            this.collisions.addCircle(r.x, r.z, r.radius || 1.1, 'savannah_rock_' + idx);
-          });
-        }
-        if (!is31 && this.savannahColumns_3_2) {
-          this.savannahColumns_3_2.forEach((col, idx) => {
-            this.collisions.addCircle(col.x, col.z, col.radius || 0.95, 'savannah_column_' + idx);
-          });
-        }
-        if (!is31 && this.sentinelOutpostCollisions_3_2) {
-          this.sentinelOutpostCollisions_3_2.forEach((p, idx) => {
-            this.collisions.addCircle(p.x, p.z, p.radius, 'savannah_outpost_' + idx);
-          });
-        }
-        if (is31 && this.blacksmithCollisions_3_1) {
-          this.blacksmithCollisions_3_1.forEach((p, idx) => {
-            this.collisions.addCircle(p.x, p.z, p.radius, 'savannah_blacksmith_' + idx);
-          });
-        }
-      }
+    } else if (biomeId === 'savannah') {
+      // Las macro-zonas anteriores de la sabana (3_1 y 3_2) han sido desactivadas en favor de SavannaZone (Gran Isla de la Sabana).
+      if (this.savannahGroup) this.savannahGroup.visible = false;
+      if (this.savannahGroup_3_1) this.savannahGroup_3_1.visible = false;
+      if (this.savannahGroup_3_2) this.savannahGroup_3_2.visible = false;
     }
   }
 

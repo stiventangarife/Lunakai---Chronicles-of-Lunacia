@@ -2894,6 +2894,94 @@ body, html {
   border: 1px solid rgba(16, 185, 129, 0.4);
 }
 
+/* 4. Sapidae: Astromante (Morado / Púrpura Cósmico) */
+.squad-member-card.class-sapidae-stargazer {
+  border-left: 3px solid #a855f7;
+}
+.squad-member-card.class-sapidae-stargazer:hover {
+  border-color: #c084fc;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.7), 0 0 16px rgba(168, 85, 247, 0.4);
+}
+.squad-member-card.class-sapidae-stargazer .squad-frame-outer {
+  border: 2px solid #a855f7;
+  background: radial-gradient(circle, rgba(168, 85, 247, 0.3) 0%, rgba(88, 28, 135, 0.55) 100%);
+  box-shadow: 0 0 10px rgba(168, 85, 247, 0.55), inset 0 0 6px rgba(168, 85, 247, 0.35);
+}
+.squad-member-card.class-sapidae-stargazer .squad-frame-gem {
+  background: #c084fc;
+  box-shadow: 0 0 8px #a855f7;
+}
+.squad-member-card.class-sapidae-stargazer .squad-level-badge {
+  border-color: #c084fc;
+  color: #e9d5ff;
+}
+
+/* 5. Sapidae: Forjacubiles (Dorado / Ámbar Forja) */
+.squad-member-card.class-sapidae-crafter {
+  border-left: 3px solid #f59e0b;
+}
+.squad-member-card.class-sapidae-crafter:hover {
+  border-color: #fbbf24;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.7), 0 0 16px rgba(245, 158, 11, 0.4);
+}
+.squad-member-card.class-sapidae-crafter .squad-frame-outer {
+  border: 2px solid #fbbf24;
+  background: radial-gradient(circle, rgba(251, 191, 36, 0.3) 0%, rgba(180, 83, 9, 0.5) 100%);
+  box-shadow: 0 0 10px rgba(251, 191, 36, 0.55), inset 0 0 6px rgba(251, 191, 36, 0.35);
+}
+.squad-member-card.class-sapidae-crafter .squad-frame-gem {
+  background: #fbbf24;
+  box-shadow: 0 0 8px #f59e0b;
+}
+.squad-member-card.class-sapidae-crafter .squad-level-badge {
+  border-color: #fbbf24;
+  color: #fde68a;
+}
+
+/* 6. Sapidae: Susurrador (Celeste Astral / Cyan Místico) */
+.squad-member-card.class-sapidae-shepard {
+  border-left: 3px solid #38bdf8;
+}
+.squad-member-card.class-sapidae-shepard:hover {
+  border-color: #38bdf8;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.7), 0 0 16px rgba(56, 189, 248, 0.4);
+}
+.squad-member-card.class-sapidae-shepard .squad-frame-outer {
+  border: 2px solid #38bdf8;
+  background: radial-gradient(circle, rgba(56, 189, 248, 0.3) 0%, rgba(2, 132, 199, 0.5) 100%);
+  box-shadow: 0 0 10px rgba(56, 189, 248, 0.55), inset 0 0 6px rgba(56, 189, 248, 0.35);
+}
+.squad-member-card.class-sapidae-shepard .squad-frame-gem {
+  background: #38bdf8;
+  box-shadow: 0 0 8px #38bdf8;
+}
+.squad-member-card.class-sapidae-shepard .squad-level-badge {
+  border-color: #38bdf8;
+  color: #bae6fd;
+}
+
+/* 7. Sapidae: Lunalogista (Verde Esmeralda / Naturaleza) */
+.squad-member-card.class-sapidae-lunalogist {
+  border-left: 3px solid #10b981;
+}
+.squad-member-card.class-sapidae-lunalogist:hover {
+  border-color: #34d399;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.7), 0 0 16px rgba(168, 85, 247, 0.4);
+}
+.squad-member-card.class-sapidae-lunalogist .squad-frame-outer {
+  border: 2px solid #10b981;
+  background: radial-gradient(circle, rgba(16, 185, 129, 0.3) 0%, rgba(5, 150, 105, 0.5) 100%);
+  box-shadow: 0 0 10px rgba(16, 185, 129, 0.55), inset 0 0 6px rgba(16, 185, 129, 0.35);
+}
+.squad-member-card.class-sapidae-lunalogist .squad-frame-gem {
+  background: #10b981;
+  box-shadow: 0 0 8px #10b981;
+}
+.squad-member-card.class-sapidae-lunalogist .squad-level-badge {
+  border-color: #34d399;
+  color: #a7f3d0;
+}
+
 /* Portrait Frame Details */
 .squad-portrait-frame {
   position: relative;
@@ -2945,6 +3033,20 @@ body, html {
 
 .squad-member-card:hover .squad-avatar-img {
   transform: scale(1.25);
+}
+
+/* Sapidae Full-Body Standing Avatar inside the Diamond Frame */
+.squad-avatar-img.squad-avatar-sapidae-body {
+  width: 46px;
+  height: 56px;
+  object-fit: contain;
+  transform: scale(1.22) translateY(-2px);
+  filter: drop-shadow(0 3px 6px rgba(0, 0, 0, 0.9));
+  pointer-events: none;
+}
+
+.squad-member-card:hover .squad-avatar-img.squad-avatar-sapidae-body {
+  transform: scale(1.32) translateY(-3px);
 }
 
 .squad-level-badge {
@@ -3017,6 +3119,30 @@ body, html {
   border-radius: 50%;
   filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.45));
   transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1), filter 0.2s ease;
+}
+
+.squad-class-icon.squad-sapidae-class-icon {
+  width: 24px;
+  height: 24px;
+  object-fit: cover;
+  border-radius: 50%;
+  border: 1.5px solid rgba(251, 191, 36, 0.95);
+  box-shadow: 0 0 6px rgba(251, 191, 36, 0.5), inset 0 0 4px rgba(0, 0, 0, 0.4);
+}
+
+.squad-member-card.class-sapidae-stargazer .squad-class-icon.squad-sapidae-class-icon {
+  border-color: rgba(168, 85, 247, 0.95);
+  box-shadow: 0 0 8px rgba(168, 85, 247, 0.6), inset 0 0 4px rgba(0, 0, 0, 0.4);
+}
+
+.squad-member-card.class-sapidae-shepard .squad-class-icon.squad-sapidae-class-icon {
+  border-color: rgba(56, 189, 248, 0.95);
+  box-shadow: 0 0 8px rgba(56, 189, 248, 0.6), inset 0 0 4px rgba(0, 0, 0, 0.4);
+}
+
+.squad-member-card.class-sapidae-lunalogist .squad-class-icon.squad-sapidae-class-icon {
+  border-color: rgba(16, 185, 129, 0.95);
+  box-shadow: 0 0 8px rgba(16, 185, 129, 0.6), inset 0 0 4px rgba(0, 0, 0, 0.4);
 }
 
 .squad-member-card:hover .squad-class-icon {
@@ -3313,290 +3439,673 @@ body.state-combat .overworld-quest-tracker,
   display: inline-block;
 }
 
-/* Body & Grid */
-.world-map-body {
-  display: grid;
-  grid-template-columns: auto 340px;
-  gap: 16px;
-  padding: 12px 20px;
-  align-items: stretch;
+/* Tabs Switcher */
+.world-map-tabs {
+  display: flex;
+  align-items: center;
+  background: rgba(2, 6, 23, 0.7);
+  padding: 4px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  gap: 4px;
 }
 
-.world-map-grid-wrapper {
+.map-tab-btn {
+  background: transparent;
+  border: none;
+  color: #94a3b8;
+  padding: 6px 14px;
+  font-size: 12px;
+  font-weight: 700;
+  border-radius: 7px;
+  cursor: pointer;
+  transition: all 0.18s ease;
+}
+
+.map-tab-btn:hover {
+  color: #f8fafc;
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.map-tab-btn.active {
+  background: #0284c7;
+  color: #ffffff;
+  box-shadow: 0 2px 10px rgba(2, 132, 199, 0.45);
+}
+
+/* Body & Panels */
+.world-map-body {
+  display: grid;
+  grid-template-columns: 1fr 340px;
+  gap: 16px;
+  padding: 14px 20px;
+  align-items: stretch;
+  min-height: 480px;
+}
+
+.world-map-view-panel {
   position: relative;
   display: flex;
   align-items: center;
   justify-content: center;
   background: #020617;
-  border-radius: 12px;
-  border: 1px solid rgba(255, 255, 255, 0.06);
-  padding: 6px;
+  border-radius: 14px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  padding: 10px;
+  overflow: hidden;
 }
 
-.world-map-grid {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  grid-template-rows: repeat(3, 1fr);
-  gap: 8px;
-  width: 390px;
-  height: 390px;
+.world-map-view-panel.hidden {
+  display: none !important;
 }
 
-.map-cell {
+/* 5 Islands Cross Container */
+.islands-cross-container {
   position: relative;
-  background: #0f172a;
-  border: 1.5px solid #334155;
-  border-radius: 10px;
-  padding: 8px 10px;
-  cursor: pointer;
-  transition: all 0.18s cubic-bezier(0.16, 1, 0.3, 1);
-  display: flex;
-  flex-direction: column;
-  justify-content: space-between;
-  overflow: hidden;
-  user-select: none;
-  box-sizing: border-box;
-}
-
-.map-cell:hover {
-  transform: translateY(-2px) scale(1.03);
-  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.7);
-  z-index: 5;
-  filter: brightness(1.25);
-}
-
-.map-cell.selected-cell {
-  outline: 2px solid #ffffff;
-  outline-offset: 1px;
-  box-shadow: 0 0 16px rgba(255, 255, 255, 0.5);
-  z-index: 6;
-}
-
-/* Biome specific fills */
-.map-cell.biome-forest {
-  background: rgba(34, 197, 94, 0.14);
-  border-color: rgba(34, 197, 94, 0.85) !important;
-}
-.map-cell.biome-arctic {
-  background: rgba(56, 189, 248, 0.14);
-  border-color: rgba(56, 189, 248, 0.85) !important;
-}
-.map-cell.biome-savannah {
-  background: rgba(234, 179, 8, 0.14);
-  border-color: rgba(234, 179, 8, 0.85) !important;
-}
-.map-cell.biome-mystic {
-  background: rgba(168, 85, 247, 0.14);
-  border-color: rgba(168, 85, 247, 0.85) !important;
-}
-.map-cell.biome-dungeon {
-  background: rgba(239, 68, 68, 0.16);
-  border-color: rgba(239, 68, 68, 0.85) !important;
-}
-
-.cell-coord {
-  font-size: 11px;
-  font-weight: 800;
-  color: #94a3b8;
-  line-height: 1;
-}
-
-.cell-title {
-  font-size: 12px;
-  font-weight: 700;
-  color: #f8fafc;
-  line-height: 1.25;
-  text-overflow: ellipsis;
-  overflow: hidden;
-  white-space: nowrap;
-}
-
-/* Player Pin */
-.player-pin {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  width: 32px;
-  height: 32px;
-  border-radius: 50%;
-  background: rgba(14, 116, 144, 0.55);
-  border: 1.5px solid rgba(56, 189, 248, 0.65);
+  width: 460px;
+  height: 460px;
   display: flex;
   align-items: center;
   justify-content: center;
-  pointer-events: none;
 }
 
-.pin-icon {
-  font-size: 15px;
+.islands-sea-routes {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 1;
+}
+
+.sea-route-line {
+  stroke: rgba(56, 189, 248, 0.35);
+  stroke-width: 2.5;
+  stroke-dasharray: 6 5;
+}
+
+.sea-route-circle {
+  fill: none;
+  stroke: rgba(56, 189, 248, 0.12);
+  stroke-width: 1.5;
+  stroke-dasharray: 4 6;
+}
+
+.islands-cross-grid {
+  position: relative;
+  z-index: 2;
+  display: grid;
+  grid-template-columns: repeat(3, 140px);
+  grid-template-rows: repeat(3, 140px);
+  gap: 10px;
+}
+
+.island-cell {
+  position: relative;
+  border-radius: 12px;
+  box-sizing: border-box;
+}
+
+.island-cell-ocean {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px dashed rgba(56, 189, 248, 0.06);
+}
+
+.ocean-compass-rose {
+  font-size: 16px;
+  color: rgba(56, 189, 248, 0.18);
+}
+
+.island-card {
+  background: rgba(15, 23, 42, 0.85);
+  border: 2px solid #334155;
+  padding: 8px 10px;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  transition: all 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+  backdrop-filter: blur(8px);
+  user-select: none;
+}
+
+.island-card:hover {
+  transform: translateY(-3px) scale(1.04);
+  filter: brightness(1.22);
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.8);
+  z-index: 5;
+}
+
+.island-card.selected-island {
+  outline: 2px solid #ffffff;
+  outline-offset: 2px;
+  box-shadow: 0 0 20px rgba(255, 255, 255, 0.45);
+  z-index: 6;
+}
+
+.island-card.current-island-cell {
+  box-shadow: 0 0 18px rgba(34, 197, 94, 0.55);
+}
+
+/* Biome-specific island cards */
+.island-card.biome-forest {
+  background: radial-gradient(circle at top, rgba(34, 197, 94, 0.22) 0%, rgba(15, 23, 42, 0.95) 100%);
+  border-color: #22c55e !important;
+}
+
+.island-card.biome-savannah {
+  background: radial-gradient(circle at top, rgba(234, 179, 8, 0.20) 0%, rgba(15, 23, 42, 0.95) 100%);
+  border-color: #FAC651 !important;
+}
+
+.island-card.biome-arctic {
+  background: radial-gradient(circle at top, rgba(56, 189, 248, 0.22) 0%, rgba(15, 23, 42, 0.95) 100%);
+  border-color: #38bdf8 !important;
+}
+
+.island-card.biome-mystic {
+  background: radial-gradient(circle at top, rgba(99, 102, 241, 0.25) 0%, rgba(15, 23, 42, 0.95) 100%);
+  border-color: #6366f1 !important;
+}
+
+.island-card.biome-dungeon {
+  background: radial-gradient(circle at top, rgba(239, 68, 68, 0.24) 0%, rgba(15, 23, 42, 0.95) 100%);
+  border-color: #ef4444 !important;
+}
+
+.island-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.island-direction-tag {
+  font-size: 8px;
+  font-weight: 800;
+  color: #94a3b8;
+  letter-spacing: 0.8px;
+}
+
+.island-status-pill {
+  font-size: 8px;
+  font-weight: 800;
+  padding: 1px 6px;
+  border-radius: 4px;
+}
+
+.island-status-pill.status-current {
+  background: rgba(34, 197, 94, 0.25);
+  color: #4ade80;
+  border: 1px solid #22c55e;
+}
+
+.island-status-pill.status-available {
+  background: rgba(56, 189, 248, 0.18);
+  color: #7dd3fc;
+  border: 1px solid rgba(56, 189, 248, 0.45);
+}
+
+.island-card-center {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 2px;
+}
+
+.island-card-icon {
+  font-size: 26px;
+  filter: drop-shadow(0 2px 5px rgba(0,0,0,0.6));
+}
+
+.island-card-name {
+  margin: 2px 0 0;
+  font-size: 12px;
+  font-weight: 900;
+  line-height: 1.2;
+}
+
+.island-card-tagline {
+  font-size: 9px;
+  color: #cbd5e1;
+  line-height: 1.15;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 120px;
+}
+
+.island-card-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 2px;
+}
+
+.island-level-tag {
+  font-size: 9px;
+  font-weight: 700;
+  color: #94a3b8;
+}
+
+.island-player-pin {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  width: 20px;
+  height: 20px;
+}
+
+.island-player-pin .pin-symbol {
+  font-size: 13px;
   z-index: 2;
   filter: drop-shadow(0 2px 4px #000);
 }
 
-.pin-pulse {
+.island-player-pin .pin-halo {
   position: absolute;
-  width: 100%;
-  height: 100%;
+  width: 18px;
+  height: 18px;
   border-radius: 50%;
-  background: rgba(56, 189, 248, 0.4);
-  border: 1.5px solid #38bdf8;
+  border: 1.5px solid #22c55e;
+  background: rgba(34, 197, 94, 0.35);
   animation: pinPulseAnim 1.6s ease-out infinite;
   z-index: 1;
 }
 
-@keyframes pinPulseAnim {
-  0% { transform: scale(0.7); opacity: 1; }
-  100% { transform: scale(1.6); opacity: 0; }
-}
-
-.current-player-cell {
-  box-shadow: 0 0 16px rgba(56, 189, 248, 0.6) !important;
-}
-
-/* Quest Target Pin on World Map */
-.quest-target-pin {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  width: 32px;
-  height: 32px;
-  border-radius: 50%;
-  background: rgba(245, 158, 11, 0.55);
-  border: 1.5px solid #fbbf24;
+/* Island Canvas Wrapper */
+.island-canvas-wrapper {
+  position: relative;
+  width: 100%;
+  height: 100%;
   display: flex;
   align-items: center;
   justify-content: center;
-  pointer-events: none;
+  overflow: hidden;
+  border-radius: 10px;
+}
+
+#island-map-canvas {
+  width: 100%;
+  height: 100%;
+  border-radius: 8px;
+  box-shadow: inset 0 0 40px rgba(0, 0, 0, 0.8);
+}
+
+.island-map-hud-controls {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  display: flex;
+  gap: 6px;
   z-index: 10;
 }
 
-.quest-target-icon {
-  font-size: 15px;
-  z-index: 2;
-  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.8));
+.island-hud-btn {
+  background: rgba(15, 23, 42, 0.85);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  color: #f8fafc;
+  padding: 4px 10px;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+  backdrop-filter: blur(6px);
+  transition: all 0.15s;
 }
 
-.quest-target-pulse {
+.island-hud-btn:hover {
+  background: #0284c7;
+  border-color: #38bdf8;
+  transform: scale(1.05);
+}
+
+.island-map-tooltip {
   position: absolute;
-  width: 100%;
-  height: 100%;
-  border-radius: 50%;
-  background: rgba(251, 191, 36, 0.45);
-  border: 1.5px solid #fbbf24;
-  animation: questTargetPulseAnim 1.6s ease-out infinite;
-  z-index: 1;
-}
-
-@keyframes questTargetPulseAnim {
-  0% { transform: scale(0.7); opacity: 1; }
-  100% { transform: scale(1.65); opacity: 0; }
-}
-
-.quest-target-cell {
-  box-shadow: 0 0 16px rgba(251, 191, 36, 0.65) !important;
-}
-
-.player-pin.dual-pin .pin-target-corner {
-  position: absolute;
-  top: -8px;
-  right: -8px;
-  font-size: 13px;
-  filter: drop-shadow(0 2px 3px rgba(0, 0, 0, 0.9));
-  animation: compassPulseAnim 1.4s infinite;
-}
-
-/* Floating Quest Objective Popover Modal */
-.world-map-quest-popover {
-  position: absolute;
-  width: 260px;
-  background: rgba(15, 23, 42, 0.96);
-  border: 1.5px solid #fbbf24;
-  border-radius: 10px;
-  padding: 10px 14px;
-  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.85), 0 0 20px rgba(245, 158, 11, 0.35);
+  background: rgba(15, 23, 42, 0.94);
+  border: 1.5px solid #facc15;
+  border-radius: 8px;
+  padding: 8px 12px;
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.85);
   backdrop-filter: blur(8px);
-  z-index: 50;
   pointer-events: none;
-  animation: popoverFadeIn 0.18s cubic-bezier(0.16, 1, 0.3, 1);
-  box-sizing: border-box;
+  z-index: 25;
+  min-width: 160px;
+  animation: popoverFadeIn 0.15s ease-out;
 }
 
-.world-map-quest-popover.hidden {
+.island-map-tooltip.hidden {
   display: none !important;
 }
 
-@keyframes popoverFadeIn {
-  from {
-    opacity: 0;
-    transform: translateY(4px) scale(0.97);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0) scale(1);
-  }
-}
-
-.popover-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 6px;
-  margin-bottom: 5px;
-}
-
-.popover-badge {
-  font-size: 9px;
+.tooltip-title {
+  font-size: 12px;
   font-weight: 800;
-  color: #fbbf24;
-  letter-spacing: 1.2px;
+  color: #facc15;
+  margin-bottom: 2px;
 }
 
-.popover-zone-tag {
+.tooltip-desc {
+  font-size: 10px;
+  color: #cbd5e1;
+  line-height: 1.3;
+}
+
+.tooltip-coords {
   font-size: 9px;
   font-weight: 700;
-  color: #94a3b8;
-  background: rgba(255, 255, 255, 0.08);
-  padding: 1px 6px;
-  border-radius: 4px;
-  white-space: nowrap;
+  color: #38bdf8;
+  margin-top: 4px;
+  font-family: monospace;
 }
 
-.popover-quest-title {
-  margin: 0 0 4px 0;
-  font-size: 13px;
+.island-map-watermark {
+  position: absolute;
+  bottom: 8px;
+  left: 12px;
+  display: flex;
+  gap: 16px;
+  font-size: 10px;
+  font-weight: 700;
+  color: rgba(255, 255, 255, 0.4);
+  letter-spacing: 1px;
+  pointer-events: none;
+}
+
+/* Detail Sidebar Meta & Landmarks */
+.detail-meta-box {
+  display: flex;
+  gap: 12px;
+  background: rgba(15, 23, 42, 0.6);
+  padding: 8px 12px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.detail-meta-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+}
+
+.meta-label {
+  color: #94a3b8;
+  font-weight: 600;
+}
+
+.meta-val {
   font-weight: 800;
   color: #f8fafc;
+}
+
+.meta-val.status-active {
+  color: #4ade80;
+}
+
+.meta-val.status-locked {
+  color: #94a3b8;
+}
+
+.detail-desc-text {
+  margin: 0;
+  font-size: 12px;
+  color: #cbd5e1;
+  line-height: 1.45;
+}
+
+.detail-landmarks-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 160px;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
+.landmark-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  background: rgba(15, 23, 42, 0.6);
+  padding: 6px 10px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  transition: all 0.15s;
+}
+
+.landmark-row:hover {
+  background: rgba(30, 41, 59, 0.85);
+  border-color: rgba(56, 189, 248, 0.4);
+  transform: translateX(2px);
+}
+
+.landmark-icon {
+  font-size: 15px;
+  line-height: 1;
+}
+
+.landmark-info {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.landmark-name {
+  font-size: 11px;
+  font-weight: 800;
+  color: #f8fafc;
+}
+
+.landmark-desc {
+  font-size: 9.5px;
+  color: #94a3b8;
   line-height: 1.25;
 }
 
-.popover-quest-desc {
-  margin: 0;
+.detail-action-container {
+  margin-top: 4px;
+}
+
+.detail-action-btn {
+  width: 100%;
+  padding: 9px 14px;
+  background: linear-gradient(135deg, #0284c7 0%, #0369a1 100%);
+  border: 1px solid #38bdf8;
+  color: #ffffff;
+  font-size: 12px;
+  font-weight: 800;
+  border-radius: 8px;
+  cursor: pointer;
+  box-shadow: 0 4px 12px rgba(2, 132, 199, 0.4);
+  transition: all 0.18s;
+}
+
+.detail-action-btn:hover {
+  background: linear-gradient(135deg, #0369a1 0%, #075985 100%);
+  transform: translateY(-1px);
+  box-shadow: 0 6px 16px rgba(2, 132, 199, 0.6);
+}
+
+.detail-action-btn.btn-travel-island {
+  background: linear-gradient(135deg, #d97706 0%, #b45309 100%);
+  border: 1px solid #fbbf24;
+  box-shadow: 0 4px 12px rgba(217, 119, 6, 0.4);
+}
+
+.detail-action-btn.btn-travel-island:hover {
+  background: linear-gradient(135deg, #b45309 0%, #92400e 100%);
+  box-shadow: 0 6px 16px rgba(217, 119, 6, 0.6);
+}
+
+/* 5c. Real-Time Overworld Minimap HUD (Top-Right) */
+.overworld-minimap-hud {
+  position: fixed;
+  top: 20px;
+  right: 24px;
+  z-index: 95;
+  pointer-events: all;
+  animation: squadHudFadeIn 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.overworld-minimap-hud.hidden,
+body.state-combat .overworld-minimap-hud {
+  display: none !important;
+}
+
+.minimap-outer-wrapper {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+
+.minimap-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 180px;
+  background: rgba(15, 23, 42, 0.88);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 8px;
+  padding: 4px 8px;
+  backdrop-filter: blur(8px);
+}
+
+.minimap-biome-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #22c55e;
+  box-shadow: 0 0 8px #22c55e;
+}
+
+.minimap-zone-title {
   font-size: 11px;
-  font-weight: 500;
+  font-weight: 800;
+  color: #f8fafc;
+  letter-spacing: 0.5px;
+}
+
+.minimap-expand-btn {
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.15);
   color: #cbd5e1;
-  line-height: 1.35;
+  font-size: 11px;
+  padding: 2px 5px;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.15s;
 }
 
-.popover-arrow {
+.minimap-expand-btn:hover {
+  background: #0284c7;
+  color: #fff;
+  transform: scale(1.1);
+}
+
+.minimap-radar-frame {
+  position: relative;
+  width: 180px;
+  height: 180px;
+  border-radius: 50%;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.8), 0 0 20px rgba(34, 197, 94, 0.25);
+  cursor: pointer;
+  overflow: visible;
+  transition: transform 0.18s;
+}
+
+.minimap-radar-frame:hover {
+  transform: scale(1.02);
+}
+
+#minimap-canvas {
+  width: 180px;
+  height: 180px;
+  border-radius: 50%;
+  display: block;
+}
+
+.compass-marker {
   position: absolute;
-  width: 10px;
-  height: 10px;
-  background: #0f172a;
-  transform: rotate(45deg);
+  font-size: 10px;
+  font-weight: 900;
+  color: rgba(255, 255, 255, 0.7);
+  pointer-events: none;
+  text-shadow: 0 1px 3px #000;
 }
 
-.world-map-quest-popover.pos-above .popover-arrow {
-  bottom: -6px;
-  border-right: 1.5px solid #fbbf24;
-  border-bottom: 1.5px solid #fbbf24;
+.compass-n { top: 2px; left: 50%; transform: translateX(-50%); color: #facc15; }
+.compass-s { bottom: 2px; left: 50%; transform: translateX(-50%); }
+.compass-e { right: 4px; top: 50%; transform: translateY(-50%); }
+.compass-w { left: 4px; top: 50%; transform: translateY(-50%); }
+
+.minimap-zoom-controls {
+  position: absolute;
+  bottom: 6px;
+  right: -6px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  z-index: 10;
 }
 
-.world-map-quest-popover.pos-below .popover-arrow {
-  top: -6px;
-  border-left: 1.5px solid #fbbf24;
-  border-top: 1.5px solid #fbbf24;
+.minimap-zoom-btn {
+  background: rgba(15, 23, 42, 0.9);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  color: #cbd5e1;
+  font-size: 11px;
+  font-weight: 800;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s;
+}
+
+.minimap-zoom-btn:hover {
+  background: #0284c7;
+  color: #fff;
+  transform: scale(1.15);
+}
+
+.minimap-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 180px;
+  background: rgba(15, 23, 42, 0.88);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 8px;
+  padding: 3px 8px;
+  backdrop-filter: blur(8px);
+}
+
+.minimap-coords-text {
+  font-size: 10px;
+  font-weight: 700;
+  color: #38bdf8;
+  font-family: monospace;
+}
+
+.minimap-target-dist {
+  font-size: 9.5px;
+  font-weight: 800;
+  color: #facc15;
+  background: rgba(245, 158, 11, 0.18);
+  border: 1px solid rgba(245, 158, 11, 0.4);
+  padding: 1px 5px;
+  border-radius: 4px;
+}
+
+.minimap-target-dist.hidden {
+  display: none !important;
 }
 
 /* Detail Sidebar */
@@ -3607,7 +4116,7 @@ body.state-combat .overworld-quest-tracker,
   padding: 16px;
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: 12px;
 }
 
 .detail-header {
@@ -3615,7 +4124,7 @@ body.state-combat .overworld-quest-tracker,
   flex-direction: column;
   gap: 4px;
   border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-  padding-bottom: 12px;
+  padding-bottom: 10px;
 }
 
 .detail-biome-badge {
@@ -3654,75 +4163,6 @@ body.state-combat .overworld-quest-tracker,
   text-transform: uppercase;
   letter-spacing: 1px;
   color: #94a3b8;
-}
-
-/* 2x2 Sub-quadrants */
-.sub-quadrants-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 6px;
-}
-
-.sub-quadrant-cell {
-  background: rgba(30, 41, 59, 0.8);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 6px;
-  padding: 6px 8px;
-  display: flex;
-  flex-direction: column;
-}
-
-.q-label {
-  font-size: 9px;
-  font-weight: 800;
-  color: #38bdf8;
-}
-
-.q-name {
-  font-size: 10px;
-  color: #e2e8f0;
-  font-weight: 600;
-}
-
-.sub-quadrant-cell.active-sub-quadrant {
-  background: rgba(56, 189, 248, 0.25);
-  border-color: #38bdf8;
-  box-shadow: 0 0 10px rgba(56, 189, 248, 0.4);
-}
-
-.sub-quadrant-cell.active-sub-quadrant .q-label {
-  color: #facc15;
-}
-
-/* Portals List */
-.detail-portals-list {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
-.portal-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  background: rgba(15, 23, 42, 0.6);
-  padding: 5px 8px;
-  border-radius: 6px;
-  border: 1px solid rgba(255, 255, 255, 0.05);
-  font-size: 11px;
-}
-
-.portal-dir {
-  font-weight: 700;
-  color: #facc15;
-}
-
-.portal-dest {
-  color: #cbd5e1;
-}
-
-.text-muted {
-  color: #64748b !important;
 }
 
 .detail-footer-hint {
@@ -6356,7 +6796,7 @@ body.state-combat .overworld-quest-tracker,
   pointer-events: auto;
 }
 
-.hud-inv-btn, .hud-quest-btn, .hud-map-btn {
+.hud-inv-btn, .hud-quest-btn, .hud-map-btn, .hud-options-btn {
   margin: 0 !important;
   padding: 6px 12px;
   height: 32px;
@@ -6694,6 +7134,49 @@ body.state-combat .overworld-quest-tracker,
   50% { transform: translateX(-50%) scale(1.04); }
 }
 
+/* Floating 3D Screen-Space Quest Pin */
+.hud-3d-quest-pin {
+  position: fixed;
+  transform: translate(-50%, -100%);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: rgba(15, 23, 42, 0.90);
+  border: 1.5px solid #facc15;
+  border-radius: 20px;
+  padding: 6px 14px;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.6), 0 0 16px rgba(250, 204, 21, 0.4);
+  z-index: 850;
+  pointer-events: none;
+  font-family: 'Segoe UI', Roboto, sans-serif;
+  transition: opacity 0.25s ease, transform 0.2s ease;
+  white-space: nowrap;
+}
+.hud-3d-quest-pin.hidden {
+  display: none !important;
+}
+.hud-quest-pin-icon {
+  font-size: 14px;
+  animation: pinBounce 1.5s infinite ease-in-out;
+}
+.hud-quest-pin-title {
+  color: #ffffff;
+  font-size: 13px;
+  font-weight: 700;
+}
+.hud-quest-pin-dist {
+  color: #facc15;
+  font-size: 12px;
+  font-weight: 800;
+  background: rgba(250, 204, 21, 0.18);
+  padding: 2px 7px;
+  border-radius: 10px;
+}
+@keyframes pinBounce {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-3px); }
+}
+
 /* Floating 3D Overworld Speech Bubble (Balón de Diálogo) */
 .npc-speech-bubble {
   position: fixed;
@@ -7000,7 +7483,7 @@ body.state-combat .interaction-prompt {
   display: flex;
   flex-direction: column;
   justify-content: space-between;
-  min-height: 220px;
+  min-height: 235px;
   transition: transform 0.25s ease, border-color 0.25s ease, box-shadow 0.25s ease;
   cursor: pointer;
   overflow: hidden;
@@ -7122,30 +7605,94 @@ body.state-combat .interaction-prompt {
 
 .slot-hero-preview {
   display: flex;
-  align-items: center;
-  gap: 14px;
-  margin-bottom: 16px;
+  align-items: flex-end;
+  gap: 12px;
+  margin-bottom: 12px;
+  min-height: 130px;
 }
 
-.slot-avatar-frame {
-  width: 60px;
-  height: 60px;
-  border-radius: 50%;
-  border: 2px solid #facc15;
-  background: radial-gradient(circle, rgba(14, 165, 233, 0.3) 0%, rgba(15, 23, 42, 0.95) 75%);
-  box-shadow: 0 0 16px rgba(250, 204, 21, 0.4);
+.slot-standing-duo {
   display: flex;
-  align-items: center;
-  justify-content: center;
-  overflow: hidden;
+  align-items: flex-end;
+  gap: 6px;
   flex-shrink: 0;
+  height: 130px;
+  position: relative;
 }
 
-.slot-hero-img {
-  width: 100%;
-  height: 100%;
+.slot-standing-figure {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+}
+
+.slot-standing-sapidae {
+  width: 68px;
+  height: 128px;
+}
+
+.slot-fullbody-img {
+  max-height: 124px;
+  width: auto;
+  max-width: 200%;
+  object-fit: contain;
+  filter: drop-shadow(0 4px 10px rgba(0, 0, 0, 0.7));
+  z-index: 1;
+  position: relative;
+  transition: transform 0.25s ease;
+}
+
+.slot-card:hover .slot-fullbody-img {
+  transform: translateY(-3px) scale(1.03);
+}
+
+.slot-standing-companion {
+  width: 54px;
+  height: 84px;
+  margin-bottom: 2px;
+}
+
+.slot-companion-fullbody-img {
+  max-height: 80px;
+  width: auto;
+  max-width: 140%;
+  object-fit: contain;
+  filter: drop-shadow(0 4px 8px rgba(0, 0, 0, 0.65));
+  z-index: 1;
+  position: relative;
+  transition: transform 0.25s ease;
+}
+
+.slot-card:hover .slot-companion-fullbody-img {
+  transform: translateY(-2px) scale(1.04);
+}
+
+.slot-ground-shadow {
+  position: absolute;
+  bottom: 0px;
+  width: 56px;
+  height: 10px;
+  border-radius: 50%;
+  background: radial-gradient(ellipse, rgba(0, 0, 0, 0.75) 0%, rgba(0, 0, 0, 0) 75%);
+  pointer-events: none;
+  z-index: 0;
+}
+
+.companion-shadow {
+  width: 44px;
+  height: 8px;
+}
+
+.slot-sapidae-class-icon {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
   object-fit: cover;
-  transform: scale(1.15);
+  border: 1px solid #fbbf24;
+  box-shadow: 0 0 5px rgba(251, 191, 36, 0.4);
+  flex-shrink: 0;
 }
 
 .slot-hero-info {
@@ -7685,6 +8232,1787 @@ body.state-combat .interaction-prompt {
   box-shadow: 0 6px 20px rgba(2, 132, 199, 0.55);
 }
 
+/* ==========================================================================
+   SAPIDAE CHARACTER CREATION MULTI-PANEL WIZARD
+   ========================================================================== */
+.char-wizard-stepper {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  margin: 8px 0 14px 0;
+  padding: 6px 12px;
+  background: rgba(15, 23, 42, 0.65);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 30px;
+}
+
+.char-step-tab {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 14px;
+  border-radius: 20px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: #64748b;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.char-step-tab:hover {
+  color: #94a3b8;
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.char-step-tab.active {
+  color: #f8fafc;
+  background: rgba(56, 189, 248, 0.16);
+  border-color: rgba(56, 189, 248, 0.5);
+  box-shadow: 0 0 15px rgba(56, 189, 248, 0.25);
+}
+
+.char-step-tab.completed {
+  color: #10b981;
+}
+
+.char-step-num {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  font-weight: 900;
+  background: rgba(255, 255, 255, 0.1);
+  color: inherit;
+}
+
+.char-step-tab.active .char-step-num {
+  background: #38bdf8;
+  color: #030712;
+}
+
+.char-step-tab.completed .char-step-num {
+  background: #10b981;
+  color: #030712;
+}
+
+.char-step-divider {
+  color: rgba(255, 255, 255, 0.15);
+  font-size: 14px;
+  user-select: none;
+}
+
+.char-wizard-panel {
+  animation: modalFadeIn 0.25s ease-out;
+}
+
+/* Panel 1: Class Selection */
+.char-class-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+@media (max-width: 950px) {
+  .char-class-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 520px) {
+  .char-class-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.char-class-card {
+  position: relative;
+  background: rgba(15, 23, 42, 0.75);
+  border: 1.5px solid rgba(255, 255, 255, 0.12);
+  border-radius: 14px;
+  padding: 12px 10px;
+  cursor: pointer;
+  transition: all 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+}
+
+.char-class-card:hover {
+  transform: translateY(-3px);
+  border-color: rgba(250, 204, 21, 0.5);
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5), 0 0 15px rgba(250, 204, 21, 0.2);
+}
+
+.char-class-card.active {
+  border-color: #fbbf24;
+  background: rgba(251, 191, 36, 0.12);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.6), 0 0 20px rgba(251, 191, 36, 0.3);
+}
+
+.char-class-card-img-wrap {
+  width: 88px;
+  height: 88px;
+  border-radius: 50%;
+  margin-bottom: 8px;
+  overflow: hidden;
+  border: 2.5px solid rgba(255, 255, 255, 0.2);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.6);
+  position: relative;
+  background: radial-gradient(circle, rgba(56, 189, 248, 0.2) 0%, rgba(15, 23, 42, 0.9) 80%);
+}
+
+.char-class-card.active .char-class-card-img-wrap {
+  border-color: #fbbf24;
+  box-shadow: 0 0 18px rgba(251, 191, 36, 0.5);
+}
+
+.char-class-card-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transform: scale(1.1);
+  transition: transform 0.3s ease;
+}
+
+.char-class-card:hover .char-class-card-img {
+  transform: scale(1.2);
+}
+
+.char-class-badge {
+  font-size: 9.5px;
+  font-weight: 800;
+  letter-spacing: 0.8px;
+  padding: 2px 8px;
+  border-radius: 10px;
+  margin-bottom: 6px;
+  text-transform: uppercase;
+}
+
+.char-class-title {
+  font-size: 13.5px;
+  font-weight: 800;
+  color: #f8fafc;
+  margin-bottom: 2px;
+}
+
+.char-class-card.active .char-class-title {
+  color: #fef08a;
+}
+
+.char-class-subtitle {
+  font-size: 10px;
+  color: #94a3b8;
+  margin-bottom: 8px;
+  line-height: 1.2;
+}
+
+.char-class-stats-row {
+  display: flex;
+  gap: 6px;
+  font-size: 10px;
+  font-weight: 700;
+  background: rgba(2, 6, 23, 0.5);
+  padding: 4px 6px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+/* Panel 1: Class Detail Box & Clean 6-Skill Row */
+.class-detail-header-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+.class-detail-name {
+  color: #fef08a;
+  font-weight: 800;
+  font-size: 14px;
+  letter-spacing: 0.5px;
+}
+
+.class-detail-title {
+  font-size: 11px;
+  color: #94a3b8;
+  margin-left: 8px;
+  font-style: italic;
+}
+
+.class-detail-stats {
+  display: flex;
+  gap: 12px;
+  font-size: 11px;
+  font-weight: 800;
+  background: rgba(2, 6, 23, 0.6);
+  padding: 4px 10px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+.class-detail-stats .stat-hp { color: #f87171; }
+.class-detail-stats .stat-ap { color: #38bdf8; }
+.class-detail-stats .stat-mp { color: #4ade80; }
+.class-detail-stats .stat-init { color: #fbbf24; }
+
+.class-detail-desc {
+  font-size: 11.5px;
+  color: #cbd5e1;
+  margin: 4px 0 10px 0;
+  line-height: 1.45;
+}
+
+.class-skills-section {
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  padding-top: 8px;
+}
+
+.class-skills-header-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.class-skills-section-label {
+  font-size: 11px;
+  font-weight: 800;
+  color: #38bdf8;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+}
+
+.class-skills-hint-label {
+  font-size: 10.5px;
+  color: #94a3b8;
+  font-style: italic;
+}
+
+.class-skills-icon-row {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.class-skill-icon-btn {
+  position: relative;
+  cursor: pointer;
+  transition: transform 0.18s cubic-bezier(0.16, 1, 0.3, 1);
+  outline: none;
+  user-select: none;
+}
+
+.class-skill-icon-btn:hover,
+.class-skill-icon-btn:focus-visible {
+  transform: translateY(-3px) scale(1.08);
+}
+
+.class-skill-icon-frame {
+  position: relative;
+  width: 48px;
+  height: 48px;
+  border-radius: 12px;
+  background: radial-gradient(circle, rgba(30, 41, 59, 0.9) 0%, rgba(15, 23, 42, 0.98) 100%);
+  border: 1.8px solid rgba(56, 189, 248, 0.4);
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.class-skill-icon-btn:hover .class-skill-icon-frame,
+.class-skill-icon-btn:focus-visible .class-skill-icon-frame {
+  border-color: #facc15;
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.7), 0 0 12px rgba(250, 204, 21, 0.4);
+}
+
+.class-skill-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.class-skill-num-badge {
+  position: absolute;
+  bottom: 2px;
+  right: 2px;
+  background: rgba(0, 0, 0, 0.75);
+  color: #e2e8f0;
+  font-size: 8.5px;
+  font-weight: 800;
+  padding: 1px 4px;
+  border-radius: 4px;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  pointer-events: none;
+}
+
+/* Floating Skill Tooltip */
+.class-skill-tooltip {
+  position: fixed;
+  z-index: 10050;
+  width: 280px;
+  background: rgba(11, 19, 43, 0.96);
+  border: 1.5px solid rgba(250, 204, 21, 0.7);
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.8), 0 0 18px rgba(250, 204, 21, 0.2);
+  border-radius: 12px;
+  padding: 12px;
+  pointer-events: none;
+  animation: skillTooltipFadeIn 0.16s cubic-bezier(0.16, 1, 0.3, 1);
+  backdrop-filter: blur(8px);
+}
+
+@keyframes skillTooltipFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.skill-tooltip-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  padding-bottom: 8px;
+  margin-bottom: 8px;
+}
+
+.skill-tooltip-icon {
+  width: 40px;
+  height: 40px;
+  border-radius: 8px;
+  border: 1.5px solid #38bdf8;
+  object-fit: cover;
+  flex-shrink: 0;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.5);
+}
+
+.skill-tooltip-title-wrap {
+  flex: 1;
+  min-width: 0;
+}
+
+.skill-tooltip-name {
+  font-size: 13.5px;
+  font-weight: 800;
+  color: #fef08a;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.skill-tooltip-meta {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 3px;
+  flex-wrap: wrap;
+}
+
+.skill-tooltip-badge {
+  font-size: 9px;
+  font-weight: 800;
+  padding: 1px 6px;
+  border-radius: 6px;
+  text-transform: uppercase;
+  background: rgba(255, 255, 255, 0.1);
+  color: #e2e8f0;
+}
+
+.skill-tooltip-badge.type-dano,
+.skill-tooltip-badge.type-directo {
+  background: rgba(239, 68, 68, 0.25);
+  color: #fca5a5;
+  border: 1px solid rgba(239, 68, 68, 0.4);
+}
+
+.skill-tooltip-badge.type-curacion {
+  background: rgba(34, 197, 94, 0.25);
+  color: #86efac;
+  border: 1px solid rgba(34, 197, 94, 0.4);
+}
+
+.skill-tooltip-badge.type-escudo {
+  background: rgba(56, 189, 248, 0.25);
+  color: #7dd3fc;
+  border: 1px solid rgba(56, 189, 248, 0.4);
+}
+
+.skill-tooltip-badge.type-area {
+  background: rgba(234, 179, 8, 0.25);
+  color: #fef08a;
+  border: 1px solid rgba(234, 179, 8, 0.4);
+}
+
+.skill-tooltip-badge.type-invocacion,
+.skill-tooltip-badge.type-utilidad {
+  background: rgba(168, 85, 247, 0.25);
+  color: #d8b4fe;
+  border: 1px solid rgba(168, 85, 247, 0.4);
+}
+
+.skill-tooltip-cost {
+  font-size: 10px;
+  font-weight: 800;
+  color: #38bdf8;
+}
+
+.skill-tooltip-range {
+  font-size: 10px;
+  font-weight: 700;
+  color: #cbd5e1;
+}
+
+.skill-tooltip-body {
+  font-size: 11px;
+  color: #cbd5e1;
+  line-height: 1.45;
+}
+
+/* ==========================================================================
+   UNIFIED CHARACTER CREATION STUDIO (DOFUS UNITY STYLE)
+   ========================================================================== */
+
+.dofus-studio-container {
+  position: relative;
+  z-index: 2;
+  width: 96vw;
+  max-width: 1420px;
+  height: 92vh;
+  max-height: 890px;
+  background: radial-gradient(ellipse at top center, rgba(17, 24, 39, 0.98) 0%, rgba(9, 14, 28, 0.98) 100%);
+  border: 1.8px solid rgba(250, 204, 21, 0.45);
+  border-radius: 20px;
+  box-shadow: 0 30px 90px rgba(0, 0, 0, 0.9), 0 0 45px rgba(250, 204, 21, 0.15);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  animation: studioFadeIn 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes studioFadeIn {
+  from { opacity: 0; transform: scale(0.97); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+/* Top Navigation Bar */
+.dofus-top-bar {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 24px;
+  background: rgba(3, 7, 18, 0.6);
+  border-bottom: 1.5px solid rgba(255, 255, 255, 0.08);
+  flex-shrink: 0;
+}
+
+.dofus-back-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  color: #cbd5e1;
+  padding: 6px 14px;
+  border-radius: 20px;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.5px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  z-index: 2;
+}
+
+.dofus-back-btn:hover {
+  background: rgba(239, 68, 68, 0.2);
+  border-color: #ef4444;
+  color: #fff;
+  transform: translateX(-2px);
+}
+
+.dofus-back-arrow {
+  font-size: 16px;
+  line-height: 1;
+}
+
+.dofus-title-center {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  text-align: center;
+  pointer-events: none;
+  z-index: 1;
+}
+
+.dofus-super-badge {
+  font-size: 9.5px;
+  font-weight: 800;
+  letter-spacing: 2.5px;
+  color: #38bdf8;
+  text-transform: uppercase;
+  margin-bottom: 1px;
+}
+
+.dofus-main-title {
+  font-family: 'Impact', 'Arial Black', system-ui, sans-serif;
+  font-size: 21px;
+  letter-spacing: 1.5px;
+  color: #fef08a;
+  margin: 0;
+  text-shadow: 0 2px 10px rgba(250, 204, 21, 0.35);
+}
+
+.dofus-slot-indicator {
+  font-size: 11px;
+  font-weight: 800;
+  color: #fbbf24;
+  background: rgba(251, 191, 36, 0.12);
+  border: 1px solid rgba(251, 191, 36, 0.35);
+  padding: 4px 12px;
+  border-radius: 12px;
+  letter-spacing: 1px;
+  z-index: 2;
+}
+
+/* 3-Column Main Grid - Balanced Symmetrical Side Columns */
+.dofus-main-grid {
+  display: grid;
+  grid-template-columns: 330px 1fr 330px;
+  gap: 14px;
+  padding: 14px 20px;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+@media (max-width: 1200px) {
+  .dofus-main-grid {
+    grid-template-columns: 290px 1fr 290px;
+    gap: 10px;
+    padding: 10px 14px;
+  }
+}
+    gap: 10px;
+    padding: 10px 14px;
+  }
+}
+
+@media (max-width: 960px) {
+  .dofus-studio-container {
+    height: auto;
+    max-height: 96vh;
+    overflow-y: auto;
+  }
+  .dofus-main-grid {
+    grid-template-columns: 1fr;
+    overflow-y: visible;
+  }
+}
+
+/* Columns */
+.dofus-col {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-height: 0;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
+.dofus-col::-webkit-scrollbar {
+  width: 5px;
+}
+.dofus-col::-webkit-scrollbar-track {
+  background: rgba(0, 0, 0, 0.2);
+  border-radius: 4px;
+}
+.dofus-col::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.15);
+  border-radius: 4px;
+}
+.dofus-col::-webkit-scrollbar-thumb:hover {
+  background: rgba(250, 204, 21, 0.4);
+}
+
+/* Card Box (Dofus Style Frame) */
+.dofus-card-box {
+  background: rgba(15, 23, 42, 0.72);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 14px;
+  padding: 10px 12px;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.45);
+}
+
+.dofus-box-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.dofus-box-title {
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.8px;
+  color: #38bdf8;
+  text-transform: uppercase;
+}
+
+.dofus-box-hint {
+  font-size: 9.5px;
+  color: #94a3b8;
+  font-style: italic;
+}
+
+.dofus-box-val {
+  font-size: 10.5px;
+  font-weight: 700;
+  color: #fbbf24;
+}
+
+/* Left Column: Class Pills */
+.dofus-class-pills {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 7px;
+}
+
+.dofus-class-pill {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: rgba(2, 6, 23, 0.65);
+  border: 1.5px solid rgba(255, 255, 255, 0.12);
+  border-radius: 12px;
+  padding: 6px 10px;
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  text-align: left;
+  user-select: none;
+}
+
+.dofus-class-pill:hover {
+  border-color: rgba(250, 204, 21, 0.6);
+  transform: translateY(-2px);
+  background: rgba(251, 191, 36, 0.08);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+.dofus-class-pill.active {
+  border-color: #fbbf24;
+  background: rgba(251, 191, 36, 0.18);
+  box-shadow: 0 0 16px rgba(251, 191, 36, 0.38);
+}
+
+.dofus-class-pill-img {
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  border: 1.5px solid rgba(255, 255, 255, 0.25);
+  object-fit: cover;
+  flex-shrink: 0;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.4);
+  transition: all 0.2s ease;
+}
+
+.dofus-class-pill:hover .dofus-class-pill-img {
+  border-color: rgba(250, 204, 21, 0.8);
+}
+
+.dofus-class-pill.active .dofus-class-pill-img {
+  border-color: #fbbf24;
+  box-shadow: 0 0 10px rgba(251, 191, 36, 0.5);
+}
+
+.dofus-class-pill-name {
+  font-size: 13px;
+  font-weight: 800;
+  color: #f8fafc;
+  line-height: 1.2;
+  letter-spacing: 0.2px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.dofus-class-pill.active .dofus-class-pill-name {
+  color: #fef08a;
+  text-shadow: 0 0 8px rgba(251, 191, 36, 0.4);
+}
+
+/* Class Details & Stats */
+.dofus-class-archetype-tag {
+  display: inline-block;
+  font-size: 10px;
+  font-weight: 800;
+  color: #38bdf8;
+  background: rgba(56, 189, 248, 0.12);
+  border: 1px solid rgba(56, 189, 248, 0.3);
+  padding: 2px 8px;
+  border-radius: 6px;
+  margin-bottom: 6px;
+}
+
+.dofus-class-desc-text {
+  font-size: 11px;
+  color: #cbd5e1;
+  line-height: 1.4;
+  margin-bottom: 8px;
+}
+
+.dofus-stats-compact-row {
+  display: flex;
+  justify-content: space-between;
+  background: rgba(2, 6, 23, 0.6);
+  padding: 4px 8px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  font-size: 10px;
+  font-weight: 800;
+}
+
+/* Skills Grid in Dofus Studio (2 rows of 3) */
+.dofus-skills-row {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px 12px;
+  justify-items: center;
+  align-items: center;
+  padding: 4px 6px;
+}
+
+/* Left Column: Companion Axie Selector */
+.dofus-companion-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
+}
+
+.dofus-comp-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  background: rgba(2, 6, 23, 0.55);
+  border: 1.5px solid rgba(255, 255, 255, 0.1);
+  border-radius: 10px;
+  padding: 6px 4px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  text-align: center;
+}
+
+.dofus-comp-item:hover {
+  border-color: rgba(56, 189, 248, 0.6);
+  transform: translateY(-2px);
+  background: rgba(56, 189, 248, 0.08);
+}
+
+.dofus-comp-item.active {
+  border-color: #34d399;
+  background: rgba(16, 185, 129, 0.15);
+  box-shadow: 0 0 12px rgba(16, 185, 129, 0.3);
+}
+
+.dofus-comp-avatar {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  border: 1.5px solid rgba(255, 255, 255, 0.15);
+  object-fit: cover;
+  margin-bottom: 4px;
+  background: #090e1d;
+}
+
+.dofus-comp-item.active .dofus-comp-avatar {
+  border-color: #34d399;
+}
+
+.dofus-comp-name {
+  font-size: 11px;
+  font-weight: 800;
+  color: #f8fafc;
+  line-height: 1.2;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+}
+
+.dofus-comp-class-icon {
+  width: 14px;
+  height: 14px;
+  object-fit: contain;
+  filter: drop-shadow(0 1px 2px rgba(0,0,0,0.6));
+  flex-shrink: 0;
+}
+
+.dofus-comp-class {
+  font-size: 9px;
+  color: #94a3b8;
+  margin-top: 1px;
+}
+
+/* Companion Skills Box */
+.dofus-comp-skills-box {
+  border-color: rgba(52, 211, 153, 0.28);
+  background: rgba(6, 78, 59, 0.14);
+}
+
+.dofus-comp-skills-box .dofus-box-title {
+  color: #34d399;
+}
+
+.comp-skill-frame {
+  border-color: rgba(52, 211, 153, 0.45);
+  background: radial-gradient(circle, rgba(16, 185, 129, 0.22) 0%, rgba(6, 30, 24, 0.95) 100%);
+}
+
+.comp-skill-icon-btn:hover .comp-skill-frame,
+.comp-skill-icon-btn:focus-visible .comp-skill-frame {
+  border-color: #34d399;
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.7), 0 0 12px rgba(52, 211, 153, 0.45);
+}
+
+.comp-skill-part-badge {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 17px;
+  height: 17px;
+  border-radius: 50%;
+  background: rgba(15, 23, 42, 0.92);
+  border: 1.2px solid rgba(245, 158, 11, 0.75);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1.5px;
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.75);
+  pointer-events: none;
+  z-index: 2;
+  transition: transform 0.2s ease, border-color 0.2s ease;
+}
+
+.comp-skill-icon-btn:hover .comp-skill-part-badge,
+.comp-skill-icon-btn:focus-visible .comp-skill-part-badge {
+  transform: scale(1.15);
+  border-color: #fde047;
+}
+
+.comp-skill-part-img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  display: block;
+  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.6));
+}
+
+.skill-tooltip-badge.skill-tooltip-part-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: rgba(245, 158, 11, 0.22);
+  color: #fde047;
+  border: 1px solid rgba(245, 158, 11, 0.55);
+  padding: 1px 6px;
+  font-weight: 800;
+}
+
+.skill-tooltip-part-icon {
+  width: 13px;
+  height: 13px;
+  object-fit: contain;
+  vertical-align: middle;
+}
+
+/* Center Column: The Diorama Stage */
+.dofus-center-col {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: space-between;
+  position: relative;
+  padding: 4px 0;
+  overflow: visible;
+}
+
+.dofus-diorama-class-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: rgba(15, 23, 42, 0.85);
+  border: 1.5px solid rgba(250, 204, 21, 0.4);
+  padding: 5px 18px;
+  border-radius: 20px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5);
+  margin-bottom: 4px;
+}
+
+.dofus-diorama-constel-img {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  border: 1.2px solid rgba(251, 191, 36, 0.6);
+  object-fit: cover;
+  box-shadow: 0 0 8px rgba(251, 191, 36, 0.4);
+  flex-shrink: 0;
+}
+
+.dofus-diorama-class-name {
+  font-family: 'Impact', 'Arial Black', system-ui, sans-serif;
+  font-size: 18px;
+  letter-spacing: 1px;
+  color: #fef08a;
+  text-shadow: 0 2px 8px rgba(250, 204, 21, 0.4);
+}
+
+
+
+.dofus-diorama-viewport-wrap {
+  position: relative;
+  width: 100%;
+  flex: 1;
+  min-height: 380px;
+  border-radius: 16px;
+  overflow: hidden;
+  background: radial-gradient(circle at 50% 60%, rgba(30, 58, 138, 0.22) 0%, rgba(7, 11, 22, 0.65) 80%);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.dofus-3d-canvas-container {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.dofus-rotation-controls {
+  position: absolute;
+  bottom: 12px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  z-index: 10;
+  background: rgba(2, 6, 23, 0.75);
+  padding: 4px 14px;
+  border-radius: 24px;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(6px);
+}
+
+.dofus-rot-btn {
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  color: #f8fafc;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  font-size: 15px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.18s ease;
+}
+
+.dofus-rot-btn:hover {
+  background: rgba(250, 204, 21, 0.25);
+  border-color: #facc15;
+  color: #fef08a;
+  transform: scale(1.1);
+}
+
+.dofus-rot-hint {
+  font-size: 10px;
+  color: #94a3b8;
+  font-style: italic;
+  user-select: none;
+  pointer-events: none;
+}
+
+
+
+/* Center Bottom: Centered Epic Play Button */
+.dofus-bottom-action-bar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  margin-top: 10px;
+}
+
+/* Name Field in Right Customization Column */
+.dofus-name-card-box {
+  margin-top: 2px;
+}
+
+.dofus-name-field-wrap {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  width: 100%;
+}
+
+.dofus-char-name-input {
+  flex: 1;
+  background: rgba(2, 6, 23, 0.85);
+  border: 1.5px solid rgba(56, 189, 248, 0.4);
+  border-radius: 10px;
+  padding: 8px 12px;
+  color: #f8fafc;
+  font-size: 13px;
+  font-weight: 700;
+  outline: none;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.dofus-char-name-input:focus {
+  border-color: #fbbf24;
+  box-shadow: 0 0 12px rgba(251, 191, 36, 0.3);
+}
+
+.dofus-dice-btn {
+  background: rgba(255, 255, 255, 0.08);
+  border: 1.5px solid rgba(255, 255, 255, 0.18);
+  color: #fff;
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  font-size: 17px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.18s ease;
+  flex-shrink: 0;
+}
+
+.dofus-dice-btn:hover {
+  background: rgba(251, 191, 36, 0.25);
+  border-color: #fbbf24;
+  transform: rotate(18deg) scale(1.1);
+}
+
+/* The Grand JUGAR Button (Dofus Style) */
+.dofus-play-btn {
+  position: relative;
+  background: linear-gradient(135deg, #f59e0b 0%, #d97706 45%, #b45309 100%);
+  border: 2px solid #fef08a;
+  border-radius: 14px;
+  padding: 12px 80px;
+  min-width: 250px;
+  cursor: pointer;
+  box-shadow: 0 8px 25px rgba(217, 119, 6, 0.5), inset 0 2px 4px rgba(255, 255, 255, 0.4);
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  overflow: hidden;
+  flex-shrink: 0;
+  text-align: center;
+}
+
+.dofus-play-btn:hover {
+  transform: translateY(-2px) scale(1.04);
+  box-shadow: 0 12px 30px rgba(245, 158, 11, 0.7), inset 0 2px 6px rgba(255, 255, 255, 0.6);
+  border-color: #ffffff;
+}
+
+.dofus-play-btn:active {
+  transform: translateY(1px) scale(0.98);
+}
+
+.dofus-play-text {
+  font-family: 'Impact', 'Arial Black', system-ui, sans-serif;
+  font-size: 19px;
+  letter-spacing: 1.5px;
+  color: #ffffff;
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.6);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* Right Column: Customization Controls */
+.dofus-randomize-all-btn {
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  color: #cbd5e1;
+  padding: 2px 8px;
+  border-radius: 8px;
+  font-size: 10px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.18s ease;
+}
+
+.dofus-randomize-all-btn:hover {
+  background: rgba(251, 191, 36, 0.25);
+  border-color: #fbbf24;
+  color: #fef08a;
+}
+
+.dofus-gender-toggle-row {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 8px;
+}
+
+.dofus-gender-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  background: rgba(2, 6, 23, 0.6);
+  border: 1.5px solid rgba(255, 255, 255, 0.12);
+  border-radius: 10px;
+  padding: 8px 10px;
+  color: #94a3b8;
+  font-size: 11.5px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.18s ease;
+}
+
+.dofus-gender-btn:hover {
+  border-color: rgba(56, 189, 248, 0.5);
+  color: #f8fafc;
+}
+
+.dofus-gender-btn.active {
+  border-color: #38bdf8;
+  background: rgba(56, 189, 248, 0.18);
+  color: #38bdf8;
+  box-shadow: 0 0 12px rgba(56, 189, 248, 0.3);
+}
+
+.dofus-gender-sym {
+  font-size: 14px;
+}
+
+/* Trait Selector Buttons (Hair, Eyes, Horns) */
+.dofus-traits-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 6px;
+  margin-bottom: 6px;
+}
+
+.dofus-traits-grid-3 {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 5px;
+  margin-bottom: 6px;
+}
+
+.dofus-trait-btn {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  background: rgba(2, 6, 23, 0.6);
+  border: 1.5px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  padding: 5px 8px;
+  color: #cbd5e1;
+  font-size: 10px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.18s ease;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.dofus-trait-btn:hover {
+  border-color: rgba(250, 204, 21, 0.5);
+  color: #fff;
+}
+
+.dofus-trait-btn.active {
+  border-color: #fbbf24;
+  background: rgba(251, 191, 36, 0.18);
+  color: #fef08a;
+  box-shadow: 0 0 10px rgba(251, 191, 36, 0.25);
+}
+
+
+
+/* ==========================================================================
+   Dofus Modular Customization: Visual Item Cards & RGB Full-Spectrum Picker
+   ========================================================================== */
+.dofus-item-cards-grid {
+  display: grid;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+
+.grid-hair {
+  grid-template-columns: repeat(4, 1fr);
+}
+
+.grid-eyes {
+  grid-template-columns: repeat(3, 1fr);
+}
+
+.grid-horns {
+  grid-template-columns: repeat(3, 1fr);
+}
+
+.dofus-item-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background: rgba(2, 6, 23, 0.65);
+  border: 1.5px solid rgba(255, 255, 255, 0.12);
+  border-radius: 10px;
+  padding: 6px 3px 5px 3px;
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  user-select: none;
+  text-align: center;
+  position: relative;
+  overflow: hidden;
+}
+
+.dofus-item-card:hover {
+  border-color: rgba(250, 204, 21, 0.6);
+  background: rgba(251, 191, 36, 0.08);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.35);
+}
+
+.dofus-item-card.active {
+  border-color: #fbbf24;
+  background: rgba(251, 191, 36, 0.18);
+  box-shadow: 0 0 14px rgba(251, 191, 36, 0.35);
+}
+
+.dofus-item-icon-box {
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 3px;
+  flex-shrink: 0;
+}
+
+.dofus-item-svg {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.5));
+  transition: transform 0.18s ease;
+}
+
+.dofus-item-card:hover .dofus-item-svg {
+  transform: scale(1.12);
+}
+
+.dofus-item-card.active .dofus-item-svg {
+  filter: drop-shadow(0 0 6px rgba(251, 191, 36, 0.6));
+}
+
+.dofus-item-card-label {
+  font-size: 9.5px;
+  font-weight: 700;
+  color: #cbd5e1;
+  line-height: 1.15;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+}
+
+.dofus-item-card.active .dofus-item-card-label {
+  color: #fef08a;
+  text-shadow: 0 0 6px rgba(251, 191, 36, 0.4);
+}
+
+/* Intuitive Color Selector Bar & Revert Button */
+.dofus-color-intuitive-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.dofus-color-picker-box {
+  position: relative;
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: linear-gradient(135deg, rgba(30, 41, 59, 0.75), rgba(15, 23, 42, 0.85));
+  border: 1.5px solid rgba(255, 255, 255, 0.14);
+  border-radius: 12px;
+  padding: 6px 10px;
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  overflow: hidden;
+  user-select: none;
+}
+
+.dofus-color-picker-box:hover {
+  border-color: rgba(250, 204, 21, 0.7);
+  background: linear-gradient(135deg, rgba(40, 53, 76, 0.85), rgba(20, 30, 55, 0.95));
+  transform: translateY(-1px);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.4), 0 0 12px rgba(250, 204, 21, 0.15);
+}
+
+.dofus-color-swatch-glow {
+  width: 26px;
+  height: 26px;
+  border-radius: 8px;
+  border: 2px solid rgba(255, 255, 255, 0.85);
+  box-shadow: 0 0 10px rgba(0, 0, 0, 0.6), inset 0 0 4px rgba(0, 0, 0, 0.3);
+  flex-shrink: 0;
+  transition: background-color 0.15s ease, transform 0.18s ease;
+}
+
+.dofus-color-picker-box:hover .dofus-color-swatch-glow {
+  transform: scale(1.1);
+  border-color: #ffffff;
+}
+
+.dofus-color-box-texts {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+  gap: 1px;
+}
+
+.dofus-color-box-title-row {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.dofus-color-rainbow-icon {
+  font-size: 13px;
+  line-height: 1;
+}
+
+.dofus-color-action-text {
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.3px;
+  color: #f8fafc;
+}
+
+.dofus-color-value-badge {
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  color: #94a3b8;
+  transition: color 0.15s ease;
+}
+
+.dofus-color-value-badge.is-custom {
+  font-family: monospace;
+  color: #fef08a;
+  text-shadow: 0 0 8px rgba(254, 240, 138, 0.3);
+}
+
+.dofus-color-value-badge.is-original {
+  font-family: inherit;
+  color: #38bdf8;
+}
+
+.dofus-color-open-arrow {
+  font-size: 10px;
+  font-weight: 800;
+  color: #fbbf24;
+  background: rgba(251, 191, 36, 0.12);
+  border: 1px solid rgba(251, 191, 36, 0.3);
+  padding: 3px 8px;
+  border-radius: 6px;
+  flex-shrink: 0;
+  transition: all 0.18s ease;
+}
+
+.dofus-color-picker-box:hover .dofus-color-open-arrow {
+  background: rgba(251, 191, 36, 0.25);
+  border-color: #fbbf24;
+  color: #fff;
+  transform: translateX(1px);
+}
+
+.dofus-color-revert-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background: rgba(2, 6, 23, 0.65);
+  border: 1.5px solid rgba(255, 255, 255, 0.12);
+  border-radius: 12px;
+  padding: 5px 12px;
+  color: #94a3b8;
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  user-select: none;
+  min-width: 64px;
+  flex-shrink: 0;
+}
+
+.dofus-color-revert-btn:hover {
+  border-color: rgba(56, 189, 248, 0.6);
+  color: #f8fafc;
+  background: rgba(56, 189, 248, 0.1);
+  transform: translateY(-1px);
+}
+
+.dofus-color-revert-btn.active {
+  border-color: #38bdf8;
+  background: rgba(14, 165, 233, 0.2);
+  color: #7dd3fc;
+  box-shadow: 0 0 12px rgba(56, 189, 248, 0.3);
+}
+
+.dofus-revert-icon {
+  font-size: 13px;
+  font-weight: 900;
+  line-height: 1.1;
+}
+
+.dofus-revert-label {
+  font-size: 9.5px;
+  font-weight: 800;
+  letter-spacing: 0.3px;
+}
+
+.dofus-rgb-native-input {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  cursor: pointer;
+  border: none;
+  padding: 0;
+  margin: 0;
+}
+
+
+/* Panel 2: Personalización (Legacy compatibility) */
+.char-custom-grid {
+  display: grid;
+  grid-template-columns: 320px 1fr;
+  gap: 16px;
+}
+
+@media (max-width: 820px) {
+  .char-custom-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.char-avatar-card {
+  background: rgba(15, 23, 42, 0.85);
+  border: 1.5px solid rgba(56, 189, 248, 0.3);
+  border-radius: 16px;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5);
+}
+
+.char-avatar-frame {
+  width: 120px;
+  height: 120px;
+  border-radius: 50%;
+  border: 3px solid #38bdf8;
+  overflow: hidden;
+  margin-bottom: 12px;
+  box-shadow: 0 0 25px rgba(56, 189, 248, 0.35);
+  background: radial-gradient(circle, rgba(56, 189, 248, 0.25) 0%, rgba(15, 23, 42, 0.9) 75%);
+}
+
+.char-avatar-frame img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transform: scale(1.15);
+}
+
+.char-name-input-group {
+  width: 100%;
+  margin-bottom: 12px;
+  text-align: left;
+}
+
+.char-name-label {
+  font-size: 11px;
+  font-weight: 700;
+  color: #cbd5e1;
+  margin-bottom: 5px;
+  display: block;
+}
+
+.char-name-input {
+  width: 100%;
+  background: #0b1329;
+  border: 1.5px solid rgba(56, 189, 248, 0.4);
+  border-radius: 8px;
+  padding: 8px 12px;
+  color: #ffffff;
+  font-size: 13px;
+  font-weight: bold;
+  outline: none;
+  box-sizing: border-box;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.char-name-input:focus {
+  border-color: #38bdf8;
+  box-shadow: 0 0 10px rgba(56, 189, 248, 0.4);
+}
+
+.char-gender-grid {
+  display: flex;
+  gap: 10px;
+  width: 100%;
+  margin-top: 4px;
+}
+
+.char-gender-btn {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1.5px solid rgba(255, 255, 255, 0.15);
+  background: #0b1329;
+  color: #94a3b8;
+  font-size: 12px;
+  font-weight: bold;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.char-gender-btn.active {
+  border-color: #38bdf8;
+  background: rgba(56, 189, 248, 0.15);
+  color: #ffffff;
+  box-shadow: 0 0 12px rgba(56, 189, 248, 0.25);
+}
+
+.char-gender-btn img {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  object-fit: cover;
+}
+
+/* Modular Customizer Styles (Horns, Eyes, Hair, Hat) */
+.char-preview-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  justify-content: center;
+  margin-top: 8px;
+  margin-bottom: 12px;
+}
+
+.char-preview-badge {
+  font-size: 10px;
+  font-weight: 800;
+  padding: 3px 8px;
+  border-radius: 12px;
+  background: rgba(56, 189, 248, 0.12);
+  color: #38bdf8;
+  border: 1px solid rgba(56, 189, 248, 0.3);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.char-trait-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  background: rgba(2, 6, 23, 0.65);
+  padding: 10px 14px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.char-trait-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.char-trait-title {
+  font-size: 12px;
+  font-weight: bold;
+  color: #cbd5e1;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.char-trait-selected {
+  font-size: 11px;
+  color: #38bdf8;
+  font-weight: 600;
+}
+
+.char-trait-options {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+  gap: 6px;
+}
+
+.char-trait-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  background: rgba(15, 23, 42, 0.8);
+  border: 1.5px solid rgba(255, 255, 255, 0.12);
+  border-radius: 8px;
+  color: #94a3b8;
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.18s ease;
+}
+
+.char-trait-btn:hover {
+  background: rgba(30, 41, 59, 0.9);
+  color: #ffffff;
+  border-color: rgba(56, 189, 248, 0.4);
+}
+
+.char-trait-btn.active {
+  background: rgba(56, 189, 248, 0.2);
+  border-color: #38bdf8;
+  color: #ffffff;
+  box-shadow: 0 0 10px rgba(56, 189, 248, 0.3);
+}
+
+.char-toggle-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 12px;
+  border-radius: 14px;
+  font-size: 11px;
+  font-weight: 800;
+  cursor: pointer;
+  border: 1.5px solid rgba(255, 255, 255, 0.15);
+  background: rgba(15, 23, 42, 0.8);
+  color: #94a3b8;
+  transition: all 0.2s ease;
+}
+
+.char-toggle-btn.active {
+  background: rgba(16, 185, 129, 0.2);
+  border-color: #10b981;
+  color: #34d399;
+  box-shadow: 0 0 8px rgba(16, 185, 129, 0.35);
+}
+
+/* Wizard Navigation Bar */
+.char-wizard-nav {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.btn-wizard-prev {
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  color: #cbd5e1;
+  padding: 9px 18px;
+  border-radius: 10px;
+  font-size: 12.5px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.btn-wizard-prev:hover {
+  background: rgba(255, 255, 255, 0.15);
+  color: #ffffff;
+}
+
+.btn-wizard-next {
+  background: linear-gradient(135deg, #0284c7 0%, #0369a1 100%);
+  border: 1px solid #38bdf8;
+  color: #ffffff;
+  padding: 9px 22px;
+  border-radius: 10px;
+  font-size: 13px;
+  font-weight: 800;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  box-shadow: 0 4px 14px rgba(2, 132, 199, 0.4);
+}
+
+.btn-wizard-next:hover {
+  filter: brightness(1.2);
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(2, 132, 199, 0.6);
+}
+
+.btn-wizard-finish {
+  background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+  border: 1.5px solid #fbbf24;
+  color: #ffffff;
+  padding: 10px 26px;
+  border-radius: 10px;
+  font-size: 13.5px;
+  font-weight: 900;
+  letter-spacing: 0.5px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  box-shadow: 0 6px 20px rgba(245, 158, 11, 0.45);
+}
+
+.btn-wizard-finish:hover {
+  filter: brightness(1.2);
+  transform: translateY(-2px);
+  box-shadow: 0 8px 25px rgba(245, 158, 11, 0.65);
+}
+
+/* Companion Card Selected State */
+.hero-card.companion-active {
+  border-color: #fbbf24 !important;
+  background: rgba(251, 191, 36, 0.12) !important;
+  box-shadow: 0 16px 35px rgba(251, 191, 36, 0.3) !important;
+}
+
 /* Confirmation Modal */
 .start-confirm-modal {
   position: fixed;
@@ -8195,22 +10523,176 @@ body.state-combat .squad-hud-container {
 }
 
 .hud-options-btn {
-  background: rgba(14, 165, 233, 0.15);
-  border: 1px solid rgba(56, 189, 248, 0.4);
+  background: rgba(14, 165, 233, 0.25);
+  border-color: rgba(56, 189, 248, 0.5);
   color: #7dd3fc;
-  padding: 6px 12px;
-  border-radius: 10px;
-  font-size: 12px;
-  font-weight: 700;
-  cursor: pointer;
-  transition: all 0.2s ease;
+  white-space: nowrap;
 }
 
 .hud-options-btn:hover {
-  background: rgba(14, 165, 233, 0.3);
+  background: rgba(14, 165, 233, 0.5);
   border-color: #38bdf8;
   color: #ffffff;
+  box-shadow: 0 0 12px rgba(56, 189, 248, 0.6);
 }
+
+/* ==========================================================================
+   Zone Transition & Biome Loading Screen (GPU Composited)
+   ========================================================================== */
+.zone-curtain {
+  position: fixed;
+  inset: 0;
+  z-index: 99999;
+  pointer-events: none;
+  background: radial-gradient(circle at center, #111827 0%, #030712 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  will-change: opacity;
+  transform: translateZ(0);
+  transition: opacity 0.45s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.zone-curtain.active {
+  opacity: 1;
+  pointer-events: all;
+}
+
+.zone-loading-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  color: #fff;
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  user-select: none;
+  max-width: 440px;
+  width: 90%;
+  will-change: transform;
+  transform: translateZ(0);
+  animation: zoneCurtainFloat 2.4s ease-in-out infinite alternate;
+}
+
+@keyframes zoneCurtainFloat {
+  0% { transform: translateY(0px) translateZ(0); }
+  100% { transform: translateY(-6px) translateZ(0); }
+}
+
+.zone-loading-runic-emblem {
+  position: relative;
+  width: 84px;
+  height: 84px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 18px;
+}
+
+.zone-loading-orb {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  border: 3px solid transparent;
+  border-top-color: #22c55e;
+  border-bottom-color: #38bdf8;
+  will-change: transform;
+  transform: translateZ(0);
+  backface-visibility: hidden;
+  contain: strict;
+  animation: zoneSpinnerRotate 1.0s linear infinite;
+}
+
+@keyframes zoneSpinnerRotate {
+  0% { transform: rotate(0deg) translateZ(0); }
+  100% { transform: rotate(360deg) translateZ(0); }
+}
+
+.zone-loading-glow {
+  position: absolute;
+  inset: -10px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(34, 197, 94, 0.3) 0%, transparent 70%);
+  filter: blur(10px);
+}
+
+.zone-loading-icon {
+  font-size: 38px;
+  z-index: 2;
+  filter: drop-shadow(0 2px 10px rgba(0,0,0,0.6));
+}
+
+.zone-loading-badge {
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 2.5px;
+  text-transform: uppercase;
+  color: #22c55e;
+  margin-bottom: 6px;
+  text-shadow: 0 0 12px rgba(34, 197, 94, 0.4);
+}
+
+.zone-loading-title {
+  font-size: 28px;
+  font-weight: 900;
+  letter-spacing: -0.5px;
+  color: #f8fafc;
+  margin: 0 0 6px 0;
+  text-shadow: 0 4px 16px rgba(0,0,0,0.8);
+}
+
+.zone-loading-subtitle {
+  font-size: 15px;
+  font-weight: 600;
+  color: #94a3b8;
+  margin-bottom: 22px;
+}
+
+.zone-loading-bar-track {
+  width: 240px;
+  height: 6px;
+  background: rgba(255, 255, 255, 0.12);
+  border-radius: 999px;
+  overflow: hidden;
+  position: relative;
+  box-shadow: inset 0 1px 3px rgba(0,0,0,0.5);
+  margin-bottom: 12px;
+}
+
+.zone-loading-bar-fill {
+  position: absolute;
+  inset: 0;
+  width: 50%;
+  background: linear-gradient(90deg, #22c55e, #38bdf8);
+  border-radius: 999px;
+  box-shadow: 0 0 10px rgba(56, 189, 248, 0.6);
+  will-change: transform;
+  transform: translateZ(0);
+  backface-visibility: hidden;
+  animation: zoneLoadingBarSweep 1.5s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+}
+
+@keyframes zoneLoadingBarSweep {
+  0% { transform: translateX(-100%) scaleX(0.7) translateZ(0); }
+  50% { transform: translateX(50%) scaleX(1.1) translateZ(0); }
+  100% { transform: translateX(200%) scaleX(0.7) translateZ(0); }
+}
+
+.zone-loading-hint {
+  font-size: 12px;
+  color: #64748b;
+  letter-spacing: 0.3px;
+}
+
+/* Hide grass / Demo_Scena debug evaluador button */
+#btn-fab-open,
+.hud-fab-toggle {
+  display: none !important;
+  visibility: hidden !important;
+  pointer-events: none !important;
+}
+
 
 
 

@@ -1,5 +1,9 @@
 # Hito 2: Overworld Estilizado, NPC Maestro Paladill y Quimeras Errantes
 
+> [!IMPORTANT]
+> **Estado actual (13-oct-2026):** la pradera estilizada de 80 m (`StylizedEnvironment`: suelo, césped, flores, árboles y follaje) **ya no se construye**. `StylizedEnvironment` arranca en modo `lightingOnly` y solo aporta el sol, la luz hemisférica y la niebla base. El mundo jugable son las 5 grandes islas (Hitos 18, 20, 22 y 23). Paladill y las quimeras errantes siguen activos sobre las islas.
+
+
 ## 1. Visión General
 El segundo hito transformó el juego de una cuadrícula táctica estática a una experiencia de rol de mundo abierto (*Overworld*), donde el jugador explora libremente praderas estilizadas, interactúa con mentores y entabla combate con monstruos errantes.
 

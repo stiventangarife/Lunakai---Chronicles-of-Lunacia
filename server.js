@@ -2,7 +2,7 @@ const http = require('http');
 const fs = require('fs');
 const path = require('path');
 
-const PORT = process.env.PORT || 8081;
+const PORT = process.env.PORT || process.argv[2] || 8082;
 const DIRECTORY = __dirname;
 
 const MIME_TYPES = {
@@ -40,6 +40,16 @@ const server = http.createServer((req, res) => {
 
   // Parse requested URL path
   let reqUrl = req.url.split('?')[0];
+
+  if (reqUrl === '/favicon.ico') {
+    const iconPath = path.join(DIRECTORY, 'assets', 'portraits', 'sapidae-m-a.png');
+    if (fs.existsSync(iconPath)) {
+      res.writeHead(200, { 'Content-Type': 'image/png' });
+      fs.createReadStream(iconPath).pipe(res);
+      return;
+    }
+  }
+
 
   if (req.method === 'POST' && reqUrl === '/api/save-portrait') {
     let body = '';

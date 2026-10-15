@@ -249,9 +249,10 @@ export class StylizedGroundFoliage {
 
   
   setZone(gx, gy) {
-    this.currentGx = gx || 3;
-    this.currentGy = gy || 3;
-    // For now we don't rebuild because instanced geometry needs complete rebuild. We can just skip dynamic ground foliage for a moment.
+    this.currentGx = gx || 2;
+    this.currentGy = gy || 2;
+    const isForest = (gx === 2 && gy === 2);
+    this.setVisible(isForest);
   }
   update(delta) {
     if (this.uniforms && this.uniforms.uTime) {

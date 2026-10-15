@@ -1,4 +1,5 @@
 // QuestManager.js - Centralized Quest System for Lunacia Adventures
+import { canonicalZoneKey, MERGED_ZONES, FERRY_DOCKS, ISLAND_NAMES, mergedBattleAnchor } from './world/islands/IslandWorldLayout.js';
 export class QuestManager {
   constructor(equipmentManager = null, audioSystem = null) {
     this.equipmentManager = equipmentManager;
@@ -149,14 +150,14 @@ export class QuestManager {
           model: 'kibo',
           zoneCoords: [3, 2]
         },
-        zoneCoords: [3, 1],
-        lore: 'A flock of Beaked Chimeras led by an alpha male has cut off oasis supplies. To advance to the frozen north, we must first thin the beaked pack ruling the Arid Wastes in [3, 1].',
-        npcQuote: 'If we want to advance to the frozen north, we must first decimate the beaked pack dominating the Arid Wastes in [3, 1].',
+        zoneCoords: [3, 2],
+        lore: 'A flock of Beaked Chimeras led by an alpha male has cut off oasis supplies. To advance to the frozen north, we must first thin the beaked pack ruling the Savannah Island [3, 2].',
+        npcQuote: 'If we want to advance to the frozen north, we must first decimate the beaked pack dominating the Savannah Island in [3, 2].',
         objective: {
-          summary: 'Travel to [3, 1], ambush the Beaked Chimera pack, and defeat their leader in tactical combat.',
+          summary: 'Hunt the Beaked Chimera pack on Savannah Island [3, 2], and defeat their leader in tactical combat.',
           steps: [
-            { id: 'reach_wastes', desc: 'Travel to the Arid Wastes [3, 1]', done: false, zoneCoords: [3, 1] },
-            { id: 'defeat_beaked_alpha', desc: 'Purify the Beaked Chimera pack', done: false, zoneCoords: [3, 1] },
+            { id: 'reach_wastes', desc: 'Explore the Savannah canyon plateau [3, 2]', done: false, zoneCoords: [3, 2] },
+            { id: 'defeat_beaked_alpha', desc: 'Purify the Beaked Chimera pack', done: false, zoneCoords: [3, 2] },
             { id: 'report_hunt', desc: 'Inform the Sentinel of the savannah\'s pacification [3, 2] [E]', done: false, zoneCoords: [3, 2] }
           ]
         },
@@ -564,14 +565,14 @@ export class QuestManager {
           avatar: './assets/portraits/sapidae-m-b.png',
           model: 'sapidae-m-b'
         },
-        zoneCoords: [3, 1],
+        zoneCoords: [3, 2],
         bubbleQuote: 'By fire and hammer! Looking to forge true savannah steel?',
-        lore: 'The heat of the Arid Wastes [3, 1] tempers metal like nowhere else on the continent. Baruk seeks to test the strength of his alloys.',
+        lore: 'The heat of the Savannah Canyon [3, 2] tempers metal like nowhere else on the continent. Baruk seeks to test the strength of his alloys at his canyon forge.',
         npcQuote: 'Bring me a carapace fragment from an Armored Chimera of the savannah, and I\'ll forge an unbreakable blade for your squad.',
         objective: {
-          summary: 'Gather hardened ore in [3, 1] and collaborate with Baruk at his nomadic forge.',
+          summary: 'Gather hardened ore in [3, 2] and collaborate with Baruk at his canyon forge.',
           steps: [
-            { id: 'talk_blacksmith', desc: 'Speak with Blacksmith Baruk in [3, 1]', done: false },
+            { id: 'talk_blacksmith', desc: 'Speak with Blacksmith Baruk in [3, 2]', done: false },
             { id: 'gather_ores', desc: 'Defeat an Armored Chimera and extract ore fragments', done: false },
             { id: 'deliver_ores', desc: 'Bring the ores to Baruk\'s forge [E]', done: false }
           ]
@@ -605,14 +606,14 @@ export class QuestManager {
           avatar: './assets/portraits/sapidae-m-c.png',
           model: 'sapidae-m-c'
         },
-        zoneCoords: [3, 1],
+        zoneCoords: [3, 2],
         bubbleQuote: 'Hey, duelist! Think your aim rivals the desert wind?',
-        lore: 'In the Arid Wastes [3, 1], dust devils hinder any shot. Zarek challenges travelers to shoot down chimeras at range in tactical combat.',
+        lore: 'In the Savannah Island [3, 2], dust devils hinder any shot. Zarek challenges travelers to shoot down chimeras at range in tactical combat.',
         npcQuote: 'If your sight isn\'t faster than the blazing sun, chimeras will surround you before you draw your bowstring. Show me your accuracy!',
         objective: {
-          summary: 'Pass Zarek\'s tactical shooting trial in [3, 1] by eliminating enemies at range.',
+          summary: 'Pass Zarek\'s tactical shooting trial in [3, 2] by eliminating enemies at range.',
           steps: [
-            { id: 'talk_hunter', desc: 'Accept Zarek\'s trial in [3, 1]', done: false },
+            { id: 'talk_hunter', desc: 'Accept Zarek\'s trial at the oasis [3, 2]', done: false },
             { id: 'win_hunt_battle', desc: 'Triumph in tactical combat across the desert', done: false },
             { id: 'report_hunt', desc: 'Prove your victory to Zarek [E]', done: false }
           ]
@@ -899,6 +900,13 @@ export class QuestManager {
     };
   }
 
+  isStepCompleted(questId, stepId) {
+    const q = this.quests[questId];
+    if (!q || !q.objective || !q.objective.steps) return false;
+    const step = q.objective.steps.find(s => s.id === stepId);
+    return Boolean(step && step.done);
+  }
+
   isMainQuestUnlocked(questId) {
     const quest = this.quests[questId];
     if (!quest || quest.category !== 'Principal') return true;
@@ -926,13 +934,13 @@ export class QuestManager {
     const quest = this.quests[questId];
     if (!quest) return;
 
-    // Strict linearity: Steps can ONLY advance if the quest is actively underway
-    if (quest.status !== 'active') return;
+    // Strict linearity: Steps can ONLY advance if the quest is actively underway or ready to turn in
+    if (quest.status !== 'active' && quest.status !== 'ready_to_turn_in') return;
 
     // Extra safeguard for main quests: Previous chapter must be completed
     if (quest.category === 'Principal' && !this.isMainQuestUnlocked(questId)) return;
 
-    const step = quest.objective.steps.find(s => s.id === stepId);
+    const step = quest.objective.steps.find(s => s.id === stepId || (stepId === 'defeat_slimes' && s.id === 'defeat_slime'));
     if (step) {
       step.done = status;
     }
@@ -962,11 +970,6 @@ export class QuestManager {
         return;
       }
       quest.status = 'ready_to_turn_in';
-    } else if (questId === 'quest_slime_purification') {
-      const defeatStep = quest.objective.steps.find(s => s.id === 'defeat_slime');
-      if (defeatStep && defeatStep.done && quest.status !== 'completed') {
-        quest.status = 'ready_to_turn_in';
-      }
     }
 
     this._notify();
@@ -1166,8 +1169,12 @@ export class QuestManager {
       tarGy = pendingStep.zoneCoords[1];
     }
 
-    const isCurrentZone = (curGx === tarGx && curGy === tarGy);
-    const distanceZones = Math.abs(tarGx - curGx) + Math.abs(tarGy - curGy);
+    // Retired corner zones live inside their island: compare islands, not grid cells
+    const logicalTarKey = `${tarGx}_${tarGy}`;
+    const curIslandKey = canonicalZoneKey(`${curGx}_${curGy}`);
+    const tarIslandKey = canonicalZoneKey(logicalTarKey);
+    const isCurrentZone = curIslandKey === tarIslandKey;
+    const distanceZones = isCurrentZone ? 0 : Math.abs(tarGx - curGx) + Math.abs(tarGy - curGy);
 
     if (isCurrentZone) {
       let targetWorldPos = null;
@@ -1176,28 +1183,91 @@ export class QuestManager {
       if (currentMapDef) {
         if (quest.id === 'quest_slime_purification') {
           if (!pendingStep || pendingStep.id === 'defeat_slime') {
-            targetWorldPos = { x: 8.0, z: 2.0 };
+            targetWorldPos = { x: -4.0, z: 2.0 };
             targetName = 'Slime Chimera';
           } else {
             const paladillNpc = currentMapDef.npcs ? currentMapDef.npcs.find(n => n.id === 'paladill') : null;
             if (paladillNpc) {
               targetWorldPos = { x: paladillNpc.position.x, z: paladillNpc.position.z };
             } else {
-              targetWorldPos = { x: -14.5, z: -8.5 };
+              targetWorldPos = { x: -90.3, z: 63.3 };
             }
             targetName = 'Master Paladill';
           }
+        } else if (quest.id === 'quest_hunt_beaked_chimera') {
+          if (pendingStep && pendingStep.id === 'report_hunt') {
+            const sentinelNpc = currentMapDef.npcs ? currentMapDef.npcs.find(n => n.id === 'sentinel') : null;
+            targetWorldPos = sentinelNpc ? { x: sentinelNpc.position.x, z: sentinelNpc.position.z } : { x: 62.0, z: -28.5 };
+            targetName = 'Desert Sentinel';
+          } else {
+            targetWorldPos = { x: -40.0, z: -8.0 };
+            targetName = 'Alpha Beaked Chimera';
+          }
+        } else if (quest.id === 'quest_nomad_steel') {
+          if (pendingStep && pendingStep.id === 'gather_ores') {
+            targetWorldPos = { x: 64.0, z: 32.0 };
+            targetName = 'Armored Chimera';
+          } else {
+            const barukNpc = currentMapDef.npcs ? currentMapDef.npcs.find(n => n.id === 'blacksmith') : null;
+            targetWorldPos = barukNpc ? { x: barukNpc.position.x, z: barukNpc.position.z } : { x: 44.5, z: 49.5 };
+            targetName = 'Blacksmith Baruk';
+          }
         } else if (quest.id === 'quest_blizzard_core') {
-          targetWorldPos = { x: 18.0, z: -8.0 };
+          targetWorldPos = mergedBattleAnchor('1_1') || { x: -64.0, z: -72.0 };
           targetName = 'Armored Polar Golem';
         } else if (quest.id === 'quest_frozen_seed') {
           const pomoNpc = currentMapDef.npcs ? currentMapDef.npcs.find(n => n.id === 'pomodoro_npc' || n.id === 'pomodoro') : null;
           targetWorldPos = pomoNpc ? { x: pomoNpc.position.x, z: pomoNpc.position.z } : { x: 5.8, z: 23.2 };
           targetName = 'Pomodoro';
-        } else if (pendingStep && (pendingStep.id === 'talk_oracle' || pendingStep.id === 'purify_resonance' || pendingStep.desc.toLowerCase().includes('oráculo') || pendingStep.desc.toLowerCase().includes('oraculo') || pendingStep.desc.toLowerCase().includes('oracle')) || quest.id === 'quest_forbidden_resonance') {
-          const oracleNpc = currentMapDef.npcs ? currentMapDef.npcs.find(n => n.id === 'oracle') : null;
-          targetWorldPos = oracleNpc ? { x: oracleNpc.position.x, z: oracleNpc.position.z } : { x: 13.6, z: -24.2 };
-          targetName = 'Astral Oracle';
+        } else if (quest.id === 'quest_forbidden_resonance') {
+          if (pendingStep && pendingStep.id === 'defeat_sapidae') {
+            targetWorldPos = mergedBattleAnchor('1_3') || { x: -80.0, z: 16.0 };
+            targetName = 'Arcane Chimera Pack';
+          } else {
+            const oracleNpc = currentMapDef.npcs ? currentMapDef.npcs.find(n => n.id === 'oracle') : null;
+            targetWorldPos = oracleNpc ? { x: oracleNpc.position.x, z: oracleNpc.position.z } : { x: 34.0, z: -36.0 };
+            targetName = 'Astral Oracle';
+          }
+        } else if (quest.id === 'quest_astral_void_echoes') {
+          if (pendingStep && pendingStep.id === 'talk_oracle') {
+            const oracleNpc = currentMapDef.npcs ? currentMapDef.npcs.find(n => n.id === 'oracle') : null;
+            targetWorldPos = oracleNpc ? { x: oracleNpc.position.x, z: oracleNpc.position.z } : { x: 34.0, z: -36.0 };
+            targetName = 'Astral Oracle';
+          } else {
+            const sageNpc = currentMapDef.npcs ? currentMapDef.npcs.find(n => n.id === 'polar_sage') : null;
+            targetWorldPos = sageNpc ? { x: sageNpc.position.x, z: sageNpc.position.z } : { x: -8.3, z: 17.3 };
+            targetName = 'Astral Sage';
+          }
+        } else if (quest.id === 'quest_primeval_purification') {
+          if (pendingStep && (pendingStep.id === 'enter_catacombs' || pendingStep.id === 'defeat_crypt_lord')) {
+            targetWorldPos = mergedBattleAnchor('3_3') || { x: 0.0, z: 104.0 };
+            targetName = 'Crypt Overlord';
+          } else {
+            const atiaNpc = currentMapDef.npcs ? currentMapDef.npcs.find(n => n.id === 'atia_spirit') : null;
+            targetWorldPos = atiaNpc ? { x: atiaNpc.position.x, z: atiaNpc.position.z } : { x: 0.0, z: -13.0 };
+            targetName = 'Spirit of Atia';
+          }
+        } else if (quest.id === 'quest_forest_elixir' && pendingStep && pendingStep.id === 'gather_moss') {
+          targetWorldPos = { x: 11.0, z: -6.5 };
+          targetName = 'Luminous Moss Sprout';
+        } else if (quest.id === 'quest_blizzard_stew' && pendingStep && pendingStep.id === 'gather_frost_mushrooms') {
+          targetWorldPos = { x: -16.0, z: 12.0 };
+          targetName = 'Polar Mushroom';
+        } else if (quest.id === 'quest_fallen_stardust' && pendingStep && pendingStep.id === 'gather_stardust') {
+          targetWorldPos = { x: -14.0, z: -12.0 };
+          targetName = 'Luminescent Stardust';
+        } else if (quest.id === 'quest_dark_frost_totems' && pendingStep && pendingStep.id === 'purify_totems') {
+          targetWorldPos = mergedBattleAnchor('1_1') || { x: -64.0, z: -72.0 };
+          targetName = 'Dark Frost Guardians';
+        } else if (quest.id === 'quest_world_cartographer') {
+          if (pendingStep && pendingStep.id === 'visit_biomes') {
+            targetWorldPos = { x: 43.0, z: 132.2 };
+            targetName = '⛵ Pomodoro (Barquero)';
+          } else {
+            const xiaNpc = currentMapDef.npcs ? currentMapDef.npcs.find(n => n.id === 'cartographer') : null;
+            targetWorldPos = xiaNpc ? { x: xiaNpc.position.x, z: xiaNpc.position.z } : { x: 8.4, z: 46.7 };
+            targetName = 'Xia (Cartógrafa)';
+          }
         } else if (currentMapDef.npcs) {
           const matchNpc = currentMapDef.npcs.find(n => n.questId === quest.id || n.id === quest.giver?.id || (quest.giver?.id && n.id?.startsWith(quest.giver.id)));
           if (matchNpc) {
@@ -1220,9 +1290,29 @@ export class QuestManager {
         isCurrentZone: true,
         distanceZones: 0,
         portalDirection: null,
+        logicalZone: MERGED_ZONES[logicalTarKey] ? logicalTarKey : null,
         targetWorldPos,
         targetName,
         directionText: `🎯 In target zone! [${tarGx}, ${tarGy}]`
+      };
+    }
+
+    // Another island: the way there is Pomodoro the ferryman on this island's beach
+    const curDock = FERRY_DOCKS[`zone_${curIslandKey}`];
+    if (curDock) {
+      const islandName = ISLAND_NAMES[tarIslandKey] || `[${tarGx}, ${tarGy}]`;
+      return {
+        quest,
+        tarGx,
+        tarGy,
+        title: quest.title,
+        stepDesc: pendingStep ? pendingStep.desc : quest.objective.summary,
+        isCurrentZone: false,
+        distanceZones,
+        portalDirection: null,
+        targetWorldPos: { x: curDock.npc.x, z: curDock.npc.z },
+        targetName: '⛵ Pomodoro (Barquero)',
+        directionText: `⛵ Habla con Pomodoro en la playa ➔ ${islandName}`
       };
     }
 

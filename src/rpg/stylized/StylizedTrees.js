@@ -255,14 +255,42 @@ export class StylizedTrees {
     return this.group;
   }
 
-  _buildTrees() {
-    const trunkModel = this.cachedTrunkModel;
-    const leafBaseGeometry = this.cachedLeafBaseGeometry;
-    const alphaMap = this.cachedAlphaMap;
+  _disposeCurrentTrees() {
+    const preservedGeometries = new Set();
+    if (this.cachedLeafBaseGeometry) preservedGeometries.add(this.cachedLeafBaseGeometry);
+    if (this.cachedTrunkModel) {
+      this.cachedTrunkModel.traverse((c) => {
+        if (c.geometry) preservedGeometries.add(c.geometry);
+      });
+    }
+
+    this.group.traverse((child) => {
+      if (child.isMesh) {
+        if (child.geometry && !preservedGeometries.has(child.geometry)) {
+          child.geometry.dispose();
+        }
+        if (child.material) {
+          if (Array.isArray(child.material)) {
+            child.material.forEach((m) => m && m.dispose && m.dispose());
+          } else if (child.material.dispose) {
+            child.material.dispose();
+          }
+        }
+      }
+    });
+
     this.group.clear();
     this.trunkClones = [];
     this.foliageMeshes = [];
     this.foliageMaterials = [];
+  }
+
+  _buildTrees() {
+    this._disposeCurrentTrees();
+    const trunkModel = this.cachedTrunkModel;
+    const leafBaseGeometry = this.cachedLeafBaseGeometry;
+    const alphaMap = this.cachedAlphaMap;
+    if (!trunkModel || !leafBaseGeometry) return;
 
     // Build trees based on layout
     TREE_LAYOUT.forEach((treeDef, treeIdx) => {
@@ -550,6 +578,8 @@ export class StylizedTrees {
         );
       };
 
+      instancedMesh.castShadow = true;
+      instancedMesh.receiveShadow = true;
       instancedMesh.material = leafMaterial;
       this.foliageMaterials.push(leafMaterial);
       this.foliageMeshes.push(instancedMesh);
@@ -600,16 +630,26 @@ export class StylizedTrees {
   }
 
   setZone(gx, gy, collisionsManager) {
-    if (!generateTreeLayoutForZone) return;
-    generateTreeLayoutForZone(gx, gy);
+    const isForest = (gx === 2 && gy === 2);
+    this.group.visible = isForest;
+
     if (collisionsManager) {
       collisionsManager.removeCirclesByTag('forest_tree');
-      TREE_LAYOUT.forEach((treeDef, idx) => {
-         collisionsManager.addCircle(treeDef.position[0], treeDef.position[2], 1.25 * treeDef.scale, 'forest_tree_' + idx);
-      });
+      if (isForest) {
+        TREE_LAYOUT.forEach((treeDef, idx) => {
+          collisionsManager.addCircle(treeDef.position[0], treeDef.position[2], 1.25 * treeDef.scale, 'forest_tree_' + idx);
+        });
+      }
     }
-    if (this.cachedTrunkModel) {
-      this._buildTrees();
+
+    if (isForest) {
+      if (!this.treesBuilt || this.group.children.length === 0) {
+        if (generateTreeLayoutForZone) generateTreeLayoutForZone(gx, gy);
+        if (this.cachedTrunkModel) {
+          this._buildTrees();
+          this.treesBuilt = true;
+        }
+      }
     }
   }
 

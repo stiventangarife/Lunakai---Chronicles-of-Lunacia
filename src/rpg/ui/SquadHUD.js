@@ -1,5 +1,45 @@
 // SquadHUD.js - Overworld Squad UI with Stylized Hero Frames, Real-Time 3D Portraits, HP, PA & PM
 import { portraitService } from '../../tactics/CharacterPortraitService.js';
+import { SAPIDAE_CLASSES } from '../SaveSlotManager.js';
+
+export const SAPIDAE_CLASS_THEMES = {
+  crafter: {
+    className: 'class-sapidae-crafter',
+    name: 'Forjacubiles',
+    iconUrl: './assets/classes/class_forjacubiles.jpg',
+    icon: '🔨',
+    color: '#fbbf24',
+    glowColor: 'rgba(251, 191, 36, 0.45)',
+    role: 'Soporte y Escudos'
+  },
+  shepard: {
+    className: 'class-sapidae-shepard',
+    name: 'Susurrador',
+    iconUrl: './assets/classes/class_susurrador.jpg',
+    icon: '✨',
+    color: '#38bdf8',
+    glowColor: 'rgba(56, 189, 248, 0.45)',
+    role: 'Búfer Místico'
+  },
+  lunalogist: {
+    className: 'class-sapidae-lunalogist',
+    name: 'Lunalogista',
+    iconUrl: './assets/classes/class_lunalogista.jpg',
+    icon: '🌿',
+    color: '#10b981',
+    glowColor: 'rgba(16, 185, 129, 0.45)',
+    role: 'Control Botánico'
+  },
+  stargazer: {
+    className: 'class-sapidae-stargazer',
+    name: 'Astromante',
+    iconUrl: './assets/classes/class_astromante.jpg',
+    icon: '🔮',
+    color: '#a855f7',
+    glowColor: 'rgba(168, 85, 247, 0.50)',
+    role: 'Gravedad Cósmica'
+  }
+};
 
 export const AXIE_CLASS_THEMES = {
   beast: {
@@ -98,6 +138,9 @@ export class SquadHUD {
     this._boundPortraitListener = (id, dataUrl) => {
       if (!this.container) return;
       let card = this.container.querySelector(`.squad-member-card[data-hero-id="${id}"]`);
+      if (!card && (id === 'sapidae' || (typeof id === 'string' && id.startsWith('sapidae_')))) {
+        card = this.container.querySelector(`.squad-member-card[data-hero-id="sapidae"]`);
+      }
       if (!card && this.equipmentManager) {
         for (const [hId, base] of Object.entries(this.equipmentManager.heroesBase)) {
           if (base.axieId === id) {
@@ -185,16 +228,49 @@ export class SquadHUD {
         ? this.equipmentManager.getCurrentHP(heroId) 
         : stats.maxHP;
 
-      const classKey = getHeroClassKey(base, heroId);
-      const theme = AXIE_CLASS_THEMES[classKey] || AXIE_CLASS_THEMES.beast;
+      const isSapidaeHero = (heroId === 'sapidae' || Boolean(base.isSapidae));
+      let theme;
+      let classIconUrl;
+      let classNameText;
+      let isCustomClassIcon = false;
+
+      if (isSapidaeHero) {
+        const sKey = base.sapidaeClassKey || this.equipmentManager?.playerEntity?.sapidaeClass || 'crafter';
+        const sClass = SAPIDAE_CLASSES[sKey] || SAPIDAE_CLASSES.crafter;
+        theme = SAPIDAE_CLASS_THEMES[sKey] || SAPIDAE_CLASS_THEMES.crafter;
+        classIconUrl = sClass.icon || sClass.iconImg || theme.iconUrl;
+        classNameText = sClass.name || theme.name;
+        isCustomClassIcon = true;
+      } else {
+        const classKey = getHeroClassKey(base, heroId);
+        theme = AXIE_CLASS_THEMES[classKey] || AXIE_CLASS_THEMES.beast;
+        classIconUrl = theme.iconUrl;
+        classNameText = theme.name;
+      }
 
       const hpPct = Math.max(0, Math.min(100, (currHP / stats.maxHP) * 100));
 
       // Dynamic 3D model portrait from PortraitService
-      const portraitKey = base.axieId || heroId;
-      const portraitUrl = portraitService.getPortraitSync(portraitKey) || portraitService.getPortraitSync(heroId);
-      if (!portraitUrl) {
-        portraitService.getPortrait(portraitKey);
+      let portraitUrl = null;
+      if (isSapidaeHero) {
+        const modelId = base.modelType || 'sapidae-f-a';
+        const custom = base.customization || (this.equipmentManager?.playerEntity?.customization) || null;
+        const equipped = this.equipmentManager?.equipped?.sapidae || null;
+        portraitUrl = portraitService.getSapidaePortraitSync(modelId, custom, equipped, { fullBody: true });
+        if (!portraitUrl) {
+          portraitService.getSapidaeCustomPortrait(modelId, custom, equipped, {
+            fullBody: true,
+            zoomFactor: 1.10,
+            yaw: -0.18,
+            pitch: 0.03
+          });
+        }
+      } else {
+        const portraitKey = base.axieId || heroId;
+        portraitUrl = portraitService.getPortraitSync(portraitKey) || portraitService.getPortraitSync(heroId);
+        if (!portraitUrl) {
+          portraitService.getPortrait(portraitKey);
+        }
       }
 
       const card = document.createElement('div');
@@ -203,11 +279,11 @@ export class SquadHUD {
       card.title = `Click to open Arsenal and Attributes for ${base.name} [I]`;
 
       card.innerHTML = `
-        <!-- Stylized Axie portrait frame -->
+        <!-- Stylized Hero portrait frame (Diamond Rombo identical to Axie) -->
         <div class="squad-portrait-frame">
           <div class="squad-frame-outer"></div>
           <div class="squad-frame-inner">
-            <img class="squad-avatar-img" src="${portraitUrl || ''}" alt="${base.name}" style="${portraitUrl ? '' : 'display: none;'}">
+            <img class="squad-avatar-img ${isSapidaeHero ? 'squad-avatar-sapidae-body' : ''}" src="${portraitUrl || ''}" alt="${base.name}" style="${portraitUrl ? '' : 'display: none;'}">
             <span class="squad-avatar-icon" style="${portraitUrl ? 'display: none;' : ''}">${theme.icon}</span>
           </div>
           <span class="squad-level-badge">Lv. ${prog.level}</span>
@@ -218,7 +294,7 @@ export class SquadHUD {
         <div class="squad-info-col">
           <div class="squad-header-row">
             <span class="squad-hero-name">${base.name}</span>
-            <img class="squad-class-icon" src="${theme.iconUrl}" alt="${theme.name}" title="Class: ${theme.name}">
+            <img class="squad-class-icon ${isCustomClassIcon ? 'squad-sapidae-class-icon' : ''}" src="${classIconUrl}" alt="${classNameText}" title="Clase: ${classNameText}">
           </div>
 
           <!-- Health Bar (HP) -->

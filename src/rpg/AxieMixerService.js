@@ -170,6 +170,9 @@ class AxieMixerService {
     if (axie.wrapper) {
       axie.wrapper.scale.set(scale, scale, scale);
 
+      // Directly calibrate the Axie Mixer 3D native outline thickness (:AxieOutline / ExtraPrePass)
+      this.tuneOutline(axie.wrapper, 0.010);
+
       axie.wrapper.traverse((child) => {
         if (child.isMesh) {
           child.castShadow = true;
@@ -185,22 +188,32 @@ class AxieMixerService {
       axie.playAnimation('Default.Idle');
     }
 
-    // Generate high-quality 2D portrait in real time for UI frames
+    // Generate high-quality 2D portrait in real time for UI frames only if missing
     if (axie.wrapper) {
-      try {
-        const aliases = ['axie'];
-        if (heroId) aliases.push(heroId);
-        else aliases.push('kotaro');
+      const existingPortrait = portraitService.getPortraitSync(heroId) || portraitService.getPortraitSync(String(axieId));
+      if (!existingPortrait) {
+        const captureTask = () => {
+          try {
+            const aliases = ['axie'];
+            if (heroId) aliases.push(heroId);
+            else aliases.push('kotaro');
 
-        portraitService.captureAxieHero(String(axieId), axie.wrapper, {
-          aliases,
-          zoomFactor: 0.54,
-          yaw: -0.22,
-          pitch: 0.05,
-          yTargetRatio: 0.08
-        });
-      } catch (err) {
-        console.warn('[AxieMixerService] Could not auto-capture portrait:', err);
+            portraitService.captureAxieHero(String(axieId), axie.wrapper, {
+              aliases,
+              zoomFactor: 0.54,
+              yaw: -0.22,
+              pitch: 0.05,
+              yTargetRatio: 0.08
+            });
+          } catch (err) {
+            console.warn('[AxieMixerService] Could not auto-capture portrait:', err);
+          }
+        };
+        if (typeof requestIdleCallback === 'function') {
+          requestIdleCallback(captureTask);
+        } else {
+          setTimeout(captureTask, 500);
+        }
       }
     }
 
@@ -214,6 +227,32 @@ class AxieMixerService {
       axieData,
       wrapper: axie.wrapper
     };
+  }
+
+  /**
+   * Directly modulates the Axie Mixer 3D native outline shader thickness (:AxieOutline / ExtraPrePass)
+   * @param {THREE.Object3D} wrapper - Axie root model object
+   * @param {number} [thickness=0.005] - Fine outline thickness matching Sapidae
+   * @param {number|string|THREE.Color} [color=0x15161e] - Outline color
+   */
+  tuneOutline(wrapper, thickness = 0.005, color = 0x15161e) {
+    if (!wrapper) return;
+    const col = new THREE.Color(color);
+    wrapper.traverse((child) => {
+      if (child.isMesh) {
+        const mats = Array.isArray(child.material) ? child.material : [child.material];
+        mats.forEach((mat) => {
+          if (mat && mat.uniforms) {
+            if (mat.uniforms.uOutlineThickness) {
+              mat.uniforms.uOutlineThickness.value = thickness;
+            }
+            if (mat.uniforms.uOutlineColor) {
+              mat.uniforms.uOutlineColor.value.copy(col);
+            }
+          }
+        });
+      }
+    });
   }
 }
 

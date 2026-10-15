@@ -3,6 +3,7 @@ import * as THREE from 'three';
 import { GLTFLoader } from '../../vendor/GLTFLoader.js';
 import { applyToonOutline } from './stylized/ToonOutline.js';
 import { portraitService } from '../tactics/CharacterPortraitService.js';
+import { FerryTravelUI } from './ui/FerryTravelUI.js';
 
 export class NPCManager {
   constructor(scene, dialogSystem, audioSystem) {
@@ -73,44 +74,31 @@ export class NPCManager {
   }
 
   async init(currentMapDef = null) {
-    await this._spawnMasterPaladill();
+    const isDojo = currentMapDef ? Boolean(currentMapDef.id === 'zone_2_2' || (currentMapDef.gx === 2 && currentMapDef.gy === 2) || currentMapDef.hasDojo) : true;
+    await this._spawnMasterPaladill(isDojo);
     if (currentMapDef) {
       await this.loadZoneNPCs(currentMapDef);
     }
   }
 
-  async _spawnMasterPaladill() {
+  async _spawnMasterPaladill(initialVisible = true) {
+    const existing = this.npcs.find(n => n.id === 'paladill');
+    if (existing) {
+      existing.group.visible = Boolean(initialVisible);
+      return existing;
+    }
+
     const paladillGroup = new THREE.Group();
-    paladillGroup.position.set(-14.5, 0.0, -8.5);
+    let px = -90.3;
+    let py = 0.0;
+    let pz = 63.3;
+    if (this.overworldManager && typeof this.overworldManager.getGroundHeight === 'function') {
+      py = this.overworldManager.getGroundHeight(px, pz);
+    }
+    paladillGroup.position.set(px, py, pz);
+    paladillGroup.rotation.y = Math.PI;
+    paladillGroup.visible = Boolean(initialVisible);
 
-    // Master pedestal mat
-    const matGeo = new THREE.CylinderGeometry(1.6, 1.8, 0.08, 32);
-    const matMat = new THREE.MeshStandardMaterial({
-      color: 0x854d0e,
-      roughness: 0.8
-    });
-    const matMesh = new THREE.Mesh(matGeo, matMat);
-    matMesh.position.y = 0.04;
-    matMesh.receiveShadow = true;
-    paladillGroup.add(matMesh);
-
-    // Golden master aura ring
-    const auraGeo = new THREE.RingGeometry(1.3, 1.55, 32);
-    auraGeo.rotateX(-Math.PI / 2);
-    const auraMat = new THREE.MeshBasicMaterial({
-      color: 0xfacc15,
-      side: THREE.DoubleSide,
-      transparent: true,
-      opacity: 0.8
-    });
-    const auraMesh = new THREE.Mesh(auraGeo, auraMat);
-    auraMesh.position.y = 0.14;
-    paladillGroup.add(auraMesh);
-
-    // Floating Nameplate Sprite
-    const nameplate = this._createNameplateSprite('Master Paladill', '🥋 Lunacia Dojo Mentor', '#facc15');
-    nameplate.position.set(0, 2.5, 0);
-    paladillGroup.add(nameplate);
 
     // Model loading
     let mixer = null;
@@ -127,7 +115,8 @@ export class NPCManager {
       rawBox.getSize(size);
       const maxDim = Math.max(size.x, size.y, size.z);
 
-      const targetHeight = 1.65;
+      // Scaled to match player character current height (2.80m)
+      const targetHeight = 2.80;
       const s = maxDim > 0 ? (targetHeight / maxDim) : 1.0;
       model.scale.set(s, s, s);
       model.updateMatrixWorld(true);
@@ -135,8 +124,6 @@ export class NPCManager {
       const scaledBox = new THREE.Box3().setFromObject(model);
       model.position.y = Math.max(0, -scaledBox.min.y);
       model.rotation.y = 0;
-
-      nameplate.position.set(0, Math.max(2.5, scaledBox.max.y + 0.55), 0);
 
       model.traverse(c => {
         if (c.isMesh) {
@@ -148,7 +135,7 @@ export class NPCManager {
 
       // Apply Inverted Hull Toon Outline
       applyToonOutline(model, {
-        thickness: 0.024,
+        thickness: 0.012,
         color: 0x15161e,
         mode: 'view'
       });
@@ -178,17 +165,17 @@ export class NPCManager {
       title: 'Dojo Mentor',
       avatar: './assets/portraits/paladill.png',
       bubbleQuote: 'The discipline of the dojo forges the spirit!',
-      bubbleHeight: 3.6,
+      bubbleHeight: 4.2,
       group: paladillGroup,
       mixer: mixer,
       actions: actions,
       idleAction: idleAction,
-      auraMesh: auraMesh,
+      auraMesh: null,
       radius: 1.4,
-      interactRadius: 3.4,
-      calloutRadius: 6.5,
+      interactRadius: 4.0,
+      calloutRadius: 7.5,
       zoneId: 'zone_2_2',
-      defaultRotation: 0,
+      defaultRotation: Math.PI,
       onInteract: () => this._handlePaladillInteraction()
     };
 
@@ -229,9 +216,64 @@ export class NPCManager {
     return sprite;
   }
 
+  _disposeNPC(npc) {
+    if (!npc) return;
+    if (this.collisions) {
+      this.collisions.removeCirclesByTag('npc_' + npc.id);
+      if (npc.heroId) this.collisions.removeCirclesByTag('npc_' + npc.heroId);
+      if (typeof this.collisions.removeCircleAt === 'function' && npc.group) {
+        this.collisions.removeCircleAt(npc.group.position.x, npc.group.position.z, 2.0);
+      }
+    }
+    if (npc.mixer) {
+      npc.mixer.stopAllAction();
+      if (typeof npc.mixer.uncacheRoot === 'function') {
+        npc.mixer.uncacheRoot(npc.group);
+      }
+    }
+    if (this.nearbyNPC && this.nearbyNPC.id === npc.id) {
+      this.nearbyNPC = null;
+      if (this.interactionPromptEl) this.interactionPromptEl.classList.add('hidden');
+    }
+    if (this.nearbyBubbleNPC && this.nearbyBubbleNPC.id === npc.id) {
+      this.nearbyBubbleNPC = null;
+      if (this.speechBubbleEl) this.speechBubbleEl.classList.add('hidden');
+    }
+    if (npc.group) {
+      if (npc.group.parent) {
+        npc.group.parent.remove(npc.group);
+      }
+      npc.group.traverse(child => {
+        if (child.isMesh || child.isSkinnedMesh || child.isSprite) {
+          if (child.geometry) child.geometry.dispose();
+          if (child.material) {
+            const mats = Array.isArray(child.material) ? child.material : [child.material];
+            mats.forEach(m => {
+              for (const k of Object.keys(m)) {
+                const val = m[k];
+                if (val && val.isTexture) {
+                  val.dispose();
+                  if (val.image && typeof val.image.close === 'function') {
+                    try { val.image.close(); } catch (_) {}
+                  }
+                  val.image = null;
+                  if (val.source) val.source.data = null;
+                }
+              }
+              m.dispose();
+            });
+          }
+        }
+      });
+      npc.group.clear();
+    }
+  }
+
   async loadZoneNPCs(zoneDef) {
     if (!zoneDef) return;
     const zoneId = zoneDef.id;
+    this.currentZoneId = zoneId;
+    const isDojo = Boolean(zoneDef.id === 'zone_2_2' || (zoneDef.gx === 2 && zoneDef.gy === 2) || zoneDef.hasDojo);
     const npcsInZone = zoneDef.npcs || [];
 
     // Preload 3D portraits for all NPCs defined in this zone
@@ -240,37 +282,61 @@ export class NPCManager {
       portraitService.preload(preloadIds);
     }
 
-    // 1. Manage visibility of existing NPCs
+    // 1. Keep Master Paladill (always preserved for Dojo hub) and NPCs that belong to this zone.
+    // Dispose all other external zone NPCs to free memory and VRAM.
+    const activeNPCs = [];
     for (const npc of this.npcs) {
-      const belongs = npcsInZone.some(def => def.id === npc.id);
-      if (npc.heroId && this.equipmentManager && this.equipmentManager.isHeroUnlocked(npc.heroId)) {
-        npc.group.visible = false;
+      if (npc.id === 'paladill') {
+        npc.group.visible = isDojo;
+        const targetX = -90.3;
+        const targetZ = 63.3;
+        const targetY = (this.overworldManager && this.overworldManager.demoScenaZone && typeof this.overworldManager.demoScenaZone.getHeight === 'function')
+          ? this.overworldManager.demoScenaZone.getHeight(targetX, targetZ)
+          : (npc.group.position.y || 0);
+        npc.group.position.set(targetX, targetY, targetZ);
+        const paladillDef = npcsInZone.find(d => d.id === 'paladill');
+        const defaultRot = (paladillDef && paladillDef.rotation !== undefined) ? paladillDef.rotation : Math.PI;
+        npc.defaultRotation = defaultRot;
+        npc.group.rotation.y = defaultRot;
         if (this.collisions) {
-          this.collisions.removeCirclesByTag('npc_' + npc.id);
-          if (npc.heroId) this.collisions.removeCirclesByTag('npc_' + npc.heroId);
-          if (typeof this.collisions.removeCircleAt === 'function' && npc.group) {
-            this.collisions.removeCircleAt(npc.group.position.x, npc.group.position.z, 2.0);
+          this.collisions.removeCirclesByTag('npc_paladill');
+          if (isDojo) {
+            this.collisions.addCircle(targetX, targetZ, 1.2, 'npc_paladill');
           }
         }
+        activeNPCs.push(npc);
         continue;
       }
-      if (!belongs) {
-        if (this.collisions && (npc.isStatue || npc.isStatic)) {
-          this.collisions.removeCirclesByTag('npc_' + npc.id);
+
+      const belongs = npcsInZone.some(def => def.id === npc.id);
+      if (belongs) {
+        if (npc.heroId && this.equipmentManager && this.equipmentManager.isHeroUnlocked(npc.heroId)) {
+          this._disposeNPC(npc);
+        } else {
+          npc.group.visible = true;
+          activeNPCs.push(npc);
         }
+      } else {
+        this._disposeNPC(npc);
       }
-      npc.group.visible = belongs;
     }
+    this.npcs = activeNPCs;
 
     // 2. Spawn missing NPCs for this zone
     for (const def of npcsInZone) {
+      if (def.id === 'paladill') {
+        continue;
+      }
       if (def.heroId && this.equipmentManager && this.equipmentManager.isHeroUnlocked(def.heroId)) {
         continue;
       }
       let existing = this.npcs.find(n => n.id === def.id);
       if (existing) {
         existing.group.visible = true;
-        existing.group.position.set(def.position.x, 0, def.position.z);
+        const groundY = (this.overworldManager && typeof this.overworldManager.getGroundHeight === 'function')
+          ? this.overworldManager.getGroundHeight(def.position.x, def.position.z)
+          : (def.position.y || 0);
+        existing.group.position.set(def.position.x, groundY, def.position.z);
         if (def.rotation !== undefined) {
           const rotVal = Math.abs(def.rotation) > Math.PI * 2 ? (def.rotation * Math.PI / 180) : def.rotation;
           existing.defaultRotation = rotVal;
@@ -288,34 +354,20 @@ export class NPCManager {
   }
 
   async _spawnGenericNPC(def, zoneId) {
+    if (this.currentZoneId && this.currentZoneId !== zoneId) return;
+
     const group = new THREE.Group();
-    group.position.set(def.position.x, 0, def.position.z);
+    const groundY = (this.overworldManager && typeof this.overworldManager.getGroundHeight === 'function')
+      ? this.overworldManager.getGroundHeight(def.position.x, def.position.z)
+      : (def.position.y || 0);
+    group.position.set(def.position.x, groundY, def.position.z);
     const initialRot = def.rotation !== undefined
       ? (Math.abs(def.rotation) > Math.PI * 2 ? (def.rotation * Math.PI / 180) : def.rotation)
       : 0;
     group.rotation.y = initialRot;
 
-    // Ground aura ring
     const isStatue = !!(def.isStatue || def.isStatic || def.id === 'atia_spirit' || (def.model && def.model.includes('statue')));
-    const isRecruit = def.type === 'recruit';
-    const auraColor = isStatue ? 0x38bdf8 : (isRecruit ? 0xfacc15 : (def.questId ? 0x38bdf8 : 0x22c55e));
-
     const isFox = def.model && def.model.includes('fox');
-    const defaultAuraRadius = isFox ? 0.75 : (isStatue ? 1.45 : 1.15);
-    const auraOuter = def.auraRadius || defaultAuraRadius;
-    const auraInner = auraOuter * 0.78;
-
-    const auraGeo = new THREE.RingGeometry(auraInner, auraOuter, 24);
-    auraGeo.rotateX(-Math.PI / 2);
-    const auraMat = new THREE.MeshBasicMaterial({
-      color: auraColor,
-      side: THREE.DoubleSide,
-      transparent: true,
-      opacity: 0.7
-    });
-    const auraMesh = new THREE.Mesh(auraGeo, auraMat);
-    auraMesh.position.y = 0.05;
-    group.add(auraMesh);
 
     // Holy spirit radiance light for statues channeling divine presence
     let spiritLight = null;
@@ -325,23 +377,33 @@ export class NPCManager {
       group.add(spiritLight);
     }
 
-    // Nameplate Sprite
-    const strokeHex = isStatue ? '#38bdf8' : (isRecruit ? '#facc15' : '#38bdf8');
-    const nameplate = this._createNameplateSprite(def.name, def.title || 'Inhabitant of Lunacia', strokeHex);
-    nameplate.position.set(0, 2.3, 0);
-    group.add(nameplate);
 
     // Load Model or Stylized Mesh
     let mixer = null;
     let idleAction = null;
     const actions = {};
+    let scaledBox = null;
 
     const modelPath = `./assets/models/${def.model || 'fox.glb'}`;
     try {
       const gltf = await this.gltfLoader.loadAsync(modelPath);
+
+      // If zone changed during download, abort and clean up
+      if (this.currentZoneId && this.currentZoneId !== zoneId) {
+        group.traverse(c => {
+          if (c.geometry) c.geometry.dispose();
+          if (c.material) {
+            const mats = Array.isArray(c.material) ? c.material : [c.material];
+            mats.forEach(m => m.dispose());
+          }
+        });
+        group.clear();
+        return;
+      }
+
       const model = gltf.scene;
 
-      // Auto-normalize model scale to standard height
+      // Auto-normalize model scale to match player scale (target height 2.80m)
       model.updateMatrixWorld(true);
       const rawBox = new THREE.Box3().setFromObject(model);
       const size = new THREE.Vector3();
@@ -351,24 +413,23 @@ export class NPCManager {
       let s = 1.0;
       if (maxDim > 0) {
         const isSapidae = def.model && def.model.includes('sapidae');
-        const defaultHeight = isSapidae ? 1.55 : 1.35;
-        const targetHeight = def.scale || defaultHeight;
+        const defaultHeight = isSapidae ? 2.80 : 2.70;
+        const targetHeight = (def.scale && def.scale >= 2.0)
+          ? def.scale
+          : (def.scale ? def.scale * (2.80 / 1.55) : defaultHeight);
         s = targetHeight / maxDim;
       }
       // Explicit safeguard for fox or very large rigged models
       if (def.model && def.model.includes('fox')) {
-        s = Math.min(s, 0.018);
+        s = Math.min(s, 0.032);
       }
       model.scale.set(s, s, s);
       model.updateMatrixWorld(true);
 
       // Ground feet at y = 0
-      const scaledBox = new THREE.Box3().setFromObject(model);
+      scaledBox = new THREE.Box3().setFromObject(model);
       model.position.y = Math.max(0, -scaledBox.min.y);
       model.rotation.y = 0;
-
-      // Adjust nameplate position dynamically above the model
-      nameplate.position.set(0, Math.max(2.3, scaledBox.max.y + 0.45), 0);
 
       model.traverse(c => {
         if (c.isMesh) {
@@ -380,7 +441,7 @@ export class NPCManager {
 
       // Apply Inverted Hull Toon Outline (Stylized cartoon outline)
       applyToonOutline(model, {
-        thickness: def.outlineThickness !== undefined ? def.outlineThickness : 0.024,
+        thickness: def.outlineThickness !== undefined ? def.outlineThickness : 0.012,
         color: def.outlineColor !== undefined ? def.outlineColor : 0x15161e,
         mode: 'view'
       });
@@ -402,10 +463,15 @@ export class NPCManager {
     } catch (e) {
       console.warn(`[NPCManager] Fallback for ${modelPath}:`, e);
       const fallbackGeo = new THREE.SphereGeometry(0.7, 16, 16);
-      const fallbackMat = new THREE.MeshStandardMaterial({ color: auraColor });
+      const fallbackMat = new THREE.MeshStandardMaterial({ color: (def && def.auraColor) || 0xffd27a });
       const fallbackMesh = new THREE.Mesh(fallbackGeo, fallbackMat);
       fallbackMesh.position.y = 0.7;
       group.add(fallbackMesh);
+    }
+
+    if (this.currentZoneId && this.currentZoneId !== zoneId) {
+      this._disposeNPC({ group, mixer });
+      return;
     }
 
     this.scene.add(group);
@@ -418,21 +484,24 @@ export class NPCManager {
       questId: def.questId || null,
       heroId: def.heroId || null,
       bubbleQuote: def.bubbleQuote || null,
-      bubbleHeight: def.bubbleHeight || 3.35,
+      bubbleHeight: def.bubbleHeight ? (def.bubbleHeight >= 3.8 ? def.bubbleHeight : def.bubbleHeight * (2.80 / 1.55)) : (scaledBox ? Math.max(4.0, scaledBox.max.y + 0.95) : 4.0),
       group: group,
       mixer: mixer,
       actions: actions,
       idleAction: idleAction,
-      auraMesh: auraMesh,
+      auraMesh: null,
       isStatue: isStatue,
       isStatic: isStatue || !!def.isStatic,
       spiritLight: spiritLight,
-      radius: def.collisionRadius !== undefined ? def.collisionRadius : (isFox ? 0.45 : (isStatue ? 0.95 : 0.75)),
-      interactRadius: 3.4,
-      calloutRadius: 6.5,
+      radius: def.collisionRadius !== undefined ? (def.collisionRadius >= 1.2 ? def.collisionRadius : def.collisionRadius * (2.80 / 1.55)) : (isFox ? 0.65 : (isStatue ? 1.5 : 1.15)),
+      interactRadius: 4.0,
+      calloutRadius: 7.5,
       zoneId: zoneId,
       defaultRotation: initialRot,
       onInteract: () => {
+        if (def.type === 'ferry') {
+          return this._handleFerryInteraction(npcObj);
+        }
         if (def.id === 'sentinel') {
           return this._handleSentinelInteraction(npcObj);
         }
@@ -451,6 +520,35 @@ export class NPCManager {
     if (this.collisions && (isStatue || def.isStatic)) {
       this.collisions.addCircle(def.position.x, def.position.z, npcObj.radius, 'npc_' + def.id);
     }
+  }
+
+  /** Pomodoro the ferryman: opens the island selection (replaces the cardinal portal arrows). */
+  _handleFerryInteraction(npc) {
+    if (this.dialogSystem.isActive) return;
+    if (this.audio && typeof this.audio.playHover === 'function') {
+      this.audio.playHover();
+    }
+    const om = this.overworldManager;
+    const tm = om && om.worldMapManager ? om.worldMapManager.transitionManager : null;
+    if (tm && tm.portalsLocked) {
+      this.dialogSystem.startDialogue([{
+        speaker: npc.name,
+        title: npc.title,
+        avatar: npc.avatar,
+        text: '¡Todavía no podemos zarpar! El Maestro Paladill quiere que termines tu primer entrenamiento antes de dejar la isla.'
+      }]);
+      return;
+    }
+    this.dialogSystem.startDialogue([{
+      speaker: npc.name,
+      title: npc.title,
+      avatar: npc.avatar,
+      text: '¡Hola, viajero! Mi barca conoce todas las corrientes de Lunacia. Dime a qué isla quieres ir y zarpamos.'
+    }], () => {
+      this.hideAllOverlays();
+      if (!this.ferryTravelUI) this.ferryTravelUI = new FerryTravelUI(om);
+      this.ferryTravelUI.open();
+    });
   }
 
   _handleGenericNPCInteraction(npc) {
@@ -961,26 +1059,56 @@ export class NPCManager {
       this.dialogSystem.startDialogue(dialogue, () => {
         this.questManager.advanceStep('quest_hostile_sands', 'talk_sentinel', true);
         this.questManager.completeQuest('quest_hostile_sands');
+        // Player is already on Savannah Island, advance reach_wastes so the hunt begins immediately
+        this.questManager.advanceStep('quest_hunt_beaked_chimera', 'reach_wastes', true);
         this._showBannerMessage('🎉 QUEST COMPLETED!', 'Hostile Sands — Rewards claimed.');
+        if (this.overworldManager) {
+          if (this.overworldManager.monsters && typeof this.overworldManager.monsters.ensureSavannahQuestMonsters === 'function') {
+            this.overworldManager.monsters.ensureSavannahQuestMonsters();
+          }
+          if (this.overworldManager.questDescEl) {
+            this.overworldManager.questDescEl.textContent = this.questManager.getActiveHUDTrackerText();
+          }
+          if (typeof this.overworldManager._updateQuestNavigation === 'function') {
+            this.overworldManager._updateQuestNavigation();
+          }
+        }
       });
       return;
     }
 
     // 3. Quest #4 (quest_hunt_beaked_chimera) is ACTIVE or READY
     if (q4 && (q4.status === 'active' || q4.status === 'ready_to_turn_in')) {
+      const reachStep = q4.objective?.steps?.find(s => s.id === 'reach_wastes');
+      if (reachStep && !reachStep.done) {
+        this.questManager.advanceStep('quest_hunt_beaked_chimera', 'reach_wastes', true);
+      }
+
       const alphaStep = q4.objective?.steps?.find(s => s.id === 'defeat_beaked_alpha');
       
       if (!alphaStep || !alphaStep.done) {
-        // Battle not won yet -> Reminder
+        // Battle not won yet -> Sentinel marks and directs player to the Beaked Chimera pack
         const dialogue = [
           {
             speaker: 'Desert Sentinel',
             title: 'Dune Watcher',
             avatar: 'kibo',
-            text: 'Make haste, {heroName}! The beaked pack still blocks the Arid Wastes in [3, 1]. Ambush the alpha male in tactical combat to pacify the savannah!'
+            text: 'I have marked the Beaked Chimera territory in the western canyon plateau on your compass! Track down the pack at [-40, -8] and defeat the alpha male in tactical combat!'
           }
         ];
-        this.dialogSystem.startDialogue(dialogue);
+        this.dialogSystem.startDialogue(dialogue, () => {
+          if (this.overworldManager) {
+            if (this.overworldManager.monsters && typeof this.overworldManager.monsters.ensureSavannahQuestMonsters === 'function') {
+              this.overworldManager.monsters.ensureSavannahQuestMonsters();
+            }
+            if (this.overworldManager.questDescEl) {
+              this.overworldManager.questDescEl.textContent = this.questManager.getActiveHUDTrackerText();
+            }
+            if (typeof this.overworldManager._updateQuestNavigation === 'function') {
+              this.overworldManager._updateQuestNavigation();
+            }
+          }
+        });
         return;
       } else {
         // Battle is won -> Turn in quest #4!
@@ -1003,6 +1131,14 @@ export class NPCManager {
           this.questManager.advanceStep('quest_hunt_beaked_chimera', 'report_hunt', true);
           this.questManager.completeQuest('quest_hunt_beaked_chimera');
           this._showBannerMessage('🎉 QUEST COMPLETED!', 'Hunt of the Beaked Chimera — Rewards claimed.');
+          if (this.overworldManager) {
+            if (this.overworldManager.questDescEl) {
+              this.overworldManager.questDescEl.textContent = this.questManager.getActiveHUDTrackerText();
+            }
+            if (typeof this.overworldManager._updateQuestNavigation === 'function') {
+              this.overworldManager._updateQuestNavigation();
+            }
+          }
         });
         return;
       }
@@ -1253,6 +1389,18 @@ export class NPCManager {
       }, 1400);
     }
 
+    // Synchronize Paladill quest state with QuestManager if available
+    if (this.questManager) {
+      const q = this.questManager.getQuest('quest_slime_purification');
+      if (q) {
+        const isDone = (sId) => Boolean(q.objective?.steps?.find(s => s.id === sId)?.done);
+        if (isDone('talk_paladill')) this.questState.talkedToPaladill = true;
+        if (isDone('defeat_slimes')) this.questState.slimeDefeated = true;
+        if (isDone('report_victory') || q.rewardClaimed) this.questState.rewardGiven = true;
+        if (isDone('open_doors') || q.status === 'completed') this.questState.doorsUnlocked = true;
+      }
+    }
+
     if (!this.questState.talkedToPaladill) {
       // Step 1: Welcome & Mission Assignment
       const dialogue = [
@@ -1343,10 +1491,16 @@ export class NPCManager {
       });
     } else if (!this.questState.doorsUnlocked) {
       // Step 4: Check if sword equipped and unlock world doors
-      const isEquipped = this.equipmentManager &&
-        this.equipmentManager.equipped &&
-        this.equipmentManager.equipped.kotaro &&
-        this.equipmentManager.equipped.kotaro.weapon === 'wood_sword';
+      const equippedDict = this.equipmentManager?.equipped || {};
+      const anySwordEquipped = Object.values(equippedDict).some(slots => {
+        if (!slots) return false;
+        return slots.weapon === 'wood_sword' || Object.values(slots).includes('wood_sword');
+      });
+      const q = this.questManager ? this.questManager.getQuest('quest_slime_purification') : null;
+      const stepAlreadyDone = Boolean(q?.objective?.steps?.find(s => s.id === 'equip_sword')?.done) ||
+        Boolean(this.questManager && typeof this.questManager.isStepCompleted === 'function' && this.questManager.isStepCompleted('quest_slime_purification', 'equip_sword'));
+      const tutorialSwordDone = Boolean(this.tutorialManager && this.tutorialManager.hasEquippedSword);
+      const isEquipped = anySwordEquipped || stepAlreadyDone || tutorialSwordDone;
 
       if (!isEquipped) {
         const dialogue = [
@@ -1383,6 +1537,7 @@ export class NPCManager {
         this.dialogSystem.startDialogue(dialogue, () => {
           this.questState.doorsUnlocked = true;
           if (this.questManager) {
+            this.questManager.advanceStep('quest_slime_purification', 'equip_sword', true);
             this.questManager.advanceStep('quest_slime_purification', 'open_doors', true);
             this.questManager.completeQuest('quest_slime_purification');
           }
@@ -1447,10 +1602,26 @@ export class NPCManager {
   }
 
   update(dt, time, playerPos) {
-    // 1. Update active animations
+    // 1. Update active animations (LOD Throttled for distant NPCs)
     this.npcs.forEach(npc => {
       if (!npc.group.visible) return;
-      if (npc.mixer) npc.mixer.update(dt);
+      if (npc.mixer) {
+        if (npc._lodThrottled) {
+          npc._lodSkip = !npc._lodSkip;
+          npc._accumDt = (npc._accumDt || 0) + dt;
+          if (!npc._lodSkip) {
+            npc.mixer.update(npc._accumDt);
+            npc._accumDt = 0;
+          }
+        } else {
+          if (npc._accumDt) {
+            npc.mixer.update(dt + npc._accumDt);
+            npc._accumDt = 0;
+          } else {
+            npc.mixer.update(dt);
+          }
+        }
+      }
     });
 
     if (!playerPos) return;

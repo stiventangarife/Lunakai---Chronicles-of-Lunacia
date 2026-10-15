@@ -15,10 +15,10 @@ export class StylizedEnvironment {
     this.scene.add(this.group);
 
     this.config = {
-      sunPosition: [18, 18, 10],
-      sunColor: '#fffae8',
-      sunIntensity: 3.2,
-      density: 18000,
+      sunPosition: [22, 26, 14],
+      sunColor: '#fff2d6',
+      sunIntensity: 2.95,
+      density: 35000,
       scale: 0.28,
       heightVariation: 0.44,
       windStrength: 0.25,
@@ -48,6 +48,12 @@ export class StylizedEnvironment {
   }
 
   async init() {
+    // Islands era: the 80 m demo meadow is retired; keep only the base sun, hemisphere light and fog
+    if (this.config.lightingOnly) {
+      this._setupLighting(null);
+      console.log('[StylizedEnvironment] Lighting-only mode (legacy demo meadow not built).');
+      return;
+    }
     console.log('[StylizedEnvironment] Loading textures and building stylized scene...');
     const texLoader = new THREE.TextureLoader();
 
@@ -194,13 +200,13 @@ export class StylizedEnvironment {
 
   _setupLighting(skyTex) {
     // Soft atmospheric sky fog
-    this.scene.fog = new THREE.Fog(0xcbe5ff, 50, 150);
+    this.scene.fog = new THREE.FogExp2(0xcde4f7, 0.0030);
 
     // Note: Static skyMesh retired in favor of dynamic procedural MagicalSkybox
     this.skyMesh = null;
 
     // Hemisphere Ambient Light
-    const hemiLight = new THREE.HemisphereLight(0xffffff, 0x4a5d3f, 1.2);
+    const hemiLight = new THREE.HemisphereLight(0xbedaf5, 0x445f32, 0.92);
     hemiLight.position.set(0, 50, 0);
     this.group.add(hemiLight);
 
@@ -289,6 +295,18 @@ export class StylizedEnvironment {
     }
     if (this.grass && typeof this.grass.setRoadActive === 'function') {
       this.grass.setRoadActive(active);
+    }
+  }
+
+  setVisible(visible) {
+    if (this.group) {
+      this.group.visible = visible;
+    }
+    if (this.grass && this.grass.mesh) {
+      this.grass.mesh.visible = visible;
+    }
+    if (this.ground && this.ground.mesh) {
+      this.ground.mesh.visible = visible;
     }
   }
 }

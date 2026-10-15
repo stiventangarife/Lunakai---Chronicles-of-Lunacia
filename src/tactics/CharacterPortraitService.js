@@ -1,6 +1,7 @@
 // CharacterPortraitService.js - Real-Time 3D Model Snapshot Service for Axie Portraits
 import * as THREE from 'three';
 import { GLTFLoader } from '../../vendor/GLTFLoader.js';
+import { sapidaeModularController } from '../rpg/SapidaeModularController.js';
 
 export const PRE_RENDERED_PORTRAITS = [
   'bear-dad',
@@ -171,13 +172,25 @@ export class CharacterPortraitService {
     });
   }
 
-  _initRenderer() {
-    if (this._initialized) return;
+  _initRenderer(customW = null, customH = null) {
+    const targetW = customW || this.width;
+    const targetH = customH || this.height;
+
+    if (this._initialized) {
+      if (this.canvas && (this.canvas.width !== targetW || this.canvas.height !== targetH)) {
+        this.canvas.width = targetW;
+        this.canvas.height = targetH;
+        this.renderer.setSize(targetW, targetH);
+        this.camera.aspect = targetW / targetH;
+        this.camera.updateProjectionMatrix();
+      }
+      return;
+    }
     if (typeof document === 'undefined') return;
 
     this.canvas = document.createElement('canvas');
-    this.canvas.width = this.width;
-    this.canvas.height = this.height;
+    this.canvas.width = targetW;
+    this.canvas.height = targetH;
 
     this.renderer = new THREE.WebGLRenderer({
       canvas: this.canvas,
@@ -186,14 +199,15 @@ export class CharacterPortraitService {
       preserveDrawingBuffer: true,
       powerPreference: 'low-power'
     });
-    this.renderer.setSize(this.width, this.height);
+    this.renderer.debug.checkShaderErrors = false;
+    this.renderer.setSize(targetW, targetH);
     this.renderer.setPixelRatio(1);
     if (THREE.SRGBColorSpace) {
       this.renderer.outputColorSpace = THREE.SRGBColorSpace;
     }
 
     this.scene = new THREE.Scene();
-    this.camera = new THREE.PerspectiveCamera(28, 1, 0.1, 50);
+    this.camera = new THREE.PerspectiveCamera(28, targetW / targetH, 0.1, 50);
 
     // Studio 3-Point Lighting for heroic character portraits
     const ambientLight = new THREE.AmbientLight(0xffffff, 1.35);
@@ -239,7 +253,13 @@ export class CharacterPortraitService {
 
   _resolvePortraitId(id) {
     if (!id) return 'slime';
-    const cleanId = String(id).toLowerCase().trim();
+    let cleanId = String(id).toLowerCase().trim();
+    if (cleanId.includes('/')) {
+      cleanId = cleanId.split('/').pop();
+    }
+    if (cleanId.endsWith('.png') || cleanId.endsWith('.glb')) {
+      cleanId = cleanId.replace(/\.(png|glb)$/, '');
+    }
 
     if (this.cache.has(cleanId)) return cleanId;
 
@@ -344,6 +364,11 @@ export class CharacterPortraitService {
       return this.cache.get(id);
     }
 
+    const syncUrl = this.getPortraitSync(id);
+    if (syncUrl) {
+      return syncUrl;
+    }
+
     if (this.pending.has(id)) {
       return this.pending.get(id);
     }
@@ -413,16 +438,25 @@ export class CharacterPortraitService {
     const maxDim = Math.max(size.x, size.y);
     const fovRad = this.camera.fov * (Math.PI / 180);
     const isHumanoid = id.startsWith('sapidae') || id === 'xia' || id === 'tripp';
-    const defaultZoom = (options.isAxie || id.startsWith('axie') || /^\d+$/.test(id))
-      ? 0.54
-      : (isHumanoid ? 0.52 : 0.68);
-    const zoomFactor = options.zoomFactor !== undefined ? options.zoomFactor : defaultZoom;
-    const cameraDist = (maxDim * zoomFactor) / Math.tan(fovRad / 2);
 
-    const defaultYRatio = isHumanoid ? 0.22 : 0.08;
-    const yTarget = size.y * (options.yTargetRatio !== undefined ? options.yTargetRatio : defaultYRatio);
+    let cameraDist, yTarget;
+    if (options.fullBody) {
+      // Encuadre de cuerpo entero de pie (desde los cuernos/cabeza hasta los pies)
+      const zoomFactor = options.zoomFactor !== undefined ? options.zoomFactor : 1.10;
+      cameraDist = (size.y * zoomFactor) / (2 * Math.tan(fovRad / 2));
+      yTarget = size.y * (options.yTargetRatio !== undefined ? options.yTargetRatio : 0);
+    } else {
+      const defaultZoom = (options.isAxie || id.startsWith('axie') || /^\d+$/.test(id))
+        ? 0.54
+        : (isHumanoid ? 0.52 : 0.68);
+      const zoomFactor = options.zoomFactor !== undefined ? options.zoomFactor : defaultZoom;
+      cameraDist = (maxDim * zoomFactor) / Math.tan(fovRad / 2);
+
+      const defaultYRatio = isHumanoid ? 0.22 : 0.08;
+      yTarget = size.y * (options.yTargetRatio !== undefined ? options.yTargetRatio : defaultYRatio);
+    }
     this.camera.position.set(0, yTarget, cameraDist);
-    this.camera.lookAt(0, yTarget * 0.95, 0);
+    this.camera.lookAt(0, yTarget, 0);
 
     this.renderer.render(this.scene, this.camera);
     const dataUrl = this.canvas.toDataURL('image/png');
@@ -473,10 +507,100 @@ export class CharacterPortraitService {
     }, options));
   }
 
+  _getSapidaeCacheKey(modelId = 'sapidae-f-a', customization = null, equipped = null, fullBody = true) {
+    const typeStr = fullBody ? 'fullbody' : 'bust';
+    const cStr = customization ? JSON.stringify(customization) : '';
+    const eStr = equipped ? JSON.stringify(equipped) : '';
+    return `sapidae_${typeStr}_${modelId}_${cStr}_${eStr}`;
+  }
+
+  getSapidaePortraitSync(modelId = 'sapidae-f-a', customization = null, equipped = null, options = {}) {
+    const isFullBody = options.fullBody !== undefined ? Boolean(options.fullBody) : true;
+    const customKey = this._getSapidaeCacheKey(modelId, customization, equipped, isFullBody);
+    if (this.cache.has(customKey)) {
+      return this.cache.get(customKey);
+    }
+    if (this.cache.has('sapidae')) {
+      return this.cache.get('sapidae');
+    }
+    return null;
+  }
+
+  async getSapidaeCustomPortrait(modelId = 'sapidae-f-a', customization = null, equipped = null, options = {}) {
+    const isFullBody = options.fullBody !== undefined ? Boolean(options.fullBody) : true;
+    const customKey = this._getSapidaeCacheKey(modelId, customization, equipped, isFullBody);
+    if (this.cache.has(customKey)) {
+      return this.cache.get(customKey);
+    }
+    if (this.pending.has(customKey)) {
+      return this.pending.get(customKey);
+    }
+
+    const promise = (async () => {
+      // Use vertical resolution 240x320 for full body standing, or square 240x240 for bust frame
+      if (isFullBody) {
+        this._initRenderer(240, 320);
+      } else {
+        this._initRenderer(240, 240);
+      }
+      if (!this._initialized) return null;
+
+      const modelPath = `./assets/models/${modelId}.glb`;
+      try {
+        const gltf = await this.loader.loadAsync(modelPath);
+        const model = gltf.scene;
+
+        // Avanzar la animación a pose idle para que esté parada naturalmente
+        if (gltf.animations && gltf.animations.length > 0) {
+          const mixer = new THREE.AnimationMixer(model);
+          const idleClip = gltf.animations.find(c => c.name.toLowerCase().includes('idle')) || gltf.animations[0];
+          if (idleClip) {
+            mixer.clipAction(idleClip).play();
+            mixer.update(0.1);
+            model.updateMatrixWorld(true);
+          }
+        }
+
+        // Aplicar personalización modular de pelo, ojos, traje, cuernos
+        if (customization) {
+          sapidaeModularController.applyCustomization(model, customization);
+        }
+        if (equipped) {
+          sapidaeModularController.applyEquipment(model, equipped, customization || {});
+        }
+
+        const captureOpts = {
+          fullBody: isFullBody,
+          isHumanoid: true,
+          zoomFactor: options.zoomFactor !== undefined ? options.zoomFactor : (isFullBody ? 1.10 : 0.38),
+          yTargetRatio: options.yTargetRatio !== undefined ? options.yTargetRatio : (isFullBody ? 0 : 0.30),
+          yaw: options.yaw !== undefined ? options.yaw : -0.18,
+          pitch: options.pitch !== undefined ? options.pitch : 0.03,
+          aliases: ['sapidae', modelId]
+        };
+
+        const dataUrl = this.captureModel(customKey, model, captureOpts);
+
+        this.pending.delete(customKey);
+        return dataUrl;
+      } catch (err) {
+        console.warn('[CharacterPortraitService] Could not generate custom Sapidae portrait:', err);
+        this.pending.delete(customKey);
+        return this.getPortraitSync(modelId) || `./assets/portraits/${modelId}.png`;
+      }
+    })();
+
+    this.pending.set(customKey, promise);
+    return promise;
+  }
+
   preload(characterIds = []) {
     characterIds.forEach(id => {
       if (!this.cache.has(id)) {
-        this.getPortrait(id);
+        const syncUrl = this.getPortraitSync(id);
+        if (!syncUrl) {
+          this.getPortrait(id);
+        }
       }
     });
   }

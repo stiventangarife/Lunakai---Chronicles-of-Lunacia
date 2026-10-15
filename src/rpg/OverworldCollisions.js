@@ -7,13 +7,20 @@ export class OverworldCollisions {
     this.boxes = [];   // { minX, maxX, minZ, maxZ, tag }
     this.segments = []; // { x1, z1, x2, z2, thickness, tag }
 
-    // World Exploration Boundaries (80x80 macro-zone ground with safe margin)
+    // World Exploration Boundaries (80x80 macro-zone ground with safe margin by default)
     this.bounds = {
       minX: -38.5,
       maxX: 38.5,
       minZ: -38.5,
       maxZ: 38.5
     };
+  }
+
+  setBounds(minX, maxX, minZ, maxZ) {
+    this.bounds.minX = minX;
+    this.bounds.maxX = maxX;
+    this.bounds.minZ = minZ;
+    this.bounds.maxZ = maxZ;
   }
 
   clear() {

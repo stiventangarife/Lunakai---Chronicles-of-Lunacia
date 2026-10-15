@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Lunakai · UI Kit (Crónica Celeste)</title>
+  <!-- Igual que el juego: styles.css + sistema de diseño + capa del juego, para detectar choques -->
+  <link rel="stylesheet" href="styles.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;700&family=JetBrains+Mono:wght@500&family=Marcellus&family=Nunito+Sans:wght@600;700;800;900&display=swap">
+  <link rel="stylesheet" href="src/ui/ds.generated.css">
+  <link rel="stylesheet" href="src/ui/lunakai-ui.css">
+  <style>
+    /* Solo para esta página de revisión */
+    html, body { overflow: auto !important; height: auto !important; }
+    body.kit { margin: 0; min-height: 100vh; background: radial-gradient(1200px 600px at 70% -10%, #23305a, transparent 60%), var(--lk-night-950); }
+    .kit main { max-width: 1100px; margin: 0 auto; padding: 32px 20px 80px; display: grid; gap: 28px; }
+    .kit section { display: grid; gap: 14px; padding: 20px; border-radius: var(--lk-r-lg); background: rgba(18, 24, 41, .55); box-shadow: inset 0 0 0 1px rgba(211, 174, 108, .14); }
+    .kit h2 { font-size: 1.3rem; color: var(--lk-ivory-50); }
+    .kit .row { display: flex; flex-wrap: wrap; gap: 14px; align-items: center; }
+    .kit .note { margin: 0; font-size: .86rem; color: #AEB6CB; line-height: 1.5; }
+    .kit .sw { width: 80px; display: grid; gap: 6px; font: 700 .68rem var(--lk-font-mono); color: #AEB6CB; }
+    .kit .sw i { height: 44px; border-radius: 10px; background: var(--c); box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .1); }
+    .kit .set { display: flex; align-items: center; justify-content: space-between; gap: 16px; max-width: 560px; }
+    .kit .set small { display: block; color: #AEB6CB; font-size: .78rem; }
+  </style>
+</head>
+<body class="kit lk-ui">
+  <main>
+    <header class="row" style="justify-content:space-between">
+      <img src="assets/ui/brand/lunakai-logo.webp" alt="Lunakai" style="width:220px">
+      <div style="text-align:right"><small class="note">Etapa 0 · base compartida</small><h1 style="font-size:1.8rem">UI Kit · Crónica Celeste</h1></div>
+    </header>
+    <p class="note">Los componentes de esta página usan el CSS del sistema de diseño tal cual (<code>src/ui/ds.generated.css</code>, generado desde <code>celeste.html</code>), con prefijo <code>lk-</code>. También carga <code>styles.css</code> del juego: si algo se ve distinto al sistema de diseño, hay un choque de estilos.</p>
+
+    <section><h2>Color</h2><div class="row" id="swatches"></div></section>
+
+    <section>
+      <h2>Tipografía</h2>
+      <div style="font:600 1.15rem var(--lk-font-brand);letter-spacing:.22em;color:var(--lk-gilt-300)">LUNAKAI · CINZEL</div>
+      <div style="font:400 1.6rem var(--lk-font-display);color:var(--lk-ivory-50)">Marcellus · títulos y nombres</div>
+      <p style="margin:0">Nunito Sans · interfaz, botones y texto de lectura.</p>
+      <code style="color:var(--lk-lumen-300)">JetBrains Mono · 0x7a3…5f21</code>
+    </section>
+
+    <section>
+      <h2>Botones</h2>
+      <div class="row" id="buttons"></div>
+      <div class="row" id="buttonsSm"></div>
+      <div class="row"><button class="lk-btn-close-x" aria-label="Cerrar" id="cl1"></button><span class="note">Pasa el ratón: el anillo y el giro son los del sistema de diseño.</span></div>
+    </section>
+
+    <section>
+      <h2>Controles</h2>
+      <div class="set"><span><b>Sombras dinámicas</b><small>Sol y luna en tiempo real</small></span><button class="lk-switch" role="switch" aria-checked="true" aria-label="Sombras dinámicas" id="sw1"></button></div>
+      <div class="set"><span><b>Música</b><small id="volTxt">35%</small></span><input class="lk-range" type="range" min="0" max="100" value="35" style="width:220px" id="rg1" aria-label="Música"></div>
+      <div class="set"><span><b>Idioma</b><small>Menús y diálogos</small></span><div class="lk-segmented" role="group" aria-label="Idioma" id="seg1"><button aria-pressed="true" data-v="es">Español</button><button aria-pressed="false" data-v="en">English</button></div></div>
+      <div class="set"><span><b>Teclas</b><small>Pausa y avanzar</small></span><span class="row" style="gap:6px"><kbd>Esc</kbd><kbd>Espacio</kbd><kbd>K</kbd></span></div>
+    </section>
+
+    <section>
+      <h2>Retratos, barras y rareza</h2>
+      <div class="row" id="portraits"></div>
+      <div style="display:grid;gap:10px;max-width:420px">
+        <div><div class="lk-bar-read"><span>Vida + escudo</span><span>412 / 520</span></div><div class="lk-bar" style="--v:62%"><i></i><em style="width:16%"></em></div></div>
+        <div><div class="lk-bar-read"><span>Enemigo</span><span>30%</span></div><div class="lk-bar lk-bar--enemy" style="--v:30%"><i></i></div></div>
+        <div><div class="lk-bar-read"><span>Progreso</span><span>60%</span></div><div class="lk-bar lk-bar--xp" style="--v:60%"><i></i></div></div>
+      </div>
+      <div class="row"><span class="lk-rar-chip" data-r="common">Común</span><span class="lk-rar-chip" data-r="uncommon">Poco común</span><span class="lk-rar-chip" data-r="rare">Raro</span><span class="lk-rar-chip" data-r="epic">Épico</span><span class="lk-rar-chip" data-r="mystic">Místico</span></div>
+    </section>
+
+    <section>
+      <h2>Ventana, tooltip y aviso</h2>
+      <p class="note">El tooltip aparece al pasar el ratón, con el foco del teclado (Tab) y con pulsación larga en pantallas táctiles.</p>
+      <div class="row">
+        <button class="lk-btn lk-btn-secondary-wood lk-btn--sm" id="openWin"></button>
+        <div class="lk-slot-item" id="tipSlot" tabindex="0" style="--r:var(--lk-rar-rare)"><span class="lk-art" id="tipArt"></span><span class="lk-cap">×3</span></div>
+        <div class="lk-slot-item" id="tipSlot2" tabindex="0" style="--r:var(--lk-rar-epic)"><span class="lk-art" id="tipArt2"></span><span class="lk-cap">AL 4</span></div>
+        <button class="lk-btn lk-btn-moon lk-btn--sm" id="tst"></button>
+        <button class="lk-btn lk-btn-danger-red lk-btn--sm" id="tstw"></button>
+      </div>
+    </section>
+  </main>
+
+  <div class="lk-backdrop lk-ui" id="win" aria-hidden="true">
+    <div class="lk-panel-modal-window" role="dialog" aria-labelledby="winTitle" style="width:min(560px,100%);min-height:340px">
+      <div class="lk-panel-head">
+        <span class="lk-emblem" id="winEmblem"></span>
+        <h3 id="winTitle"><small>Componente</small>Ventana del sistema</h3>
+        <button class="lk-btn-close-x" id="winClose" aria-label="Cerrar"></button>
+      </div>
+      <div style="padding:20px 22px;display:grid;gap:16px">
+        <p class="note">Las pantallas de las siguientes etapas se construyen dentro de esta ventana. Esc o clic fuera la cierran.</p>
+        <div class="row" style="justify-content:flex-end" id="winActs"></div>
+      </div>
+      <div class="lk-confirm" id="cf" role="alertdialog" aria-labelledby="cfTitle">
+        <div class="lk-confirm__card">
+          <h4 id="cfTitle">¿Seguro?</h4>
+          <p>Ejemplo de confirmación dentro de una ventana.</p>
+          <span class="lk-warn">No se puede deshacer.</span>
+          <div class="lk-acts" id="cfActs"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script type="module">
+    import { icon, sprite, portrait, toast, tooltip, skillTip, bindSwitch, bindRange, bindSeg, modal } from './src/ui/lk.js';
+    const $ = (s) => document.querySelector(s);
+    const btn = (variant, ico, text, extra = '') => `<button class="lk-btn ${variant}" ${extra}><span class="lk-b-ico">${ico}</span>${text}</button>`;
+
+    const SW = ['night-950', 'night-800', 'ivory-100', 'gilt-300', 'gilt-500', 'lumen-500', 'class-beast', 'class-plant', 'class-aquatic', 'class-bird', 'class-reptile', 'class-bug'];
+    $('#swatches').innerHTML = SW.map((k) => `<span class="sw" style="--c:var(--lk-${k})"><i></i>${k}</span>`).join('');
+
+    $('#buttons').innerHTML = btn('lk-btn-primary-gold', icon('resume'), 'Reanudar') + btn('lk-btn-secondary-wood', icon('save'), 'Guardar')
+      + btn('lk-btn-moon', icon('team'), 'Escuadrón') + btn('lk-btn-danger-red', icon('trash'), 'Eliminar') + btn('lk-btn-secondary-wood', icon('lock'), 'Bloqueado', 'disabled');
+    $('#buttonsSm').innerHTML = btn('lk-btn-primary-gold lk-btn--lg', icon('swords'), 'Comenzar aventura') + btn('lk-btn-secondary-wood lk-btn--sm', sprite('i-back'), 'Volver');
+    $('#cl1').innerHTML = $('#winClose').innerHTML = sprite('i-close');
+    $('#winEmblem').innerHTML = icon('setting');
+
+    $('#portraits').innerHTML = portrait('assets/portraits/sapidae-f-a.png', { size: 64 })
+      + portrait('assets/portraits/shinji.png', { size: 64, cls: 'beast', bond: 40 })
+      + portrait('assets/portraits/bird-early.png', { size: 64, cls: 'bird' })
+      + portrait('assets/portraits/pomodoro.png', { size: 64, cls: 'plant' });
+
+    bindSwitch($('#sw1'), (on) => toast(on ? 'Sombras activadas' : 'Sombras desactivadas'));
+    bindRange($('#rg1'), (v) => { $('#volTxt').textContent = v + '%'; });
+    bindSeg($('#seg1'), (v) => toast(v === 'en' ? 'Language: English' : 'Idioma: español'));
+
+    $('#openWin').innerHTML = `<span class="lk-b-ico">${icon('grid')}</span>Abrir ventana`;
+    $('#tst').innerHTML = `<span class="lk-b-ico">${icon('save')}</span>Aviso`;
+    $('#tstw').innerHTML = `<span class="lk-b-ico">${icon('info')}</span>Aviso de error`;
+    $('#tst').addEventListener('click', () => toast('Partida guardada en la Ranura 1'));
+    $('#tstw').addEventListener('click', () => toast('Puntos de Potencial insuficientes', true));
+
+    // Tooltips con la ficha táctica del sistema de diseño
+    $('#tipArt').innerHTML = icon('charm');
+    $('#tipArt2').innerHTML = icon('swords');
+    tooltip.attach($('#tipSlot'), () => skillTip({ name: 'Amuleto de Brote', kind: 'Charm · Planta', fx: 'shield', value: 30, effectLabel: 'Escudo', los: false, color: 'var(--lk-class-plant)', iconHtml: icon('charm'), desc: 'Al inicio del turno otorga <span class="lk-kw">escudo</span> a la parte equipada.' }));
+    tooltip.attach($('#tipSlot2'), () => skillTip({ name: 'Yunque Táctico', kind: 'Hechizo · Ataque · Empuje', cost: 3, range: '1–4', fx: 'dmg', value: '45–60', color: '#C98A3B', iconHtml: icon('swords'), desc: 'Golpe contundente. Empuja 1 casilla y provoca <span class="lk-kw">colisión</span>.' }));
+
+    // Ventana + confirmación
+    const win = modal($('#win'));
+    $('#openWin').addEventListener('click', win.open);
+    $('#winClose').addEventListener('click', win.close);
+    $('#winActs').innerHTML = btn('lk-btn-secondary-wood lk-btn--sm', icon('info'), 'Confirmación', 'id="winConfirm"') + btn('lk-btn-primary-gold lk-btn--sm', icon('tick'), 'Aceptar', 'id="winOk"');
+    $('#cfActs').innerHTML = btn('lk-btn-secondary-wood lk-btn--sm', sprite('i-close'), 'Cancelar', 'id="cfNo"') + btn('lk-btn-primary-gold lk-btn--sm', icon('tick'), 'Confirmar', 'id="cfYes"');
+    $('#winOk').addEventListener('click', win.close);
+    $('#winConfirm').addEventListener('click', () => $('#cf').classList.add('lk-is-on'));
+    $('#cfNo').addEventListener('click', () => $('#cf').classList.remove('lk-is-on'));
+    $('#cfYes').addEventListener('click', () => { $('#cf').classList.remove('lk-is-on'); toast('Confirmado'); });
+  </script>
+</body>
+</html>

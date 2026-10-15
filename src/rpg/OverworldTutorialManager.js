@@ -24,7 +24,7 @@ export class OverworldTutorialManager {
       TALK_TO_PALADILL: {
         badge: '🥋 STEP 1 OF 5',
         title: 'Talk to Master Paladill',
-        text: 'Follow the golden arrow using <kbd>W A S D</kbd> to Master Paladill <kbd>[-14.5, -8.5]</kbd> and press <kbd>E</kbd> to receive your training.',
+        text: 'Follow the golden arrow using <kbd>W A S D</kbd> to Master Paladill <kbd>[-90.3, 63.3]</kbd> and press <kbd>E</kbd> to receive your training.',
         requiredAction: 'talk_paladill'
       },
       OPEN_QUEST_BOOK: {
@@ -555,7 +555,12 @@ export class OverworldTutorialManager {
     const em = this.om && this.om.equipmentManager;
     const isSwordEquipped = Boolean(
       this.hasEquippedSword ||
-      (em && em.equipped && (em.equipped.kotaro?.weapon === 'wood_sword' || Object.values(em.equipped.kotaro || {}).includes('wood_sword')))
+      (em && em.equipped && (
+        em.equipped.sapidae?.weapon === 'wood_sword' ||
+        em.equipped.kotaro?.weapon === 'wood_sword' ||
+        Object.values(em.equipped.sapidae || {}).includes('wood_sword') ||
+        Object.values(em.equipped.kotaro || {}).includes('wood_sword')
+      ))
     );
 
     if (this.currentStep === 'EQUIP_SWORD' && isSwordEquipped) {

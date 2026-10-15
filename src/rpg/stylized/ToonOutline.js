@@ -86,7 +86,7 @@ const TOON_OUTLINE_FRAGMENT_SHADER = /* glsl */`
  */
 export class ToonOutlineMaterial extends THREE.ShaderMaterial {
   constructor(options = {}) {
-    const thickness = options.thickness ?? 0.022;
+    const thickness = options.thickness ?? 0.012;
     const color = (options.color !== undefined)
       ? new THREE.Color(options.color)
       : new THREE.Color(0x15161e);
@@ -179,7 +179,7 @@ export class ToonOutline {
 
     this.targetRoot = targetRoot;
     this.options = {
-      thickness: 0.022,
+      thickness: 0.012,
       color: 0x15161e,
       alpha: 1.0,
       mode: 'view',
@@ -249,6 +249,14 @@ export class ToonOutline {
       outlineMesh.renderOrder = (sourceMesh.renderOrder || 0) - 1;
       outlineMesh.userData.isOutlineMesh = true;
       outlineMesh.userData.sourceMesh = sourceMesh;
+      outlineMesh.visible = Boolean(sourceMesh.visible);
+
+      // On-demand guard: hide outline if source mesh becomes invisible
+      outlineMesh.onBeforeRender = () => {
+        if (!sourceMesh.visible) {
+          outlineMesh.visible = false;
+        }
+      };
 
       // Add to parent if available, or as child of targetRoot
       if (sourceMesh.parent) {
@@ -260,7 +268,27 @@ export class ToonOutline {
       this.entries.push({ source: sourceMesh, outline: outlineMesh });
     });
 
+    // Auto-sync visibility on targetRoot render
+    const prevBeforeRender = this.targetRoot.onBeforeRender;
+    this.targetRoot.onBeforeRender = (renderer, scene, camera, geometry, material, group) => {
+      this.syncVisibility();
+      if (typeof prevBeforeRender === 'function') {
+        prevBeforeRender(renderer, scene, camera, geometry, material, group);
+      }
+    };
+
     return this;
+  }
+
+  /**
+   * Synchronizes visibility between source meshes and their outline meshes
+   */
+  syncVisibility() {
+    this.entries.forEach(({ source, outline }) => {
+      if (source && outline) {
+        outline.visible = Boolean(source.visible);
+      }
+    });
   }
 
   /**

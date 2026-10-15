@@ -10,7 +10,8 @@ export const LEVELS_CONFIG = {
     biomeName: 'Training Dojo',
     biomeIcon: '🥋',
     heroIds: ['kotaro'],
-    heroPositions: [{ id: 'kotaro', x: 4, z: 3 }],
+    sapidaePosition: { x: 4, z: 3 },
+    heroPositions: [{ id: 'kotaro', x: 3, z: 4 }],
     enemies: [
       {
         id: 'quimera_scout',
@@ -34,7 +35,7 @@ export const LEVELS_CONFIG = {
         maxHP: 95,
         maxPA: 4,
         maxPM: 2,
-        initiative: 45,
+        initiative: 35,
         scale: 1.15,
         spellIds: ['chimera_bite']
       }

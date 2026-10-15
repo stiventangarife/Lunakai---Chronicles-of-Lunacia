@@ -3,6 +3,8 @@ import * as THREE from 'three';
 import { GLTFLoader } from '../../vendor/GLTFLoader.js';
 import { axieMixerService } from '../rpg/AxieMixerService.js';
 import { applyToonOutline } from '../rpg/stylized/ToonOutline.js';
+import { sapidaeModularController } from '../rpg/SapidaeModularController.js';
+
 
 export class Unit {
   constructor(config, gridManager, sceneManager, audio) {
@@ -92,12 +94,8 @@ export class Unit {
         this.baseScale = this.config.scale || 0.88;
         this.group.add(this.mesh);
 
-        // Apply Toon Outline
-        this.toonOutline = applyToonOutline(this.mesh, {
-          thickness: 0.022,
-          color: 0x15161e,
-          mode: 'view'
-        });
+        // Axie Mixer 3D native outline is already tuned to 0.005 in axieMixerService
+        this.toonOutline = null;
 
         if (this.config.initialFacing !== undefined) {
           this.mesh.rotation.y = this.config.initialFacing;
@@ -113,7 +111,7 @@ export class Unit {
     }
 
     const loader = new GLTFLoader();
-    let modelType = this.type;
+    let modelType = this.config.modelType || this.type;
     // Model name alias resolution
     if (modelType === 'axie' || modelType === 'shinji' || !modelType) {
       modelType = (this.id === 'tripp') ? 'tripp' : 'kotaro';
@@ -137,8 +135,14 @@ export class Unit {
     else if (modelType === 'bear_mom') modelType = 'bear-mom';
     else if (modelType === 'bear_dad') modelType = 'bear-dad';
 
+    if (modelType === 'sapidae') {
+      modelType = this.config.modelType || 'sapidae-f-a';
+    }
     let modelPath = './assets/models/' + modelType + '.glb';
-    if (modelType === 'sapidae' || modelType.startsWith('chimera')) {
+    if (modelType.startsWith('sapidae')) {
+      const sapidaeFile = modelType.endsWith('.glb') ? modelType : `${modelType}.glb`;
+      modelPath = './assets/models/' + sapidaeFile;
+    } else if (modelType.startsWith('chimera')) {
       modelPath = './assets/models/dryad-fighter.glb';
     }
 
@@ -149,6 +153,7 @@ export class Unit {
       let scale = this.config.scale;
       if (!scale) {
         if (modelType === 'fox') scale = 0.018;
+        else if (modelType.startsWith('sapidae')) scale = 1.05;
         else if (modelType === 'werewolf-boss') scale = 2.10;
         else if (modelType === 'bear-dad') scale = 2.05;
         else if (modelType === 'bear-mom') scale = 1.85;
@@ -173,6 +178,77 @@ export class Unit {
       this.mesh.scale.set(scale, scale, scale);
       if (this.hudSprite) {
         this.hudSprite.position.y = Math.max(2.3, scale * 1.1 + 0.4);
+      }
+
+      // Apply Sapidae Customization Material Colors & Modular Equipment
+      if (this.isSapidae || (this.config && this.config.isSapidae) || modelType.startsWith('sapidae')) {
+        if (!Unit.toonGradientMap) {
+          const colors = new Uint8Array([ 125, 205, 255 ]);
+          Unit.toonGradientMap = new THREE.DataTexture(colors, 3, 1, THREE.RedFormat);
+          Unit.toonGradientMap.minFilter = THREE.NearestFilter;
+          Unit.toonGradientMap.magFilter = THREE.NearestFilter;
+          Unit.toonGradientMap.generateMipmaps = false;
+          Unit.toonGradientMap.needsUpdate = true;
+        }
+
+        this.mesh.traverse(child => {
+          if (child.isMesh) {
+            if (child.geometry) {
+              if (child.geometry.attributes.color) {
+                child.geometry.deleteAttribute('color');
+              }
+              if (child.geometry.attributes.color_1) {
+                child.geometry.deleteAttribute('color_1');
+              }
+              if (child.geometry.attributes.normal && !child.geometry.userData.origNormals) {
+                child.geometry.userData.origNormals = new Float32Array(child.geometry.attributes.normal.array);
+              }
+              if (child.geometry.attributes.position && !child.geometry.userData.origHornPositions) {
+                child.geometry.userData.origHornPositions = new Float32Array(child.geometry.attributes.position.array);
+              }
+            }
+
+            const name = (child.name || '').toLowerCase();
+            const origMat = Array.isArray(child.material) ? child.material[0] : child.material;
+            if (origMat) {
+              origMat.vertexColors = false;
+
+              if (name.includes('eye') || name.includes('mouth') || name.includes('cheek')) {
+                const decalMat = new THREE.MeshBasicMaterial({
+                  map: origMat.map,
+                  color: origMat.color,
+                  transparent: true,
+                  opacity: 1.0,
+                  depthWrite: false,
+                  polygonOffset: true,
+                  polygonOffsetFactor: -1,
+                  polygonOffsetUnits: -1,
+                  toneMapped: true
+                });
+                decalMat.userData = { ...origMat.userData, origMap: origMat.map };
+                child.material = decalMat;
+              } else {
+                const toonMat = new THREE.MeshToonMaterial({
+                  map: origMat.map,
+                  color: origMat.color,
+                  gradientMap: Unit.toonGradientMap,
+                  transparent: Boolean(origMat.transparent),
+                  alphaTest: origMat.alphaTest || 0,
+                  side: origMat.side || THREE.FrontSide,
+                  toneMapped: true
+                });
+                toonMat.userData = { ...origMat.userData, origMap: origMat.map };
+                child.material = toonMat;
+              }
+            }
+          }
+        });
+
+        const custom = Object.assign({ useOriginalTextures: true }, this.config.customization || {});
+        sapidaeModularController.applyCustomization(this.mesh, custom);
+        if (this.config.equipped) {
+          sapidaeModularController.applyEquipment(this.mesh, this.config.equipped, custom);
+        }
       }
 
       if (this.config.tintColor) {
@@ -206,9 +282,16 @@ export class Unit {
 
       // Apply Inverted Hull Toon Style Outline to GLTF units (squad allies and enemy chimeras)
       this.toonOutline = applyToonOutline(this.mesh, {
-        thickness: 0.022,
+        thickness: 0.012,
         color: 0x15161e,
-        mode: 'view'
+        mode: 'view',
+        filter: (mesh) => {
+          const name = (mesh.name || '').toLowerCase();
+          if (name.includes('eye') || name.includes('mouth') || name.includes('cheek') || name.includes('decal')) {
+            return false;
+          }
+          return true;
+        }
       });
 
       if (gltf.animations && gltf.animations.length > 0) {
@@ -370,7 +453,9 @@ export class Unit {
     ctx.roundRect(barX, barY, barW, barH, 8);
     ctx.fill();
 
-    const hpRatio = Math.max(0, Math.min(1, this.currentHP / this.maxHP));
+    const safeHP = typeof this.currentHP === 'number' && !isNaN(this.currentHP) ? Math.max(0, this.currentHP) : 0;
+    const safeMaxHP = typeof this.maxHP === 'number' && !isNaN(this.maxHP) && this.maxHP > 0 ? this.maxHP : 1;
+    const hpRatio = Math.max(0, Math.min(1, safeHP / safeMaxHP));
     const fillW = barW * hpRatio;
     const grad = ctx.createLinearGradient(barX, barY, barX + barW, barY);
     if (this.team === 'player') {
@@ -386,7 +471,7 @@ export class Unit {
     ctx.fill();
 
     if (this.shield > 0) {
-      const shieldRatio = Math.min(1, this.shield / this.maxHP);
+      const shieldRatio = Math.min(1, this.shield / safeMaxHP);
       const shieldW = barW * shieldRatio;
       ctx.fillStyle = 'rgba(56, 189, 248, 0.45)';
       ctx.beginPath();
@@ -402,7 +487,7 @@ export class Unit {
 
     ctx.fillStyle = '#ffffff';
     ctx.font = 'bold 13px monospace';
-    const hpText = this.shield > 0 ? `${this.currentHP}+${this.shield}🛡️ / ${this.maxHP}` : `${this.currentHP} / ${this.maxHP}`;
+    const hpText = this.shield > 0 ? `${safeHP}+${this.shield}🛡️ / ${safeMaxHP}` : `${safeHP} / ${safeMaxHP}`;
     ctx.fillText(hpText, w / 2, barY + 12);
 
     ctx.font = 'bold 15px system-ui, sans-serif';
@@ -681,7 +766,7 @@ export class Unit {
 
   takeDamage(amount) {
     if (this.isDead) return 0;
-    let actualDamage = amount;
+    let actualDamage = Number(amount) || 0;
 
     if (this.shield > 0) {
       if (this.shield >= actualDamage) {
@@ -693,16 +778,23 @@ export class Unit {
       }
     }
 
-    this.currentHP = Math.max(0, this.currentHP - actualDamage);
+    const cur = typeof this.currentHP === 'number' && !isNaN(this.currentHP) ? this.currentHP : 0;
+    this.currentHP = Math.max(0, cur - actualDamage);
     this.updateHUD();
     this._flashDamage();
 
     if (this.currentHP <= 0) {
+      this.isDead = true;
       const g = window.tacticsGame;
-      const isLastEnemy = this.team === 'enemy' && g && g.units.filter(u => u.team === 'enemy' && !u.isDead && u !== this).length === 0;
-      if (isLastEnemy) {
-        this.dieCinematic(this.sceneManager, this.audio, g.spellManager ? g.spellManager.vfxManager : null);
-      } else {
+      const isLastEnemy = this.team === 'enemy' && g && g.units && g.units.filter(u => u.team === 'enemy' && !u.isDead && u !== this).length === 0;
+      try {
+        if (isLastEnemy) {
+          this.dieCinematic(this.sceneManager, this.audio, g.spellManager ? g.spellManager.vfxManager : null);
+        } else {
+          this.die();
+        }
+      } catch (err) {
+        console.warn(`[Unit] Error executing death sequence for ${this.id}:`, err);
         this.die();
       }
     }
@@ -1035,6 +1127,43 @@ export class Unit {
       } catch (e) {
         console.warn('[Unit] Axie attack anim error:', e);
       }
+    } else if (this.type === 'sapidae' && this.mesh) {
+      // Dynamic martial lunge and casting flourish for humanoid Sapidae
+      const origY = this.mesh.position.y;
+      const origZ = this.mesh.position.z;
+      const origRotX = this.mesh.rotation.x;
+      const startTime = performance.now();
+      const animDuration = 420;
+
+      const strikeAnim = (now) => {
+        const elapsed = now - startTime;
+        const t = Math.min(1, elapsed / animDuration);
+        if (t < 0.32) {
+          const lungeT = t / 0.32;
+          this.mesh.position.z = origZ + Math.sin(lungeT * Math.PI * 0.5) * 0.45;
+          this.mesh.rotation.x = origRotX - Math.sin(lungeT * Math.PI * 0.5) * 0.28;
+        } else {
+          const recoilT = (t - 0.32) / 0.68;
+          this.mesh.position.z = origZ + (1 - recoilT) * 0.45;
+          this.mesh.rotation.x = origRotX - (1 - recoilT) * 0.28;
+        }
+        if (t < 1) {
+          requestAnimationFrame(strikeAnim);
+        } else {
+          this.mesh.position.z = origZ;
+          this.mesh.position.y = origY;
+          this.mesh.rotation.x = origRotX;
+        }
+      };
+      requestAnimationFrame(strikeAnim);
+
+      if (this.runClip) {
+        this.runClip.reset().fadeIn(0.06).play();
+        setTimeout(() => {
+          if (this.idleClip) this.idleClip.reset().fadeIn(0.12).play();
+          if (this.runClip) this.runClip.fadeOut(0.12);
+        }, 340);
+      }
     } else if (this.attackClip) {
       this.attackClip.reset().fadeIn(0.08).play();
       setTimeout(() => {
@@ -1047,6 +1176,9 @@ export class Unit {
   update(dt, time) {
     if (this.mixer) {
       this.mixer.update(dt);
+    }
+    if (this.toonOutline && typeof this.toonOutline.syncVisibility === 'function') {
+      this.toonOutline.syncVisibility();
     }
     if (this.axie && typeof this.axie.update === 'function') {
       this.axie.update(dt);

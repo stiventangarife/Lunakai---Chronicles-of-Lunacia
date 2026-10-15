@@ -1,5 +1,6 @@
 // ZoneTransitionManager.js - Dofus-style edge arrows, directional curtains and zone heraldic banners
 import * as THREE from 'three';
+import { MAP_REGISTRY } from './MapRegistry.js';
 
 export function createQuestBeaconArrow3D(baseHeight = 2.0) {
   const root = new THREE.Group();
@@ -14,50 +15,35 @@ export function createQuestBeaconArrow3D(baseHeight = 2.0) {
   const arrowMat = new THREE.MeshStandardMaterial({
     color: 0xffd700,
     emissive: 0xff9900,
-    emissiveIntensity: 0.75,
-    roughness: 0.25,
-    metalness: 0.5
+    emissiveIntensity: 0.95,
+    roughness: 0.2,
+    metalness: 0.6
   });
 
-  // Downward-pointing cone
-  const coneGeo = new THREE.ConeGeometry(0.34, 0.65, 16);
+  // Downward-pointing cone (arrow tip pointing directly at target)
+  const coneGeo = new THREE.ConeGeometry(0.38, 0.75, 16);
   const cone = new THREE.Mesh(coneGeo, arrowMat);
   cone.rotation.x = Math.PI; // point downwards
-  cone.position.y = 0.32;
+  cone.position.y = 0.38;
   cone.castShadow = true;
   arrowGroup.add(cone);
 
   // Shaft / stem cylinder above cone
-  const stemGeo = new THREE.CylinderGeometry(0.14, 0.14, 0.45, 16);
+  const stemGeo = new THREE.CylinderGeometry(0.14, 0.14, 0.5, 16);
   const stem = new THREE.Mesh(stemGeo, arrowMat);
-  stem.position.y = 0.78;
+  stem.position.y = 0.95;
   stem.castShadow = true;
   arrowGroup.add(stem);
 
   // Warm golden PointLight
-  const arrowLight = new THREE.PointLight(0xffd700, 1.8, 3.8);
-  arrowLight.position.y = 0.78;
+  const arrowLight = new THREE.PointLight(0xffd700, 2.4, 5.0);
+  arrowLight.position.y = 0.85;
   arrowGroup.add(arrowLight);
 
   root.add(arrowGroup);
 
-  // 2. Glowing ground ring marker
-  const ringGeo = new THREE.RingGeometry(0.38, 0.52, 32);
-  ringGeo.rotateX(-Math.PI / 2);
-  const ringMat = new THREE.MeshBasicMaterial({
-    color: 0xffd700,
-    side: THREE.DoubleSide,
-    transparent: true,
-    opacity: 0.85,
-    depthWrite: false
-  });
-  const groundRing = new THREE.Mesh(ringGeo, ringMat);
-  groundRing.position.y = 0.02;
-  root.add(groundRing);
-
   root.userData = {
     arrowGroup,
-    groundRing,
     baseY: baseHeight,
     animTime: 0
   };
@@ -65,24 +51,20 @@ export function createQuestBeaconArrow3D(baseHeight = 2.0) {
   root.updateAnimation = (dt) => {
     root.userData.animTime += dt;
     const t = root.userData.animTime;
-    // Sinusoidal vertical bounce
-    arrowGroup.position.y = root.userData.baseY + Math.sin(t * 3.5) * 0.22;
+    // Sinusoidal vertical bounce in the air
+    arrowGroup.position.y = root.userData.baseY + Math.sin(t * 3.5) * 0.25;
     // Gentle rotation
-    arrowGroup.rotation.y += dt * 1.8;
-    // Ground ring pulse
-    if (groundRing) {
-      const pulse = 1.0 + Math.sin(t * 4.5) * 0.14;
-      groundRing.scale.set(pulse, 1.0, pulse);
-    }
+    arrowGroup.rotation.y += dt * 2.0;
   };
 
   return root;
 }
 
 export class ZoneTransitionManager {
-  constructor(scene, audio) {
+  constructor(scene, audio, overworldManager = null) {
     this.scene = scene;
     this.audio = audio;
+    this.om = overworldManager;
     this.portalsGroup = new THREE.Group();
     this.scene.add(this.portalsGroup);
 
@@ -102,13 +84,31 @@ export class ZoneTransitionManager {
   }
 
   _createDOM() {
-    // 1. Directional Screen Curtain
+    // 1. Directional Screen Curtain & Biome Loading Screen
     let curtain = document.getElementById('zone-transition-curtain');
     if (!curtain) {
       curtain = document.createElement('div');
       curtain.id = 'zone-transition-curtain';
       curtain.className = 'zone-curtain hidden';
       document.body.appendChild(curtain);
+    }
+    if (!curtain.querySelector('.zone-loading-container')) {
+      curtain.innerHTML = `
+        <div class="zone-loading-container">
+          <div class="zone-loading-runic-emblem">
+            <div class="zone-loading-orb"></div>
+            <div class="zone-loading-glow"></div>
+            <div id="zone-loading-icon" class="zone-loading-icon"></div>
+          </div>
+          <div id="zone-loading-badge" class="zone-loading-badge">LUNAKAI</div>
+          <h2 id="zone-loading-title" class="zone-loading-title">Loading Biome...</h2>
+          <div id="zone-loading-subtitle" class="zone-loading-subtitle">Dojo Valley [2, 2]</div>
+          <div class="zone-loading-bar-track">
+            <div class="zone-loading-bar-fill"></div>
+          </div>
+          <div id="zone-loading-hint" class="zone-loading-hint">Preparing 3D environment and textures...</div>
+        </div>
+      `;
     }
     this.curtainEl = curtain;
 
@@ -132,7 +132,7 @@ export class ZoneTransitionManager {
     this.badgeEl = document.getElementById('zone-biome-badge');
     this.titleEl = document.getElementById('zone-name-title');
 
-    // Inject CSS styles for Dofus transitions and banners
+    // Inject CSS styles for Biome loading, Dofus transitions and banners
     if (!document.getElementById('zone-transition-styles')) {
       const style = document.createElement('style');
       style.id = 'zone-transition-styles';
@@ -140,11 +140,17 @@ export class ZoneTransitionManager {
         .zone-curtain {
           position: fixed;
           inset: 0;
-          z-index: 9999;
+          z-index: 99999;
           pointer-events: none;
-          background: #0b0f19;
+          background: radial-gradient(circle at center, #111827 0%, #030712 100%);
+          display: flex;
+          align-items: center;
+          justify-content: center;
           opacity: 0;
-          transition: opacity 0.35s ease-in-out, transform 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+          transition: opacity 0.4s cubic-bezier(0.16, 1, 0.3, 1), transform 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+        .zone-curtain.hidden {
+          display: none !important;
         }
         .zone-curtain.active {
           opacity: 1;
@@ -161,6 +167,117 @@ export class ZoneTransitionManager {
         }
         .zone-curtain.slide-west {
           transform: translateX(-100%);
+        }
+
+        .zone-loading-container {
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          justify-content: center;
+          text-align: center;
+          color: #fff;
+          font-family: 'Inter', system-ui, -apple-system, sans-serif;
+          user-select: none;
+          max-width: 440px;
+          width: 90%;
+          animation: zoneCurtainFloat 2.4s ease-in-out infinite alternate;
+        }
+        @keyframes zoneCurtainFloat {
+          0% { transform: translateY(0px); }
+          100% { transform: translateY(-6px); }
+        }
+        .zone-loading-runic-emblem {
+          position: relative;
+          width: 84px;
+          height: 84px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          margin-bottom: 18px;
+        }
+        .zone-loading-orb {
+          position: absolute;
+          inset: 0;
+          border-radius: 50%;
+          border: 3px solid transparent;
+          border-top-color: #22c55e;
+          border-bottom-color: #38bdf8;
+          will-change: transform;
+          transform: translateZ(0);
+          backface-visibility: hidden;
+          contain: strict;
+          animation: zoneSpinnerRotate 1.0s linear infinite;
+        }
+        @keyframes zoneSpinnerRotate {
+          0% { transform: rotate(0deg) translateZ(0); }
+          100% { transform: rotate(360deg) translateZ(0); }
+        }
+        .zone-loading-glow {
+          position: absolute;
+          inset: -10px;
+          border-radius: 50%;
+          background: radial-gradient(circle, rgba(34, 197, 94, 0.3) 0%, transparent 70%);
+          filter: blur(10px);
+        }
+        .zone-loading-icon {
+          font-size: 38px;
+          z-index: 2;
+          filter: drop-shadow(0 2px 10px rgba(0,0,0,0.6));
+        }
+        .zone-loading-badge {
+          font-size: 11px;
+          font-weight: 800;
+          letter-spacing: 2.5px;
+          text-transform: uppercase;
+          color: #22c55e;
+          margin-bottom: 6px;
+          text-shadow: 0 0 12px rgba(34, 197, 94, 0.4);
+        }
+        .zone-loading-title {
+          font-size: 28px;
+          font-weight: 900;
+          letter-spacing: -0.5px;
+          color: #f8fafc;
+          margin: 0 0 6px 0;
+          text-shadow: 0 4px 16px rgba(0,0,0,0.8);
+        }
+        .zone-loading-subtitle {
+          font-size: 15px;
+          font-weight: 600;
+          color: #94a3b8;
+          margin-bottom: 22px;
+        }
+        .zone-loading-bar-track {
+          width: 240px;
+          height: 6px;
+          background: rgba(255, 255, 255, 0.12);
+          border-radius: 999px;
+          overflow: hidden;
+          position: relative;
+          box-shadow: inset 0 1px 3px rgba(0,0,0,0.5);
+          margin-bottom: 12px;
+        }
+        .zone-loading-bar-fill {
+          position: absolute;
+          inset: 0;
+          width: 50%;
+          background: linear-gradient(90deg, #22c55e, #38bdf8);
+          border-radius: 999px;
+          box-shadow: 0 0 10px rgba(56, 189, 248, 0.6);
+          will-change: transform;
+          transform: translateZ(0);
+          backface-visibility: hidden;
+          animation: zoneLoadingBarSweep 1.5s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+        }
+        @keyframes zoneLoadingBarSweep {
+          0% { transform: translateX(-100%) scaleX(0.7) translateZ(0); }
+          50% { transform: translateX(50%) scaleX(1.1) translateZ(0); }
+          100% { transform: translateX(200%) scaleX(0.7) translateZ(0); }
+        }
+        .zone-loading-hint {
+          font-size: 12px;
+          color: #64748b;
+          letter-spacing: 0.3px;
         }
 
         .zone-discovery-banner {
@@ -219,17 +336,59 @@ export class ZoneTransitionManager {
     }
   }
 
+  showLoading(zoneTitle = 'Dojo Valley [2, 2]', hint = 'Preparing 3D environment and textures...') {
+    if (!this.curtainEl) return;
+    const badgeEl = document.getElementById('zone-loading-badge');
+    const titleEl = document.getElementById('zone-loading-title');
+    const subtitleEl = document.getElementById('zone-loading-subtitle');
+    const iconEl = document.getElementById('zone-loading-icon');
+    const hintEl = document.getElementById('zone-loading-hint');
+
+    if (badgeEl) badgeEl.textContent = 'LUNAKAI';
+    if (titleEl) titleEl.textContent = 'Loading Biome...';
+    if (subtitleEl) subtitleEl.textContent = zoneTitle;
+    if (iconEl) iconEl.textContent = '';
+    if (hintEl) hintEl.textContent = hint;
+
+    this.curtainEl.classList.remove('hidden');
+    this.curtainEl.classList.add('active');
+  }
+
+  hideLoading(delayMs = 500) {
+    return new Promise((resolve) => {
+      if (!this.curtainEl) {
+        resolve();
+        return;
+      }
+      this.curtainEl.classList.remove('active');
+      setTimeout(() => {
+        this.curtainEl.classList.add('hidden');
+        resolve();
+      }, delayMs);
+    });
+  }
+
   setPortals(portalsMap) {
     this.rawPortalsMap = portalsMap;
     // Cooldown prevents immediate re-trigger upon spawning
     this.teleportCooldown = 2.0;
 
-    // Clear previous visual markers
+    // Clear previous visual markers with deep disposal of meshes, geometries and materials
     while (this.portalsGroup.children.length > 0) {
       const obj = this.portalsGroup.children[0];
       this.portalsGroup.remove(obj);
-      if (obj.geometry) obj.geometry.dispose();
-      if (obj.material) obj.material.dispose();
+      obj.traverse((child) => {
+        if (child.isMesh) {
+          if (child.geometry) child.geometry.dispose();
+          if (child.material) {
+            if (Array.isArray(child.material)) {
+              child.material.forEach((m) => m && m.dispose && m.dispose());
+            } else if (child.material.dispose) {
+              child.material.dispose();
+            }
+          }
+        }
+      });
     }
 
     this.activePortals = Object.values(portalsMap || {});
@@ -243,7 +402,16 @@ export class ZoneTransitionManager {
     // Create 3D Dofus-style edge markers on ground
     this.activePortals.forEach((portal) => {
       const pGroup = new THREE.Group();
-      pGroup.position.set(portal.position.x, 0.05, portal.position.z);
+      let groundY = portal.position.y || 0.0;
+      if (this.om) {
+        if (typeof this.om.getGroundHeight === 'function') {
+          groundY = this.om.getGroundHeight(portal.position.x, portal.position.z);
+        } else if (this.om.demoScenaZone && this.om.demoScenaZone.isActive && typeof this.om.demoScenaZone.getHeight === 'function') {
+          groundY = this.om.demoScenaZone.getHeight(portal.position.x, portal.position.z);
+        }
+      }
+      portal.calculatedY = groundY;
+      pGroup.position.set(portal.position.x, groundY + 0.05, portal.position.z);
 
       // 1. Pulsing Outer Ring
       const ringGeo = new THREE.RingGeometry(1.2, 1.6, 32);
@@ -368,8 +536,10 @@ export class ZoneTransitionManager {
       const dx = playerPosition.x - portal.position.x;
       const dz = playerPosition.z - portal.position.z;
       const dist = Math.sqrt(dx * dx + dz * dz);
+      const targetY = (portal.calculatedY !== undefined) ? portal.calculatedY : (portal.position.y || 0);
+      const dy = Math.abs(playerPosition.y - targetY);
 
-      if (dist <= portal.triggerRadius) {
+      if (dist <= portal.triggerRadius && dy <= 3.5) {
         if (this.portalsLocked) {
           standingOnLocked = true;
           if (!this.isStandingOnLockedPortal) {
@@ -403,6 +573,7 @@ export class ZoneTransitionManager {
   async _triggerTransition(portal) {
     if (this.isTransitioning) return;
     this.isTransitioning = true;
+    if (this.om) this.om.isLoadingZone = true;
 
     console.log(`[ZoneTransitionManager] Teleport triggered: ${portal.direction} -> ${portal.targetMap}`);
 
@@ -414,29 +585,38 @@ export class ZoneTransitionManager {
       this.audio.playSfx('menu_confirm');
     }
 
-    // 1. Play directional slide/curtain in
-    this.curtainEl.classList.remove('hidden');
-    this.curtainEl.classList.add('active');
+    const targetDef = MAP_REGISTRY[portal.targetMap];
+    const targetName = targetDef?.name || portal.label || 'New Biome';
 
-    await new Promise((r) => setTimeout(r, 380));
+    // 1. Show loading screen with "Loading Biome..."
+    this.showLoading(targetName, 'Synchronizing 3D meshes and textures...');
+
+    // Wait until the curtain has fully covered the viewport before starting heavy map rebuilding
+    await new Promise((r) => setTimeout(r, 450));
+    await new Promise((r) => requestAnimationFrame(r));
 
     // 2. Perform map change callback
     if (this.onPortalTrigger) {
       await this.onPortalTrigger(portal);
     }
 
-    await new Promise((r) => setTimeout(r, 120));
+    // 3. Wait until the first useful frame of the new zone is rendered by Three.js
+    if (this.om && typeof this.om.waitForNextRenderFrame === 'function') {
+      await this.om.waitForNextRenderFrame(2);
+    } else {
+      await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+    }
 
-    // 3. Fade out curtain
-    this.curtainEl.classList.remove('active');
-    setTimeout(() => {
-      this.curtainEl.classList.add('hidden');
-      this.isTransitioning = false;
-      this.teleportCooldown = 2.0;
-      if (this.onTransitionEnd) {
-        this.onTransitionEnd(portal);
-      }
-    }, 380);
+    // 4. Smooth fade out of the loading curtain (CSS opacity transition)
+    await this.hideLoading(500);
+
+    // 5. Hand control back to the player and release teleport cooldown
+    if (this.om) this.om.isLoadingZone = false;
+    this.isTransitioning = false;
+    this.teleportCooldown = 2.0;
+    if (this.onTransitionEnd) {
+      this.onTransitionEnd(portal);
+    }
   }
 
   showZoneBanner(zoneName, biomeBadge) {

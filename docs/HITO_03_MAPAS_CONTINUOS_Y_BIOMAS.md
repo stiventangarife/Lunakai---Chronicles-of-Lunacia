@@ -1,5 +1,9 @@
 # Hito 3: Macro-Cuadrícula de Lunacia, 5 Biomas y Estructura 2x2 Estilo Dofus
 
+> [!IMPORTANT]
+> **Estado actual (13-oct-2026):** la cuadrícula de macro-zonas y los **portales cardinales con flechas están retirados**. El mundo son 5 grandes islas y se viaja entre ellas hablando con el barquero Pomodoro en la playa de cada isla (`ui/FerryTravelUI.js`). Las 4 zonas de esquina de la cuadrícula 3×3 (`1_1`, `3_1`, `1_3`, `3_3`) se fusionaron en su isla vecina (`world/islands/IslandWorldLayout.js`). Ver la sección 6 del Hito 23.
+
+
 ## 1. Visión General
 El tercer hito del proyecto consolidó la escala del Overworld de **Axie Tactics**, implementando la macro-cuadrícula global interconectada mediante el sistema cardinal de **Dofus**. Cada macro-zona se estructura internamente en cuadrantes de **2x2**, abarcando **5 biomas principales** (incorporando el **Bioma de Mazmorra en rojo**) y dotando al jugador de un **Mapa del Mundo Interactivo (Tecla [M])** en tiempo real.
 
