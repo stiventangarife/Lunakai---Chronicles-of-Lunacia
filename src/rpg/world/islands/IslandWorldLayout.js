@@ -16,7 +16,7 @@ export const MERGED_ZONES = {
   '1_1': '2_1', // Valle de la Escarcha Eterna → Isla del Ártico
   '3_1': '3_2', // Yermos Áridos → Isla de la Sabana
   '1_3': '1_2', // Santuario del Vacío Astral → Isla Mística
-  '3_3': '2_3'  // Catacumbas de la Cripta → Isla de la Mazmorra
+  '3_3': '2_3'  // Santuario del Origen → Isla Genesis
 };
 
 /** '1_1' → '2_1'; island keys are returned unchanged. */
@@ -40,9 +40,9 @@ export function mergedZonesOf(islandKey) {
 /** NPCs of the retired zones, relocated to a validated spot on their host island. */
 export const MERGED_NPC_POSITIONS = {
   hermit: { x: -39.2, z: -70.4, rotation: -0.98 },     // Ártico · cabaña junto al Valle de la Escarcha Eterna
-  oracle: { x: 34.0, z: -36.0, rotation: -2.3 },       // Mística · Observatorio del Oráculo
+  oracle: { x: 3.5, z: -45.5, rotation: -0.22 },      // Mística · al pie del Árbol Arcano
   shaman: { x: -40.0, z: 40.0, rotation: 2.4 },        // Mística · orilla del pantano luminoso
-  atia_spirit: { x: 0.0, z: -13.0, rotation: 0 }       // Mazmorra · puerta de la Cripta Lunar
+  atia_spirit: { x: 0.0, z: 92.0, rotation: Math.PI }  // Genesis · centro del Santuario del Origen
 };
 
 /** Island display names used by the ferry and the quest compass. */
@@ -51,7 +51,7 @@ export const ISLAND_NAMES = {
   '3_2': 'Isla de la Sabana',
   '2_1': 'Isla del Ártico',
   '1_2': 'Isla Mística',
-  '2_3': 'Isla de la Mazmorra'
+  '2_3': 'Isla Genesis'
 };
 
 /** Island key → ISLANDS_REGISTRY id. */
@@ -127,7 +127,7 @@ export const ISLAND_MONSTER_LAYOUT = {
   },
   '2_3': {
     packs: [{ x: -96, z: 0 }, { x: 72, z: -24 }, { x: -40, z: 48 }, { x: 48, z: 88 }],
-    merged: { logicalZone: '3_3', biome: 'dungeon', anchor: { x: 0, z: 104 }, forcedLeader: 'werewolf_boss' }
+    merged: { logicalZone: '3_3', biome: 'dungeon', anchor: { x: 14, z: 50 }, forcedLeader: 'werewolf_boss' }
   }
 };
 

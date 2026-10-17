@@ -1,4 +1,4 @@
-// DialogSystem.js - Rich RPG Dialogue Manager with Typewriter, Dynamic Replacements & Real NPC 3D Portraits
+// DialogSystem.js — Conversación con NPC (Crónica Celeste, etapa 2): máquina de escribir, respuestas numeradas, Auto y Registro
 import { portraitService } from '../tactics/CharacterPortraitService.js';
 
 export const NPC_PORTRAIT_MAP = {
@@ -148,6 +148,23 @@ export const NPC_PORTRAIT_MAP = {
   'sapidae-f-e': './assets/portraits/sapidae-f-e.png'
 };
 
+const ICON_DIR = new URL('../../assets/ui/icons/', import.meta.url).href;
+const DEFAULT_PORTRAIT = './assets/portraits/paladill.png';
+const FRAGMENT_SVG = '<svg viewBox="0 0 24 24"><path d="M12 2l5 10-5 10-5-10z" fill="#EED39A"/></svg>';
+const AUTO_KEY = 'axie_lk_dialog_auto';
+
+const escapeHTML = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
+/**
+ * Diálogo con NPC — pantalla 21 del sistema de diseño ("Conversación con NPC"), clases lk-.
+ *
+ * Nodo de diálogo: { speaker, title, avatar, npcId, text | html, onEnter, cls, choices }
+ *   - text: texto plano (se escapa). html: permite <span class="lk-kw"> y <span class="lk-place">.
+ *   - choices: [{ text, sub, cost, locked, leave, onSelect(choice), reply: nodo | [nodos] }]
+ *     Se eligen con clic o con las teclas 1–9. Una opción bloqueada explica su motivo en `sub`.
+ * API pública sin cambios: startDialogue(list, onComplete), advance(), forceNext(), close(), forceClose(cb),
+ * setHeroContext(hero), isActive, typingSpeed.
+ */
 export class DialogSystem {
   constructor(audioSystem) {
     this.audio = audioSystem;
@@ -157,11 +174,15 @@ export class DialogSystem {
     this.currentText = '';
     this.typedLength = 0;
     this.isTyping = false;
-    this.typingSpeed = 22; // ms per character
+    this.typingSpeed = 22; // ms por carácter (Opciones › Accesibilidad › Velocidad del texto)
     this.typingTimer = null;
     this.activeHero = { name: 'Shinji', heroClass: 'Melee Duelist' };
-
     this.onCompleteCallback = null;
+
+    this.choicesOpen = false;
+    this.log = [];
+    try { this.auto = localStorage.getItem(AUTO_KEY) === '1'; } catch { this.auto = false; }
+    this.autoTimer = null;
 
     this._createDOM();
     this._initInput();
@@ -177,75 +198,111 @@ export class DialogSystem {
   }
 
   _createDOM() {
-    let container = document.getElementById('dialog-box-overlay');
-    if (!container) {
-      container = document.createElement('div');
-      container.id = 'dialog-box-overlay';
-      container.className = 'dialog-overlay hidden';
-      container.innerHTML = `
-        <div class="dialog-window">
-          <div class="dialog-avatar-frame">
-            <div id="dialog-avatar" class="dialog-avatar">
-              <img src="./assets/portraits/paladill.png" class="dialog-avatar-img" alt="Avatar" />
-            </div>
-            <span id="dialog-speaker-title" class="dialog-speaker-title">Dojo Mentor</span>
-          </div>
-          <div class="dialog-body">
-            <div class="dialog-header">
-              <h3 id="dialog-speaker-name" class="dialog-speaker-name">Master Paladill</h3>
-              <div class="dialog-rune-accent">✦ ✦ ✦</div>
-            </div>
-            <p id="dialog-text" class="dialog-text"></p>
-            <div class="dialog-footer">
-              <span class="dialog-prompt">Press <kbd>[Space]</kbd> to continue ➔</span>
-            </div>
+    document.getElementById('dialog-box-overlay')?.remove();
+    const container = document.createElement('div');
+    container.id = 'dialog-box-overlay';
+    container.className = 'lk-ui lk-dlg-layer hidden';
+    container.innerHTML = `
+      <div class="lk-dlg__log" data-ref="log" hidden></div>
+      <div class="lk-dlg__choices" data-ref="choices" hidden role="listbox" aria-label="Respuestas"></div>
+      <div class="lk-dlg">
+        <div class="lk-dlg__por">
+          <span class="lk-frame"><span class="lk-med" data-ref="med" style="--cc:var(--lk-gilt-300)"><img src="${DEFAULT_PORTRAIT}" alt=""></span></span>
+          <span class="lk-role"><img src="${ICON_DIR}chat.png" alt="" data-ref="roleIcon"><span data-ref="role">Maestro</span></span>
+        </div>
+        <div class="lk-dlg__box" data-ref="box" role="log" aria-live="polite">
+          <div class="lk-dlg__name"><b data-ref="name">Maestro Paladill</b><i></i></div>
+          <div class="lk-dlg__text" data-ref="text"></div>
+          <div class="lk-dlg__foot">
+            <span class="lk-dlg__pips" data-ref="pips"></span>
+            <button class="lk-dlg__tool" data-ref="auto" aria-pressed="false">Auto</button>
+            <button class="lk-dlg__tool" data-ref="logBtn" aria-pressed="false"><img src="${ICON_DIR}list.png" alt="" style="width:16px;height:16px">Registro</button>
+            <span class="lk-dlg__next" data-ref="next"><kbd>Espacio</kbd><span data-ref="nextTxt">Continuar</span><svg class="lk-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg></span>
           </div>
         </div>
-      `;
-      document.body.appendChild(container);
-    }
+      </div>`;
+    document.body.appendChild(container);
     this.container = container;
-    this.container.addEventListener('wheel', (e) => {
-      e.stopPropagation();
-    }, { passive: true });
-    this.avatarEl = document.getElementById('dialog-avatar');
-    this.speakerTitleEl = document.getElementById('dialog-speaker-title');
-    this.speakerNameEl = document.getElementById('dialog-speaker-name');
-    this.textEl = document.getElementById('dialog-text');
+    const ref = (n) => container.querySelector(`[data-ref="${n}"]`);
+    this.dlgEl = container.querySelector('.lk-dlg');
+    this.avatarEl = ref('med');
+    this.speakerTitleEl = ref('role');
+    this.roleIconEl = ref('roleIcon');
+    this.speakerNameEl = ref('name');
+    this.textEl = ref('text');
+    this.boxEl = ref('box');
+    this.pipsEl = ref('pips');
+    this.nextEl = ref('next');
+    this.nextTxtEl = ref('nextTxt');
+    this.choicesEl = ref('choices');
+    this.logEl = ref('log');
+    this.autoBtn = ref('auto');
+    this.logBtn = ref('logBtn');
+    this.autoBtn.setAttribute('aria-pressed', String(this.auto));
+    container.addEventListener('wheel', (e) => e.stopPropagation(), { passive: true });
   }
 
   _initInput() {
     window.addEventListener('keydown', (e) => {
       if (!this.isActive) return;
       if (['INPUT', 'TEXTAREA'].includes(document.activeElement?.tagName) || ['INPUT', 'TEXTAREA'].includes(e.target?.tagName) || e.target?.isContentEditable) return;
+      // Ignorar mientras el menú de opciones está abierto encima
+      if (document.querySelector('#settings-modal.lk-is-open')) return;
+
+      if (this.choicesOpen) {
+        const n = parseInt(e.key, 10);
+        if (n >= 1 && n <= 9) { e.preventDefault(); this._pick(n - 1); return; }
+        // Enter/Espacio sobre una opción con foco: lo resuelve el propio botón
+        return;
+      }
+      if (e.target?.closest && e.target.closest('.lk-dlg__tool')) return;
       if (e.code === 'Space' || e.code === 'Enter') {
         e.preventDefault();
         this.advance();
       }
     });
 
-    if (this.container) {
-      this.container.addEventListener('click', () => {
-        if (this.isActive) {
-          this.advance();
-        }
-      });
-    }
+    this.boxEl.addEventListener('click', (e) => {
+      if (e.target.closest('.lk-dlg__tool')) return;
+      if (this.isActive) this.advance();
+    });
+    this.autoBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      this.auto = !this.auto;
+      this.autoBtn.setAttribute('aria-pressed', String(this.auto));
+      try { localStorage.setItem(AUTO_KEY, this.auto ? '1' : '0'); } catch { /* sin almacenamiento */ }
+      clearTimeout(this.autoTimer);
+      if (this.auto && !this.isTyping) this._scheduleAuto(900);
+    });
+    this.logBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const show = this.logEl.hidden;
+      this.logEl.hidden = !show;
+      this.logBtn.setAttribute('aria-pressed', String(show));
+      if (show) this._renderLog();
+    });
   }
 
   /**
    * Starts a sequence of dialogue nodes.
-   * @param {Array<Object>} dialogueList - Array of { speaker, title, avatar, text, onEnter }
-   * @param {Function} onComplete 
+   * @param {Array<Object>} dialogueList - Array of { speaker, title, avatar, text, onEnter, choices }
+   * @param {Function} onComplete
    */
   startDialogue(dialogueList, onComplete = null) {
     if (!dialogueList || dialogueList.length === 0) return;
-    this.currentDialogueQueue = dialogueList;
+    this.currentDialogueQueue = [...dialogueList];
     this.currentIndex = 0;
     this.onCompleteCallback = onComplete;
     this.isActive = true;
+    this.log = [];
+    this._hideChoices();
+    this.logEl.hidden = true;
+    this.logBtn.setAttribute('aria-pressed', 'false');
 
     this.container.classList.remove('hidden');
+    this.dlgEl.classList.add('lk-is-closed');
+    void this.dlgEl.offsetWidth;
+    this.dlgEl.classList.remove('lk-is-closed');
     this._showCurrentNode();
   }
 
@@ -253,6 +310,11 @@ export class DialogSystem {
     return rawText
       .replace(/{heroName}/g, this.activeHero.name)
       .replace(/{heroClass}/g, this.activeHero.heroClass);
+  }
+
+  _nodeHTML(node) {
+    if (node.html) return this._formatText(node.html);
+    return escapeHTML(this._formatText(node.text || ''));
   }
 
   _showCurrentNode() {
@@ -266,48 +328,77 @@ export class DialogSystem {
       node.onEnter();
     }
 
-    this.speakerNameEl.textContent = node.speaker || 'Guardian of Lunacia';
-    this.speakerTitleEl.textContent = node.title || 'Master';
+    this.speakerNameEl.textContent = node.speaker || 'Guardián de Lunacia';
+    this.speakerTitleEl.textContent = node.title || 'Maestro';
+    this.roleIconEl.src = `${ICON_DIR}${node.roleIcon || 'chat'}.png`;
+    this.avatarEl.style.setProperty('--cc', node.cls ? `var(--lk-class-${node.cls})` : 'var(--lk-gilt-300)');
     this._renderAvatar(node);
+    this._renderPips();
 
-    this.currentText = this._formatText(node.text || '');
-    this.typedLength = 0;
-    this.textEl.textContent = '';
-    this.isTyping = true;
-
-    if (this.typingTimer) clearInterval(this.typingTimer);
+    const html = this._nodeHTML(node);
+    this.log.push({ who: node.speaker || '', html });
+    if (!this.logEl.hidden) this._renderLog();
+    this._type(html);
 
     if (this.audio && typeof this.audio.playHover === 'function') {
       this.audio.playHover();
     }
+  }
 
+  _type(html) {
+    clearInterval(this.typingTimer);
+    clearTimeout(this.autoTimer);
+    this.currentText = html;
+    this.isTyping = true;
+    this.nextEl.classList.add('lk-is-typing');
+    this.nextTxtEl.textContent = 'Completar';
+    // Las etiquetas HTML se escriben de golpe; el texto, carácter a carácter
+    const tokens = html.match(/<[^>]+>|&[a-z#0-9]+;|[\s\S]/gi) || [];
+    let k = 0, out = '';
+    this.typedLength = 0;
+    this.textEl.innerHTML = '<span class="lk-caret"></span>';
+    if (!tokens.length) { this._finishTyping(); return; }
     this.typingTimer = setInterval(() => {
-      if (this.typedLength < this.currentText.length) {
-        this.typedLength++;
-        this.textEl.textContent = this.currentText.substring(0, this.typedLength);
-        // Soft audio click every 4 chars
-        if (this.typedLength % 3 === 0 && this.audio && typeof this.audio.playTileSelect === 'function') {
-          // Keep it very soft
-        }
-      } else {
-        this.isTyping = false;
-        clearInterval(this.typingTimer);
-        this.typingTimer = null;
-      }
-    }, this.typingSpeed);
+      if (k >= tokens.length) { this._finishTyping(); return; }
+      let tk = tokens[k++]; out += tk;
+      while (tk.startsWith('<') && k < tokens.length) { tk = tokens[k++]; out += tk; }
+      this.typedLength = k;
+      this.textEl.innerHTML = `${out}<span class="lk-caret"></span>`;
+    }, Math.max(1, this.typingSpeed));
+  }
+
+  _finishTyping() {
+    clearInterval(this.typingTimer);
+    this.typingTimer = null;
+    this.isTyping = false;
+    this.textEl.innerHTML = this.currentText;
+    this.nextEl.classList.remove('lk-is-typing');
+    const node = this.currentDialogueQueue[this.currentIndex];
+    if (node && Array.isArray(node.choices) && node.choices.length) {
+      this.nextTxtEl.textContent = 'Elige una respuesta';
+      this._showChoices(node.choices);
+      return;
+    }
+    const last = this.currentIndex >= this.currentDialogueQueue.length - 1;
+    this.nextTxtEl.textContent = last ? 'Cerrar' : 'Continuar';
+    if (this.auto) this._scheduleAuto(1600);
+  }
+
+  _scheduleAuto(ms) {
+    clearTimeout(this.autoTimer);
+    this.autoTimer = setTimeout(() => { if (this.isActive && this.auto && !this.choicesOpen) this.advance(); }, ms);
   }
 
   advance() {
     if (!this.isActive) return;
+    clearTimeout(this.autoTimer);
 
     if (this.isTyping) {
-      // Instantly finish current line
-      if (this.typingTimer) clearInterval(this.typingTimer);
-      this.typingTimer = null;
-      this.textEl.textContent = this.currentText;
-      this.isTyping = false;
+      // Primer toque: completa la línea
+      this._finishTyping();
       return;
     }
+    if (this.choicesOpen) return;
 
     if (this.audio && typeof this.audio.playTileSelect === 'function') {
       this.audio.playTileSelect();
@@ -322,13 +413,73 @@ export class DialogSystem {
   }
 
   forceNext() {
-    if (this.isTyping) {
-      if (this.typingTimer) clearInterval(this.typingTimer);
-      this.typingTimer = null;
-      this.textEl.textContent = this.currentText;
-      this.isTyping = false;
-    }
+    if (this.isTyping) this._finishTyping();
+    if (this.choicesOpen) return;
     this.advance();
+  }
+
+  // ------------------------------------------------------------ respuestas
+  _showChoices(choices) {
+    this.choicesOpen = true;
+    const box = this.choicesEl;
+    box.hidden = false;
+    box.innerHTML = choices.map((c, n) => `<button class="lk-choice ${c.locked ? 'lk-is-locked' : ''} ${c.leave ? 'lk-is-leave' : ''}" role="option" data-n="${n}" ${c.locked ? 'aria-disabled="true"' : ''}>`
+      + `<kbd>${n + 1}</kbd><span>${escapeHTML(c.text)}${c.sub ? `<small>${escapeHTML(c.sub)}</small>` : ''}</span>`
+      + `${c.cost ? `<span class="lk-cost">${FRAGMENT_SVG}${escapeHTML(c.cost)}</span>` : ''}</button>`).join('');
+    box.querySelectorAll('.lk-choice').forEach((b) => b.addEventListener('click', (e) => { e.stopPropagation(); this._pick(+b.dataset.n); }));
+    setTimeout(() => box.querySelector('.lk-choice:not(.lk-is-locked)')?.focus({ preventScroll: true }), 50);
+  }
+
+  _hideChoices() {
+    this.choicesOpen = false;
+    this.choicesEl.hidden = true;
+    this.choicesEl.innerHTML = '';
+  }
+
+  _pick(n) {
+    const node = this.currentDialogueQueue[this.currentIndex];
+    const c = node?.choices?.[n];
+    if (!c || !this.choicesOpen) return;
+    if (c.locked) {
+      if (this.audio && typeof this.audio.playCollision === 'function') this.audio.playCollision();
+      this._flashLocked(n);
+      return;
+    }
+    if (this.audio && typeof this.audio.playTileSelect === 'function') this.audio.playTileSelect();
+    this._hideChoices();
+    this.log.push({ who: this.activeHero.name, html: escapeHTML(c.text), me: true });
+    if (typeof c.onSelect === 'function') c.onSelect(c);
+    if (!this.isActive) return; // onSelect pudo cerrar el diálogo
+    const reply = c.reply ? (Array.isArray(c.reply) ? c.reply : [c.reply]) : [];
+    if (reply.length) this.currentDialogueQueue.splice(this.currentIndex + 1, 0, ...reply);
+    if (c.leave && !reply.length) { this.close(); return; }
+    this.currentIndex++;
+    if (this.currentIndex < this.currentDialogueQueue.length) this._showCurrentNode();
+    else this.close();
+  }
+
+  _flashLocked(n) {
+    const b = this.choicesEl.querySelector(`.lk-choice[data-n="${n}"]`);
+    if (!b || !b.animate) return;
+    b.animate([{ transform: 'translateX(0)' }, { transform: 'translateX(-6px)' }, { transform: 'translateX(6px)' }, { transform: 'translateX(0)' }], { duration: 260 });
+  }
+
+  // ------------------------------------------------------------ pips y registro
+  _renderPips() {
+    const total = this.currentDialogueQueue.length;
+    if (total <= 1) { this.pipsEl.innerHTML = ''; return; }
+    this.pipsEl.innerHTML = this.currentDialogueQueue.map((_, k) => `<i class="${k <= this.currentIndex ? 'lk-on' : ''}"></i>`).join('');
+  }
+
+  _renderLog() {
+    this.logEl.innerHTML = '<span class="lk-label" style="color:var(--lk-gilt-300)">Registro de la conversación</span>'
+      + this.log.map((l) => `<div class="lk-ln ${l.me ? 'lk-me' : ''}"><b>${escapeHTML(l.who)}</b>${l.html}</div>`).join('');
+    this.logEl.scrollTop = this.logEl.scrollHeight;
+  }
+
+  // ------------------------------------------------------------ retrato
+  _setAvatarImg(src, alt) {
+    this.avatarEl.innerHTML = `<img src="${src}" alt="${escapeHTML(alt || 'Retrato')}">`;
   }
 
   _renderAvatar(node) {
@@ -352,10 +503,9 @@ export class DialogSystem {
 
     // Default to Master Paladill if still not found
     if (!avatarSource) {
-      avatarSource = './assets/portraits/paladill.png';
+      avatarSource = DEFAULT_PORTRAIT;
     }
 
-    // Direct image path / URL (e.g. .png, .webp, .svg, data:image)
     const isPath = typeof avatarSource === 'string' && (
       avatarSource.startsWith('./') ||
       avatarSource.startsWith('/') ||
@@ -366,34 +516,24 @@ export class DialogSystem {
     );
 
     if (isPath) {
-      this.avatarEl.innerHTML = `<img src="${avatarSource}" class="dialog-avatar-img" alt="${node.speaker || 'Avatar'}" />`;
+      this._setAvatarImg(avatarSource, node.speaker);
       return;
     }
 
-    // If it maps to a known ID in portrait service or synchronous portrait
     const syncUrl = portraitService.getPortraitSync(avatarSource);
     if (syncUrl) {
-      this.avatarEl.innerHTML = `<img src="${syncUrl}" class="dialog-avatar-img" alt="${node.speaker || 'Avatar'}" />`;
+      this._setAvatarImg(syncUrl, node.speaker);
       return;
     }
 
-    // Dynamic asynchronous loading via portraitService
+    // Carga asíncrona del retrato 3D
     const targetKey = avatarSource;
-    this.avatarEl.innerHTML = `<div class="dialog-avatar-loading">✨</div>`;
-
-    portraitService.getPortrait(targetKey).then(url => {
-      if (url && this.isActive && this.avatarEl) {
-        this.avatarEl.innerHTML = `<img src="${url}" class="dialog-avatar-img" alt="${node.speaker || 'Avatar'}" />`;
-      }
-    }).catch(err => {
+    this.avatarEl.innerHTML = '';
+    portraitService.getPortrait(targetKey).then((url) => {
+      if (url && this.isActive && this.avatarEl) this._setAvatarImg(url, node.speaker);
+    }).catch((err) => {
       console.warn('[DialogSystem] Portrait fallback for', targetKey, err);
-      if (this.avatarEl) {
-        if (node.avatar && isEmoji) {
-          this.avatarEl.textContent = node.avatar;
-        } else {
-          this.avatarEl.innerHTML = `<img src="./assets/portraits/paladill.png" class="dialog-avatar-img" alt="Avatar" />`;
-        }
-      }
+      if (this.avatarEl) this._setAvatarImg(DEFAULT_PORTRAIT, node.speaker);
     });
   }
 
@@ -404,15 +544,15 @@ export class DialogSystem {
 
   forceClose(triggerCallback = false) {
     this.isActive = false;
-    if (this.typingTimer) {
-      clearInterval(this.typingTimer);
-      this.typingTimer = null;
-    }
+    clearInterval(this.typingTimer);
+    this.typingTimer = null;
+    this.isTyping = false;
+    clearTimeout(this.autoTimer);
+    this._hideChoices();
+    if (this.logEl) this.logEl.hidden = true;
     if (this.container) {
       this.container.classList.add('hidden');
     }
-    const dialogBox = document.getElementById('dialog-box-overlay');
-    if (dialogBox) dialogBox.classList.add('hidden');
 
     const cb = this.onCompleteCallback;
     this.onCompleteCallback = null;

@@ -1,5 +1,7 @@
 # Hito 09: Corredor Fluvial Continuo, Lagos Glaciares y Abismo Volcánico
 
+> **Actualización (16-oct-2026):** el bioma Mazmorra se rediseñó y ahora es **✨ Genesis** (Jardines Reales del Origen). Ver el Hito 24.
+
 > [!IMPORTANT]
 > **Estado actual (13-oct-2026):** `StylizedRiver` y los lagos o estanques de 80 m **ya no se construyen**. El río actual del Bosque es el de `demo_scena` con el shader `GenshinWater` (Hito 22). Los ríos y lagos de las demás islas son `IslandWaterBody`: agua, hielo y lava (Hito 23).
 

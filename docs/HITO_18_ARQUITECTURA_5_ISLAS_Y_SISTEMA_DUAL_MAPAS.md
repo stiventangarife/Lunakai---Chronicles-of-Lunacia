@@ -2,6 +2,7 @@
 
 > [!IMPORTANT]
 > **Estado actual (13-oct-2026):** las 5 islas ya están construidas (Hitos 20, 22 y 23). Además del botón “⛵ Viajar a …” del mapa `[M]`, ahora se viaja hablando con el barquero Pomodoro en la playa de cada isla (sección 6). Los portales cardinales se retiraron.
+> **Hito 24 (16-oct-2026):** la Isla de la Mazmorra se rediseñó y ahora es **✨ Isla Genesis**, con los puntos de interés Puerta del Santuario, Jardín Real y Santuario del Origen. El Observatorio del Oráculo de la Mística se llama ahora **Observatorio Astral**.
 
 
 > **Fecha de implementación:** Octubre 2026  
@@ -100,7 +101,7 @@ Se diseñó una ventana modal accesible mediante la tecla `[M]` con dos modos de
   | 🏜️ Sabana | (−133, 42), al pie de la rampa A | (−126, 42) |
   | ❄️ Ártico | (14.3, 136.2) | (5, 120) |
   | 🔮 Mística | (136, 14) | (128, 8) |
-  | 🌋 Mazmorra | (136, 18) | (130, 22) |
+  | ✨ Genesis | (136, 18) | (130, 22) |
 
 * **Selector (`ui/FerryTravelUI.js`):**
   * lista las 5 islas y marca la actual (“📍 Estás aquí”);

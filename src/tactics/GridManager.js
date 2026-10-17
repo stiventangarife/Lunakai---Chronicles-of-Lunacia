@@ -370,6 +370,27 @@ export class GridManager {
     tile.obstacleMesh = mesh;
   }
 
+  /** Quita el obstáculo de una casilla (invocaciones temporales que caducan). */
+  removeObstacle(gx, gz) {
+    if (!this.isValidCoord(gx, gz)) return;
+    const tile = this.tiles[gx][gz];
+    if (tile.obstacleMesh) {
+      this.obstacleGroup.remove(tile.obstacleMesh);
+      if (tile.obstacleMesh.traverse) {
+        tile.obstacleMesh.traverse(child => {
+          if (child.geometry) child.geometry.dispose();
+          if (child.material) {
+            if (Array.isArray(child.material)) child.material.forEach(m => m.dispose());
+            else if (child.material.map !== this.woodPostTexture) child.material.dispose();
+          }
+        });
+      }
+    }
+    tile.obstacleMesh = null;
+    tile.obstacle = null;
+    tile.walkable = true;
+  }
+
   spawnImpactDecal(worldPos, type = 'scorch') {
     const geo = new THREE.PlaneGeometry(1.3, 1.3);
     const canvas = document.createElement('canvas');

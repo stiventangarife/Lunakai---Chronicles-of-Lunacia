@@ -5,6 +5,7 @@ import { GLTFLoader } from '../../vendor/GLTFLoader.js';
 import { generatePackForBiome } from './world/BiomeEnemyCatalog.js';
 import { applyToonOutline } from './stylized/ToonOutline.js';
 import { createQuestBeaconArrow3D } from './world/ZoneTransitionManager.js';
+import { createEnemyNameplate, createEnemyAlertSprite } from './ui/EnemyNameplate.js';
 
 export class WanderingMonsters {
   constructor(scene, collisionSystem, audioSystem) {
@@ -635,42 +636,8 @@ export class WanderingMonsters {
     auraMesh.scale.set(auraScale, auraScale, 1.0);
     group.add(auraMesh);
 
-    // Alert Exclamation Sprite (hidden by default)
-    const alertCanvas = document.createElement('canvas');
-    alertCanvas.width = 256;
-    alertCanvas.height = 256;
-    const ctx = alertCanvas.getContext('2d');
-    
-    // Subtle outer shadow
-    ctx.shadowColor = 'rgba(220, 38, 38, 0.55)';
-    ctx.shadowBlur = 12;
-
-    // Vibrant red gradient circle
-    const grad = ctx.createLinearGradient(0, 24, 0, 232);
-    grad.addColorStop(0, '#f87171');
-    grad.addColorStop(1, '#dc2626');
-    ctx.fillStyle = grad;
-    ctx.beginPath();
-    ctx.arc(128, 128, 102, 0, Math.PI * 2);
-    ctx.fill();
-
-    // Crisp white border
-    ctx.shadowBlur = 0;
-    ctx.strokeStyle = '#ffffff';
-    ctx.lineWidth = 14;
-    ctx.stroke();
-
-    // Bold exclamation mark
-    ctx.fillStyle = '#ffffff';
-    ctx.font = '900 146px sans-serif';
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.fillText('!', 128, 124);
-
-    const alertTex = new THREE.CanvasTexture(alertCanvas);
-    const alertMat = new THREE.SpriteMaterial({ map: alertTex, transparent: true });
-    const alertSprite = new THREE.Sprite(alertMat);
-    alertSprite.scale.set(0, 0, 1);
+    // Rombo «!» de alerta (Crónica Celeste), oculto hasta que el enemigo te detecta
+    const alertSprite = createEnemyAlertSprite();
 
     // Normalize model type
     let mType = config.modelType || 'slime';
@@ -706,33 +673,12 @@ export class WanderingMonsters {
     else if (mType === 'kibo') overheadY = 2.4;
 
     // Alert badge positioned cleanly ABOVE the overhead nameplate (nameplate is at overheadY with height 0.52)
-    alertSprite.position.set(0, overheadY + 0.88, 0);
+    alertSprite.position.set(0, overheadY + 0.78, 0);
     group.add(alertSprite);
 
-    // Overhead Nameplate
-    const nameCanvas = document.createElement('canvas');
-    nameCanvas.width = 340;
-    nameCanvas.height = 68;
-    const nCtx = nameCanvas.getContext('2d');
-    nCtx.fillStyle = 'rgba(15, 23, 42, 0.88)';
-    nCtx.roundRect(8, 8, 324, 52, 12);
-    nCtx.fill();
-    nCtx.strokeStyle = config.packData?.packSize > 1 ? '#f59e0b' : '#a855f7';
-    nCtx.lineWidth = 3;
-    nCtx.roundRect(8, 8, 324, 52, 12);
-    nCtx.stroke();
-
-    nCtx.fillStyle = '#f3e8ff';
-    nCtx.font = 'bold 20px sans-serif';
-    nCtx.textAlign = 'center';
-    const badge = config.badge || '👾';
-    const tierText = config.tier ? ` · Nv.${config.tier}` : '';
-    nCtx.fillText(`${badge} ${config.name}${tierText}`, 170, 41);
-
-    const nameTex = new THREE.CanvasTexture(nameCanvas);
-    const nameMat = new THREE.SpriteMaterial({ map: nameTex, transparent: true });
-    const nameSprite = new THREE.Sprite(nameMat);
-    nameSprite.scale.set(2.4, 0.52, 1);
+    // Placa de nombre (Crónica Celeste): aparece al acercarse y pasa a rojo cuando el enemigo te detecta
+    const nameplate = createEnemyNameplate(config);
+    const nameSprite = nameplate.sprite;
     nameSprite.position.set(0, overheadY, 0);
     group.add(nameSprite);
 
@@ -813,6 +759,7 @@ export class WanderingMonsters {
       auraMesh: auraMesh,
       alertSprite: alertSprite,
       nameSprite: nameSprite,
+      nameplate: nameplate,
       state: 'PATROL', // PATROL, ALERT_PAUSE, CHASE, ENCOUNTER
       patrolPoints: (config.patrolPoints || [group.position.clone()]).map(wp => {
         const sp = this._sanitizePoint(wp.x, wp.z, mobRadius);
@@ -1060,6 +1007,12 @@ export class WanderingMonsters {
         }
       }
 
+      // Placa: visible según la distancia y en rojo mientras el enemigo te persigue
+      if (m.nameplate) {
+        m.nameplate.setAlert(m.state === 'ALERT_PAUSE' || m.state === 'CHASE' || m.state === 'ENCOUNTER');
+        m.nameplate.updateDistance(distToPlayer, m.detectionRadius, dt);
+      }
+
       // Procedural vertical bounce for models without embedded skeletal animation
       if (!m.mixer && m.mesh) {
         if (m.state === 'PATROL' || m.state === 'CHASE') {
@@ -1087,7 +1040,7 @@ export class WanderingMonsters {
 
   _popAlert(monster) {
     const sprite = monster.alertSprite;
-    const targetScale = 0.85;
+    const targetScale = 0.72;
     let progress = 0;
     const animatePop = () => {
       progress += 0.07;

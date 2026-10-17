@@ -44,10 +44,11 @@ export class NPCManager {
     if (!el) {
       el = document.createElement('div');
       el.id = 'npc-interaction-prompt';
-      el.className = 'interaction-prompt hidden';
+      // Crónica Celeste: opción de interacción (píldora marfil con la tecla)
+      el.className = 'lk-ui lk-interact-prompt hidden';
       el.innerHTML = `
-        <span class="prompt-key">E</span>
-        <span id="prompt-npc-action" class="prompt-text">Talk to Master Paladill</span>
+        <span class="lk-ip__key">E</span>
+        <span id="prompt-npc-action" class="lk-ip__text">Talk to Master Paladill</span>
       `;
       document.body.appendChild(el);
     }
@@ -59,14 +60,12 @@ export class NPCManager {
     if (!el) {
       el = document.createElement('div');
       el.id = 'npc-speech-bubble';
-      el.className = 'npc-speech-bubble hidden';
+      // Crónica Celeste: papel marfil con placa de nombre (como el panel de diálogo) y marca de estado en rombo
+      el.className = 'lk-ui lk-npc-bubble hidden';
       el.innerHTML = `
-        <div id="npc-bubble-badge" class="npc-bubble-badge">💬</div>
-        <div class="npc-bubble-content">
-          <div id="npc-bubble-speaker" class="npc-bubble-speaker">NPC</div>
-          <div id="npc-bubble-text" class="npc-bubble-text">Hello, traveler!</div>
-        </div>
-        <div class="npc-bubble-tail"></div>
+        <div class="lk-npc-bubble__plate"><i></i><b id="npc-bubble-speaker">NPC</b></div>
+        <span id="npc-bubble-badge" class="lk-npc-mark" data-mark="talk" aria-hidden="true"></span>
+        <p id="npc-bubble-text" class="lk-npc-bubble__text">Hello, traveler!</p>
       `;
       document.body.appendChild(el);
     }
@@ -594,7 +593,7 @@ export class NPCManager {
 
         // Condition A: Battle in this zone is already won AND intro completed -> Complete recruitment dialogue!
         if (battleStep && battleStep.done && (!findStep || findStep.done)) {
-          const heroBadge = npc.heroId === 'bing' ? '🏹 BING HAS JOINED THE SQUAD!' : '🌿 POMODORO HAS JOINED THE SQUAD!';
+          const heroBadge = npc.heroId === 'bing' ? '🐶 BING HAS JOINED THE SQUAD!' : '🍳 POMODORO HAS JOINED THE SQUAD!';
           const dialog = [
             {
               speaker: npc.name,
@@ -641,7 +640,7 @@ export class NPCManager {
                 speaker: npc.name,
                 title: npc.title,
                 avatar: npc.avatar,
-                text: 'The savannah chimeras are launching a surprise counterattack! Cover my flank with your cards, I\'ll open fire with my bow!'
+                text: 'The savannah chimeras are back for my ice cream! Cover my flank with your cards, I\'ll bounce my Toy Ball at them and keep everyone\'s spirits up!'
               }
             ];
             this.dialogSystem.startDialogue(dialog, () => {
@@ -658,7 +657,7 @@ export class NPCManager {
                 speaker: npc.name,
                 title: npc.title,
                 avatar: npc.avatar,
-                text: 'The cold is biting and the ice chimeras are attacking again! Hold the frontline, I\'ll keep our health safe with my sprouts!'
+                text: 'The cold is biting and the ice chimeras are attacking again! Hold the frontline, I\'ll raise my frying pan and shield the whole squad!'
               }
             ];
             this.dialogSystem.startDialogue(dialog, () => {
@@ -669,7 +668,7 @@ export class NPCManager {
             return;
           }
 
-          const reminderText = 'The cold is biting! The ice chimeras surround us. Enter combat and I\'ll provide healing to your squad!';
+          const reminderText = 'The cold is biting! The ice chimeras surround us. Enter combat and I\'ll shield your squad!';
           const dialog = [
             {
               speaker: npc.name,
@@ -689,7 +688,7 @@ export class NPCManager {
               speaker: npc.name,
               title: npc.title,
               avatar: npc.avatar,
-              text: 'Reinforcements at last! WATCH OUT BEHIND YOU! A chimera ambush is attacking us by surprise! Let\'s fight shoulder to shoulder!'
+              text: 'Woof! Reinforcements at last! WATCH OUT BEHIND YOU! A chimera ambush is after my ice cream! Let\'s fight shoulder to shoulder, I\'ll cheer you on!'
             }
           ];
           this.dialogSystem.startDialogue(dialog, () => {
@@ -709,7 +708,7 @@ export class NPCManager {
               speaker: npc.name,
               title: npc.title,
               avatar: npc.avatar,
-              text: 'By the roots of life! WATCH OUT, THEY\'RE ATTACKING! A pack of glacial chimeras surrounds us in the ice! Let\'s join forces, I will heal your squad!'
+              text: 'By the leaves of Atia! WATCH OUT, THEY\'RE ATTACKING! A pack of glacial chimeras surrounds us in the ice! Let\'s join forces, I will shield your squad!'
             }
           ];
           this.dialogSystem.startDialogue(dialog, () => {
@@ -1040,7 +1039,7 @@ export class NPCManager {
           speaker: 'Desert Sentinel',
           title: 'Dune Watcher',
           avatar: 'kibo',
-          text: 'Reinforcements from the Lunacia Dojo at last! I see you bring Bing the archer with you. The heat of the Savannah and the dune chimeras are relentless.'
+          text: 'Reinforcements from the Lunacia Dojo at last! I see you bring Bing, that cheerful pup, with you. The heat of the Savannah and the dune chimeras are relentless.'
         },
         {
           speaker: 'Desert Sentinel',
@@ -1283,7 +1282,7 @@ export class NPCManager {
             speaker: 'Astral Oracle',
             title: 'Voice of the Constellations',
             avatar: 'sapidae-f-d',
-            text: 'My visions have revealed the primeval origin of this plague: in the southern abyss of Lunacia stands the Brimstone Fiery Fortress in [2, 3]. March to the Brimstone Threshold, defeat its guardians, and unlock the final seal with the Crimson Key.'
+            text: 'My visions have revealed the primeval origin of this plague: in the south of Lunacia lie the Royal Gardens of Genesis [2, 3], the forbidden sanctuary of the elite. Cross the Sanctuary Gate, defeat its wardens, and unlock the final seal with the Genesis Sanctum Key.'
           }
         ];
 
@@ -1303,7 +1302,7 @@ export class NPCManager {
           speaker: 'Astral Oracle',
           title: 'Voice of the Constellations',
           avatar: 'sapidae-f-d',
-          text: 'The constellations watch over you, {heroName}, Bing, and Pomodoro. Head to the Brimstone Threshold in [3, 5]. The fate of the continent rests on your shoulders.'
+          text: 'The constellations watch over you, {heroName}, Bing, and Pomodoro. Head to the Sanctuary Gate of Genesis in [3, 5]. The fate of the continent rests on your shoulders.'
         }
       ];
       this.dialogSystem.startDialogue(dialogue);
@@ -1530,7 +1529,7 @@ export class NPCManager {
             speaker: 'Master Paladill',
             title: 'Dojo Mentor',
             avatar: './assets/portraits/paladill.png',
-            text: 'Head east if you seek to test your mettle. Word has it a winged archer named Bing needs assistance at the forest border. May Atia guide your path!'
+            text: 'Head east if you seek to test your mettle. Word has it a cheerful Beast pup named Bing needs assistance at the forest border. May Atia guide your path!'
           }
         ];
 
@@ -1562,7 +1561,7 @@ export class NPCManager {
           speaker: 'Master Paladill',
           title: 'Dojo Mentor',
           avatar: './assets/portraits/paladill.png',
-          text: 'Do not forget to consult your World Map [M] and your Quest Book [J] during your travels across the Savannah, Arctic, Mystic, and Dungeon.'
+          text: 'Do not forget to consult your World Map [M] and your Quest Book [J] during your travels across the Savannah, Arctic, Mystic, and Genesis.'
         }
       ];
       this.dialogSystem.startDialogue(dialogue);
@@ -1720,7 +1719,7 @@ export class NPCManager {
 
         // Determine badge, quote, and state dynamically based on quest
         let badgeIcon = '💬';
-        bubbleEl.className = 'npc-speech-bubble';
+        bubbleEl.className = 'lk-ui lk-npc-bubble';
 
         if (this.nearbyBubbleNPC.id === 'sentinel' && this.questManager) {
           const q3 = this.questManager.getQuest('quest_hostile_sands');
@@ -1769,7 +1768,7 @@ export class NPCManager {
             }
           } else {
             badgeIcon = '💬';
-            this.nearbyBubbleNPC.bubbleQuote = 'May astral light guide your path into the Fiery Fortress.';
+            this.nearbyBubbleNPC.bubbleQuote = 'May astral light guide your path into the Royal Gardens of Genesis.';
           }
         } else if (this.nearbyBubbleNPC.id === 'polar_sage' && this.questManager) {
           const q7 = this.questManager.getQuest('quest_astral_void_echoes');
@@ -1842,7 +1841,15 @@ export class NPCManager {
           textEl.textContent = `"${quote}"`;
         }
 
-        if (badgeEl) badgeEl.textContent = badgeIcon;
+        if (badgeEl) {
+          // El estado (antes un emoji) se muestra como un rombo: ! misión, ? entregar, espadas combate, ✦ reclutar
+          const MARKS = { '❗': ['quest', '!'], '❓': ['turnin', '?'], '⚔️': ['combat', '⚔'], '✨': ['recruit', '✦'] };
+          const [mark, glyph] = MARKS[badgeIcon] || ['talk', ''];
+          if (badgeEl.dataset.mark !== mark) {
+            badgeEl.dataset.mark = mark;
+            badgeEl.textContent = glyph;
+          }
+        }
 
         bubbleEl.style.left = `${Math.round(screenX)}px`;
         bubbleEl.style.top = `${Math.round(screenY)}px`;

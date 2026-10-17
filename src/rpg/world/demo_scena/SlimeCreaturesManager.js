@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { GLTFLoader } from '../../../../vendor/GLTFLoader.js';
 import { applyToonOutline } from '../../stylized/ToonOutline.js';
 import { generatePackForBiome } from '../BiomeEnemyCatalog.js';
+import { createEnemyNameplate, createEnemyAlertSprite } from '../../ui/EnemyNameplate.js';
 
 /**
  * Tabla de modelos oficiales de Chimera Slimes en el juego.
@@ -131,7 +132,7 @@ export class SlimeCreaturesManager {
           console.warn('[SlimeCreaturesManager] Usando pack fallback para combate:', e);
         }
 
-        const { root, model, mixer, actions, alertSprite, nameSprite } = this._createSlimeInstance(gltf, cfg, packData);
+        const { root, model, mixer, actions, alertSprite, nameSprite, nameplate } = this._createSlimeInstance(gltf, cfg, packData);
         const groundH = this.terrain ? this.terrain.getHeight(cfg.x, cfg.z) : 0;
         root.position.set(cfg.x, groundH, cfg.z);
 
@@ -148,6 +149,7 @@ export class SlimeCreaturesManager {
           actions: actions,
           alertSprite: alertSprite,
           nameSprite: nameSprite,
+          nameplate: nameplate,
           alertPopped: false,
           packData: packData,
           baseX: cfg.x,
@@ -258,11 +260,13 @@ export class SlimeCreaturesManager {
 
     // Sprite de Alerta Exclamación (!)
     const alertSprite = this._createAlertSprite();
-    alertSprite.position.set(0, overheadY + 0.95, 0);
+    alertSprite.position.set(0, overheadY + 0.78, 0);
     root.add(alertSprite);
 
     // Sprite de Placa de Nombre con Nivel y Estatus
-    const nameSprite = this._createNameplateSprite(cfg.name, cfg.tier, packData);
+    // Placa de la Crónica Celeste: aparece al acercarse y pasa a rojo al detectarte
+    const nameplate = createEnemyNameplate({ name: cfg.name, tier: cfg.tier, packData });
+    const nameSprite = nameplate.sprite;
     nameSprite.position.set(0, overheadY, 0);
     root.add(nameSprite);
 
@@ -282,81 +286,19 @@ export class SlimeCreaturesManager {
       if (actions['idle']) actions['idle'].play();
     }
 
-    return { root, model, mixer, actions, alertSprite, nameSprite };
-  }
-
-  _createNameplateSprite(name, tier, packData = null) {
-    const canvas = document.createElement('canvas');
-    canvas.width = 340;
-    canvas.height = 68;
-    const ctx = canvas.getContext('2d');
-
-    // Fondo redondeado elegante con transparencia
-    ctx.fillStyle = 'rgba(15, 23, 42, 0.88)';
-    ctx.roundRect(8, 8, 324, 52, 12);
-    ctx.fill();
-
-    // Borde morado / ámbar si es grupo
-    ctx.strokeStyle = (packData && packData.packSize > 1) ? '#f59e0b' : '#a855f7';
-    ctx.lineWidth = 3;
-    ctx.roundRect(8, 8, 324, 52, 12);
-    ctx.stroke();
-
-    // Texto con nivel (sin emojis)
-    ctx.fillStyle = '#f3e8ff';
-    ctx.font = 'bold 20px sans-serif';
-    ctx.textAlign = 'center';
-    const tierText = tier ? ` · Nv.${tier}` : '';
-    const countText = (packData && packData.packSize > 1) ? ` (x${packData.packSize})` : '';
-    ctx.fillText(`${name}${countText}${tierText}`, 170, 41);
-
-    const tex = new THREE.CanvasTexture(canvas);
-    const mat = new THREE.SpriteMaterial({ map: tex, transparent: true, depthWrite: false });
-    const sprite = new THREE.Sprite(mat);
-    sprite.scale.set(2.4, 0.52, 1);
-    return sprite;
+    return { root, model, mixer, actions, alertSprite, nameSprite, nameplate };
   }
 
   _createAlertSprite() {
-    const canvas = document.createElement('canvas');
-    canvas.width = 256;
-    canvas.height = 256;
-    const ctx = canvas.getContext('2d');
-
-    ctx.shadowColor = 'rgba(220, 38, 38, 0.65)';
-    ctx.shadowBlur = 14;
-
-    const grad = ctx.createLinearGradient(0, 24, 0, 232);
-    grad.addColorStop(0, '#f87171');
-    grad.addColorStop(1, '#dc2626');
-    ctx.fillStyle = grad;
-    ctx.beginPath();
-    ctx.arc(128, 128, 102, 0, Math.PI * 2);
-    ctx.fill();
-
-    ctx.shadowBlur = 0;
-    ctx.strokeStyle = '#ffffff';
-    ctx.lineWidth = 14;
-    ctx.stroke();
-
-    ctx.fillStyle = '#ffffff';
-    ctx.font = '900 146px sans-serif';
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.fillText('!', 128, 124);
-
-    const tex = new THREE.CanvasTexture(canvas);
-    const mat = new THREE.SpriteMaterial({ map: tex, transparent: true, depthWrite: false });
-    const sprite = new THREE.Sprite(mat);
-    sprite.scale.set(0, 0, 1);
-    return sprite;
+    // Rombo «!» de la Crónica Celeste (mismo que WanderingMonsters)
+    return createEnemyAlertSprite();
   }
 
   _popAlert(s) {
     if (!s.alertSprite || s.alertPopped) return;
     s.alertPopped = true;
     const sprite = s.alertSprite;
-    const targetScale = 0.95;
+    const targetScale = 0.72;
     let progress = 0;
     const animatePop = () => {
       progress += 0.08;
@@ -459,6 +401,12 @@ export class SlimeCreaturesManager {
           this._updateHopping(s, delta, i, true, pPos);
           break;
         }
+      }
+
+      // Placa: visible según la distancia y en rojo mientras el slime te persigue
+      if (s.nameplate) {
+        s.nameplate.setAlert(s.state === 'ALERT_PAUSE' || s.state === 'CHASE' || s.state === 'ENCOUNTER');
+        s.nameplate.updateDistance(distToPlayer, s.detectionRadius, delta);
       }
     }
   }

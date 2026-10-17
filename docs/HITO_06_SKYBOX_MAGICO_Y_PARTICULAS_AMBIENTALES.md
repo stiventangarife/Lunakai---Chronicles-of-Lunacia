@@ -1,5 +1,7 @@
 # Hito 6: Sistema de Skybox Mágico Procedural y Partículas Ambientales por Zona
 
+> **Actualización (16-oct-2026):** el bioma Mazmorra se rediseñó y ahora es **✨ Genesis** (Jardines Reales del Origen). Ver el Hito 24.
+
 > [!IMPORTANT]
 > **Estado actual (13-oct-2026):** `MagicalSkybox` y `ZoneParticleManager` pertenecen al mundo demo de 80 m y **ya no se crean** (`LEGACY_DEMO_WORLD = false` en `OverworldManager`). Cada isla tiene su propio cielo y sus partículas: `GenshinSky` en el Bosque, e `IslandSky` e `IslandParticles` en las demás islas.
 

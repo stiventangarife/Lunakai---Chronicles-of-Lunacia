@@ -34,6 +34,7 @@ Para conectar visualmente la Isla del Bosque con el resto de Lunacia sin sobreca
   * Cúpulas de follaje sagrado estilo anime, espiras monolíticas y gran arco marino emergiendo del agua.
   * Bruma esmeralda bioluminiscente.
 * **🌋 Sur (`Z = +1550`, `X = +60`): Isla Lunar y Volcánica**
+  > **Sustituida (Hito 24):** ahora el sur muestra la silueta de **Genesis** (`buildGenesisIsland` → `GenesisSilhouette.js`): meseta-jardín en dos terrazas, pilares lavanda en capas, copas redondas y el gran arco del Santuario del Origen. La descripción de abajo es histórica.
   * **Gran Caldera Volcánica:** Estratovolcán colosal (altura 310m) con labio aserrado irregular y cráter cóncavo interior.
   * **Volcán Secundario:** Cono parásito escarpado en el flanco oeste con estrías de lava basáltica.
   * **Cráter de Impacto Lunar:** Cordillera circular anular (*impact ring-wall* estilo Copérnico/Tycho) con cuenca plana y **pico central resurgente**.

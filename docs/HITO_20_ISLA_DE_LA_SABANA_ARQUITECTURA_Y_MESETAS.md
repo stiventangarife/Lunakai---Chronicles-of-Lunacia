@@ -71,11 +71,13 @@ El bioma cuenta con un sistema hídrico dual de alto impacto visual:
 
 Se limpiaron completamente los elementos de la macro-zona anterior y se reubicaron los NPCs sobre la superficie real de la meseta:
 
+> **Hito 24:** los tres lugares se reconstruyeron con primitivas (`SavannaGenshinLandmarks.js`): casa de Bing con farolas, **Altar de Atia** (antes Altar del Sol Naciente) y fragua con casa de Baruk. Se añadieron oasis (`SavannaGenshinOasis.js`), naturaleza (`SavannaGenshinNature.js`) y cactus `cactus_forge3D`.
+
 | NPC / POI | Coordenadas $(X, Y, Z)$ | Rol y Función |
 | :--- | :---: | :--- |
-| **🏹 Bing** | `(-25.5, 25.5, -33.5)` | Héroe Arquero Reclutable (Misión principal 2: *Probar Ferocidad*). |
-| **🏜️ Desert Sentinel** | `(62.0, 25.5, -28.5)` | Centinela del Desierto del Sol Naciente. |
-| **🔨 Blacksmith Baruk** | `(44.5, 25.5, 49.5)` | Fragua Nómada del Cañón (Forja de acero de Atia). |
+| **🏹 Bing** | `(-30.24, 25.5, -37.24)` (Hito 24) | Héroe Arquero Reclutable (Misión principal 2: *Probar Ferocidad*). |
+| **🏜️ Desert Sentinel** | `(58.5, 25.5, -24.0)` (Hito 24) | Centinela del Desierto del Sol Naciente. |
+| **🔨 Blacksmith Baruk** | `(42.39, 25.5, 48.73)` (Hito 24) | Fragua Nómada del Cañón (Forja de acero de Atia). |
 | **🎯 Hunter Zarek** | `(2.5, 25.5, -10.0)` | Tirador y duelista nómada junto al oasis. |
 
 ### Purga de Sistemas Legacy
@@ -91,4 +93,4 @@ Desde la alta cima de la meseta, el jugador disfruta de una vista despejada de l
 * **Noroeste:** Silueta de la **Isla del Bosque** dominada por la copa inmensa del Gran Árbol Sagrado de Atia.
 * **Norte:** Picos afilados y glaciares cian de la **Isla Ártica**.
 * **Suroeste:** Cúpulas de árboles arcanos y monolitos flotantes de la **Isla Mística**.
-* **Sur:** Silueta del estratovolcán colosal y cráteres de basalto de la **Isla Lunar y Volcánica**.
+* **Sur:** Silueta de la **Isla Genesis**: pilares lavanda, copas de árboles y el gran arco del Santuario (Hito 24; antes, estratovolcán lunar).

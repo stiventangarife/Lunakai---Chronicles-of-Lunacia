@@ -35,7 +35,7 @@ export const BIOME_TIER_CONFIG = {
   },
   dungeon: {
     tier: 5,
-    name: 'Dungeon',
+    name: 'Genesis',
     hpMultiplier: 4.2,
     damageBonus: 80,
     shieldBonus: 160,

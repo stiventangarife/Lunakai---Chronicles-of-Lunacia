@@ -7,6 +7,8 @@ import { crystalMaterial, crystalPrismGeometry, islandRockMaterial } from '../ki
 import { toonifyGroup } from '../kit/IslandArtLayer.js';
 import { IslandParticles } from '../kit/IslandParticles.js';
 import { IslandWaterBody } from '../kit/IslandWater.js';
+import { MysticLandmarks, MYSTIC_SITES } from './MysticLandmarks.js';
+import { MysticLife, buildArcaneTreeVines } from './MysticLife.js';
 
 /**
  * Isla Mística (Hito 23) — "El Árbol Arcano de Lunacia".
@@ -23,6 +25,13 @@ import { IslandWaterBody } from '../kit/IslandWater.js';
  *  - POIs (NPCs keep their quest positions): Astral Void Sanctuary (floating rune monoliths by
  *    the Astral Sage), Oracle Observatory (tower by the Astrologer), Lunacia Nebula.
  *  - Late dusk: violet / magenta sky with the first stars, jade-lavender haze, fireflies.
+ *
+ * Mejora del bioma (plan de la Mística): Oracle by the Arcane Tree, Observatorio Astral rebuilt
+ * + astrologer's cottage, glowing willow on an islet in the swamp with an ancient rune pillar,
+ * magical fish and fireflies, luminescent butterflies, luminous mushrooms / flowers / bushes (Mystic pack), emissive channel on the
+ * crystals + point lights at the three great spires, two-tone grass (jade + soft violet), shore
+ * foam, magical pebbles and glowing vines with rising fireflies on the Arcane Tree
+ * (see MysticLandmarks / MysticLife).
  */
 const N1 = new SimplexNoise(7711);
 const TREE = { x: 0, z: -64 };
@@ -30,6 +39,7 @@ const SWAMP = { x: -64, z: 62, r: 30, level: 3.0 };
 const NEBULA = { x: -30, z: 34 };
 const SANCTUARY = { x: -22, z: 26 };
 const OBSERVATORY = { x: 42, z: -38 };
+const ISLET = MYSTIC_SITES.islet;
 const SPIRES = [
   { x: -76, z: -22, r: 7.5, h: 46, lean: [0.12, -0.05] },
   { x: 72, z: 36, r: 6.5, h: 40, lean: [-0.08, 0.1] },
@@ -51,6 +61,12 @@ function mysticHeight(x, z) {
     const k = smooth(SWAMP.r + 18, SWAMP.r - 4, ds);
     const inner = ds < SWAMP.r ? bowl : Math.min(terr, h);
     h = h * (1 - k) + inner * k;
+    // Mossy islet in the centre (the glowing willow stands on it)
+    const di = Math.hypot(x - ISLET.x, z - ISLET.z);
+    if (di < ISLET.r + 1.5) {
+      const top = ISLET.top - 0.9 * Math.pow(Math.min(1, di / ISLET.r), 2);
+      h = h + (Math.max(h, top) - h) * smooth(ISLET.r + 1.5, ISLET.r - 1.0, di);
+    }
   }
   // Nebula fissure: a narrow trench
   const fx = (x - NEBULA.x) * 0.8 + (z - NEBULA.z) * 0.6;
@@ -97,7 +113,7 @@ function freeSpot(x, z, clear = 5) {
   return mysticHeight(x, z) > 2.5;
 }
 
-function mysticProfile() {
+function mysticProfile(zone) {
   const sun = new THREE.Vector3(-110, 30, 70).normalize();
   return {
     id: 'mystic',
@@ -124,7 +140,8 @@ function mysticProfile() {
       return { grass: g, flowers: fl, wet };
     },
     terrain: {
-      ground: { deep: 0x1f5a4f, mid: 0x2f8f7a, light: 0x6fd0b0, dry: 0x8fa8b8, dryAmount: 0.3 },
+      // Two-tone meadow: jade (current) + soft violet patches
+      ground: { deep: 0x1f5a4f, mid: 0x2f8f7a, light: 0x6fd0b0, dry: 0xa98ee0, dryAmount: 0.85 },
       soil: 0x4a5a6a,
       heightRange: [3, 22],
       cliffSlope: [0.56, 0.72],
@@ -157,7 +174,7 @@ function mysticProfile() {
         }`
     },
     grass: {
-      ground: { deep: 0x1f5a4f, mid: 0x2f8f7a, light: 0x6fd0b0, dry: 0x8fa8b8, dryAmount: 0.3 },
+      ground: { deep: 0x1f5a4f, mid: 0x2f8f7a, light: 0x6fd0b0, dry: 0xa98ee0, dryAmount: 0.85 },
       flowers: [0x9ff0ff, 0xe8b8ff, 0xffffff, 0xff9ad8],
       flowerGlow: 0.8,
       sunTint: 0xc8fff0, backlight: 0xffb8e8, shadowTint: [0.86, 0.88, 1.18], heightScale: 1.1, windStrength: 0.18, flowerCut: 38
@@ -179,9 +196,11 @@ function mysticProfile() {
       }
     },
     trees: () => mysticTrees(),
+    // Glowing vines + rising magic fireflies on the Arcane Tree (needs the built tree meshes)
+    build: (layer) => buildArcaneTreeVines(layer, zone, { time: zone.mysticTime, height: mysticHeight, tree: TREE }),
     water: [
       { shape: 'disc', center: [SWAMP.x, SWAMP.z], radius: SWAMP.r + 3, level: SWAMP.level, mode: 0, name: 'MysticLuminousSwamp',
-        colors: { shallow: 0x2fb8b0, deep: 0x0c3f5a, foam: 0xc8f6ee, glow: 0x40ffd0 }, glow: 0.14, opacity: 0.9, depthRange: 0.7, foamAmount: 0.25 },
+        colors: { shallow: 0x2fb8b0, deep: 0x0c3f5a, foam: 0xc8f6ee, glow: 0x40ffd0 }, glow: 0.14, opacity: 0.6, depthRange: 0.7, foamAmount: 0.25 },
       { shape: 'ribbon', points: [[NEBULA.x - 8 * 0.6, NEBULA.z - 8 * 0.8], [NEBULA.x, NEBULA.z], [NEBULA.x + 8 * 0.6, NEBULA.z + 8 * 0.8]],
         width: 2.4, level: (t) => mysticHeight(NEBULA.x + (t - 0.5) * 16 * 0.6, NEBULA.z + (t - 0.5) * 16 * 0.8) + 0.25, mode: 2, flowSpeed: 0.6, name: 'MysticNebulaFissure',
         colors: { shallow: 0xc9a2ff, deep: 0x6a3cf0, crust: 0x1a1033, glow: 0xe2c4ff } }
@@ -218,6 +237,9 @@ async function buildMystic(zone) {
   zone.updatables.push((dt) => { time.value += dt; });
   const amethyst = crystalMaterial({ color: 0xb98cff, glow: 0x7a3cff, glowIntensity: 0.6, rim: 0xf0d8ff, core: 0xffd8ff, opacity: 0.74, timeUniform: time, name: 'MysticAmethyst' });
   const amethystDeep = crystalMaterial({ color: 0x9a6cf0, glow: 0x5a2ad8, glowIntensity: 0.5, rim: 0xe6c8ff, opacity: 0.8, timeUniform: time, name: 'MysticAmethystDeep' });
+  zone.mysticTime = time;
+  addCrystalEmissiveChannel(amethyst, time, 0xe2b8ff, 0x8ff0ff);
+  addCrystalEmissiveChannel(amethystDeep, time, 0xc79cff, 0x9fe8ff);
   const rng = createSeededRandom(7070);
   const m4 = new THREE.Matrix4();
   const q = new THREE.Quaternion();
@@ -393,33 +415,7 @@ async function buildMystic(zone) {
     star.rotation.y = t * 0.6;
   });
 
-  // 8. POI — Oracle Observatory: stone tower with a crystal dome and a brass telescope
-  const oy = mysticHeight(OBSERVATORY.x, OBSERVATORY.z);
-  const tower = new THREE.Group();
-  const stone = islandRockMaterial(null, { base: 0x8a86a8, shadow: 0x4a4f6a, top: 0x3fbf9a, topAmount: 0.5, streaks: 0.6 });
-  const base = new THREE.Mesh(new THREE.CylinderGeometry(3.6, 4.2, 9, 10), stone);
-  base.position.y = 4.5;
-  tower.add(base);
-  const ring = new THREE.Mesh(new THREE.CylinderGeometry(4.3, 4.3, 0.6, 12), stone);
-  ring.position.y = 9.2;
-  tower.add(ring);
-  const domeM = new THREE.Mesh(new THREE.SphereGeometry(3.4, 18, 10, 0, Math.PI * 2, 0, Math.PI / 2), amethyst);
-  domeM.position.y = 9.5;
-  tower.add(domeM);
-  const brass = new THREE.MeshToonMaterial({ color: 0xd9a84a, emissive: 0x3a2a0a });
-  const scope = new THREE.Mesh(new THREE.CylinderGeometry(0.35, 0.55, 5, 10), brass);
-  scope.position.set(1.6, 11.6, 0);
-  scope.rotation.z = -0.9;
-  tower.add(scope);
-  const door = new THREE.Mesh(new THREE.BoxGeometry(1.6, 2.6, 0.4), new THREE.MeshToonMaterial({ color: 0x3a2f5a }));
-  door.position.set(0, 1.3, 4.0);
-  tower.add(door);
-  tower.position.set(OBSERVATORY.x, oy - 0.2, OBSERVATORY.z);
-  tower.rotation.y = -0.6;
-  tower.traverse((o) => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
-  tower.name = 'MysticOracleObservatory';
-  g.add(tower);
-  zone.addCollider(OBSERVATORY.x, OBSERVATORY.z, 4.4);
+  // 8. POI — Observatorio Astral: rebuilt with primitives in MysticLandmarks (replaces the old tower)
 
   // 9. Nebula stardust rising from the fissure
   const ny = mysticHeight(NEBULA.x, NEBULA.z);
@@ -456,7 +452,80 @@ async function buildMystic(zone) {
       g.add(inst);
     });
   }
+  // --- Mejora del bioma: places (primitives) + living / glowing dressing
+  new MysticLandmarks(zone, { height: mysticHeight, time, amethyst });
+  const treeSpots = mysticTrees().filter((t) => t.kind === 'broad').map((t) => ({ x: t.pos.x, z: t.pos.z }));
+  const crystalSpots = [];
+  for (let i = 0; i < clusterList.length; i += 4) crystalSpots.push({ x: clusterList[i].x, z: clusterList[i].z });
+  const life = new MysticLife(zone, {
+    height: mysticHeight, time, freeSpot, pathDist, tree: TREE, swamp: SWAMP, islet: ISLET,
+    treeSpots, crystalSpots, seaLevel: 0.45,
+    coastAvoid: [[136, 14, 4], [128, 8, 4]]
+  });
+  await life.buildGlowVegetation(loadGLTF);
+  // Point lights at the base of the three great spires (tint the ground and the nearby rocks)
+  const spireLightCol = [0xb48cff, 0x9fe8ff, 0xd29cff];
+  SPIRES.forEach((s, i) => {
+    const l = new THREE.PointLight(spireLightCol[i], 14, 30, 1.6);
+    const a = Math.atan2(-s.z, -s.x);   // on the side facing the island centre
+    l.position.set(s.x + Math.cos(a) * (s.r * 1.6), mysticHeight(s.x, s.z) + 2.5, s.z + Math.sin(a) * (s.r * 1.6));
+    l.name = 'MysticSpireLight';
+    g.add(l);
+  });
   void toonifyGroup; void IslandWaterBody;
+}
+
+/**
+ * Emissive channel for the Mystic crystals: slow pulsing inner veins + a brighter glowing base
+ * (Mystic-only patch on top of the shared crystal material; own program key).
+ */
+function addCrystalEmissiveChannel(mat, time, veinHex, baseHex) {
+  const prev = mat.onBeforeCompile;
+  const prevKey = mat.customProgramCacheKey ? mat.customProgramCacheKey.bind(mat) : () => '';
+  const vein = new THREE.Color(veinHex), base = new THREE.Color(baseHex);
+  mat.onBeforeCompile = (shader, renderer) => {
+    if (prev) prev.call(mat, shader, renderer);
+    shader.uniforms.uMVein = { value: vein };
+    shader.uniforms.uMBase = { value: base };
+    shader.uniforms.uMTime = time;
+    shader.vertexShader = shader.vertexShader
+      .replace('#include <common>', `#include <common>
+        varying float vMWorldY;
+        varying vec3 vMWorld;`)
+      .replace('#include <worldpos_vertex>', `#include <worldpos_vertex>
+        {
+          vec4 wpM = vec4(transformed, 1.0);
+          #ifdef USE_INSTANCING
+            wpM = instanceMatrix * wpM;
+          #endif
+          wpM = modelMatrix * wpM;
+          vMWorld = wpM.xyz;
+          vec4 baseM = vec4(0.0, 0.0, 0.0, 1.0);
+          #ifdef USE_INSTANCING
+            baseM = instanceMatrix * baseM;
+          #endif
+          baseM = modelMatrix * baseM;
+          vMWorldY = wpM.y - baseM.y;
+        }`);
+    shader.fragmentShader = shader.fragmentShader
+      .replace('#include <common>', `#include <common>
+        uniform vec3 uMVein, uMBase;
+        uniform float uMTime;
+        varying float vMWorldY;
+        varying vec3 vMWorld;`)
+      .replace('#include <emissivemap_fragment>', `#include <emissivemap_fragment>
+        {
+          // Inner veins: thin bands drifting upward, pulsing slowly
+          float band = sin(vMWorld.y * 1.6 - uMTime * 0.9 + sin(vMWorld.x * 0.7 + vMWorld.z * 0.5) * 2.0);
+          float veins = smoothstep(0.86, 0.99, band);
+          float pulse = 0.65 + 0.35 * sin(uMTime * 1.4 + vMWorld.x * 0.11 + vMWorld.z * 0.09);
+          totalEmissiveRadiance += uMVein * veins * 0.55 * pulse;
+          // Glowing base where the crystal meets the ground
+          float baseGlow = 1.0 - smoothstep(0.0, 1.6, vMWorldY);
+          totalEmissiveRadiance += uMBase * baseGlow * 0.45 * pulse;
+        }`);
+  };
+  mat.customProgramCacheKey = () => `${prevKey()}|mystic-emissive`;
 }
 
 export function createMysticIsland(om) {
@@ -468,7 +537,7 @@ export function createMysticIsland(om) {
     rocks: [],
     rockStyle: { base: 0x6a6f96, shadow: 0x3f4566, top: 0x2f8f7a, topAmount: 1.0, streaks: 0.7 },
     build: buildMystic,
-    profile: () => mysticProfile()
+    profile: (zone) => mysticProfile(zone)
   });
 }
 

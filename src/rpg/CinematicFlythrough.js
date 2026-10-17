@@ -58,19 +58,25 @@ export class CinematicFlythrough {
     if (!el) {
       el = document.createElement('div');
       el.id = 'cinematic-flythrough-overlay';
-      el.className = 'cinematic-flythrough hidden';
+      // Crónica Celeste: franjas de cine con filo dorado; el rótulo y «Saltar» viven en la franja superior,
+      // el subtítulo en tipografía de títulos sobre la franja inferior, con un hilo dorado de progreso.
+      el.className = 'lk-ui lk-prologue hidden';
+      const dots = this.subtitles.map(() => '<i></i>').join('');
       el.innerHTML = `
-        <div class="letterbox-bar letterbox-top"></div>
-        <div class="flythrough-hud">
-          <div class="flythrough-lore-badge">PROLOGUE • CHRONICLES OF LUNACIA</div>
-          <button id="btn-skip-cinematic" class="skip-cinematic-btn" title="Skip prologue (Space)">
-            Skip Prologue <span>[Space]</span> ➔
+        <div class="lk-prologue__bar lk-prologue__bar--top">
+          <span class="lk-prologue__kicker"><i></i>Prólogo · Crónicas de Lunacia</span>
+          <button id="btn-skip-cinematic" class="lk-prologue__skip" type="button" title="Saltar prólogo">
+            Saltar prólogo <kbd>Espacio</kbd>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 6l6 6-6 6M13 6l6 6-6 6"/></svg>
           </button>
         </div>
-        <div class="flythrough-subtitle-container">
-          <p id="flythrough-subtitle-text" class="flythrough-subtitle-text"></p>
+        <div class="lk-prologue__scrim" aria-hidden="true"></div>
+        <div class="lk-prologue__sub" aria-live="polite">
+          <span class="lk-prologue__orn" aria-hidden="true"><i></i></span>
+          <p id="flythrough-subtitle-text" class="lk-prologue__text"></p>
+          <span class="lk-prologue__dots" aria-hidden="true">${dots}</span>
         </div>
-        <div class="letterbox-bar letterbox-bottom"></div>
+        <div class="lk-prologue__bar lk-prologue__bar--bot"><span class="lk-prologue__prog"><i></i></span></div>
       `;
       document.body.appendChild(el);
     }
@@ -103,9 +109,13 @@ export class CinematicFlythrough {
     this.currentSubIdx = -1;
     this.onCompleteCallback = onComplete;
 
-    this.overlayEl.classList.remove('hidden');
-    this.overlayEl.classList.remove('fade-out');
-    this.overlayEl.style.display = 'flex';
+    this.overlayEl.classList.remove('hidden', 'fade-out', 'lk-prologue--sub');
+    this.overlayEl.style.setProperty('--p', '0');
+    this.overlayEl.style.display = 'block';
+    // Reinicia la animación de entrada de las franjas
+    this.overlayEl.classList.remove('lk-prologue--in');
+    void this.overlayEl.offsetWidth;
+    this.overlayEl.classList.add('lk-prologue--in');
 
     if (this.audio) {
       if (typeof this.audio.init === 'function') {
@@ -160,12 +170,17 @@ export class CinematicFlythrough {
     this.camera.position.copy(camPos);
     this.camera.lookAt(lookAtPos);
 
+    // Hilo dorado de progreso en la franja inferior
+    this.overlayEl.style.setProperty('--p', Math.min(1, this.progress).toFixed(4));
+
     // Update Subtitles
     let activeSub = null;
+    let activeIdx = -1;
     for (let i = 0; i < this.subtitles.length; i++) {
       const s = this.subtitles[i];
       if (this.progress >= s.start && this.progress <= s.end) {
         activeSub = s;
+        activeIdx = i;
         break;
       }
     }
@@ -173,10 +188,14 @@ export class CinematicFlythrough {
     if (activeSub) {
       if (this.subtitleTextEl.textContent !== activeSub.text) {
         this.subtitleTextEl.textContent = activeSub.text;
-        this.subtitleTextEl.classList.add('visible');
+        this.overlayEl.querySelectorAll('.lk-prologue__dots i').forEach((d, i) => {
+          d.classList.toggle('lk-is-done', i < activeIdx);
+          d.classList.toggle('lk-is-on', i === activeIdx);
+        });
       }
+      this.overlayEl.classList.add('lk-prologue--sub');
     } else {
-      this.subtitleTextEl.classList.remove('visible');
+      this.overlayEl.classList.remove('lk-prologue--sub');
     }
   }
 }

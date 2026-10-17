@@ -1,4 +1,5 @@
 // ZoneTransitionManager.js - Dofus-style edge arrows, directional curtains and zone heraldic banners
+import { showZoneBanner as showLkZoneBanner } from '../ui/ZoneBanner.js';
 import * as THREE from 'three';
 import { MAP_REGISTRY } from './MapRegistry.js';
 
@@ -112,25 +113,7 @@ export class ZoneTransitionManager {
     }
     this.curtainEl = curtain;
 
-    // 2. Zone Discovery Heraldic Banner
-    let banner = document.getElementById('zone-discovery-banner');
-    if (!banner) {
-      banner = document.createElement('div');
-      banner.id = 'zone-discovery-banner';
-      banner.className = 'zone-discovery-banner hidden';
-      banner.innerHTML = `
-        <div class="banner-glow"></div>
-        <div class="banner-content">
-          <span id="zone-biome-badge" class="zone-biome-badge">🌲 FOREST</span>
-          <h2 id="zone-name-title" class="zone-name-title">Dojo Valley</h2>
-          <span class="zone-subtext">Lunacia Region Discovered</span>
-        </div>
-      `;
-      document.body.appendChild(banner);
-    }
-    this.bannerEl = banner;
-    this.badgeEl = document.getElementById('zone-biome-badge');
-    this.titleEl = document.getElementById('zone-name-title');
+    // 2. El rótulo de zona vive en ui/ZoneBanner.js (Crónica Celeste)
 
     // Inject CSS styles for Biome loading, Dofus transitions and banners
     if (!document.getElementById('zone-transition-styles')) {
@@ -620,21 +603,7 @@ export class ZoneTransitionManager {
   }
 
   showZoneBanner(zoneName, biomeBadge) {
-    if (!this.bannerEl) return;
-    if (this.titleEl) this.titleEl.textContent = zoneName;
-    if (this.badgeEl) this.badgeEl.textContent = biomeBadge;
-
-    this.bannerEl.classList.remove('hidden');
-    // Force reflow
-    void this.bannerEl.offsetWidth;
-    this.bannerEl.classList.add('visible');
-
-    if (this._bannerTimer) clearTimeout(this._bannerTimer);
-    this._bannerTimer = setTimeout(() => {
-      this.bannerEl.classList.remove('visible');
-      setTimeout(() => {
-        this.bannerEl.classList.add('hidden');
-      }, 500);
-    }, 3200);
+    showLkZoneBanner(zoneName, biomeBadge);
   }
+
 }

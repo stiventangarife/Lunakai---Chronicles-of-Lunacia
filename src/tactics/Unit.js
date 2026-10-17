@@ -37,6 +37,9 @@ export class Unit {
 
     this.spellIds = config.spellIds || [];
     this.buffs = [];
+    this.statuses = []; // estados alterados (StatusSystem)
+    // Clase de Axie de la unidad ('Beast', 'Plant', 'Mech'…). La usarán el triángulo elemental y la Ultimate.
+    this.axieClass = config.axieClass || null;
 
     this.gridX = config.x || 0;
     this.gridZ = config.z || 0;
@@ -497,6 +500,14 @@ export class Unit {
     ctx.fillStyle = '#4ade80';
     ctx.fillText('👟 ' + this.currentPM + ' PM', w / 2 + 46, 96);
 
+    // Estados alterados (icono + turnos restantes) bajo el panel
+    if (this.statuses && this.statuses.length) {
+      ctx.font = 'bold 13px system-ui, sans-serif';
+      ctx.fillStyle = '#f8fafc';
+      const txt = this.statuses.slice(0, 6).map((st) => `${st.icon || '•'}${st.duration}`).join(' ');
+      ctx.fillText(txt, w / 2, 125);
+    }
+
     this.hudSprite.material.map.needsUpdate = true;
   }
 
@@ -534,7 +545,9 @@ export class Unit {
   endTurn() {
     this.clearDamageFlash();
     this.setActiveTurn(false);
-    this.shield = 0;
+    // Los escudos de habilidades duran hasta el final del turno del receptor en la ronda siguiente
+    // (lo gestiona SpellManager); los demás (escudo inicial, depuración) caducan como siempre.
+    if (this.shieldExpiresRound == null) this.shield = 0;
     this.updateHUD();
   }
 
@@ -570,6 +583,12 @@ export class Unit {
         console.warn(`[Unit.moveAlongPath] Blocked illegal step onto obstacle/unwalkable cell (${nextStep.x}, ${nextStep.z}) by "${this.name}". Halting movement.`);
         break;
       }
+      // Fase 5: nunca terminar (ni detenerse) encima de otra unidad viva; se puede cruzar a un aliado, no quedarse
+      const occupant = stepTile.unit && stepTile.unit !== this && !stepTile.unit.isDead ? stepTile.unit : null;
+      if (occupant && (isFinalStep || occupant.team !== this.team)) {
+        console.warn(`[Unit.moveAlongPath] (${nextStep.x}, ${nextStep.z}) ocupada por "${occupant.name}": "${this.name}" se detiene antes.`);
+        break;
+      }
 
       await this._slideOrHopToCell(nextStep.x, nextStep.z);
 
@@ -586,9 +605,21 @@ export class Unit {
       }
     }
 
-    // Ensure final tile has unit registered
-    const finalTile = this.gridManager.getTile(this.gridX, this.gridZ);
-    if (finalTile) finalTile.unit = this;
+    // Ensure final tile has unit registered (sin pisar a otra unidad viva si el movimiento se detuvo sobre un aliado)
+    let finalTile = this.gridManager.getTile(this.gridX, this.gridZ);
+    if (finalTile && finalTile.unit && finalTile.unit !== this && !finalTile.unit.isDead) {
+      // retrocede por el camino hasta la última casilla libre
+      for (let k = path.length - 1; k >= 0; k--) {
+        const t = this.gridManager.getTile(path[k].x, path[k].z);
+        if (t && (!t.unit || t.unit === this || t.unit.isDead) && t.walkable !== false && !t.obstacle) {
+          this.gridX = path[k].x; this.gridZ = path[k].z;
+          { const wp = this.gridManager.gridToWorld(this.gridX, this.gridZ); if (this.group?.position) { this.group.position.x = wp.x; this.group.position.z = wp.z; } }
+          finalTile = t;
+          break;
+        }
+      }
+    }
+    if (finalTile && (!finalTile.unit || finalTile.unit.isDead || finalTile.unit === this)) finalTile.unit = this;
 
     // Return to idle animation
     if (this.axie && typeof this.axie.playAnimation === 'function') {

@@ -1,7 +1,9 @@
 # Hito 4: Sistema de Misiones, Diario de Aventuras y Gestión de NPCs en Lunacia
 
 > [!IMPORTANT]
-> **Estado actual (13-oct-2026):** los NPC de las zonas de esquina retiradas viven ahora en su isla: Ermitaño Glacial → Ártico (−52, −66); Oráculo (34, −36) y Chamán (−40, 40) → Mística; Espíritu de Atia → Mazmorra (0, −13). Las misiones conservan sus coordenadas lógicas (`zoneCoords`), y la brújula traduce la zona antigua a su isla. Si el objetivo está en otra isla, la brújula apunta al barquero Pomodoro (`ferry_pomodoro`). Ver la sección 6 del Hito 23.
+> **Estado actual (16-oct-2026):** los NPC de las zonas de esquina retiradas viven ahora en su isla: Ermitaño Glacial → Ártico (−39.2, −70.4); Oráculo (3.5, −45.5) y Chamán (−40, 40) → Mística; Espíritu de Atia → Genesis (0, 92).
+> - **Hito 24:** la Mazmorra ahora es **Genesis**. `quest_sulfur_threshold` se llama "The Genesis Threshold" (llave "Genesis Sanctum Key"), el jefe es "Genesis Warden Chimera" y el anillo es "Genesis Aurora Ring".
+> - **NPC reubicados en el Hito 24:** Kotaro (104, 13), Tripp (−50, −50), Pomodoro (8, 18.6), Chef Boreal (−5.4, −39), Bing (−30.24, −37.24), Desert Sentinel (58.5, −24) y Baruk (42.39, 48.73). Las misiones conservan sus coordenadas lógicas (`zoneCoords`), y la brújula traduce la zona antigua a su isla. Si el objetivo está en otra isla, la brújula apunta al barquero Pomodoro (`ferry_pomodoro`). Ver la sección 6 del Hito 23.
 
 
 ## 1. Visión General

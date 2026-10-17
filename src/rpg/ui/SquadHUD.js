@@ -1,6 +1,7 @@
 // SquadHUD.js - Overworld Squad UI with Stylized Hero Frames, Real-Time 3D Portraits, HP, PA & PM
 import { portraitService } from '../../tactics/CharacterPortraitService.js';
 import { SAPIDAE_CLASSES } from '../SaveSlotManager.js';
+import { BondDemo } from './CombatEndScreen.js';
 
 export const SAPIDAE_CLASS_THEMES = {
   crafter: {
@@ -122,8 +123,8 @@ export function getHeroClassKey(base, heroId) {
   if (arch.includes('pájaro') || arch.includes('pajaro') || arch.includes('bird')) return 'bird';
   if (arch.includes('planta') || arch.includes('plant')) return 'plant';
 
-  if (heroId === 'bing') return 'bird';
-  if (heroId === 'pomodoro') return 'plant';
+  if (heroId === 'bing') return 'beast';
+  if (heroId === 'pomodoro') return 'bug';
   return 'beast';
 }
 
@@ -137,14 +138,14 @@ export class SquadHUD {
 
     this._boundPortraitListener = (id, dataUrl) => {
       if (!this.container) return;
-      let card = this.container.querySelector(`.squad-member-card[data-hero-id="${id}"]`);
+      let card = this.container.querySelector(`.lk-party-med[data-hero-id="${id}"]`);
       if (!card && (id === 'sapidae' || (typeof id === 'string' && id.startsWith('sapidae_')))) {
-        card = this.container.querySelector(`.squad-member-card[data-hero-id="sapidae"]`);
+        card = this.container.querySelector(`.lk-party-med[data-hero-id="sapidae"]`);
       }
       if (!card && this.equipmentManager) {
         for (const [hId, base] of Object.entries(this.equipmentManager.heroesBase)) {
           if (base.axieId === id) {
-            card = this.container.querySelector(`.squad-member-card[data-hero-id="${hId}"]`);
+            card = this.container.querySelector(`.lk-party-med[data-hero-id="${hId}"]`);
             break;
           }
         }
@@ -186,7 +187,7 @@ export class SquadHUD {
     if (!container) {
       container = document.createElement('div');
       container.id = 'overworld-squad-hud';
-      container.className = 'overworld-squad-hud';
+      container.className = 'lk-party';
       if (this.parentContainer) {
         this.parentContainer.appendChild(container);
       } else {
@@ -198,143 +199,136 @@ export class SquadHUD {
 
   render() {
     if (!this.container || !this.equipmentManager) return;
+    const em = this.equipmentManager;
 
-    const unlocked = this.equipmentManager.unlockedHeroes || ['kotaro'];
-    this.container.innerHTML = '';
+    // Escuadrón elegido en el panel Escuadrón (tecla K); sin él, los héroes desbloqueados como antes
+    const unlocked = typeof em.getSquad === 'function'
+      ? em.getSquad().filter(Boolean)
+      : (em.unlockedHeroes || ['kotaro']);
+    const mainId = typeof em.getSquad === 'function' ? em.getSquad()[1] : null;
 
-    // Squad title header banner
-    const headerEl = document.createElement('div');
-    headerEl.className = 'squad-hud-header';
-    headerEl.innerHTML = `
-      <div class="squad-hud-title-wrap">
-        <span class="squad-hud-title-icon">👥</span>
-        <span class="squad-hud-title-text">SQUAD</span>
-      </div>
-      <span class="squad-hud-count">(${unlocked.length}/3)</span>
-    `;
-    this.container.appendChild(headerEl);
+    // Columna del escuadrón a la derecha: medallones con marco dorado neutro, ficha de nivel y barra de vida fina.
+    // El principal lleva el anillo de vínculo. Nombre, clase, PA, PM e iniciativa van en el tooltip.
+    const CLS_ES = { beast: 'Bestia', bird: 'Pájaro', plant: 'Planta', aquatic: 'Acuático', bug: 'Bicho', reptile: 'Reptil' };
+    const ROLE_ES = { 'Melee Duelist': 'Duelista cuerpo a cuerpo', 'Ranged Marksman': 'Tirador a distancia', 'Healer & Control': 'Sanador y control', 'Líder': 'Líder de la expedición' };
+    const esc = (v) => String(v ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+    this._tips = {};
+    const rows = unlocked.map((heroId) => {
+      const base = em.heroesBase[heroId];
+      if (!base) return '';
+      const stats = em.getCalculatedStats(heroId) || { maxHP: 1 };
+      const currHP = typeof em.getCurrentHP === 'function' ? em.getCurrentHP(heroId) : stats.maxHP;
+      const hpPct = Math.max(0, Math.min(100, (currHP / Math.max(1, stats.maxHP)) * 100));
+      const prog = em.getProgression(heroId);
+      const req = typeof em.getRequiredExp === 'function' ? em.getRequiredExp(prog.level) : 100;
+      const xpPct = Math.max(0, Math.min(100, Math.round((prog.currentExp / Math.max(1, req)) * 100)));
+      const isSapidaeHero = heroId === 'sapidae' || Boolean(base.isSapidae);
 
-    // Cards list container
-    const listEl = document.createElement('div');
-    listEl.className = 'squad-hud-list';
-
-    unlocked.forEach(heroId => {
-      const base = this.equipmentManager.heroesBase[heroId];
-      if (!base) return;
-
-      const stats = this.equipmentManager.getCalculatedStats(heroId);
-      const prog = this.equipmentManager.getProgression(heroId);
-      const currHP = typeof this.equipmentManager.getCurrentHP === 'function' 
-        ? this.equipmentManager.getCurrentHP(heroId) 
-        : stats.maxHP;
-
-      const isSapidaeHero = (heroId === 'sapidae' || Boolean(base.isSapidae));
-      let theme;
-      let classIconUrl;
-      let classNameText;
-      let isCustomClassIcon = false;
-
-      if (isSapidaeHero) {
-        const sKey = base.sapidaeClassKey || this.equipmentManager?.playerEntity?.sapidaeClass || 'crafter';
-        const sClass = SAPIDAE_CLASSES[sKey] || SAPIDAE_CLASSES.crafter;
-        theme = SAPIDAE_CLASS_THEMES[sKey] || SAPIDAE_CLASS_THEMES.crafter;
-        classIconUrl = sClass.icon || sClass.iconImg || theme.iconUrl;
-        classNameText = sClass.name || theme.name;
-        isCustomClassIcon = true;
-      } else {
-        const classKey = getHeroClassKey(base, heroId);
-        theme = AXIE_CLASS_THEMES[classKey] || AXIE_CLASS_THEMES.beast;
-        classIconUrl = theme.iconUrl;
-        classNameText = theme.name;
-      }
-
-      const hpPct = Math.max(0, Math.min(100, (currHP / stats.maxHP) * 100));
-
-      // Dynamic 3D model portrait from PortraitService
       let portraitUrl = null;
       if (isSapidaeHero) {
         const modelId = base.modelType || 'sapidae-f-a';
-        const custom = base.customization || (this.equipmentManager?.playerEntity?.customization) || null;
-        const equipped = this.equipmentManager?.equipped?.sapidae || null;
-        portraitUrl = portraitService.getSapidaePortraitSync(modelId, custom, equipped, { fullBody: true });
+        const custom = base.customization || (em.playerEntity?.customization) || null;
+        const equipped = em.equipped?.sapidae || null;
+        portraitUrl = portraitService.getSapidaePortraitSync(modelId, custom, equipped, { fullBody: true }) || portraitService.getPortraitSync(modelId);
         if (!portraitUrl) {
-          portraitService.getSapidaeCustomPortrait(modelId, custom, equipped, {
-            fullBody: true,
-            zoomFactor: 1.10,
-            yaw: -0.18,
-            pitch: 0.03
-          });
+          portraitService.getSapidaeCustomPortrait(modelId, custom, equipped, { fullBody: true, zoomFactor: 1.10, yaw: -0.18, pitch: 0.03 });
         }
       } else {
         const portraitKey = base.axieId || heroId;
         portraitUrl = portraitService.getPortraitSync(portraitKey) || portraitService.getPortraitSync(heroId);
-        if (!portraitUrl) {
-          portraitService.getPortrait(portraitKey);
-        }
+        if (!portraitUrl) portraitService.getPortrait(portraitKey);
       }
 
-      const card = document.createElement('div');
-      card.className = `squad-member-card ${theme.className}`;
-      card.dataset.heroId = heroId;
-      card.title = `Click to open Arsenal and Attributes for ${base.name} [I]`;
+      const isMain = heroId === mainId;
+      const bond = isMain ? BondDemo.get(heroId) : 0;
+      // Vínculo del principal: orbe pequeño con el corazón y el líquido rosa a su nivel (como el medidor de vínculo del sistema de diseño)
+      const lvl = (24 * (1 - bond / 100)).toFixed(1);
+      const ring = isMain
+        ? `<span class="lk-pm-bond" title="Vínculo ${bond}%"><svg viewBox="0 0 26 26" aria-hidden="true"><defs><clipPath id="lkPmClip-${heroId}"><circle cx="13" cy="13" r="11"/></clipPath><linearGradient id="lkPmLiq-${heroId}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#FFD3E0"/><stop offset="1" stop-color="#E25C88"/></linearGradient></defs><circle cx="13" cy="13" r="11" fill="#121829"/><rect x="0" y="${(1 + +lvl).toFixed(1)}" width="26" height="26" fill="url(#lkPmLiq-${heroId})" clip-path="url(#lkPmClip-${heroId})"/><path d="M13 18.4l-.8-.7C9.3 15.1 7.4 13.4 7.4 11.3c0-1.7 1.3-3 3-3 .95 0 1.86.44 2.46 1.14.6-.7 1.51-1.14 2.46-1.14 1.7 0 3 1.3 3 3 0 2.1-1.9 3.8-4.8 6.4l-.52.7z" fill="#fff" stroke="rgba(11,15,28,.35)" stroke-width=".6"/><circle cx="13" cy="13" r="11.6" fill="none" stroke="#D3AE6C" stroke-width="1.2"/></svg></span>`
+        : '';
 
-      card.innerHTML = `
-        <!-- Stylized Hero portrait frame (Diamond Rombo identical to Axie) -->
-        <div class="squad-portrait-frame">
-          <div class="squad-frame-outer"></div>
-          <div class="squad-frame-inner">
-            <img class="squad-avatar-img ${isSapidaeHero ? 'squad-avatar-sapidae-body' : ''}" src="${portraitUrl || ''}" alt="${base.name}" style="${portraitUrl ? '' : 'display: none;'}">
-            <span class="squad-avatar-icon" style="${portraitUrl ? 'display: none;' : ''}">${theme.icon}</span>
+      // Ficha del tooltip
+      let clsName, role, clsIcon;
+      if (isSapidaeHero) {
+        const sKey = base.sapidaeClassKey || em?.playerEntity?.sapidaeClass || 'crafter';
+        const sDef = SAPIDAE_CLASSES[sKey] || SAPIDAE_CLASSES.crafter;
+        clsName = sDef.name;
+        clsIcon = sDef.icon || sDef.iconImg || (SAPIDAE_CLASS_THEMES[sKey] || SAPIDAE_CLASS_THEMES.crafter).iconUrl;
+        role = 'Líder de la expedición';
+      } else {
+        const cKey = getHeroClassKey(base, heroId);
+        clsName = CLS_ES[cKey] || 'Axie';
+        clsIcon = `./assets/classes/${cKey}.png`;
+        const m = String(base.archetype || '').match(/\(([^)]+)\)/);
+        role = m ? (ROLE_ES[m[1]] || m[1]) : '';
+      }
+      const slot = isSapidaeHero ? 'Líder' : isMain ? 'Principal' : 'Apoyo';
+      this._tips[heroId] = `<header><span class="lk-pt-cls ${isSapidaeHero ? 'lk-is-sapi' : ''}"><img src="${clsIcon}" alt="${esc(clsName)}"></span><div><small>${esc(slot)} · ${esc(clsName)}</small><b>${esc(base.name)}</b></div></header>
+        <div class="lk-tt-body">
+          ${role ? `<span class="lk-pt-role">${esc(role)}</span>` : ''}
+          <div class="lk-pt-xp"><span>Nv ${prog.level}</span><span class="lk-bar lk-bar--xp" style="--v:${xpPct}%"><i></i></span><b>${xpPct}%</b></div>
+          <div class="lk-tt-stats">
+            <span class="lk-tt-stat">Vida<b>${currHP} / ${stats.maxHP}</b></span>
+            <span class="lk-tt-stat">PA<b>${stats.maxPA ?? '—'}</b></span>
+            <span class="lk-tt-stat">PM<b>${stats.maxPM ?? '—'}</b></span>
+            <span class="lk-tt-stat">Iniciativa<b>${stats.initiative ?? '—'}</b></span>
+            ${isMain ? `<span class="lk-tt-stat">Vínculo<b style="color:var(--lk-bond-heart-magenta)">${bond}%</b></span>` : ''}
           </div>
-          <span class="squad-level-badge">Lv. ${prog.level}</span>
-          <div class="squad-frame-gem"></div>
-        </div>
+          <span class="lk-tt-hint">Clic: abrir su mochila</span>
+        </div>`;
 
-        <!-- Combat info and resources -->
-        <div class="squad-info-col">
-          <div class="squad-header-row">
-            <span class="squad-hero-name">${base.name}</span>
-            <img class="squad-class-icon ${isCustomClassIcon ? 'squad-sapidae-class-icon' : ''}" src="${classIconUrl}" alt="${classNameText}" title="Clase: ${classNameText}">
-          </div>
+      return `<button type="button" class="lk-party-med ${isMain ? 'lk-is-main' : ''}" data-hero-id="${heroId}" aria-label="${esc(base.name)}, nivel ${prog.level}, ${currHP} de ${stats.maxHP} de vida">
+          <span class="lk-pm-frame"><img class="squad-avatar-img" src="${portraitUrl || ''}" alt="" style="${portraitUrl ? '' : 'display:none'}">${ring}<span class="lk-pm-lv">${prog.level}</span></span>
+          <span class="lk-pm-hp ${hpPct <= 30 ? 'lk-is-low' : ''}"><i style="width:${hpPct}%"></i></span>
+        </button>`;
+    }).join('');
+    this.container.innerHTML = rows;
 
-          <!-- Health Bar (HP) -->
-          <div class="squad-hp-row">
-            <div class="squad-hp-bar">
-              <div class="squad-hp-fill" style="width: ${hpPct}%;"></div>
-              <span class="squad-hp-text">${currHP} / ${stats.maxHP} HP</span>
-            </div>
-          </div>
-
-          <!-- Action Points (AP) & Movement Points (MP) -->
-          <div class="squad-points-row">
-            <div class="squad-stat-badge pa-badge" title="Action Points to cast skills">
-              <span class="badge-icon">⚡</span>
-              <span class="badge-val">${stats.maxPA} AP</span>
-            </div>
-            <div class="squad-stat-badge pm-badge" title="Movement Points to move across tiles">
-              <span class="badge-icon">👟</span>
-              <span class="badge-val">${stats.maxPM} MP</span>
-            </div>
-          </div>
-        </div>
-      `;
-
-      // Clic para abrir el inventario centrado en este Axie
-      card.addEventListener('click', (e) => {
+    // Tooltip a la izquierda del medallón
+    if (!this._tipEl) {
+      this._tipEl = document.createElement('div');
+      this._tipEl.className = 'lk-ui lk-tooltip-tactical lk-party-tip';
+      this._tipEl.setAttribute('role', 'tooltip');
+      document.body.appendChild(this._tipEl);
+    }
+    const tip = this._tipEl;
+    const showTip = (btn) => {
+      tip.innerHTML = this._tips[btn.dataset.heroId] || '';
+      tip.classList.add('lk-is-on');
+      const r = btn.getBoundingClientRect();
+      const h = tip.offsetHeight, w = tip.offsetWidth;
+      tip.style.left = `${Math.max(8, r.left - w - 12)}px`;
+      tip.style.top = `${Math.max(8, Math.min(innerHeight - h - 8, r.top + r.height / 2 - h / 2))}px`;
+    };
+    const hideTip = () => tip.classList.remove('lk-is-on');
+    hideTip();
+    this.container.querySelectorAll('.lk-party-med').forEach((btn) => {
+      btn.addEventListener('mouseenter', () => showTip(btn));
+      btn.addEventListener('focus', () => showTip(btn));
+      btn.addEventListener('mouseleave', hideTip);
+      btn.addEventListener('blur', hideTip);
+      btn.addEventListener('click', (e) => {
         e.stopPropagation();
-        if (document.body.classList.contains('state-combat') || 
+        hideTip();
+        if (document.body.classList.contains('state-combat') ||
             (window.__AXIE_TACTICS_APP__ && window.__AXIE_TACTICS_APP__.gameState === 'BATTLE')) {
           return;
         }
-        if (this.inventoryModal) {
-          this.inventoryModal.open(heroId);
-        }
+        if (this.inventoryModal) this.inventoryModal.open(btn.dataset.heroId);
       });
-
-      listEl.appendChild(card);
     });
 
-    this.container.appendChild(listEl);
+    // Oro arriba a la derecha y vida del Sapidae abajo al centro
+    const goldEl = document.getElementById('hud-gold');
+    if (goldEl) goldEl.textContent = Number(typeof em.getGold === 'function' ? em.getGold() : (em.gold || 0)).toLocaleString('es');
+    const bottom = document.getElementById('lk-ow-bottom');
+    const sap = em.heroesBase.sapidae;
+    if (bottom && sap) {
+      const st = em.getCalculatedStats('sapidae') || { maxHP: 1 };
+      const hp = typeof em.getCurrentHP === 'function' ? em.getCurrentHP('sapidae') : st.maxHP;
+      const pct = Math.max(0, Math.min(100, (hp / Math.max(1, st.maxHP)) * 100));
+      bottom.innerHTML = `<span class="lk-lvl">${sap.name} · Nv. ${em.getProgression('sapidae').level}</span><div class="lk-bar ${pct <= 30 ? 'lk-bar--low' : ''}" style="--v:${pct}%" title="${hp}/${st.maxHP} de vida"><i></i></div>`;
+    }
   }
 
   show() {
@@ -347,6 +341,7 @@ export class SquadHUD {
     if (this.container) {
       this.container.classList.add('hidden');
     }
+    if (this._tipEl) this._tipEl.classList.remove('lk-is-on');
   }
 
   destroy() {

@@ -19,7 +19,7 @@ export const LEVELS_CONFIG = {
         type: 'slime',
         x: 4,
         z: 6,
-        maxHP: 50,
+        maxHP: 36, // Fase 5: < golpe mínimo de la habilidad 1 de las 4 clases de Sapidae (38) → el tutorial siempre la derrota
         maxPA: 4,
         maxPM: 2,
         initiative: 40,

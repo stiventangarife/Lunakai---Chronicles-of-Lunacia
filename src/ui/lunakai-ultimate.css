@@ -1,0 +1,20 @@
+/* Duo Ultimate: medallón del HUD de combate (#spell-slot-ult, CombatHUD) gobernado por UltimateSystem.
+   El anillo es el vínculo con el Axie principal. Ver src/ui/UltimateButton.js. */
+
+/* Bloqueada por vínculo: anillo rosa (corazón) en lugar del dorado */
+#ui-overlay .lk-cb-ult[data-ult="locked"] .lk-ring .lk-val { stroke: var(--lk-bond-heart-magenta); }
+#ui-overlay .lk-cb-ult[data-ult="locked"] .lk-pct { color: #FFC2D2; box-shadow: inset 0 0 0 1px rgba(242, 123, 160, .5); }
+/* Vínculo completo pero falta un requisito de este turno: sin candado */
+#ui-overlay .lk-cb-ult[data-ult="wait"] .lk-lock { display: none; }
+#ui-overlay .lk-cb-ult[data-ult="wait"] { cursor: not-allowed; }
+
+/* Icono de la Ultimate de la tríada */
+#ui-overlay .lk-cb-ult .lk-cb-ult-emoji { display: block; font-size: 26px; line-height: 1; filter: grayscale(1) brightness(.75); transition: filter .4s; }
+#ui-overlay .lk-cb-ult[data-ult="wait"] .lk-cb-ult-emoji { filter: grayscale(.4); }
+#ui-overlay .lk-cb-ult.lk-is-ready .lk-cb-ult-emoji { filter: drop-shadow(0 0 6px rgba(255, 255, 255, .8)); }
+
+/* Tooltip */
+.lk-ult-tip .lk-ult-tip__ico { font-size: 20px; }
+.lk-ult-req { margin: 6px 0 0; padding: 0; list-style: none; display: grid; gap: 3px; font-size: .74rem; font-weight: 700; color: #6B5B44; }
+.lk-ult-req li.lk-ok { color: #2F7A4B; }
+.lk-ult-req b { color: #B03A64; }

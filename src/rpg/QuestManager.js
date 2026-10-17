@@ -62,19 +62,19 @@ export class QuestManager {
         order: 2,
         giver: {
           name: 'Bing',
-          title: 'Solitary Winged Archer',
+          title: 'Cheerful Savannah Pup',
           avatar: './assets/portraits/bing.png',
           model: 'bing'
         },
         zoneCoords: [3, 2],
-        lore: 'Leaving the Dojo through the east gate towards the Eastern Savannah [3, 2], a winged archer named Bing is cornered by fierce Chimeras. If you prove your courage and fight alongside him, he will join your squad.',
-        npcQuote: 'Careful adventurer! Those beasts have razor-sharp claws! If you fight with me, we can decimate their ranks and unite our forces for good.',
+        lore: 'Leaving the Dojo through the east gate towards the Eastern Savannah [3, 2], a cheerful Beast pup named Bing is cornered by fierce Chimeras that want his precious ice-cream cones. If you prove your courage and fight alongside him, his toy ball, his healing treats and his rallying barks will join your squad.',
+        npcQuote: 'Woof! Careful, adventurer! Those beasts have razor-sharp claws and they want my ice cream! Fight with me and I\'ll keep everyone\'s spirits, and health, high!',
         objective: {
           summary: 'Travel to the eastern macro-zone [3, 2], help Bing repel the savannah monsters, and recruit him into your tactical squad.',
           steps: [
             { id: 'find_bing', desc: 'Locate Bing in the Eastern Savannah [3, 2]', done: false },
             { id: 'defend_bing', desc: 'Fight and purify the Chimeras surrounding him', done: false },
-            { id: 'recruit_bing', desc: 'Talk to Bing and add his bow to your squad [E]', done: false }
+            { id: 'recruit_bing', desc: 'Talk to Bing and add his cheer to your squad [E]', done: false }
           ]
         },
         rewards: {
@@ -187,15 +187,15 @@ export class QuestManager {
         order: 5,
         giver: {
           name: 'Pomodoro',
-          title: 'Botanical Guardian of Atia',
+          title: 'Leaf-Shell Guardian of Atia',
           avatar: './assets/portraits/pomodoro.png',
           model: 'pomodoro'
         },
         zoneCoords: [2, 1],
-        lore: 'The northern arctic mountains endure a relentless blizzard. In the Glacial Peaks [2, 1], noble Pomodoro fights alone to protect a sacred sprout of the Atia Tree from Glacial Chimeras.',
-        npcQuote: 'By the roots of life! My sprouts won\'t endure much more cold if those beasts keep attacking! Help me drive them out!',
+        lore: 'The northern arctic mountains endure a relentless blizzard. In the Glacial Peaks [2, 1], noble Pomodoro, a Bug cook who shelters under autumn leaves, fights alone with his trusty frying pan to protect a sacred sprout of the Atia Tree from Glacial Chimeras.',
+        npcQuote: 'By the leaves of Atia! My sprout won\'t endure much more cold if those beasts keep attacking! Help me drive them out!',
         objective: {
-          summary: 'Ascend to the Glacial Peaks at [2, 1], defeat the frozen creatures, and recruit Pomodoro as your squad\'s healing protector.',
+          summary: 'Ascend to the Glacial Peaks at [2, 1], defeat the frozen creatures, and recruit Pomodoro as your squad\'s shield protector.',
           steps: [
             { id: 'reach_arctic', desc: 'Locate and speak with Pomodoro in the Glacial Peaks [2, 1]', done: false, zoneCoords: [2, 1] },
             { id: 'defend_pomodoro', desc: 'Defeat the Ice Chimeras in tactical combat', done: false, zoneCoords: [2, 1] },
@@ -213,7 +213,7 @@ export class QuestManager {
               slot: 'body',
               rarity: 'epic',
               icon: './assets/equippable/sacred_leaf_brooch.png',
-              desc: 'Brooch blessed by Pomodoro\'s flowers. Grants +100 HP and strengthens defenses.',
+              desc: 'Brooch woven from Pomodoro\'s autumn leaves. Grants +100 HP and strengthens defenses.',
               stats: { hp: 100 }
             }
           ]
@@ -229,13 +229,13 @@ export class QuestManager {
         order: 6,
         giver: {
           name: 'Pomodoro',
-          title: 'Botanical Ally',
+          title: 'Leaf-Shell Ally',
           avatar: './assets/portraits/pomodoro.png',
           model: 'pomodoro'
         },
         zoneCoords: [1, 1],
         lore: 'The blizzard ravaging the north is unnatural: an Armored Polar Golem in the Frost Valley [1, 1] fuels an ice vortex blocking passage to the arcane sanctuaries in the west.',
-        npcQuote: 'I feel the ice vibrations in my roots. If we destroy the Golem core in the Frost Valley [1, 1], the storm will cease and we can cross into the Astral Nebula [1, 2].',
+        npcQuote: 'I feel the ice vibrations through my leaves. If we destroy the Golem core in the Frost Valley [1, 1], the storm will cease and we can cross into the Astral Nebula [1, 2].',
         objective: {
           summary: 'Advance into the Valley of Eternal Frost at [1, 1], defeat the Armored Polar Golem, and dispel the blizzard barrier.',
           steps: [
@@ -347,7 +347,7 @@ export class QuestManager {
 
       quest_sulfur_threshold: {
         id: 'quest_sulfur_threshold',
-        title: 'The Brimstone Threshold',
+        title: 'The Genesis Threshold',
         category: 'Principal',
         order: 9,
         giver: {
@@ -358,13 +358,13 @@ export class QuestManager {
           zoneCoords: [2, 3]
         },
         zoneCoords: [2, 3],
-        lore: 'At the Fortress Threshold [2, 3], Kotaro guards the seal leading to the final crypt.',
-        npcQuote: 'The time for the final descent has arrived. Head to the fiery gates in [2, 3] and speak with Kotaro after overcoming the Brimstone Guardians.',
+        lore: 'At the Sanctuary Gate of Genesis [2, 3], Kotaro guards the seal of the Royal Gardens, the forbidden sanctuary reserved for the elite of trainers.',
+        npcQuote: 'The time for the final pilgrimage has arrived. Cross the Sanctuary Gate of Genesis in [2, 3] and speak with Kotaro after overcoming the Genesis Wardens.',
         objective: {
-          summary: 'March to the Fiery Fortress at [2, 3], defeat the armored dungeon guardians, and gain access to the final pit.',
+          summary: 'March to the Royal Gardens of Genesis at [2, 3], defeat the ancient sanctuary wardens, and earn access to the Sanctum of Origin.',
           steps: [
-            { id: 'reach_threshold', desc: 'Advance to the Fortress Threshold [2, 3]', done: false, zoneCoords: [2, 3] },
-            { id: 'defeat_sulfur_guards', desc: 'Defeat the Fiery Guardians in combat', done: false, zoneCoords: [2, 3] }
+            { id: 'reach_threshold', desc: 'Advance to the Sanctuary Gate of Genesis [2, 3]', done: false, zoneCoords: [2, 3] },
+            { id: 'defeat_sulfur_guards', desc: 'Defeat the Genesis Wardens in combat', done: false, zoneCoords: [2, 3] }
           ]
         },
         rewards: {
@@ -373,12 +373,12 @@ export class QuestManager {
           items: [
             {
               id: 'crimson_crypt_key',
-              name: 'Crimson Crypt Key',
+              name: 'Genesis Sanctum Key',
               slot: 'quest',
               category: 'quest',
               rarity: 'legendary',
               icon: './assets/equippable/crimson_crypt_key.png',
-              desc: 'Key forged in elemental magma. Unlocks the arcane seal to the final Crypt Catacombs.',
+              desc: 'Key carved from ancient Genesis crystal. Unlocks the arcane seal of the Sanctum of Origin.',
               stats: {}
             }
           ]
@@ -400,13 +400,13 @@ export class QuestManager {
           zoneCoords: [3, 3]
         },
         zoneCoords: [3, 3],
-        lore: 'Deep within the Crypt Catacombs [3, 3] sleeps the Chimera Overlord, the source of all Lunacia\'s corruption. This is the definitive final battle for the world\'s fate.',
-        npcQuote: '{heroName}, Bing, Pomodoro... your hearts beat in unison with the Atia Tree. Enter the ceremonial pit and restore peace once and for all.',
+        lore: 'Deep within the Sanctum of Origin [3, 3] sleeps the Chimera Overlord, the source of all Lunacia\'s corruption. This is the definitive final battle for the world\'s fate.',
+        npcQuote: '{heroName}, Bing, Pomodoro... your hearts beat in unison with the Atia Tree. Enter the Sanctum of Origin and restore peace once and for all.',
         objective: {
-          summary: 'Enter the Crypt Catacombs [3, 3] with your complete squad, defeat the Overlord in tactical combat, and save Lunacia.',
+          summary: 'Enter the Sanctum of Origin [3, 3] with your complete squad, defeat the Overlord in tactical combat, and save Lunacia.',
           steps: [
-            { id: 'enter_catacombs', desc: 'Descend into the Deep Catacombs [3, 3]', done: false, zoneCoords: [3, 3] },
-            { id: 'defeat_crypt_lord', desc: 'Defeat the Crypt Overlord in combat', done: false, zoneCoords: [3, 3] },
+            { id: 'enter_catacombs', desc: 'Enter the Sanctum of Origin [3, 3]', done: false, zoneCoords: [3, 3] },
+            { id: 'defeat_crypt_lord', desc: 'Defeat the Chimera Overlord in combat', done: false, zoneCoords: [3, 3] },
             { id: 'restore_lunacia', desc: 'Consecrate victory alongside the Spirit of Atia [E]', done: false, zoneCoords: [3, 3] }
           ]
         },
@@ -444,13 +444,13 @@ export class QuestManager {
         },
         zoneCoords: [2, 2],
         bubbleQuote: 'Hey, traveler! Got a map handy?',
-        lore: 'The continent of Lunacia is structured in a 9 macro-zone grid (3x3 quadrants). Each biome (Forest, Savannah, Arctic, Mystic, and Dungeon) holds unique dangers and secrets.',
+        lore: 'The continent of Lunacia is structured in a 9 macro-zone grid (3x3 quadrants). Each biome (Forest, Savannah, Arctic, Mystic, and Genesis) holds unique dangers and secrets.',
         npcQuote: 'A true duelist never travels blind! Learn to read the stars and the World Map [M] to recognize each of the 9 regions.',
         objective: {
           summary: 'Open the World Map with [M] and cross into a new biome to record the geography of Lunacia.',
           steps: [
             { id: 'open_map', desc: 'Consult the World Map by pressing [M]', done: false },
-            { id: 'visit_biomes', desc: 'Travel to a different biome (Savannah, Arctic, Mystic, or Dungeon)', done: false }
+            { id: 'visit_biomes', desc: 'Travel to a different biome (Savannah, Arctic, Mystic, or Genesis)', done: false }
           ]
         },
         rewards: {
@@ -812,14 +812,14 @@ export class QuestManager {
           model: 'tripp'
         },
         zoneCoords: [2, 3],
-        bubbleQuote: 'A hundred years wandering amid fire searching for my beloved golden pickaxe...!',
-        lore: 'At the Fiery Fortress Threshold [2, 3], Tripp, a veteran miner and warrior, seeks the relic he lost in the gallery depths.',
-        npcQuote: 'That pickaxe forged from Atia gold is my life\'s legacy! Fiery chimeras dragged it into their magma nest. Recover it, I beg you!',
+        bubbleQuote: 'A hundred years wandering these ancient gardens searching for my beloved golden pickaxe...!',
+        lore: 'In the Royal Gardens of Genesis [2, 3], Tripp, a veteran miner and warrior, seeks the relic he lost in the pink crystal quarry.',
+        npcQuote: 'That pickaxe forged from Atia gold is my life\'s legacy! The Genesis wardens dragged it into their crystal nest. Recover it, I beg you!',
         objective: {
-          summary: 'Explore the Fortress Threshold [2, 3], recover the golden pickaxe from the blazing nest, and grant Tripp peace.',
+          summary: 'Explore the Royal Gardens of Genesis [2, 3], recover the golden pickaxe from the crystal nest, and grant Tripp peace.',
           steps: [
             { id: 'talk_miner', desc: 'Speak with Tripp in [2, 3]', done: false },
-            { id: 'find_golden_pickaxe', desc: 'Defeat the fiery guard and recover the pickaxe', done: false },
+            { id: 'find_golden_pickaxe', desc: 'Defeat the crystal warden and recover the pickaxe', done: false },
             { id: 'return_relic', desc: 'Return the relic to Tripp [E]', done: false }
           ]
         },
@@ -829,11 +829,11 @@ export class QuestManager {
           items: [
             {
               id: 'fury_ring',
-              name: 'Volcanic Fury Fiery Ring',
+              name: 'Genesis Aurora Ring',
               slot: 'hat',
               rarity: 'epic',
               icon: './assets/equippable/fury_ring.png',
-              desc: 'Imbued with the undying heat of the dungeon. Grants +130 HP and +8 initiative.',
+              desc: 'Imbued with the ancient magic of Genesis. Grants +130 HP and +8 initiative.',
               stats: { hp: 130, initiative: 8 }
             }
           ]

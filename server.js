@@ -51,6 +51,18 @@ const server = http.createServer((req, res) => {
   }
 
 
+  // Herramientas de desarrollo que escriben archivos en disco: solo desde esta misma máquina.
+  // En un servidor público permitirían escribir en cualquier ruta.
+  if (req.method === 'POST' && reqUrl.startsWith('/api/save-')) {
+    const ip = (req.socket && req.socket.remoteAddress) || '';
+    const isLocal = ip === '127.0.0.1' || ip === '::1' || ip === '::ffff:127.0.0.1';
+    if (!isLocal || process.env.NODE_ENV === 'production') {
+      res.writeHead(403, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'forbidden' }));
+      return;
+    }
+  }
+
   if (req.method === 'POST' && reqUrl === '/api/save-portrait') {
     let body = '';
     req.on('data', chunk => body += chunk);
@@ -58,7 +70,9 @@ const server = http.createServer((req, res) => {
       try {
         const { name, dataUrl } = JSON.parse(body);
         const base64Data = dataUrl.replace(/^data:image\/\w+;base64,/, '');
-        const target = path.join(DIRECTORY, 'assets', 'portraits', `${name}.png`);
+        const safeName = String(name || '').replace(/[^a-zA-Z0-9_-]/g, '');
+        if (!safeName) throw new Error('Nombre inválido');
+        const target = path.join(DIRECTORY, 'assets', 'portraits', `${safeName}.png`);
         fs.writeFileSync(target, base64Data, 'base64');
         console.log(`[Server] Saved portrait to ${target}`);
         res.writeHead(200, { 'Content-Type': 'application/json' });
@@ -78,7 +92,8 @@ const server = http.createServer((req, res) => {
       try {
         const { relPath, dataUrl } = JSON.parse(body);
         const base64Data = dataUrl.replace(/^data:image\/\w+;base64,/, '');
-        const target = path.join(DIRECTORY, relPath);
+        const target = path.resolve(DIRECTORY, String(relPath || ''));
+        if (!target.startsWith(DIRECTORY + path.sep)) throw new Error('Ruta fuera del proyecto');
         fs.mkdirSync(path.dirname(target), { recursive: true });
         fs.writeFileSync(target, base64Data, 'base64');
         console.log(`[Server] Saved image to ${target}`);

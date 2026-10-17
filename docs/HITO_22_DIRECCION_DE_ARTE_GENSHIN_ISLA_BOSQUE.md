@@ -145,3 +145,8 @@ DemoScenaZone22.init()
 * **Causa:** al volver de otra zona, el `AtmosphereManager` de la Sabana restauraba su niebla al desactivarse y se perdía la bruma del Bosque.
 * **Solución:** la isla mantiene una única `FogExp2(0xcde4f7, 0.003)` persistente, una bruma celeste que vela árboles, colinas y mar a media y larga distancia. Se reaplica en el siguiente fotograma si otra zona la cambia, así que siempre es la misma venga el jugador de donde venga.
 
+
+### 7.6 Puente sobre los rápidos (`demo_scena/ForestBridge.js`, Hito 24)
+* Malla `SmallBridge` de `assets/environment/bridge.glb`: 4 módulos encadenados en un arco suave (+0,6 m) con tablero de 4 m, entre el final del sendero del Gran Árbol `(17.3, 27.0)` y el camino del Santuario `(53.4, 22.0)`.
+* Los postes se alargan solo por abajo para llegar bajo el agua.
+* `getDeckHeight(x, z)` da la altura caminable del tablero; dos barandillas de colisión (`forest_bridge_rail`) mientras el Bosque está activo.

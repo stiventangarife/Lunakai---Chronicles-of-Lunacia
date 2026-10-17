@@ -29,6 +29,7 @@ import { QuestManager } from './QuestManager.js';
 import { QuestBookModal } from './ui/QuestBookModal.js';
 import { OverworldTutorialManager } from './OverworldTutorialManager.js';
 import { SquadHUD } from './ui/SquadHUD.js';
+import { SquadModal } from './ui/SquadModal.js';
 import { MinimapHUD } from './ui/MinimapHUD.js';
 import { portraitService } from '../tactics/CharacterPortraitService.js';
 import { SAPIDAE_CLASSES } from './SaveSlotManager.js';
@@ -88,6 +89,7 @@ export class OverworldManager {
     this.mysticPond = null;
     this.worldMapManager = new WorldMapManager(this);
     this.inventoryModal = this.equipmentManager ? new InventoryModal(this.equipmentManager, this.audio) : null;
+    this.squadModal = this.equipmentManager ? new SquadModal(this.equipmentManager, this.audio) : null;
     this.questManager = new QuestManager(this.equipmentManager, this.audio);
     this.monsters.questManager = this.questManager;
     this.questInteractables = new QuestInteractablesManager(this.scene, this.questManager, this.audio, this);
@@ -122,6 +124,7 @@ export class OverworldManager {
       this.inventoryModal.tutorialManager = this.tutorialManager;
       this.inventoryModal.questManager = this.questManager;
     }
+    this._wireSquadModal();
 
     // Wire UI blocking check to camera controller so zooming and mouse rotation are disabled when any UI is open
     this.cameraController.setUIBlockCheck(() => this.isAnyModalOpen());
@@ -235,6 +238,10 @@ export class OverworldManager {
         this.inventoryModal.onClose = () => this.tutorialManager.onInventoryClosed();
       }
     }
+    if (!this.squadModal && equipmentManager) {
+      this.squadModal = new SquadModal(equipmentManager, this.audio);
+      this._wireSquadModal();
+    }
     if (this.questManager) {
       this.questManager.setEquipmentManager(equipmentManager);
     }
@@ -251,18 +258,26 @@ export class OverworldManager {
     if (!el) {
       el = document.createElement('div');
       el.id = 'hero-presentation-card';
-      el.className = 'hero-intro-card hidden';
+      // Crónica Celeste: rótulo de presentación en el tercio inferior izquierdo. No tapa al héroe (que saluda en el centro),
+      // muestra su clase y su compañero, y una hebra dorada indica cuándo empieza la exploración por sí sola.
+      el.className = 'lk-ui lk-intro hidden';
       el.innerHTML = `
-        <div class="intro-card-inner">
-          <div class="intro-avatar-frame" id="intro-hero-avatar">⚔️</div>
-          <span class="intro-role-badge">DESIGNATED HERO</span>
-          <h2 id="intro-hero-name" class="intro-hero-title">Lunakai Hero</h2>
-          <p id="intro-hero-role" class="intro-hero-archetype">
-            <span id="intro-hero-class">Hero of Lunacia</span>
-          </p>
-          <div class="intro-mission-hint">
-            Press <kbd>Space</kbd> or <kbd>E</kbd> to begin exploration ➔
+        <div class="lk-intro__scrim" aria-hidden="true"></div>
+        <div class="lk-intro__card" role="status">
+          <span class="lk-intro__kicker"><i></i>Comienza tu crónica</span>
+          <h2 id="intro-hero-name" class="lk-intro__name">Lunakai</h2>
+          <div class="lk-intro__line" aria-hidden="true"><i></i></div>
+          <div class="lk-intro__meta">
+            <span class="lk-intro__chip">
+              <span class="lk-intro__cls"><img id="intro-hero-class-ico" src="./assets/classes/class_forjacubiles.jpg" alt=""></span>
+              <span class="lk-intro__txt"><small id="intro-hero-role">Sapidae · Nv. 1</small><b id="intro-hero-class">Forjacubiles</b></span>
+            </span>
+            <span class="lk-intro__chip">
+              <span class="lk-intro__med" id="intro-hero-avatar"></span>
+              <span class="lk-intro__txt"><small>Compañero</small><b id="intro-hero-companion">Shinji</b></span>
+            </span>
           </div>
+          <div class="lk-intro__go"><span class="lk-intro__prog" aria-hidden="true"><i></i></span><span class="lk-intro__hint"><kbd>Espacio</kbd> Comenzar a explorar</span></div>
         </div>
       `;
       el.addEventListener('click', () => {
@@ -280,52 +295,51 @@ export class OverworldManager {
     if (!el) {
       el = document.createElement('div');
       el.id = 'overworld-hud';
-      el.className = 'overworld-hud hidden';
+      el.className = 'lk-ui lk-ow-hud hidden';
+      // HUD de exploración (Crónica Celeste · pantalla 20): vive en los bordes y sin cajas.
+      // Se conservan los ids que leen OverworldManager, WorldMapManager y el tutorial.
+      const I = (n) => `./assets/ui/icons/${n}.png`;
+      const MOON = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 3a9 9 0 1 0 6 15.7A7.5 7.5 0 1 1 15 3z" fill="currentColor"/></svg>';
+      const circ = (id, icon, label, key) => `<button id="${id}" class="lk-btn-circle-icon" aria-label="${label}" title="${label} [${key}]"><img class="lk-ai" src="${I(icon)}" alt=""><span class="lk-key">${key}</span></button>`;
       el.innerHTML = `
-        <div class="overworld-quest-tracker">
-          <div class="quest-header">
-            <span class="quest-icon">📜</span>
-            <span class="quest-title">MAIN QUEST</span>
-          </div>
-          <div id="overworld-quest-desc" class="quest-desc">
-            Talk to Master Paladill at the Dojo [E]
-          </div>
-          <!-- Zone Coordinate, Sub-Quadrant & Biome Badge -->
-          <div id="overworld-zone-coord-badge" class="hud-zone-badge">
-            <span class="hud-biome-dot" style="background:#22c55e"></span>
-            <span class="hud-zone-name">Dojo Valley</span>
-            <span class="hud-zone-coord">[3, 3]</span>
-            <span id="hud-subq-tag" class="hud-subq-badge">SE</span>
-          </div>
-          <!-- Navigational Direction Indicator & Compass -->
-          <div id="overworld-quest-navigator" class="hud-quest-navigator">
-            <div class="hud-nav-compass">
-              <span id="hud-nav-compass-arrow" class="hud-compass-arrow">🧭</span>
-            </div>
-            <div class="hud-nav-info">
-              <span class="hud-nav-label">TARGET HEADING</span>
-              <span id="hud-nav-direction-text" class="hud-nav-direction-text">Calculating route...</span>
+        <div class="lk-ow-left">
+          <div class="lk-minimap-slot" id="lk-minimap-slot"></div>
+          <div class="lk-quest-widget" id="lk-quest-widget">
+            <header>
+              <span class="lk-ico">${MOON}</span>
+              <b><small id="hud-quest-cat">Misión</small><span id="hud-quest-title">Lunacia</span></b>
+              <button type="button" class="lk-min-btn" id="hud-quest-toggle" aria-label="Plegar misión" aria-expanded="true">–</button>
+            </header>
+            <div class="lk-qbody">
+              <div id="hud-quest-obj" class="lk-obj"></div>
+              <div id="overworld-quest-desc" class="lk-ow-src" hidden>Talk to Master Paladill at the Dojo [E]</div>
+              <div id="overworld-quest-navigator" class="lk-ow-nav hidden">
+                <span id="hud-nav-compass-arrow" class="lk-ow-nav__arrow">🧭</span>
+                <span id="hud-nav-direction-text" class="lk-ow-nav__txt">Calculando ruta…</span>
+              </div>
+              <div id="overworld-zone-coord-badge" class="lk-ow-zone">
+                <span class="hud-biome-dot" style="background:#22c55e"></span>
+                <span class="hud-zone-name">Dojo Valley</span>
+                <span class="hud-zone-coord">[3, 3]</span>
+                <span id="hud-subq-tag" class="hud-subq-badge">SE</span>
+              </div>
             </div>
           </div>
         </div>
 
-        <div class="overworld-controls-guide">
-          <div class="guide-item"><kbd>W A S D</kbd> Move</div>
-          <div class="guide-item"><kbd>E</kbd> Talk / Interact</div>
-          <div class="guide-item"><kbd>Space</kbd> Continue Dialogue</div>
-          <div class="guide-item"><kbd>I</kbd> Inventory</div>
-          <div class="guide-item"><kbd>J / L</kbd> Quests</div>
-          <div class="guide-item"><kbd>M</kbd> World Map</div>
-          <div class="guide-item"><kbd>ESC</kbd> Options</div>
-          <div class="guide-item"><kbd>Q / R</kbd> Rotate View</div>
-          <div class="guide-item"><kbd>Wheel</kbd> Zoom</div>
-          <div class="guide-item" id="hud-player-coord-display" style="color: #67e8f9; font-weight: bold; font-family: monospace;">📍 Pos: X 0.0 | Z 0.0</div>
-          <div class="hud-action-buttons-group">
-            <button id="btn-open-inventory" class="hud-inv-btn" title="Open Inventory & Equipment [I]">🎒 Inventory [I]</button>
-            <button id="btn-open-quest-book" class="hud-quest-btn" title="Open Quest Log [J]">📖 Quests [J]</button>
-            <button id="btn-open-world-map" class="hud-map-btn" title="Open World Map [M]">🗺️ View Map [M]</button>
-            <button id="btn-open-options" class="hud-options-btn" title="Game Options: Graphics, Audio, and Exit [ESC]">⚙️ Options [ESC]</button>
-          </div>
+        <div class="lk-ow-menu">
+          ${circ('btn-open-inventory', 'inventory', 'Mochila', 'I')}
+          ${circ('btn-open-squad', 'team', 'Escuadrón', 'K')}
+          ${circ('btn-open-quest-book', 'mission', 'Crónica', 'J')}
+          ${circ('btn-open-world-map', 'map', 'Mapa', 'M')}
+          ${circ('btn-open-options', 'setting', 'Opciones', 'Esc')}
+        </div>
+
+        <div class="lk-ow-bottom" id="lk-ow-bottom"></div>
+
+        <div class="lk-ow-keys">
+          <span><kbd>WASD</kbd> Moverse</span><span><kbd>E</kbd> Hablar</span><span><kbd>Espacio</kbd> Continuar</span><span><kbd>Q</kbd><kbd>R</kbd> Girar cámara</span><span><kbd>Rueda</kbd> Zoom</span>
+          <span id="hud-player-coord-display" class="lk-ow-coord" hidden></span>
         </div>
       `;
       document.body.appendChild(el);
@@ -381,10 +395,10 @@ export class OverworldManager {
         });
       }
 
-      const trackerEl = el.querySelector('.overworld-quest-tracker');
+      const trackerEl = el.querySelector('#lk-quest-widget');
       if (trackerEl) {
         trackerEl.style.cursor = 'pointer';
-        trackerEl.title = 'Click to open Quest Log [J]';
+        trackerEl.title = 'Abrir la Crónica [J]';
         trackerEl.addEventListener('click', () => {
           if (this.isCombatActive()) return;
           if (this.tutorialManager && this.tutorialManager.isCutsceneActive) return;
@@ -394,6 +408,63 @@ export class OverworldManager {
           }
           if (this.questBookModal) this.questBookModal.toggle();
         });
+      }
+
+      const squadBtn = document.getElementById('btn-open-squad');
+      if (squadBtn) {
+        squadBtn.addEventListener('click', () => {
+          if (this.isCombatActive()) return;
+          if (this.tutorialManager && (this.tutorialManager.isCutsceneActive || this.tutorialManager.isOverlayActive)) return;
+          if (this.tutorialManager && !this.tutorialManager.isFeatureUnlocked('inventory')) {
+            this._showFeatureLockedFeedback('The squad unlocks after your first battle.');
+            return;
+          }
+          if (this.inventoryModal && this.inventoryModal.isOpen) {
+            this.inventoryModal.close();
+            if (this.inventoryModal.isOpen) return;
+          }
+          if (this.squadModal) this.squadModal.toggle();
+        });
+      }
+
+      // Plegar / desplegar la misión del HUD (se recuerda en este navegador)
+      const qWidget = document.getElementById('lk-quest-widget');
+      const qToggle = document.getElementById('hud-quest-toggle');
+      if (qWidget && qToggle) {
+        let collapsed = false;
+        try { collapsed = localStorage.getItem('axie_lk_hud_quest_collapsed') === '1'; } catch (_) { /* sin almacenamiento */ }
+        const applyCollapse = () => {
+          qWidget.classList.toggle('lk-is-collapsed', collapsed);
+          qToggle.textContent = collapsed ? '+' : '–';
+          qToggle.setAttribute('aria-expanded', String(!collapsed));
+          qToggle.setAttribute('aria-label', collapsed ? 'Desplegar misión' : 'Plegar misión');
+        };
+        applyCollapse();
+        qToggle.addEventListener('click', (e) => {
+          e.stopPropagation();
+          collapsed = !collapsed;
+          try { localStorage.setItem('axie_lk_hud_quest_collapsed', collapsed ? '1' : '0'); } catch (_) { /* nada */ }
+          applyCollapse();
+        });
+      }
+
+      // El texto de la misión que escriben los gestores ("⭐ Título: paso") se reparte en título y objetivo
+      const srcEl = document.getElementById('overworld-quest-desc');
+      if (srcEl) {
+        const syncQuest = () => {
+          const raw = (srcEl.textContent || '').trim();
+          const q = this.questManager && typeof this.questManager.getTrackedQuest === 'function' ? this.questManager.getTrackedQuest() : null;
+          const titleEl = document.getElementById('hud-quest-title');
+          const catEl = document.getElementById('hud-quest-cat');
+          const objEl = document.getElementById('hud-quest-obj');
+          let step = raw.replace(/^[^\p{L}\p{N}\[(]+/u, '');
+          if (q && q.title && step.startsWith(q.title)) step = step.slice(q.title.length).replace(/^\s*:\s*/, '');
+          if (titleEl) titleEl.textContent = q ? q.title : 'Lunacia';
+          if (catEl) catEl.textContent = q ? (q.category === 'Principal' ? 'Misión principal' : 'Encargo') : 'Exploración';
+          if (objEl) objEl.textContent = step || raw;
+        };
+        syncQuest();
+        new MutationObserver(syncQuest).observe(srcEl, { childList: true, characterData: true, subtree: true });
       }
 
       if (this.tutorialManager) {
@@ -441,6 +512,23 @@ export class OverworldManager {
     this._showBannerMessage('🔒 FEATURE LOCKED', msg);
   }
 
+  // Escuadrón (tecla K) ⇄ mochila (tecla I): cada panel abre el otro y el HUD del escuadrón se refresca al cambiarlo
+  _wireSquadModal() {
+    if (!this.squadModal) return;
+    this.squadModal.onChange = () => {
+      if (this.squadHUD) this.squadHUD.render();
+      if (this.inventoryModal && this.inventoryModal.isOpen) this.inventoryModal._renderAll();
+      if (typeof window !== 'undefined' && window.__AXIE_TACTICS_APP__?._saveCurrentProgress) window.__AXIE_TACTICS_APP__._saveCurrentProgress();
+    };
+    this.squadModal.onOpenInventory = (heroId) => { if (this.inventoryModal) this.inventoryModal.open(heroId); };
+    if (this.inventoryModal) {
+      this.inventoryModal.onOpenSquad = () => {
+        this.inventoryModal.close();
+        if (!this.inventoryModal.isOpen) this.squadModal.open();
+      };
+    }
+  }
+
   isAnyModalOpen() {
     if (this.isLoadingZone) return true;
     if (this.worldMapManager?.transitionManager?.isTransitioning) return true;
@@ -448,6 +536,7 @@ export class OverworldManager {
     if (curtain && (!curtain.classList.contains('hidden') || curtain.classList.contains('active'))) return true;
 
     if (this.inventoryModal && this.inventoryModal.isOpen) return true;
+    if (this.squadModal && this.squadModal.isOpen) return true;
     if (this.questBookModal && this.questBookModal.isOpen) return true;
     if (this.settingsModal && this.settingsModal.isOpen) return true;
     if (this.worldMapManager && this.worldMapManager.worldMapModal && this.worldMapManager.worldMapModal.isOpen) return true;
@@ -511,6 +600,11 @@ export class OverworldManager {
           e.preventDefault();
           return;
         }
+        if (this.squadModal && this.squadModal.isOpen) {
+          this.squadModal.close();
+          e.preventDefault();
+          return;
+        }
         if (this.worldMapManager && this.worldMapManager.worldMapModal && this.worldMapManager.worldMapModal.isOpen) {
           this.worldMapManager.closeWorldMap();
           e.preventDefault();
@@ -553,6 +647,27 @@ export class OverworldManager {
         }
         if (this.inventoryModal) {
           this.inventoryModal.toggle();
+          e.preventDefault();
+          return;
+        }
+      }
+
+      if (e.code === 'KeyK') {
+        if (inCombat) {
+          e.preventDefault();
+          return;
+        }
+        if (this.tutorialManager && !this.tutorialManager.isFeatureUnlocked('inventory')) {
+          this._showFeatureLockedFeedback('The squad unlocks after your first battle.');
+          e.preventDefault();
+          return;
+        }
+        if (this.squadModal) {
+          if (this.inventoryModal && this.inventoryModal.isOpen) {
+            this.inventoryModal.close();
+            if (this.inventoryModal.isOpen) { e.preventDefault(); return; }
+          }
+          this.squadModal.toggle();
           e.preventDefault();
           return;
         }
@@ -1000,31 +1115,33 @@ export class OverworldManager {
     this.cameraController.currentAngle = Math.PI * 0.18;
 
     // Show Hero Presentation Card safely
+    const INTRO_MS = 4200; // tiempo para leerlo; Espacio, E, Enter o clic lo cierran antes
     const nameEl = document.getElementById('intro-hero-name');
     if (nameEl && this.player) nameEl.textContent = this.player.name;
-    const roleEl = document.getElementById('intro-hero-role') || document.getElementById('intro-hero-class');
-    if (roleEl && this.player) roleEl.textContent = this.player.archetype;
+    const sapKey = this.player?.sapidaeClass || 'crafter';
+    const cDef = SAPIDAE_CLASSES[sapKey] || SAPIDAE_CLASSES.crafter;
+    const lvl = this.equipmentManager?.getProgression?.('sapidae')?.level || 1;
+    const role = String(cDef?.archetype || '').match(/\(([^)]+)\)/)?.[1] || '';
     const classEl = document.getElementById('intro-hero-class');
-    if (classEl && this.player) classEl.textContent = this.player.archetype;
+    if (classEl) classEl.textContent = cDef?.name || 'Sapidae';
+    const roleEl = document.getElementById('intro-hero-role');
+    if (roleEl) roleEl.textContent = `Nv. ${lvl}${role ? ' · ' + role : ''}`;
+    const clsIco = document.getElementById('intro-hero-class-ico');
+    if (clsIco && cDef?.icon) clsIco.src = cDef.icon;
+    const compEl = document.getElementById('intro-hero-companion');
+    if (compEl && this.player) compEl.textContent = this.player.companionName || 'Shinji';
 
+    // Medallón del compañero (retrato del axie)
     const avatarEl = document.getElementById('intro-hero-avatar');
     if (avatarEl && this.player) {
-      if (this.player.isSapidae) {
-        avatarEl.innerHTML = `<img src="./assets/portraits/${this.player.sapidaeModel}.png" alt="${this.player.name}" style="width: 100%; height: 100%; object-fit: contain; transform: scale(1.15); filter: drop-shadow(0 2px 8px rgba(0,0,0,0.85));">`;
-      } else {
-        const portraitKey = this.player.axieId || (this.player.heroId === 'kotaro' ? 'shinji' : this.player.heroId);
-        const snap = portraitService.getPortraitSync(portraitKey) || portraitService.getPortraitSync(this.player.heroId);
-        if (snap) {
-          avatarEl.innerHTML = `<img src="${snap}" alt="${this.player.name}" style="width: 100%; height: 100%; object-fit: contain; transform: scale(1.15); filter: drop-shadow(0 2px 8px rgba(0,0,0,0.85));">`;
-        } else {
-          portraitService.getPortrait(portraitKey).then(src => {
-            if (src && avatarEl) {
-              avatarEl.innerHTML = `<img src="${src}" alt="${this.player.name}" style="width: 100%; height: 100%; object-fit: contain; transform: scale(1.15); filter: drop-shadow(0 2px 8px rgba(0,0,0,0.85));">`;
-            }
-          });
-        }
-      }
+      const portraitKey = this.player.axieId || (this.player.heroId === 'kotaro' ? 'shinji' : this.player.heroId);
+      const setImg = (src) => { if (src && avatarEl) avatarEl.innerHTML = `<img src="${src}" alt="">`; };
+      avatarEl.innerHTML = '';
+      const snap = portraitService.getPortraitSync(portraitKey) || portraitService.getPortraitSync(this.player.heroId);
+      if (snap) setImg(snap);
+      else portraitService.getPortrait(portraitKey).then(setImg).catch(() => {});
     }
+    if (this.heroIntroCardEl) this.heroIntroCardEl.style.setProperty('--intro-ms', `${INTRO_MS}ms`);
 
     if (this.heroIntroCardEl) {
       this.heroIntroCardEl.classList.remove('hidden');
@@ -1049,14 +1166,14 @@ export class OverworldManager {
           this.heroIntroCardEl.classList.add('hidden');
           this.heroIntroCardEl.classList.remove('fade-out');
           this.startFreeExploration();
-        }, 300);
+        }, 350);
       } else {
         this.startFreeExploration();
       }
     };
 
     this._dismissHeroPresentation = dismissHeroPresentation;
-    this._heroDismissTimer = setTimeout(dismissHeroPresentation, 2800);
+    this._heroDismissTimer = setTimeout(dismissHeroPresentation, INTRO_MS);
   }
 
   startFreeExploration(slotData = null) {
@@ -1511,7 +1628,7 @@ export class OverworldManager {
     // Live Player Coordinate HUD display
     const coordEl = document.getElementById('hud-player-coord-display');
     if (coordEl && this.player && this.player.position) {
-      coordEl.textContent = `📍 Pos: X ${this.player.position.x.toFixed(1)} | Z ${this.player.position.z.toFixed(1)}`;
+      coordEl.textContent = `X ${this.player.position.x.toFixed(1)} · Z ${this.player.position.z.toFixed(1)}`;
     }
 
     // Update real-time minimap radar HUD

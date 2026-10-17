@@ -24,43 +24,43 @@ export class OverworldTutorialManager {
       TALK_TO_PALADILL: {
         badge: '🥋 STEP 1 OF 5',
         title: 'Talk to Master Paladill',
-        text: 'Follow the golden arrow using <kbd>W A S D</kbd> to Master Paladill <kbd>[-90.3, 63.3]</kbd> and press <kbd>E</kbd> to receive your training.',
+        text: 'Follow the golden arrow using <kbd>W A S D</kbd> to Master Paladill and press <kbd>E</kbd> to receive your training.',
         requiredAction: 'talk_paladill'
       },
       OPEN_QUEST_BOOK: {
         badge: '📖 STEP 2 OF 5',
         title: 'Open your Quest Book',
-        text: 'Press <kbd>[J]</kbd> or click <b>📖 Quests [J]</b> to check the mission assigned by the master.',
+        text: 'Press <kbd>J</kbd> or click <b>Quests</b> to check the mission assigned by the master.',
         requiredAction: 'open_quest_book'
       },
       DEFEAT_SLIME: {
         badge: '⚔️ STEP 3 OF 5',
         title: 'Face the Slime Chimera',
-        text: 'A Slime Chimera has appeared in the east garden! Cross the bridge and defeat it in tactical combat <kbd>[E]</kbd>.',
+        text: 'A Slime Chimera has appeared in the east garden! Cross the bridge and defeat it in tactical combat <kbd>E</kbd>.',
         requiredAction: 'defeat_slime'
       },
       RETURN_TO_PALADILL: {
         badge: '🏆 STEP 4 OF 5',
         title: 'Report your Victory to Master Paladill',
-        text: 'Chimera purified! Return to Master Paladill <kbd>[E]</kbd> to turn in the quest and claim your first reward.',
+        text: 'Chimera purified! Return to Master Paladill <kbd>E</kbd> to turn in the quest and claim your first reward.',
         requiredAction: 'return_paladill'
       },
       EQUIP_SWORD: {
         badge: '🗡️ STEP 5: EQUIP YOUR WEAPON',
         title: 'Open your Inventory and Equip your Sword',
-        text: 'Press <kbd>[I]</kbd> or click <b>🎒 Inventory [I]</b>, open your backpack, and equip the Wooden Sword to {heroName}.',
+        text: 'Press <kbd>I</kbd> or click <b>Inventory</b>, open your backpack, and equip the Wooden Sword to {heroName}.',
         requiredAction: 'equip_sword'
       },
       TALK_PALADILL_DEPARTURE: {
         badge: '🗺️ DOJO GRADUATION',
         title: 'Talk to the Master to Leave the Dojo',
-        text: 'Sword equipped! Speak with Paladill <kbd>[E]</kbd> to dispel the gate seals and receive the World Map.',
+        text: 'Sword equipped! Speak with Paladill <kbd>E</kbd> to dispel the gate seals and receive the World Map.',
         requiredAction: 'talk_paladill_departure'
       },
       COMPLETED: {
         badge: '🎉 OPEN WORLD UNLOCKED!',
         title: 'Lunacia Graduation Completed!',
-        text: 'Cardinal barriers have fallen. Press <kbd>[M]</kbd> to open the World Map and freely explore the 49 macro-zones.',
+        text: 'Cardinal barriers have fallen. Press <kbd>M</kbd> to open the World Map and freely explore the 49 macro-zones.',
         requiredAction: 'none'
       }
     };
@@ -73,18 +73,18 @@ export class OverworldTutorialManager {
     if (!banner) {
       banner = document.createElement('div');
       banner.id = 'overworld-tutorial-banner';
-      banner.className = 'overworld-tutorial-banner hidden';
+      // Crónica Celeste: franja de guía arriba al centro (maqueta «hint-line» del sistema de diseño).
+      // Arriba al centro no tapa el minimapa (izquierda) ni el escuadrón (derecha).
+      banner.className = 'lk-ui lk-tut hidden';
+      banner.setAttribute('role', 'status');
+      banner.setAttribute('aria-live', 'polite');
       banner.innerHTML = `
-        <div class="tut-banner-glow"></div>
-        <div class="tut-banner-content">
-          <div class="tut-banner-header">
-            <span id="tut-step-badge" class="tut-step-badge">🥋 STEP 1 OF 5</span>
-            <h3 id="tut-step-title" class="tut-step-title">Talk to Master Paladill</h3>
-          </div>
-          <p id="tut-step-text" class="tut-step-text">
-            Walk using <kbd>W A S D</kbd> to Master Paladill and press <kbd>E</kbd>.
-          </p>
+        <div class="lk-tut__head">
+          <span class="lk-tut__phases" id="tut-step-phases" aria-hidden="true"></span>
+          <span id="tut-step-badge" class="lk-tut__badge">Paso 1 de 5</span>
+          <h3 id="tut-step-title" class="lk-tut__title">Talk to Master Paladill</h3>
         </div>
+        <p id="tut-step-text" class="lk-tut__text">Walk using <kbd>W A S D</kbd> to Master Paladill and press <kbd>E</kbd>.</p>
       `;
       document.body.appendChild(banner);
     }
@@ -92,6 +92,7 @@ export class OverworldTutorialManager {
     this.badgeEl = document.getElementById('tut-step-badge');
     this.titleEl = document.getElementById('tut-step-title');
     this.textEl = document.getElementById('tut-step-text');
+    this.phasesEl = document.getElementById('tut-step-phases');
 
     // Dimming spotlight overlay for locked tutorial steps
     let overlay = document.getElementById('tutorial-focus-overlay');
@@ -275,12 +276,26 @@ export class OverworldTutorialManager {
     this.currentStep = stepId;
     const step = this.steps[stepId];
 
-    if (this.badgeEl) this.badgeEl.innerHTML = this._formatText(step.badge);
+    // Progreso en rombos (paso actual a medias) y rótulo sin emojis
+    const ORDER = ['TALK_TO_PALADILL', 'OPEN_QUEST_BOOK', 'DEFEAT_SLIME', 'RETURN_TO_PALADILL', 'EQUIP_SWORD', 'TALK_PALADILL_DEPARTURE'];
+    const idx = stepId === 'COMPLETED' ? ORDER.length : ORDER.indexOf(stepId);
+    if (this.phasesEl) {
+      this.phasesEl.innerHTML = ORDER.map((_, i) => `<i class="${i < idx ? 'lk-is-full' : i === idx ? 'lk-is-half' : ''}"></i>`).join('');
+    }
+    const label = stepId === 'COMPLETED' ? 'Mundo abierto'
+      : stepId === 'TALK_PALADILL_DEPARTURE' ? 'Graduación'
+      : `Paso ${idx + 1} de 5`;
+    if (this.badgeEl) this.badgeEl.textContent = label;
     if (this.titleEl) this.titleEl.innerHTML = this._formatText(step.title);
     if (this.textEl) this.textEl.innerHTML = this._formatText(step.text);
 
     if (this.bannerEl) {
       this.bannerEl.classList.remove('hidden');
+      this.bannerEl.classList.toggle('is-completed', stepId === 'COMPLETED');
+      // Pequeño destello al cambiar de paso
+      this.bannerEl.classList.remove('lk-tut--new');
+      void this.bannerEl.offsetWidth;
+      this.bannerEl.classList.add('lk-tut--new');
       if (stepId === 'COMPLETED') {
         this.bannerEl.classList.add('is-completed');
         setTimeout(() => {
@@ -332,13 +347,13 @@ export class OverworldTutorialManager {
       const btn = document.getElementById('btn-open-quest-book');
       if (btn) {
         btn.classList.add('tutorial-spotlight-target');
-        this._showSpotlight(btn, 'Press <kbd>[J]</kbd> or click to open Quests');
+        this._showSpotlight(btn, 'Press <kbd>J</kbd> or click to open Quests');
       }
     } else if (stepId === 'EQUIP_SWORD') {
       const btn = document.getElementById('btn-open-inventory');
       if (btn) {
         btn.classList.add('tutorial-spotlight-target');
-        this._showSpotlight(btn, 'Press <kbd>[I]</kbd> or click to open Inventory');
+        this._showSpotlight(btn, 'Press <kbd>I</kbd> or click to open Inventory');
       }
     }
   }

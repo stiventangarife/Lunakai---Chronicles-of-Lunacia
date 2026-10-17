@@ -97,7 +97,8 @@ export const tooltip = (() => {
 export function skillTip({ name, kind = 'Habilidad', cost, range, los = true, fx, value, effectLabel = 'Efecto', desc = '', art = null, color = 'var(--lk-gilt-500)', iconHtml = '' }) {
   const eff = fx === 'dmg' ? ['Daño', value] : fx === 'heal' ? ['Curación', `+${value}`] : fx === 'shield' ? ['Escudo', `+${value}`] : [effectLabel, value];
   const losIcon = los ? icon('vision') : `<span class="lk-nolos-ai">${icon('vision')}</span>`;
-  return `<div class="lk-tooltip-tactical" style="--c:${color}${art ? `;--art:url('${art}')` : ''}">`
+  const artAbs = art ? new URL(art, document.baseURI).href : null; // url() en variables CSS se resuelve contra la hoja de estilos: se usa la ruta absoluta
+  return `<div class="lk-tooltip-tactical" style="--c:${color}${artAbs ? `;--art:url('${artAbs}')` : ''}">`
     + `<header class="${art ? 'lk-has-art' : ''}">${iconHtml ? `<span class="lk-sigil">${iconHtml}</span>` : ''}<div><small>${esc(kind)}</small><b>${esc(name)}</b></div></header>`
     + `<div class="lk-tt-body"><div class="lk-tt-stats">`
     + (cost != null ? `<span class="lk-tt-stat"><i class="lk-tl">${icon('pa')}Coste</i><b>${cost} PA</b></span>` : '')

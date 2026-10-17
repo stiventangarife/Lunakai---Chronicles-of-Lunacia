@@ -4,7 +4,9 @@
 - @keyframes x -> lk-x
 - Reglas de página (html, body, main, section.ch, footer...) se descartan; las de elementos
   (h1, p, button...) se limitan a :where(.lk-ui) para no tocar el resto del juego."""
-import re, sys
+import re
+import sys
+COLLIDE = {"bar"}  # .bar del sistema -> .lk-ds-bar (la .lk-bar original es la barra de vida)
 src, dst = sys.argv[1], sys.argv[2]
 html = open(src, encoding='utf-8').read()
 css = html[html.index('<style>') + 7:html.index('</style>')]
@@ -40,7 +42,8 @@ def map_sel(sel):
     if not sel: return None
     if sel == ':root': return ':root'
     if DROP_ELEM.match(sel): return None
-    s = re.sub(r'\.(?!lk-)([A-Za-z_][\w-]*)', r'.lk-\1', sel)
+    # Clases que chocarían con una lk- ya existente en el sistema (p. ej. .bar vs .lk-bar) -> lk-ds-<nombre>
+    s = re.sub(r'\.(?!lk-)([A-Za-z_][\w-]*)', lambda m: '.lk-ds-' + m.group(1) if m.group(1) in COLLIDE else '.lk-' + m.group(1), sel)
     if s.startswith('body.'): return s                          # body.lk-is-dragging
     first = s[0]
     if first in '.[#': return s

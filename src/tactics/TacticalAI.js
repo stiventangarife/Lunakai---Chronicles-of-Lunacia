@@ -1,4 +1,6 @@
 // TacticalAI.js - Smart Enemy Decision Engine for Axie Tactics with Tactical Pacing & Combos
+// Fase 5: elige hechizo y objetivo con el pronóstico (combat/Forecast.js) y usa escudos/protecciones cuando está herido.
+import { forecast } from './combat/Forecast.js';
 export class TacticalAI {
   constructor(gridManager, spellManager, turnManager) {
     this.gridManager = gridManager;
@@ -30,6 +32,25 @@ export class TacticalAI {
       return scoreA - scoreB;
     });
 
+    // Provocación: los héroes que provocan van primero (también al decidir hacia dónde moverse)
+    const statuses = this.spellManager.statuses;
+    if (statuses) {
+      prioritizedHeroes.sort((a, b) => Number(statuses.has(b, 'taunt')) - Number(statuses.has(a, 'taunt')));
+    }
+
+    // Miedo: no puede atacar; se aleja todo lo que pueda y termina el turno
+    if (statuses && statuses.isFeared(enemyUnit)) {
+      for (let i = 0; i < 3 && enemyUnit.currentPM > 0 && !this.turnManager.isCombatOver; i++) {
+        const before = enemyUnit.currentPM;
+        await this._retreatStep(enemyUnit, prioritizedHeroes);
+        if (enemyUnit.currentPM === before) break;
+      }
+      if (this.turnManager.isCombatOver) return;
+      await this._sleep(450);
+      this.turnManager.endCurrentTurn();
+      return;
+    }
+
     // 2. Heal Ally check (e.g. Shaman / Mystic Puffies)
     const healSpellId = enemyUnit.spellIds.find(id => {
       const s = this.spellManager.getSpell(id);
@@ -52,6 +73,10 @@ export class TacticalAI {
       }
     }
 
+    if (this.turnManager.isCombatOver) return;
+
+    // 2b. Escudos / protecciones cuando está herido (Fase 5)
+    await this._trySupport(enemyUnit, allies);
     if (this.turnManager.isCombatOver) return;
 
     // 3. Attack check from current position
@@ -94,25 +119,72 @@ export class TacticalAI {
 
     const attackSpells = enemyUnit.spellIds
       .map(id => this.spellManager.getSpell(id))
-      .filter(s => s && s.baseMinDamage && enemyUnit.currentPA >= s.paCost);
+      .filter(s => s && this.spellManager.isDamageSpell(s) && enemyUnit.currentPA >= s.paCost);
 
-    for (const spell of attackSpells) {
-      const validCells = this.spellManager.getValidTargetCells(enemyUnit, spell);
+    const best = this.pickAttack(enemyUnit, heroes, attackSpells);
+    if (!best) return false;
 
-      for (const hero of heroes) {
-        if (hero.isDead) continue;
-        const match = validCells.find(c => c.x === hero.gridX && c.z === hero.gridZ);
-        if (match) {
-          // Telegraphing pause: Face target and pause before launching attack
-          await this._sleep(450);
-          if (this.turnManager.isCombatOver) return true;
-          await this.spellManager.castSpell(enemyUnit, spell, { x: hero.gridX, z: hero.gridZ });
-          if (this.turnManager.checkCombatEnd()) return true;
-          // Impact pause: let player see the damage, floating text, and health bar drain
-          await this._sleep(850);
-          return true;
+    // Telegraphing pause: Face target and pause before launching attack
+    await this._sleep(450);
+    if (this.turnManager.isCombatOver) return true;
+    await this.spellManager.castSpell(enemyUnit, best.spell, best.cell);
+    if (this.turnManager.checkCombatEnd()) return true;
+    // Impact pause: let player see the damage, floating text, and health bar drain
+    await this._sleep(850);
+    return true;
+  }
+
+  /**
+   * Mejor par (hechizo, casilla) según el pronóstico: daño medio a la vida, +60 si es letal, +12 por cada estado
+   * perjudicial nuevo, −30 por cada aliado propio alcanzado; ligera preferencia por los héroes priorizados.
+   */
+  pickAttack(enemyUnit, heroes, spells) {
+    const sm = this.spellManager;
+    const order = new Map(heroes.map((h, i) => [h, i]));
+    let best = null;
+    for (const spell of spells) {
+      for (const cell of sm.getValidTargetCells(enemyUnit, spell)) {
+        const main = this.gridManager.getTile(cell.x, cell.z)?.unit;
+        if (!main || main.isDead || main.team === enemyUnit.team || !order.has(main)) continue;
+        let score = 0;
+        try {
+          const fc = forecast(sm, enemyUnit, spell, cell);
+          for (const r of fc?.targets || []) {
+            const foe = r.unit.team !== enemyUnit.team;
+            if (r.damage) {
+              const avg = (r.damage.min + r.damage.max) / 2;
+              const toHP = Math.max(0, avg - ((r.damage.shieldMin + r.damage.shieldMax) / 2 || 0));
+              score += foe ? toHP + (r.damage.lethal ? 60 : 0) : -30 - toHP;
+            }
+            if (foe) score += 12 * r.statuses.filter((st) => st.kind === 'debuff' && !sm.statuses.has(r.unit, st.id)).length;
+          }
+        } catch {
+          score = spell.baseMaxDamage || 1;
         }
+        score -= (order.get(main) || 0) * 4; // prioridad de objetivo (herido / cercano / provocador)
+        score /= Math.max(1, Number(spell.paCost) || 1) ** 0.35; // algo de eficiencia por PA
+        if (!best || score > best.score) best = { spell, cell, score };
       }
+    }
+    return best;
+  }
+
+  /** Escudos y protecciones (slime_barrier…): sobre sí mismo o un aliado herido que no tenga ya escudo. */
+  async _trySupport(enemyUnit, allies) {
+    const sm = this.spellManager;
+    const spells = enemyUnit.spellIds.map(id => sm.getSpell(id))
+      .filter(s => s && !sm.isDamageSpell(s) && !s.baseMinHeal && (s.shieldAmount || (s.effects || []).some(e => e.type === 'shield' || e.type === 'status')) && enemyUnit.currentPA >= s.paCost);
+    for (const spell of spells) {
+      const cells = sm.getValidTargetCells(enemyUnit, spell);
+      const who = [enemyUnit, ...allies]
+        .filter(u => !u.isDead && u.currentHP < u.maxHP * 0.75 && !(u.shield > 0))
+        .find(u => cells.some(c => c.x === u.gridX && c.z === u.gridZ));
+      if (!who) continue;
+      await this._sleep(400);
+      if (this.turnManager.isCombatOver) return true;
+      await sm.castSpell(enemyUnit, spell, { x: who.gridX, z: who.gridZ });
+      await this._sleep(700);
+      return true;
     }
     return false;
   }

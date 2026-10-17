@@ -1,0 +1,89 @@
+/* lunakai-auth.css — Estados de cuenta (correo, código), diálogo de cuenta e indicador de guardado.
+   Usa los tokens del sistema de diseño (ds.generated.css). */
+
+/* ---- Tarjeta de inicio de sesión: estados "email" y "code" ---- */
+.lk-login__card .lk-email-btn{width:100%;justify-content:center}
+/* Correo y código: la tarjeta crece con su contenido (sin hueco al final), acción principal a todo el ancho
+   y la secundaria («Volver», «Cambiar correo») como enlace arriba a la izquierda. */
+.lk-login__card[data-state="email"],.lk-login__card[data-state="code"]{align-content:center}
+.lk-login__email,.lk-login__code{display:none;gap:12px;padding:0;text-align:center;justify-items:center}
+.lk-login__card[data-state="email"] > .lk-idle,
+.lk-login__card[data-state="code"] > .lk-idle{display:none}
+.lk-login__card[data-state="email"] .lk-login__email,
+.lk-login__card[data-state="code"] .lk-login__code{display:grid}
+.lk-login__email > *,.lk-login__code > *{width:100%;box-sizing:border-box}
+.lk-login__email b,.lk-login__code b{font:400 1.45rem/1.2 var(--lk-font-display);color:var(--lk-ivory-50)}
+.lk-login__email p,.lk-login__code p{font-size:.84rem;color:#AEB6CB;line-height:1.5;margin:-4px 0 0}
+.lk-login__back{position:absolute;left:14px;top:12px;width:auto !important;display:inline-flex;align-items:center;gap:4px;color:#AEB6CB}
+.lk-login__back span{font-size:1.2rem;line-height:.8}
+.lk-login__back:hover{color:var(--lk-gilt-300)}
+.lk-login__seal{position:relative;width:54px !important;height:54px;margin-top:10px;display:grid;place-items:center;border-radius:50%;
+  background:radial-gradient(circle at 50% 35%,#2C3A62,#141B2E);box-shadow:0 0 0 2px rgba(11,15,28,.85),0 0 0 3px rgba(211,174,108,.55),0 0 22px rgba(169,204,255,.18)}
+.lk-login__seal img{width:28px;height:28px}
+.lk-login__seal i{position:absolute;right:-3px;bottom:-3px;width:20px;height:20px;display:grid;place-items:center;border-radius:50%;font:900 .7rem/1 var(--lk-font-ui);font-style:normal;color:#0E2A16;background:#8CF09B;box-shadow:0 0 0 2px #141B2E}
+.lk-login__label{justify-self:start;margin-bottom:-6px;text-align:left;font:800 .66rem var(--lk-font-ui);letter-spacing:.16em;text-transform:uppercase;color:var(--lk-gilt-300)}
+.lk-login__email .lk-input{box-sizing:border-box;text-align:left}
+.lk-login__email .lk-input:focus{outline:none;box-shadow:inset 0 0 0 1.5px var(--lk-gilt-300),0 0 0 4px rgba(238,211,154,.14)}
+.lk-login__cta{width:100%;justify-content:center;min-height:46px}
+.lk-login__cta[disabled]{opacity:.45 !important;filter:saturate(.5)}
+.lk-login__addr{color:var(--lk-ivory-50);font-weight:900;word-break:break-all}
+.lk-login__waiting{display:flex !important;align-items:center;justify-content:center;gap:10px;padding:9px 12px;border-radius:var(--lk-r-sm);font-size:.78rem;font-weight:800;color:#C8CFDF;background:rgba(169,204,255,.07);box-shadow:inset 0 0 0 1px rgba(169,204,255,.18);box-sizing:border-box}
+.lk-login__waiting .lk-moon-spin{width:18px;height:18px;flex:none}
+.lk-login__mailapp{width:auto !important;justify-self:center;text-decoration:none}
+.lk-login__mailapp[hidden]{display:none !important}
+.lk-login__code .lk-or{margin-top:2px}
+/* Código de 6 dígitos: un solo input (pegar y autocompletar funcionan) sobre 6 casillas */
+.lk-otp{position:relative;display:block;cursor:text}
+.lk-otp input{position:absolute;inset:0;width:100%;height:100%;opacity:0;border:0;padding:0;font-size:16px;caret-color:transparent;cursor:text}
+.lk-otp__cells{display:grid;grid-template-columns:repeat(6,1fr);gap:8px;pointer-events:none}
+.lk-otp__cells i{height:52px;display:grid;place-items:center;border-radius:var(--lk-r-sm);font:400 1.6rem/1 var(--lk-font-display);font-style:normal;color:var(--lk-ivory-50);
+  background:rgba(239,232,218,.06);box-shadow:inset 0 0 0 1px rgba(211,174,108,.22);transition:box-shadow .15s,background .15s}
+.lk-otp__cells i.lk-is-filled{background:rgba(239,232,218,.1);box-shadow:inset 0 0 0 1px rgba(211,174,108,.45)}
+.lk-otp__cells i.lk-is-active{box-shadow:inset 0 0 0 1.5px var(--lk-gilt-300),0 0 0 4px rgba(238,211,154,.14)}
+.lk-otp__cells i.lk-is-active:empty::after{content:"";width:2px;height:22px;background:var(--lk-gilt-300);animation:lk-otpCaret 1s steps(1) infinite}
+.lk-otp.lk-is-busy .lk-otp__cells i{opacity:.6}
+.lk-otp.lk-is-error .lk-otp__cells i{box-shadow:inset 0 0 0 1px var(--lk-danger-crimson,#E0605A)}
+.lk-otp.lk-is-error .lk-otp__cells{animation:lk-shake .35s}
+@keyframes lk-otpCaret{50%{opacity:0}}
+.lk-login__msg{min-height:1.2em;font-size:.78rem;line-height:1.2;font-weight:700;color:#FF9C95;text-align:center;margin:-6px 0}
+.lk-login__resend{font-size:.76rem !important;margin:0 !important}
+.lk-login__resend .lk-text-btn{padding:2px 4px;font-size:.76rem}
+.lk-login__resend .lk-text-btn[disabled]{color:#6E7894;opacity:1 !important}
+@media (max-width:420px){.lk-otp__cells{gap:5px}.lk-otp__cells i{height:46px}}
+.lk-login__err > .lk-text-btn{margin-top:2px}
+.lk-login__card button[disabled]{opacity:.6;pointer-events:none}
+
+/* ---- Aviso de sincronización en la selección de aventura ---- */
+.lk-sync-banner{background:linear-gradient(90deg,rgba(224,96,90,.16),rgba(224,96,90,.06))}
+
+/* ---- Diálogo de cuenta (vincular invitado, progreso sin guardar) ---- */
+.lk-acct-dialog .lk-acts{flex-wrap:wrap;justify-content:center}
+
+/* ---- Indicador de guardado en la nube ---- */
+.lk-save-chip{position:fixed;left:16px;bottom:16px;z-index:60;display:flex;align-items:center;gap:8px;
+  padding:7px 12px;border-radius:var(--lk-r-pill,999px);background:rgba(11,15,28,.78);backdrop-filter:blur(6px);
+  box-shadow:inset 0 0 0 1px rgba(211,174,108,.28);font:800 .74rem var(--lk-font-ui,system-ui);color:var(--lk-ivory-50,#F6EFE0);
+  transition:opacity .6s ease;pointer-events:auto}
+.lk-save-chip[hidden]{display:none}
+.lk-save-chip.lk-is-quiet{opacity:.35}
+.lk-save-chip.lk-is-quiet:hover{opacity:1}
+.lk-save-chip__dot{width:8px;height:8px;border-radius:50%;background:#8CF09B;box-shadow:0 0 6px #8CF09B}
+.lk-save-chip[data-state="saving"] .lk-save-chip__dot{background:#F2C46B;box-shadow:0 0 6px #F2C46B;animation:lk-savePulse 1s ease-in-out infinite}
+.lk-save-chip[data-state="offline"] .lk-save-chip__dot{background:#F2C46B;box-shadow:none}
+.lk-save-chip[data-state="error"] .lk-save-chip__dot{background:#E0605A;box-shadow:0 0 6px #E0605A}
+.lk-save-chip[data-state="error"]{box-shadow:inset 0 0 0 1px rgba(224,96,90,.6)}
+.lk-save-chip__retry{border:0;border-radius:999px;padding:3px 10px;cursor:pointer;font:800 .7rem var(--lk-font-ui,system-ui);
+  color:#4A3714;background:linear-gradient(180deg,var(--lk-gilt-100,#F4E2B8),var(--lk-gilt-500,#D3AE6C))}
+.lk-save-chip__retry[hidden]{display:none}
+@keyframes lk-savePulse{50%{opacity:.35}}
+@media (prefers-reduced-motion: reduce){.lk-save-chip[data-state="saving"] .lk-save-chip__dot{animation:none}}
+
+/* ---- Build de prueba (GUEST_ONLY en StartScreenUI.js): solo la opción de invitado ---- */
+.lk-guest-only [data-act="sso"],
+.lk-guest-only .lk-email-btn,
+.lk-guest-only .lk-perks,
+.lk-guest-only .lk-or,
+.lk-guest-only [data-act="link"],
+.lk-guest-only [data-ref="guestBanner"]{display:none !important}
+.lk-guest-only .lk-login__card[data-state="idle"]{min-height:0;align-content:center}
+.lk-guest-only .lk-login__card .lk-guest{min-height:46px}

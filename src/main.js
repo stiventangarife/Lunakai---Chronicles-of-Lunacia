@@ -19,6 +19,28 @@ import { OverworldManager } from './rpg/OverworldManager.js';
 import { portraitService } from './tactics/CharacterPortraitService.js';
 import { StartScreenUI } from './rpg/ui/StartScreenUI.js';
 import { saveSlotManager, getHeroSpells, SAPIDAE_CLASSES } from './rpg/SaveSlotManager.js';
+import { CombatEndScreen, expPct } from './rpg/ui/CombatEndScreen.js';
+import { CombatBanner } from './rpg/ui/CombatBanner.js';
+import { initLoadingScreen } from './ui/LoadingScreen.js';
+import { initCombatHUDMarkup, attachCombatHUD } from './ui/CombatHUD.js';
+import { accountManager } from './net/AccountManager.js';
+import { SaveStatusChip } from './net/SaveStatusChip.js';
+import { installCombatDebug } from './tactics/combat/CombatDebug.js';
+import { CombatTelemetry } from './tactics/combat/CombatTelemetry.js';
+import { BondService } from './rpg/BondService.js';
+import { ULTIMATE_SLOT } from './ui/UltimateButton.js';
+import { attachAxieCare } from './ui/AxieCarePanel.js';
+import { AxiePartsResolver } from './rpg/AxiePartsResolver.js';
+import { STARTER_DECKS } from './tactics/data/StarterCards.js';
+import { CollectionVFX } from './tactics/combat/CollectionVFX.js';
+import { renderForecast, clearForecast } from './ui/ForecastPanel.js';
+import { axieMixerService } from './rpg/AxieMixerService.js';
+import { AXIE_GENES_DECODER } from '@jaatster/threejs-axie-mixer3d-public';
+
+// Pantalla de carga entre zonas con el sistema de diseño (debe ir antes de crear ZoneTransitionManager)
+initLoadingScreen();
+// HUD de combate con el sistema de diseño (marcado antes de que el juego enganche sus eventos)
+initCombatHUDMarkup();
 
 class AxieTacticsGame {
   constructor() {
@@ -31,6 +53,9 @@ class AxieTacticsGame {
     this.combatText = new FloatingCombatText(this.sceneManager.camera, this.textLayer);
     this.spellManager = new SpellManager(this.gridManager, this.sceneManager, this.audio, this.combatText, this);
     this.turnManager = new TurnManager(this.sceneManager, this.audio);
+    this.spellManager.bindTurnManager(this.turnManager); // estados alterados y objetos temporales
+    // VFX de las partes de colección especial (Japan, Xmas, Mystic, Summer, Nightmare, Shiny, Bionic)
+    this.collectionVFX = new CollectionVFX(this.sceneManager.scene).install(this.spellManager.events);
     this.ai = new TacticalAI(this.gridManager, this.spellManager, this.turnManager);
 
     this.equipmentManager = new EquipmentManager();
@@ -54,6 +79,14 @@ class AxieTacticsGame {
       this.gameState = newState;
     };
     window.overworldManager = this.overworldManager;
+    // Fase 4: las 6 cartas de cada Axie salen de sus partes reales (caché → API → genes; si no, hechizos de siempre)
+    this.partsResolver = new AxiePartsResolver({
+      fetchAxie: (id) => axieMixerService.fetchAxieData(id),
+      decodeGenes: (genes) => AXIE_GENES_DECODER.decode(genes),
+      slots: saveSlotManager,
+    });
+    window.lunakaiParts = this.partsResolver;
+    this.axieCare = attachAxieCare(this); // Axie Care: clic en el compañero → acariciar / dar de comer; +2 % cada 500 m
     window.__AXIE_TACTICS_APP__ = this;
 
     this.currentLevel = 1; // 1 = Tutorial (Training Dojo), 2 = Lunacia Plains 3v3
@@ -76,7 +109,31 @@ class AxieTacticsGame {
 
     this._initUI();
     this._initInput();
+    attachCombatHUD(this);
+    // Fase 5: cartas con usos por turno agotados (castsPerTurn) → deshabilitadas en las 6 ranuras
+    {
+      const baseUpdate = this._updateHUD.bind(this);
+      this._updateHUD = (unit) => {
+        const r = baseUpdate(unit);
+        try {
+          const u = unit || this.activeUnit;
+          (u?.spellIds || []).slice(0, 6).forEach((id, i) => {
+            const slot = document.getElementById(`spell-slot-${i}`);
+            const s = this.spellManager.getSpell(id);
+            const spent = Boolean(s && this.spellManager.castLimitReached(u, s));
+            if (!slot) return;
+            if (spent) slot.classList.add('disabled');
+            slot.toggleAttribute('data-spent', spent);
+            if (spent) slot.title = 'Ya la usaste este turno (1 vez por turno)';
+            else if (slot.title === 'Ya la usaste este turno (1 vez por turno)') slot.removeAttribute('title');
+          });
+        } catch { /* la interfaz nunca rompe el combate */ }
+        return r;
+      };
+    }
     this._setupTurnCallbacks();
+    this.combatBanner = new CombatBanner();
+    this.endScreen = new CombatEndScreen({ resolvePortrait: (key) => portraitService.getPortrait(key) });
 
     // Re-render combat timeline and active HUD when asynchronous 3D portraits finish generating
     portraitService.addListener(() => {
@@ -98,12 +155,17 @@ class AxieTacticsGame {
       }
     });
     window.startScreenUI = this.startScreen;
+    // Indicador de guardado en la nube (solo con cuenta y durante la partida)
+    this.saveStatusChip = new SaveStatusChip(accountManager);
 
     this.overworldManager.onExitToTitle = () => {
       this._returnToTitleScreen();
     };
 
     this._setupAutoSave();
+    installCombatDebug(this);
+    // Fase 5: registro de equilibrio de tus partidas (lkDebug.balance(), balanceFights(), balanceExport())
+    try { this.telemetry = new CombatTelemetry(this).install(this.spellManager.events, this.turnManager); CombatTelemetry.extendDebug(); } catch (e) { console.warn('[telemetría]', e); }
     this._isLoadingAdventure = false;
     this._animate();
   }
@@ -119,6 +181,7 @@ class AxieTacticsGame {
       // 2. Start Overworld (run prologue only if it's a new adventure)
       const withPrologue = isNewGame;
       await this._startOverworld(withPrologue, slotData);
+      if (this.saveStatusChip) this.saveStatusChip.setInGame(true);
     } finally {
       this._isLoadingAdventure = false;
     }
@@ -138,6 +201,9 @@ class AxieTacticsGame {
     if (introCard) introCard.classList.add('hidden');
 
     this._showBattleHUD(false);
+    if (this.saveStatusChip) this.saveStatusChip.setInGame(false);
+    // Al volver al título se sube ya lo pendiente (para que otro dispositivo vea lo último)
+    if (accountManager.mode === 'account') accountManager.cloud.flush().catch(() => null);
     this.startScreen.show();
   }
 
@@ -185,6 +251,7 @@ class AxieTacticsGame {
       customization: p?.customization || activeSlot?.customization,
       sapidaePortrait: currentPortrait,
       unlockedHeroes: exported.unlockedHeroes || ['kotaro'],
+      squad: exported.squad,
       zone: {
         mapId: mapId,
         name: zoneName,
@@ -200,6 +267,10 @@ class AxieTacticsGame {
       questProgress: qm ? qm.exportSaveData() : null,
       tutorialProgress: tm ? tm.exportSaveData() : null
     });
+
+    // Perfil de la cuenta: recordar que el jugador ya terminó la introducción
+    const tp = tm ? tm.exportSaveData() : null;
+    if (tp && tp.isActive === false) accountManager.markIntroCompleted();
   }
 
   _setupAutoSave() {
@@ -651,7 +722,22 @@ class AxieTacticsGame {
     }
   }
 
+  /** Resuelve (y guarda en la partida) las cartas de partes de los Axies del escuadrón. Nunca bloquea más de ~4 s. */
+  async _resolvePartCards(timeoutMs = 4000) {
+    const em = this.equipmentManager;
+    if (!this.partsResolver || !em?.heroesBase) return;
+    const ids = typeof em.getSquad === 'function' ? em.getSquad() : Object.keys(em.heroesBase);
+    const heroes = ids.map((id) => em.heroesBase[id]).filter((h) => h && (h.axieId || h.genes));
+    if (!heroes.length) return;
+    const work = Promise.all(heroes.map((h) => this.partsResolver.resolve(h).catch(() => null)));
+    await Promise.race([work, new Promise((r) => setTimeout(r, timeoutMs))]);
+  }
+
   async _startBattle(levelOrConfig) {
+    const lvlCfg = (levelOrConfig && typeof levelOrConfig === 'object') ? levelOrConfig : LEVELS_CONFIG[levelOrConfig];
+    if (!lvlCfg?.isTutorial) {
+      try { await this._resolvePartCards(); } catch (e) { console.warn('[Lunakai] Cartas de partes:', e); }
+    }
     this.gameState = 'BATTLE';
     this._showBattleHUD(true);
     document.body.classList.add('state-combat');
@@ -738,8 +824,8 @@ class AxieTacticsGame {
     // Hero Spells Map
     const HERO_SPELLS = {
       kotaro: ['kotaro_slash', 'kotaro_push', 'kotaro_jump'],
-      bing: ['bing_explosive', 'bing_retreat', 'bing_slow'],
-      pomodoro: ['pomodoro_heal', 'pomodoro_stim', 'pomodoro_bramble']
+      bing: STARTER_DECKS.bing, // las 6 cartas originales de Origins (tactics/data/StarterCards.js)
+      pomodoro: STARTER_DECKS.pomodoro
     };
 
     // Hero Base Scales & Types
@@ -757,6 +843,10 @@ class AxieTacticsGame {
     const sapidaePlayerName = (activeSlot && activeSlot.playerName) || 'Sapidae Adventurer';
     const sapidaeCustomization = (activeSlot && activeSlot.customization) || null;
 
+    // Estadísticas reales del Sapidae (clase + nivel + atributos + equipo de la mochila), igual que los axies
+    const sapStats = this.equipmentManager ? this.equipmentManager.getCalculatedStats('sapidae') : null;
+    const sapProg = this.equipmentManager ? this.equipmentManager.getProgression('sapidae') : null;
+
     // Primary player position on grid
     const primaryHeroPos = config.sapidaePosition || (config.heroPositions && config.heroPositions[0]) || { x: 3, z: 2 };
 
@@ -769,15 +859,19 @@ class AxieTacticsGame {
       team: 'player',
       x: primaryHeroPos.x,
       z: primaryHeroPos.z,
-      maxHP: sapidaeClassDef.maxHP,
-      maxPA: sapidaeClassDef.maxPA,
-      maxPM: sapidaeClassDef.maxPM,
-      initiative: sapidaeClassDef.initiative || 90,
-      bonusDamage: 0,
-      initialShield: 0,
-      critRate: 15,
-      supportPower: 25,
-      skillLevels: {},
+      maxHP: sapStats ? sapStats.maxHP : sapidaeClassDef.maxHP,
+      maxPA: sapStats ? sapStats.maxPA : sapidaeClassDef.maxPA,
+      maxPM: sapStats ? sapStats.maxPM : sapidaeClassDef.maxPM,
+      initiative: sapStats ? sapStats.initiative : (sapidaeClassDef.initiative || 90),
+      bonusDamage: sapStats ? sapStats.bonusDamage : 0,
+      bonusMeleeDamage: sapStats ? (sapStats.bonusMeleeDamage || 0) : 0,
+      bonusRangedDamage: sapStats ? (sapStats.bonusRangedDamage || 0) : 0,
+      bonusMagicDamage: sapStats ? (sapStats.bonusMagicDamage || 0) : 0,
+      collisionBonus: sapStats ? (sapStats.collisionBonus || 0) : 0,
+      initialShield: sapStats ? sapStats.initialShield : 0,
+      critRate: sapStats ? Math.max(15, sapStats.critRate || 0) : 15,
+      supportPower: sapStats ? Math.max(25, sapStats.supportPower || 0) : 25,
+      skillLevels: sapProg ? (sapProg.skillLevels || {}) : {},
       spellIds: sapidaeClassDef.spells,
       scale: 1.05,
       isSapidae: true,
@@ -840,7 +934,9 @@ class AxieTacticsGame {
         maxHP: stats.maxHP,
         maxPA: stats.maxPA,
         maxPM: stats.maxPM,
-        initiative: 85, // Companion acts right alongside Sapidae
+        // Iniciativa real (clase + nivel + equipo). En el tutorial se fija a 85 para que el Axie actúe justo tras el Sapidae.
+        initiative: config.isTutorial ? 85 : (stats.initiative || 85),
+        axieClass: baseInfo.class || null,
         bonusDamage: stats.bonusDamage,
         bonusMeleeDamage: stats.bonusMeleeDamage || 0,
         bonusRangedDamage: stats.bonusRangedDamage || 0,
@@ -850,9 +946,12 @@ class AxieTacticsGame {
         critRate: stats.critRate || 0,
         supportPower: stats.supportPower || 0,
         skillLevels: prog ? prog.skillLevels : {},
-        spellIds: (heroId === 'kotaro' ? (baseInfo.spellIds || getHeroSpells(baseInfo.heroKey || baseInfo.axieId)) : HERO_SPELLS[heroId]) || ['kotaro_slash'],
+        // Cartas de partes reales (Fase 4) salvo en el tutorial, que enseña con los hechizos de siempre
+        spellIds: (isAxie && !config.isTutorial && this.partsResolver?.idsFor(baseInfo)) || (heroId === 'kotaro' ? (baseInfo.spellIds || getHeroSpells(baseInfo.heroKey || baseInfo.axieId)) : HERO_SPELLS[heroId]) || ['kotaro_slash'],
         scale: isAxie ? 0.88 : heroMeta.scale
       }, this.gridManager, this.sceneManager, this.audio));
+      // Partes de colección especial del Axie → VFX propio al lanzar esas cartas (combat/CollectionVFX.js)
+      if (isAxie && !config.isTutorial && this.partsResolver) this.units[this.units.length - 1].partCollections = this.partsResolver.collectionsFor(baseInfo);
     });
 
     // Setup Enemies
@@ -872,6 +971,7 @@ class AxieTacticsGame {
         bonusDamage: e.bonusDamage || 0,
         scale: e.scale,
         tintColor: e.tintColor || null,
+        axieClass: e.axieClass || null, // clase elemental opcional del enemigo (triángulo ±15 %)
         spellIds: e.spellIds
       }, this.gridManager, this.sceneManager, this.audio));
     });
@@ -888,6 +988,16 @@ class AxieTacticsGame {
 
     this.turnManager.setUnits(this.units);
 
+    // Duo Ultimate: la decide la clase del Axie principal (squad[1]); exige vínculo al 100 % al entrar
+    const squadForUlt = typeof this.equipmentManager.getSquad === 'function' ? this.equipmentManager.getSquad() : [];
+    const mainHeroId = squadForUlt[1] || null;
+    this.spellManager.ultimates.setupCombat({
+      units: this.units,
+      mainHeroId,
+      bond: mainHeroId ? BondService.get(mainHeroId) : 0,
+      isTutorial: Boolean(config.isTutorial),
+    });
+
     if (config.isTutorial) {
       this.turnManager.startCombat();
       this.tutorialManager.startTutorial();
@@ -898,7 +1008,7 @@ class AxieTacticsGame {
   }
 
   _setupTurnCallbacks() {
-    this.turnManager.onTurnChange = (activeUnit, queue, round) => {
+    this.turnManager.onTurnChange = (activeUnit, queue, round, meta = {}) => {
       this.activeUnit = activeUnit;
       this._clearSpellSelection();
       this._updateTimelineUI(queue);
@@ -906,6 +1016,12 @@ class AxieTacticsGame {
       this._showTurnBanner(activeUnit);
 
       document.getElementById('round-number').textContent = round;
+
+      // Aturdido o dormido: el TurnManager pasa el turno solo; no hay IA ni casillas de movimiento
+      if (meta.skipped) {
+        this.gridManager.clearHighlights();
+        return;
+      }
 
       if (activeUnit.team === 'player') {
         if (this.tutorialManager.isActive) {
@@ -929,265 +1045,207 @@ class AxieTacticsGame {
         this.equipmentManager.completeLevel(this.currentLevel);
       }
 
-      // 2. Show Dramatic Cinematic Victory Banner (darkened screen + letterbox + big stylized title)
-      const banner = document.getElementById('cinematic-banner');
-      const emblem = document.getElementById('cinematic-emblem');
-      const title = document.getElementById('cinematic-title');
-      const subtitle = document.getElementById('cinematic-subtitle');
-
-      banner.className = 'cinematic-banner-container victory';
-      emblem.textContent = '🏆';
-      title.textContent = 'VICTORY!';
-      subtitle.textContent = `${config.title} has been cleared!`;
-
-      banner.classList.remove('hidden');
+      // 2. Transición de cierre (Lunakai UI): bandas de cine, luna y «VICTORIA»
       this.audio.playVictoryFanfare();
       if (this.audio && typeof this.audio.playVictoryMusic === 'function') {
         this.audio.playVictoryMusic();
       }
+      await this.combatBanner.play('victory', { subtitle: [config.title, config.biomeName].filter(Boolean).join(' · ') });
 
-      // 3. Display victory banner smoothly for 1.2 seconds
-      await new Promise(r => setTimeout(r, 1200));
-
-      // 4. Smoothly fade out the cinematic title card & restore camera
-      banner.classList.add('fade-out');
+      // 3. El título se disuelve mientras la cámara vuelve y entra el panel
       this.sceneManager.restoreCamera();
-      await new Promise(r => setTimeout(r, 350));
-      banner.classList.add('hidden');
-      banner.classList.remove('fade-out');
+      await this.combatBanner.hide();
 
-      // 5. Reveal the streamlined victory modal
-      const modal = document.getElementById('gameover-modal');
-      document.getElementById('modal-icon').textContent = '🏆';
-      document.getElementById('modal-title').textContent = 'VICTORY IN COMBAT!';
-      document.getElementById('modal-desc').textContent = 'You have defeated the creatures of Lunacia. Your squad gains experience and loot.';
-
+      // 5. Pantalla de victoria (Lunakai UI · etapa 3)
       if (config.isTutorial) {
         this.tutorialManager.completeTutorial();
       }
 
-      // Handle Hero recruits
-      const recruitsSection = document.getElementById('recruits-section');
+      // Nuevos aliados
+      const recruits = [];
       if (config.rewardRecruits && config.rewardRecruits.length > 0) {
-        recruitsSection.classList.remove('hidden');
         config.rewardRecruits.forEach(heroId => {
           this.equipmentManager.unlockHero(heroId);
+          const h = this.equipmentManager.heroesBase[heroId];
+          const { url, portraitKey } = this._getHeroPortrait(heroId, h);
+          recruits.push({ name: h ? h.name : heroId, sub: h ? h.archetype : 'Aliado de Lunacia', cls: this._heroClassKey(h), portraitUrl: url, portraitKey });
         });
-
-        const recruitsGrid = recruitsSection.querySelector('.recruits-grid');
-        if (recruitsGrid) {
-          recruitsGrid.innerHTML = config.rewardRecruits.map(heroId => {
-            const h = this.equipmentManager.heroesBase[heroId];
-            const { url, portraitKey } = this._getHeroPortrait(heroId, h);
-            if (!url) {
-              portraitService.getPortrait(portraitKey).then(resolvedUrl => {
-                if (resolvedUrl) {
-                  const img = document.getElementById(`recruit-avatar-img-${heroId}`);
-                  if (img) {
-                    img.src = resolvedUrl;
-                    img.style.display = 'block';
-                    const fb = document.getElementById(`recruit-avatar-fallback-${heroId}`);
-                    if (fb) fb.style.display = 'none';
-                  }
-                }
-              }).catch(() => {});
-            }
-            const avatarHtml = url
-              ? `<img id="recruit-avatar-img-${heroId}" src="${url}" alt="${h ? h.name : heroId}">`
-              : `<img id="recruit-avatar-img-${heroId}" src="" alt="${h ? h.name : heroId}" style="display:none;"><span id="recruit-avatar-fallback-${heroId}">${h ? h.avatar : '👥'}</span>`;
-            return `
-              <div class="recruit-card">
-                <div class="recruit-avatar">${avatarHtml}</div>
-                <div class="recruit-info">
-                  <span class="recruit-name">${h ? h.name : heroId}</span>
-                  <span class="recruit-archetype">${h ? h.archetype : 'Aliado de Lunacia'}</span>
-                </div>
-              </div>
-            `;
-          }).join('');
-        }
-      } else {
-        recruitsSection.classList.add('hidden');
       }
 
-      // Award Squad EXP
-      const expSection = document.getElementById('exp-section');
-      const expGrid = document.getElementById('exp-grid');
+      // Experiencia del escuadrón (se guarda el estado previo para pintar lo ganado)
       const baseExp = config.rewardExp || (60 + (typeof this.currentLevel === 'number' ? this.currentLevel : 1) * 30);
-      const activeHero = this.selectedHeroId || 'kotaro';
-      const participatingHeroIds = this.units
+      // El principal del escuadrón gana el 100 %; el Sapidae y los apoyos, el 60 %.
+      // La unidad del Sapidae en combate se llama 'sapidae_hero', pero su progreso vive en 'sapidae'.
+      const squadIds = typeof this.equipmentManager.getSquad === 'function' ? this.equipmentManager.getSquad() : [];
+      const activeHero = squadIds[1] || this.selectedHeroId || 'kotaro';
+      const participatingHeroIds = [...new Set(this.units
         .filter(u => u.team === 'player')
-        .map(u => u.id);
+        .map(u => (u.id === 'sapidae_hero' ? 'sapidae' : u.id)))];
+      const before = {};
+      participatingHeroIds.forEach(hId => {
+        const prog = this.equipmentManager.getProgression(hId);
+        before[hId] = { level: prog.level, exp: prog.currentExp, req: this.equipmentManager.getRequiredExp(prog.level) };
+      });
       const expResults = this.equipmentManager.addExpToSquad(activeHero, baseExp, participatingHeroIds);
+      const squad = Object.entries(expResults).map(([hId, res]) => {
+        const h = this.equipmentManager.heroesBase[hId];
+        const b = before[hId];
+        const isMain = (hId === activeHero);
+        const { url, portraitKey } = this._getHeroPortrait(hId, h);
+        return {
+          id: hId,
+          name: h ? h.name : hId,
+          sub: this._heroSubtitle(h),
+          isMain,
+          isSapidae: Boolean(h && h.isSapidae),
+          cls: this._heroClassKey(h),
+          level: res.currentLevel,
+          levelsGained: res.levelsGained,
+          gain: Math.floor(baseExp * this.equipmentManager.getExpShare(hId, activeHero)),
+          basePct: res.levelsGained > 0 || !b ? 0 : expPct(b.exp, b.req),
+          afterPct: expPct(res.currentExp, res.requiredExp),
+          portraitUrl: url,
+          portraitKey
+        };
+      });
 
-      if (expSection && expGrid) {
-        expSection.classList.remove('hidden');
-        expGrid.innerHTML = Object.entries(expResults).map(([hId, res]) => {
-          const h = this.equipmentManager.heroesBase[hId];
-          const isMain = (hId === activeHero);
-          const earned = isMain ? baseExp : Math.floor(baseExp * 0.6);
-          const pct = Math.min(100, Math.round((res.currentExp / res.requiredExp) * 100));
-          const levelUpHTML = res.levelsGained > 0
-            ? `<div class="exp-levelup-badge">🎉 REACHED LEVEL ${res.currentLevel}! (+${res.levelsGained * 3} Stats, +${res.levelsGained} Skills)</div>`
-            : '';
-
-          const { url, portraitKey } = this._getHeroPortrait(hId, h);
-          if (!url) {
-            portraitService.getPortrait(portraitKey).then(resolvedUrl => {
-              if (resolvedUrl) {
-                const imgEl = document.getElementById(`exp-avatar-img-${hId}`);
-                if (imgEl) {
-                  imgEl.src = resolvedUrl;
-                  imgEl.style.display = 'block';
-                  const fallback = document.getElementById(`exp-avatar-fallback-${hId}`);
-                  if (fallback) fallback.style.display = 'none';
-                }
-              }
-            }).catch(() => {});
-          }
-
-          const avatarContent = url
-            ? `<img id="exp-avatar-img-${hId}" src="${url}" alt="${h ? h.name : hId}">`
-            : `<img id="exp-avatar-img-${hId}" src="" alt="${h ? h.name : hId}" style="display:none;"><span id="exp-avatar-fallback-${hId}" class="exp-avatar-fallback">${h ? h.avatar : '⚔️'}</span>`;
-
-          return `
-            <div class="exp-hero-card ${isMain ? 'active-hero' : ''}">
-              <div id="exp-avatar-container-${hId}" class="exp-hero-avatar">${avatarContent}</div>
-              <div class="exp-hero-body">
-                <div class="exp-hero-row">
-                  <span class="exp-hero-name">${h ? h.name : hId} ${isMain ? '<span class="exp-leader-tag">LEADER (100% EXP)</span>' : '<span class="exp-ally-tag">SQUAD (60% EXP)</span>'}</span>
-                  <span class="exp-gained-val">+${earned} EXP</span>
-                </div>
-                <div class="exp-bar-track">
-                  <div class="exp-bar-fill" style="width: ${pct}%;"></div>
-                </div>
-                <div class="exp-bar-legend">
-                  <span>Lv. ${res.currentLevel}</span>
-                  <span>${res.currentExp} / ${res.requiredExp} EXP</span>
-                </div>
-                ${levelUpHTML}
-              </div>
-            </div>
-          `;
-        }).join('');
+      // Botín
+      const lootIds = (config.rewardItems || []).filter(id => ITEMS_DB[id]);
+      // Axie Care: cada victoria da comida para el compañero (una baya; a veces un pastelito)
+      if (!config.isTutorial) {
+        if (ITEMS_DB.food_berry) lootIds.push('food_berry');
+        if (ITEMS_DB.food_rice_cake && Math.random() < 0.25) lootIds.push('food_rice_cake');
+      }
+      if (lootIds.length > 0) {
+        this.equipmentManager.addItemsToInventory(lootIds);
       }
 
-      // Handle Loot Drops
-      if (config.rewardItems && config.rewardItems.length > 0) {
-        this.equipmentManager.addItemsToInventory(config.rewardItems);
-        this._renderLootGrid(config.rewardItems);
-      } else {
-        document.getElementById('loot-section').classList.add('hidden');
-      }
+      // Valoración y resumen con datos reales del combate
+      const allies = this.units.filter(u => u.team === 'player');
+      const foes = this.units.filter(u => u.team === 'enemy');
+      const rounds = this.turnManager.round || 1;
+      const alliesKO = allies.filter(u => u.isDead).length;
+      const hpNow = allies.reduce((t, u) => t + Math.max(0, u.currentHP || 0), 0);
+      const hpMax = allies.reduce((t, u) => t + (u.maxHP || 0), 0);
 
-      // Hide legacy / linear buttons not needed in Overworld
-      const nextBtn = document.getElementById('btn-next-level');
-      if (nextBtn) nextBtn.classList.add('hidden');
-      const campBtn = document.getElementById('btn-goto-camp');
-      if (campBtn) campBtn.classList.add('hidden');
-      const restartBtn = document.getElementById('btn-restart');
-      if (restartBtn) restartBtn.classList.add('hidden');
-
-      // Prominent Return to Overworld Button
-      const returnOverworldBtn = document.getElementById('btn-return-overworld');
-      if (returnOverworldBtn) {
-        returnOverworldBtn.textContent = '🌿 Continue Exploration';
-        returnOverworldBtn.classList.remove('hidden');
-      }
+      this.endScreen.showVictory({
+        subtitle: [config.title, config.biomeName, `${rounds} ${rounds === 1 ? 'ronda' : 'rondas'}`].filter(Boolean).join(' · '),
+        moons: [
+          { label: 'Victoria', on: true },
+          { label: 'Ningún aliado K.O.', on: alliesKO === 0 },
+          { label: 'En 3 rondas o menos', on: rounds <= 3 }
+        ],
+        squad,
+        recruits,
+        loot: lootIds.map(id => ITEMS_DB[id]),
+        summary: [
+          ['Rondas', String(rounds)],
+          ['Enemigos derrotados', String(foes.filter(u => u.isDead).length)],
+          ['Aliados K.O.', String(alliesKO)],
+          ['Vida del escuadrón', `${hpMax > 0 ? Math.round((hpNow / hpMax) * 100) : 0}%`]
+        ]
+      });
 
       this.lastBattleOutcome = 'VICTORY';
-      modal.classList.remove('hidden');
     };
 
     this.turnManager.onDefeat = async () => {
       this.sceneManager.shake(0.5);
       await new Promise(r => setTimeout(r, 800));
 
-      // Show Dramatic Cinematic Defeat Banner
-      const banner = document.getElementById('cinematic-banner');
-      const emblem = document.getElementById('cinematic-emblem');
-      const title = document.getElementById('cinematic-title');
-      const subtitle = document.getElementById('cinematic-subtitle');
-
-      banner.className = 'cinematic-banner-container defeat';
-      emblem.textContent = '💀';
-      title.textContent = 'DEFEAT';
-      subtitle.textContent = 'Your heroes have fallen in Lunacia';
-
-      banner.classList.remove('hidden');
+      // Transición de cierre (Lunakai UI): el tablero pierde el color, la luna se agrieta y «DERROTA»
       this.audio.playDefeat();
       if (this.audio && typeof this.audio.playDefeatMusic === 'function') {
         this.audio.playDefeatMusic();
       }
-
-      await new Promise(r => setTimeout(r, 2200));
-
-      banner.classList.add('fade-out');
+      await this.combatBanner.play('defeat', { subtitle: 'Tus héroes han caído en Lunacia' });
       this.sceneManager.restoreCamera();
-      await new Promise(r => setTimeout(r, 500));
-      banner.classList.add('hidden');
-      banner.classList.remove('fade-out');
+      await this.combatBanner.hide();
 
-      const modal = document.getElementById('gameover-modal');
-      document.getElementById('modal-icon').textContent = '💀';
-      document.getElementById('modal-title').textContent = 'DEFEAT IN LUNACIA';
-      document.getElementById('modal-desc').textContent = 'Your heroes have fallen. Return to the dojo to recover.';
-      document.getElementById('recruits-section').classList.add('hidden');
-      document.getElementById('loot-section').classList.add('hidden');
-      const expSec = document.getElementById('exp-section');
-      if (expSec) expSec.classList.add('hidden');
+      // Pantalla de derrota (Lunakai UI · etapa 3)
+      const config = this.activeBattleConfig || LEVELS_CONFIG[this.currentLevel] || LEVELS_CONFIG[1];
+      const squadIds = typeof this.equipmentManager.getSquad === 'function' ? this.equipmentManager.getSquad() : [];
+      const activeHero = squadIds[1] || this.selectedHeroId || 'kotaro';
+      const allies = this.units.filter(u => u.team === 'player');
+      const foesAlive = this.units.filter(u => u.team === 'enemy' && !u.isDead);
+      const squad = allies.map(u => {
+        const hid = u.id === 'sapidae_hero' ? 'sapidae' : u.id;
+        const h = this.equipmentManager.heroesBase[hid];
+        const prog = this.equipmentManager.getProgression(hid);
+        const { url, portraitKey } = this._getHeroPortrait(hid, h);
+        return {
+          id: hid,
+          name: h ? h.name : (u.name || u.id),
+          sub: this._heroSubtitle(h),
+          isMain: u.id === activeHero,
+          isSapidae: Boolean(h && h.isSapidae),
+          cls: this._heroClassKey(h),
+          level: prog.level,
+          levelsGained: 0,
+          gain: 0,
+          basePct: expPct(prog.currentExp, this.equipmentManager.getRequiredExp(prog.level)),
+          afterPct: 0,
+          portraitUrl: url,
+          portraitKey
+        };
+      });
 
-      const nextBtn = document.getElementById('btn-next-level');
-      if (nextBtn) nextBtn.classList.add('hidden');
-      const campBtn = document.getElementById('btn-goto-camp');
-      if (campBtn) campBtn.classList.add('hidden');
-
-      const returnOverworldBtn = document.getElementById('btn-return-overworld');
-      if (returnOverworldBtn) {
-        returnOverworldBtn.textContent = '🌿 Respawn at Dojo';
-        returnOverworldBtn.classList.remove('hidden');
+      // Consejos a partir del estado real del escuadrón
+      const hints = [];
+      allies.forEach(u => {
+        const h = this.equipmentManager.heroesBase[u.id];
+        const prog = this.equipmentManager.getProgression(u.id);
+        const name = h ? h.name : u.id;
+        if (prog.unspentStatPoints > 0 || prog.unspentSkillPoints > 0) {
+          const parts = [];
+          if (prog.unspentStatPoints > 0) parts.push(`${prog.unspentStatPoints} ${prog.unspentStatPoints === 1 ? 'punto' : 'puntos'} de estadística`);
+          if (prog.unspentSkillPoints > 0) parts.push(`${prog.unspentSkillPoints} de habilidad`);
+          hints.push({ icon: 'upgrade', html: `<b>${name} tiene ${parts.join(' y ')} sin asignar.</b> Repártelos en la Mochila <b>I</b> antes de volver.` });
+        }
+      });
+      allies.forEach(u => {
+        const eq = this.equipmentManager.equipped ? this.equipmentManager.equipped[u.id] : null;
+        if (!eq) return;
+        const empty = Object.values(eq).filter(v => !v).length;
+        if (empty > 0) {
+          const h = this.equipmentManager.heroesBase[u.id];
+          hints.push({ icon: 'equipable', html: `<b>${h ? h.name : u.id} tiene ${empty} ${empty === 1 ? 'ranura' : 'ranuras'} de equipo ${empty === 1 ? 'vacía' : 'vacías'}.</b> Equípale objetos desde la Mochila <b>I</b>.` });
+        }
+      });
+      if (foesAlive.length > 0) {
+        const names = [...new Set(foesAlive.map(u => u.name))].join(', ');
+        hints.push({ icon: 'swords', html: `<b>${foesAlive.length === 1 ? 'Sigue en pie' : `Siguen en pie ${foesAlive.length} enemigos`}:</b> ${names}. Gana experiencia en combates más sencillos y vuelve con más nivel.` });
       }
 
-      const restartBtn = document.getElementById('btn-restart');
-      if (restartBtn) {
-        restartBtn.classList.add('hidden');
+      let endSubtitle = 'El escuadrón se repliega al dojo';
+      if (foesAlive.length === 1) {
+        endSubtitle += ` · ${foesAlive[0].name} sobrevive con ${Math.max(0, Math.round(foesAlive[0].currentHP || 0))} de vida`;
+      } else if (foesAlive.length > 1) {
+        endSubtitle += ` · ${foesAlive.length} enemigos siguen en pie`;
       }
+
+      this.endScreen.showDefeat({
+        subtitle: endSubtitle,
+        squad,
+        lostLoot: (config.rewardItems || []).filter(id => ITEMS_DB[id]).map(id => ITEMS_DB[id]),
+        hints: hints.slice(0, 4)
+      });
 
       this.lastBattleOutcome = 'DEFEAT';
-      modal.classList.remove('hidden');
     };
   }
 
-  _renderLootGrid(itemIds) {
-    const container = document.getElementById('loot-grid');
-    container.innerHTML = '';
-    document.getElementById('loot-section').classList.remove('hidden');
+  /** Clave de clase del héroe para el color del retrato (beast, plant, bird…). */
+  _heroClassKey(h) {
+    const c = (h && h.class ? String(h.class) : '').toLowerCase();
+    return ['beast', 'plant', 'aquatic', 'bird', 'reptile', 'bug', 'mech', 'dawn', 'dusk'].includes(c) ? c : null;
+  }
 
-    itemIds.forEach(id => {
-      const item = ITEMS_DB[id];
-      if (!item) return;
-
-      const card = document.createElement('div');
-      card.className = 'item-card rarity-' + item.rarity;
-
-      let statBadges = '';
-      if (item.stats.damage) statBadges += `<span class="stat-badge">+${item.stats.damage} Damage</span>`;
-      if (item.stats.hp) statBadges += `<span class="stat-badge">+${item.stats.hp} HP</span>`;
-      if (item.stats.pm) statBadges += `<span class="stat-badge">+${item.stats.pm} MP</span>`;
-      if (item.stats.pa) statBadges += `<span class="stat-badge">+${item.stats.pa} AP</span>`;
-      if (item.stats.shield) statBadges += `<span class="stat-badge">+${item.stats.shield} Shield</span>`;
-      if (item.stats.initiative) statBadges += `<span class="stat-badge">+${item.stats.initiative} Init</span>`;
-
-      card.innerHTML = `
-        <div class="item-header">
-          <img class="item-icon" src="${item.icon}" alt="">
-          <span class="item-name">${item.name}</span>
-        </div>
-        <span class="item-slot-tag">${item.slot} (${item.rarity})</span>
-        <div class="item-stats-badges">${statBadges}</div>
-      `;
-      container.appendChild(card);
-    });
+  /** Subtítulo del héroe en las pantallas de fin de combate. */
+  _heroSubtitle(h) {
+    if (!h) return 'Aliado de Lunacia';
+    if (h.isSapidae) return `Sapidae · ${h.class || 'Líder'}`;
+    return [h.axieId ? `#${h.axieId}` : null, h.class].filter(Boolean).join(' · ');
   }
 
   _openEquipmentScreen() {
@@ -1480,8 +1538,8 @@ class AxieTacticsGame {
       card.className = 'timeline-card team-' + unit.team + (unit === this.activeUnit ? ' active-turn' : '');
 
       let avatar = '⚔️';
-      if (unit.type === 'bing') avatar = '🏹';
-      else if (unit.type === 'pomodoro') avatar = '🌱';
+      if (unit.type === 'bing') avatar = '🐶';
+      else if (unit.type === 'pomodoro') avatar = '🍳';
       else if (unit.type.includes('werewolf') || unit.type.includes('wolf')) avatar = '🐺';
       else if (unit.type.includes('bear')) avatar = '🐻';
       else if (unit.type.includes('dryad')) avatar = '🧚';
@@ -1525,8 +1583,8 @@ class AxieTacticsGame {
     let archetype = unit.archetype || (unit.config && unit.config.archetype);
     let avatar = '⚔️';
     if (!archetype) {
-      if (unit.type === 'bing') { archetype = 'Bird Axie (Ranged Marksman)'; avatar = '🏹'; }
-      else if (unit.type === 'pomodoro') { archetype = 'Plant Axie (Healer & Control)'; avatar = '🌱'; }
+      if (unit.type === 'bing') { archetype = 'Beast Axie (Morale Support)'; avatar = '🐶'; }
+      else if (unit.type === 'pomodoro') { archetype = 'Bug Axie (Shield Guardian)'; avatar = '🍳'; }
       else if (unit.type === 'werewolf-boss' || unit.type.includes('werewolf')) { archetype = 'Supreme Chimera Boss'; avatar = '🐺'; }
       else if (unit.type.includes('bear')) { archetype = 'Colossal Bear Chimera'; avatar = '🐻'; }
       else if (unit.type.includes('wolf')) { archetype = 'Hunter Wolf Chimera'; avatar = '🐺'; }
@@ -1683,7 +1741,7 @@ class AxieTacticsGame {
     if (!spellId) return;
 
     const spell = this.spellManager.getSpell(spellId);
-    if (!spell || this.activeUnit.currentPA < spell.paCost) return;
+    if (!spell || this.activeUnit.currentPA < spell.paCost || this.spellManager.castLimitReached(this.activeUnit, spell)) return;
 
     if (this.selectedSpellIndex === index) {
       this._clearSpellSelection();
@@ -1703,6 +1761,32 @@ class AxieTacticsGame {
         this.tutorialManager.advanceStep();
       }
     }
+  }
+
+  /** Selecciona (o deselecciona) la Duo Ultimate (botón del medallón del HUD, tecla 7; índice ULTIMATE_SLOT). */
+  _toggleUltimateSelect() {
+    if (this.gameState !== 'BATTLE') return;
+    if (!this.activeUnit || this.activeUnit.team !== 'player' || this.activeUnit.isMoving) return;
+    const ult = this.spellManager.ultimates;
+    const spell = ult.spell;
+    if (!spell || !ult.canCast(this.activeUnit)) {
+      this.audio.playCollision();
+      return;
+    }
+    if (this.selectedSpellIndex === ULTIMATE_SLOT && this.selectedSpell?.isUltimate) {
+      this._clearSpellSelection();
+      return;
+    }
+    this.selectedSpellIndex = ULTIMATE_SLOT;
+    this.selectedSpell = spell;
+    for (let i = 0; i < 3; i++) {
+      const slot = document.getElementById('spell-slot-' + i);
+      if (slot) slot.classList.remove('active');
+    }
+    this.validSpellCells = this.spellManager.getValidTargetCells(this.activeUnit, spell);
+    this.gridManager.clearHighlights();
+    this.gridManager.highlightSpellRange(this.validSpellCells);
+    this._updateHUD(this.activeUnit);
   }
 
   _clearSpellSelection() {
@@ -1742,12 +1826,15 @@ class AxieTacticsGame {
         this.gridManager.clearHighlights();
         this.gridManager.highlightSpellRange(this.validSpellCells);
 
-        const aoe = this.spellManager.getAoECells(cell, this.selectedSpell);
+        const aoe = this.spellManager.getAoECells(cell, this.selectedSpell, this.activeUnit);
         this.gridManager.highlightAoE(aoe);
         this.gridManager.highlightHover(cell.x, cell.z, 0xffd700);
 
-        if (tile && tile.unit) {
-          this._showForecast(tile.unit, this.selectedSpell);
+        // Unidad bajo el cursor o, en áreas, la primera unidad alcanzada
+        const fcUnit = (tile && tile.unit && !tile.unit.isDead) ? tile.unit
+          : aoe.map((c) => this.gridManager.getTile(c.x, c.z)?.unit).find((u) => u && !u.isDead);
+        if (fcUnit) {
+          this._showForecast(fcUnit, this.selectedSpell, cell);
         } else {
           this._hideForecast();
         }
@@ -1778,6 +1865,7 @@ class AxieTacticsGame {
       this.activeUnit = this.turnManager.getActiveUnit() || this.units?.[0];
     }
     if (!this.activeUnit || this.activeUnit.team !== 'player' || this.activeUnit.isMoving) return;
+    if (this.turnManager?.turnEnding) return; // Fase 5: el turno ya se está pasando, no se admiten más órdenes
 
     if (!this.hoverCell && this.sceneManager && this.mouse) {
       this.raycaster.setFromCamera(this.mouse, this.sceneManager.camera);
@@ -1849,7 +1937,7 @@ class AxieTacticsGame {
     }
   }
 
-  _showForecast(targetUnit, spell) {
+  _showForecast(targetUnit, spell, cell = null) {
     if (!targetUnit || targetUnit.isDead) {
       this._hideForecast();
       return;
@@ -1860,17 +1948,13 @@ class AxieTacticsGame {
     const maxHP = (typeof targetUnit.maxHP === 'number' && !isNaN(targetUnit.maxHP)) ? targetUnit.maxHP : 1;
     document.getElementById('forecast-target-hp').textContent = curHP + ' / ' + maxHP + ' HP';
 
-    const dmgVal = document.getElementById('forecast-damage-val');
-    if (spell.baseMinDamage) {
-      let bMin = spell.baseMinDamage;
-      let bMax = spell.baseMaxDamage;
-      if (this.activeUnit.bonusDamage) {
-        bMin += this.activeUnit.bonusDamage;
-        bMax += this.activeUnit.bonusDamage;
-      }
-      dmgVal.textContent = bMin + ' - ' + bMax;
-    } else if (spell.baseMinHeal) {
-      dmgVal.textContent = '+' + spell.baseMinHeal + ' - ' + spell.baseMaxHeal + ' (Cura)';
+    // Fase 5: pronóstico exacto (triángulo, estados, escudo, barrera, bonus de la carta, área) — ui/ForecastPanel.js
+    try {
+      renderForecast(this, targetUnit, spell, cell);
+    } catch (err) {
+      console.warn('[Forecast]', err);
+      const dmgVal = document.getElementById('forecast-damage-val');
+      if (dmgVal && spell.baseMinDamage) dmgVal.textContent = spell.baseMinDamage + ' - ' + spell.baseMaxDamage;
     }
 
     const pushRow = document.getElementById('forecast-push-row');
@@ -1907,6 +1991,7 @@ class AxieTacticsGame {
 
   _hideForecast() {
     document.getElementById('combat-forecast').classList.add('hidden');
+    clearForecast();
   }
 
   _showSpellTooltip(index, e) {

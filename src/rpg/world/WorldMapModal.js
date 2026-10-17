@@ -7,6 +7,7 @@ import {
   WORLD_GRID_MATRIX,
   MAP_REGISTRY
 } from './MapRegistry.js';
+import { IslandChart, startExplorationTracking } from './IslandChart.js';
 
 export class WorldMapModal {
   constructor(worldMapManager) {
@@ -26,6 +27,8 @@ export class WorldMapModal {
     this.animFrameId = null;
 
     this._createDOM();
+    // La niebla de la carta se despeja mientras exploras, aunque no abras el mapa
+    if (this.wmm?.om) startExplorationTracking(this.wmm.om);
   }
 
   _createDOM() {
@@ -33,136 +36,91 @@ export class WorldMapModal {
     if (!modal) {
       modal = document.createElement('div');
       modal.id = 'world-map-modal';
-      modal.className = 'world-map-modal hidden';
+      // Crónica Celeste: ventana del sistema (cabecera con emblema, pestañas segmentadas) con el archipiélago a la
+      // izquierda y la ficha de la isla en papel marfil a la derecha. Se conservan todos los ids que usa este módulo.
+      modal.className = 'world-map-modal lk-ui lk-backdrop lk-wmap-layer hidden';
       modal.innerHTML = `
-        <div class="world-map-backdrop"></div>
-        <div class="world-map-container">
-          <!-- Header -->
-          <div class="world-map-header">
-            <div class="world-map-title-group">
-              <span class="world-map-badge">LUNACIA OVERWORLD</span>
-              <h2 class="world-map-title" id="world-map-main-title">Mapa de las 5 Islas</h2>
+        <div class="world-map-backdrop" aria-hidden="true"></div>
+        <div class="world-map-container lk-panel-modal-window lk-wmap" role="dialog" aria-label="Mapa de Lunacia">
+          <div class="world-map-header lk-panel-head">
+            <span class="lk-emblem"><img class="lk-ai" src="./assets/ui/icons/map.png" alt=""></span>
+            <h3><small>Mapa · tecla M</small><span id="world-map-main-title" class="world-map-title">Archipiélago de Lunacia</span></h3>
+            <div class="world-map-tabs lk-segmented" role="tablist">
+              <button id="map-tab-world-btn" class="map-tab-btn active" type="button" role="tab" aria-pressed="true">Archipiélago</button>
+              <button id="map-tab-island-btn" class="map-tab-btn" type="button" role="tab" aria-pressed="false">Isla actual</button>
             </div>
-
-            <!-- Tab Navigation Switcher -->
-            <div class="world-map-tabs">
-              <button id="map-tab-world-btn" class="map-tab-btn active" title="Vista de las 5 Grandes Islas">
-                🌍 Mapa Mundi (5 Islas)
-              </button>
-              <button id="map-tab-island-btn" class="map-tab-btn" title="Mapa detallado de la Isla del Bosque">
-                🏝️ Mapa de la Isla (Bosque)
-              </button>
-            </div>
-
-            <button id="world-map-close-btn" class="world-map-close-btn" title="Cerrar [M]">✕</button>
+            <button id="world-map-close-btn" class="world-map-close-btn lk-btn-close-x" type="button" aria-label="Cerrar" title="Cerrar (M)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
           </div>
 
-          <!-- Biome Legend Bar -->
-          <div class="world-map-legend">
-            <div class="legend-item"><span class="legend-dot" style="background:#22c55e"></span> 🌲 Bosque (Centro)</div>
-            <div class="legend-item"><span class="legend-dot" style="background:#38bdf8"></span> ❄️ Ártico (Norte)</div>
-            <div class="legend-item"><span class="legend-dot" style="background:#FAC651"></span> 🏜️ Sabana (Este)</div>
-            <div class="legend-item"><span class="legend-dot" style="background:#6366f1"></span> 🔮 Místico (Oeste)</div>
-            <div class="legend-item"><span class="legend-dot" style="background:#ef4444"></span> 🏰 Mazmorra (Sur)</div>
-          </div>
-
-          <!-- Main Layout: Views + Detail Sidebar -->
-          <div class="world-map-body">
-
-            <!-- VIEW 1: World Map (5 Islands Cross Layout) -->
-            <div id="view-world-islands" class="world-map-view-panel">
-              <div class="islands-cross-container" id="islands-cross-container">
-                <!-- SVG Connecting Sea Routes -->
-                <svg class="islands-sea-routes" viewBox="0 0 460 460" preserveAspectRatio="none">
-                  <!-- Dotted lines connecting center to 4 surrounding islands -->
-                  <line x1="230" y1="230" x2="230" y2="70" class="sea-route-line route-north" />
-                  <line x1="230" y1="230" x2="70" y2="230" class="sea-route-line route-west" />
-                  <line x1="230" y1="230" x2="390" y2="230" class="sea-route-line route-east" />
-                  <line x1="230" y1="230" x2="230" y2="390" class="sea-route-line route-south" />
+          <div class="world-map-body lk-wmap__body">
+            <!-- Vista 1: archipiélago en cruz -->
+            <div id="view-world-islands" class="world-map-view-panel lk-wmap__stage">
+              <div class="islands-cross-container lk-wmap__sea" id="islands-cross-container">
+                <svg class="islands-sea-routes lk-wmap__routes" viewBox="0 0 460 460" preserveAspectRatio="none" aria-hidden="true">
+                  <line x1="230" y1="230" x2="230" y2="70" class="sea-route-line" />
+                  <line x1="230" y1="230" x2="70" y2="230" class="sea-route-line" />
+                  <line x1="230" y1="230" x2="390" y2="230" class="sea-route-line" />
+                  <line x1="230" y1="230" x2="230" y2="390" class="sea-route-line" />
                   <circle cx="230" cy="230" r="155" class="sea-route-circle" />
+                  <circle cx="230" cy="230" r="205" class="sea-route-circle lk-wmap__ring2" />
                 </svg>
-
-                <!-- 3x3 Cross Grid for the 5 Islands -->
-                <div class="islands-cross-grid" id="islands-cross-grid"></div>
+                <div class="lk-wmap__compass" aria-hidden="true"><svg viewBox="0 0 64 64"><path d="M32 4l5 23 23 5-23 5-5 23-5-23-23-5 23-5z" fill="currentColor" opacity=".9"/><path d="M32 14l3 15 15 3-15 3-3 15-3-15-15-3 15-3z" fill="#0B0F1C" opacity=".55"/></svg><b>N</b></div>
+                <div class="islands-cross-grid lk-wmap__grid" id="islands-cross-grid"></div>
               </div>
+              <p class="lk-wmap__hint">Haz clic en una isla para ver su ficha · doble clic en la tuya para abrir su mapa</p>
             </div>
 
-            <!-- VIEW 2: High-Detail Island Map (Isla del Bosque) -->
-            <div id="view-island-detail" class="world-map-view-panel hidden">
-              <div class="island-canvas-wrapper" id="island-canvas-wrapper">
+            <!-- Vista 2: mapa detallado de la isla actual -->
+            <div id="view-island-detail" class="world-map-view-panel lk-wmap__stage hidden">
+              <!-- Carta del cartógrafo (IslandChart.js). El lienzo antiguo queda oculto como respaldo. -->
+              <div id="island-chart-host" class="lk-wmap__chart"></div>
+              <div class="island-canvas-wrapper lk-wmap__canvas" id="island-canvas-wrapper" hidden>
                 <canvas id="island-map-canvas" width="560" height="440"></canvas>
-                
-                <!-- On-Canvas Controls -->
-                <div class="island-map-hud-controls">
-                  <button id="btn-island-recenter" class="island-hud-btn" title="Centrar en el jugador">🎯 Centrar</button>
-                  <button id="btn-island-zoom-in" class="island-hud-btn" title="Aumentar zoom">+</button>
-                  <button id="btn-island-zoom-out" class="island-hud-btn" title="Reducir zoom">−</button>
+                <div class="island-map-hud-controls lk-wmap__ctrl">
+                  <button id="btn-island-recenter" class="island-hud-btn lk-btn-circle-icon" type="button" title="Centrar en tu posición"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="12" cy="12" r="3.2" fill="currentColor" stroke="none"/><path d="M12 2v4M12 18v4M2 12h4M18 12h4"/></svg></button>
+                  <button id="btn-island-zoom-in" class="island-hud-btn lk-btn-circle-icon" type="button" title="Acercar">+</button>
+                  <button id="btn-island-zoom-out" class="island-hud-btn lk-btn-circle-icon" type="button" title="Alejar">−</button>
                 </div>
-
-                <!-- Floating Tooltip on Island Map Hover -->
-                <div id="island-map-tooltip" class="island-map-tooltip hidden">
-                  <div id="tooltip-title" class="tooltip-title">Punto de Interés</div>
-                  <div id="tooltip-desc" class="tooltip-desc">Descripción</div>
-                  <div id="tooltip-coords" class="tooltip-coords">X: 0.0 | Z: 0.0</div>
+                <div id="island-map-tooltip" class="island-map-tooltip lk-wmap__tip hidden">
+                  <div id="tooltip-title" class="tooltip-title">Punto de interés</div>
+                  <div id="tooltip-desc" class="tooltip-desc"></div>
+                  <div id="tooltip-coords" class="tooltip-coords"></div>
                 </div>
-
-                <!-- Island Map Watermark / Scale -->
-                <div class="island-map-watermark">
-                  <span id="island-watermark-title">🌲 ISLA DEL BOSQUE · LUNACIA</span>
-                  <span id="island-cursor-coords">Cursor: X 0.0 | Z 0.0</span>
+                <div class="island-map-watermark lk-wmap__mark">
+                  <span id="island-watermark-title">Isla del Bosque · Lunacia</span>
+                  <span id="island-cursor-coords"></span>
                 </div>
               </div>
+              <p class="lk-wmap__hint">Rueda para acercar · arrastra para moverte · clic en un lugar para seguirlo</p>
             </div>
 
-            <!-- Detail Sidebar for Active / Selected Island or Landmark -->
-            <div id="world-map-detail" class="world-map-detail">
-              <div class="detail-header">
-                <span id="detail-biome-badge" class="detail-biome-badge">🌲 BOSQUE</span>
+            <!-- Ficha de la isla (papel marfil) -->
+            <aside id="world-map-detail" class="world-map-detail lk-wmap__page">
+              <div class="detail-header lk-wmap__ph">
+                <span id="detail-biome-badge" class="detail-biome-badge lk-wmap__biome">Bosque</span>
                 <h3 id="detail-zone-name" class="detail-zone-name">Isla del Bosque</h3>
-                <span id="detail-zone-coord" class="detail-zone-coord">Ubicación: Centro [Demo Activa]</span>
+                <span id="detail-zone-coord" class="detail-zone-coord">Centro</span>
               </div>
-
-              <!-- Island Level Range & Tagline -->
-              <div class="detail-meta-box">
-                <div class="detail-meta-item">
-                  <span class="meta-label">Rango:</span>
-                  <span id="detail-level-range" class="meta-val">Nivel 1 - 10</span>
-                </div>
-                <div class="detail-meta-item">
-                  <span class="meta-label">Estado:</span>
-                  <span id="detail-status-badge" class="meta-val status-active">Explorable</span>
-                </div>
+              <div class="detail-meta-box lk-wmap__meta">
+                <div class="detail-meta-item"><span class="meta-label">Nivel recomendado</span><b id="detail-level-range" class="meta-val">1</b></div>
+                <div class="detail-meta-item"><span class="meta-label">Estado</span><b id="detail-status-badge" class="meta-val">Explorable</b></div>
               </div>
-
-              <!-- Island Lore Description -->
+              <p id="detail-level-warn" class="lk-wmap__warn" hidden></p>
+              <div id="detail-chart-track" class="lk-wmap__track" hidden></div>
               <div class="detail-section">
-                <div class="section-label">Descripción del Bioma</div>
-                <p id="detail-island-desc" class="detail-desc-text">
-                  Valle templado y verde custodiado por el Gran Árbol Sagrado de Atia. Centro de entrenamiento marcial donde el Maestro Paladill instruye a los jóvenes reclutas de Lunacia.
-                </p>
+                <div class="section-label lk-wmap__label">Descripción</div>
+                <p id="detail-island-desc" class="detail-desc-text"></p>
               </div>
-
-              <!-- Key Landmarks / POIs List -->
               <div class="detail-section">
-                <div class="section-label" id="detail-landmarks-header">Puntos de Interés</div>
-                <div id="detail-landmarks-list" class="detail-landmarks-list">
-                  <!-- Populated dynamically -->
-                </div>
+                <div class="section-label lk-wmap__label" id="detail-landmarks-header">Puntos de interés</div>
+                <div id="detail-landmarks-list" class="detail-landmarks-list"></div>
               </div>
-
-              <!-- Action Button (Go to Island Map) -->
-              <div class="detail-action-container" id="detail-action-container">
-                <button id="btn-detail-switch-view" class="detail-action-btn">
-                  🏝️ Ver Mapa de la Isla
-                </button>
+              <div id="detail-chart-explored" class="lk-wmap__explored" hidden><div class="lk-bar-read"><span>Explorado</span><b data-ref="pct">0 %</b></div><div class="lk-bar lk-bar--xp"><i data-ref="bar" style="width:0%"></i></div></div>
+              <div class="detail-action-container lk-wmap__actions" id="detail-action-container">
+                <p id="detail-travel-note" class="lk-wmap__travel" hidden></p>
               </div>
-
-              <!-- Quick action hint -->
-              <div class="detail-footer-hint">
-                Presiona <kbd>[M]</kbd> o haz clic en <kbd>[✕]</kbd> para volver a la aventura.
-              </div>
-            </div>
-
+              <div class="detail-footer-hint lk-wmap__keys"><kbd>M</kbd> o <kbd>Esc</kbd> para volver a la aventura</div>
+            </aside>
           </div>
         </div>
       `;
@@ -362,103 +320,116 @@ export class WorldMapModal {
       if (islandBtn) islandBtn.classList.remove('active');
       if (this.viewWorldEl) this.viewWorldEl.classList.remove('hidden');
       if (this.viewIslandEl) this.viewIslandEl.classList.add('hidden');
-      if (titleEl) titleEl.textContent = 'Mapa de las 5 Islas';
-      if (switchBtn) switchBtn.textContent = '🏝️ Ver Mapa de la Isla';
+      if (titleEl) titleEl.textContent = 'Archipiélago de Lunacia';
+      worldBtn?.setAttribute('aria-pressed', 'true'); islandBtn?.setAttribute('aria-pressed', 'false');
 
-      const currentIslandKey = ISLANDS_REGISTRY.island_savannah?.isCurrent ? 'island_savannah' : 'island_forest';
+      const currentIslandKey = this._currentKey();
+      this.chart?.close();
+      this._showChartSide(false);
       this.renderIslandsCross();
       this.selectIsland(this.selectedIslandKey || currentIslandKey);
     } else {
-      const currentIslandKey = ISLANDS_REGISTRY.island_savannah?.isCurrent ? 'island_savannah' : 'island_forest';
+      const currentIslandKey = this._currentKey();
       const currentIsland = ISLANDS_REGISTRY[currentIslandKey];
 
       if (worldBtn) worldBtn.classList.remove('active');
       if (islandBtn) islandBtn.classList.add('active');
       if (this.viewWorldEl) this.viewWorldEl.classList.add('hidden');
       if (this.viewIslandEl) this.viewIslandEl.classList.remove('hidden');
-      if (titleEl) titleEl.textContent = `Mapa de la ${currentIsland?.name || 'Isla'}`;
-      if (switchBtn) switchBtn.textContent = '🌍 Volver a Mapa Mundi';
+      if (titleEl) titleEl.textContent = currentIsland?.name || 'Isla actual';
+      worldBtn?.setAttribute('aria-pressed', 'false'); islandBtn?.setAttribute('aria-pressed', 'true');
 
       this.selectIsland(currentIslandKey);
       this.renderIslandMap();
     }
   }
 
+  /** Isla en la que está el jugador (la marca isCurrent la mantiene WorldMapManager). */
+  _currentKey() {
+    const cur = Object.values(ISLANDS_REGISTRY).find((i) => i && i.isCurrent);
+    return cur?.id || 'island_forest';
+  }
+
+  /** Emblema dibujado de cada bioma (trazo marfil, sin emojis). */
+  _biomeGlyph(biome) {
+    const G = {
+      forest: '<path d="M32 10l-11 15h6l-9 12h7l-9 12h32l-9-12h7l-9-12h6z"/><path d="M32 49v7"/>',
+      arctic: '<path d="M32 10v44M13 21l38 22M13 43l38-22"/><path d="M26 13l6 6 6-6M26 51l6-6 6 6M12 28l8-1-3-7M52 36l-8 1 3 7M12 36l8 1-3 7M52 28l-8-1 3-7"/>',
+      savannah: '<circle cx="32" cy="24" r="8"/><path d="M32 9v3M32 36v0M19 24h-3M48 24h-3M22.8 14.8l2.1 2.1M41.2 14.8l-2.1 2.1"/><path d="M8 48c6-6 12-6 18-1s12 5 18 0 10-5 12-3"/><path d="M8 55h48"/>',
+      mystic: '<path d="M38 11a19 19 0 1 0 15 30 15 15 0 1 1-15-30z"/><path d="M45 15l1.6 4 4 1.6-4 1.6-1.6 4-1.6-4-4-1.6 4-1.6z" fill="currentColor"/>',
+      dungeon: '<path d="M12 22h40M15 16h34"/><path d="M19 22v32M45 22v32M19 32h26"/><path d="M32 36l3 5-3 5-3-5z" fill="currentColor"/><path d="M10 54h44"/>'
+    };
+    return `<svg viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${G[biome] || G.forest}</svg>`;
+  }
+
+  /** «Isla de la Sabana» → «Sabana»: en las tarjetas basta con el bioma (la ficha mantiene el nombre completo). */
+  _shortName(island) {
+    const n = String(island?.name || '').replace(/^isla\s+(?:de\s+la|de\s+los|de\s+las|del|de)?\s*/i, '').trim();
+    return n ? n.charAt(0).toUpperCase() + n.slice(1) : (island?.name || '');
+  }
+
+  /** Nivel del Sapidae (para comparar con el nivel recomendado de cada isla). */
+  _playerLevel() {
+    try { return this.wmm?.om?.equipmentManager?.getProgression?.('sapidae')?.level || 1; } catch { return 1; }
+  }
+
+  /** «Nivel 1 - 3» → { min: 1, max: 3, label: '1–3' }; «Nivel > 10» → { min: 11, max: Infinity, label: '10+' }. */
+  _levelInfo(island) {
+    const t = String(island?.levelRange || '');
+    const nums = (t.match(/\d+/g) || []).map(Number);
+    if (/>/.test(t) && nums.length) return { min: nums[0] + 1, max: Infinity, label: `${nums[0]}+` };
+    if (nums.length >= 2) return { min: nums[0], max: nums[1], label: `${nums[0]}–${nums[1]}` };
+    if (nums.length === 1) return { min: nums[0], max: nums[0], label: `${nums[0]}` };
+    return { min: 1, max: Infinity, label: '—' };
+  }
+
+  _dirLabel(island) {
+    const d = String(island?.direction || '').toUpperCase();
+    if (d.includes('NORTE')) return 'Norte';
+    if (d.includes('SUR')) return 'Sur';
+    if (d.includes('OESTE')) return 'Oeste'; // antes que «ESTE», que está contenido en «OESTE»
+    if (d.includes('ESTE')) return 'Este';
+    return 'Centro';
+  }
+
   renderIslandsCross() {
     if (!this.crossGridEl) return;
     this.crossGridEl.innerHTML = '';
+    const lvl = this._playerLevel();
 
-    const qm = this.wmm?.om?.questManager;
-    const trackedQuest = qm ? qm.getTrackedQuest() : null;
-
-    // 3x3 layout iteration
     for (let r = 0; r < 3; r++) {
       for (let c = 0; c < 3; c++) {
         const islandId = ISLANDS_LAYOUT[r][c];
-
         if (!islandId) {
-          // Empty ocean slot
-          const oceanCell = document.createElement('div');
-          oceanCell.className = 'island-cell island-cell-ocean';
-          // Corner decor
-          if (r === 0 && c === 0) oceanCell.innerHTML = `<span class="ocean-compass-rose">✦</span>`;
-          if (r === 0 && c === 2) oceanCell.innerHTML = `<span class="ocean-compass-rose">✦</span>`;
-          if (r === 2 && c === 0) oceanCell.innerHTML = `<span class="ocean-compass-rose">✦</span>`;
-          if (r === 2 && c === 2) oceanCell.innerHTML = `<span class="ocean-compass-rose">✦</span>`;
-          this.crossGridEl.appendChild(oceanCell);
+          const sea = document.createElement('div');
+          sea.className = 'island-cell island-cell-ocean lk-wmap__sea-cell';
+          this.crossGridEl.appendChild(sea);
           continue;
         }
 
         const island = ISLANDS_REGISTRY[islandId];
         const isCurrent = island.isCurrent;
         const isSelected = this.selectedIslandKey === island.id;
+        const li = this._levelInfo(island);
+        const under = lvl < li.min;
 
-        const cell = document.createElement('div');
-        cell.className = `island-cell island-card biome-${island.biome} ${isCurrent ? 'current-island-cell' : ''} ${isSelected ? 'selected-island' : ''}`;
+        const cell = document.createElement('button');
+        cell.type = 'button';
+        cell.className = `lk-isle biome-${island.biome} ${isCurrent ? 'lk-is-here' : ''} ${isSelected ? 'lk-is-sel' : ''} ${under ? 'lk-is-hard' : ''}`;
         cell.dataset.islandId = island.id;
-        cell.style.borderColor = island.color;
-
-        let statusBadge = isCurrent
-          ? `<span class="island-status-pill status-current">⚔️ Tu Ubicación</span>`
-          : '';
-
-        let pinHTML = '';
-        if (isCurrent) {
-          pinHTML = `
-            <div class="island-player-pin" title="Tu posición actual">
-              <span class="pin-symbol">⚔️</span>
-              <span class="pin-halo"></span>
-            </div>
-          `;
-        }
-
+        cell.style.setProperty('--ic', island.color);
+        cell.setAttribute('aria-label', `${island.name}, nivel ${li.label}${isCurrent ? ', estás aquí' : ''}`);
         cell.innerHTML = `
-          <div class="island-card-header">
-            <span class="island-direction-tag">${island.direction}</span>
-            ${statusBadge}
-          </div>
-          <div class="island-card-center">
-            <span class="island-card-icon">${island.icon}</span>
-            <h4 class="island-card-name" style="color: ${island.color}">${island.name}</h4>
-            <span class="island-card-tagline">${island.tagline}</span>
-          </div>
-          <div class="island-card-footer">
-            <span class="island-level-tag">${island.levelRange}</span>
-            ${pinHTML}
-          </div>
-        `;
+          ${isCurrent ? '<span class="lk-isle__here"><i></i>Estás aquí</span>' : ''}
+          <span class="lk-isle__dir">${this._dirLabel(island)}</span>
+          <span class="lk-isle__med">${this._biomeGlyph(island.biome)}</span>
+          <b class="lk-isle__name">${this._shortName(island)}</b>
+          <span class="lk-isle__tag">${island.tagline}</span>
+          <span class="lk-isle__lvl ${under ? 'lk-is-hard' : ''}">Nv. ${li.label}</span>`;
 
-        cell.addEventListener('mouseenter', () => {
-          this.selectIsland(island.id);
-        });
-
-        cell.addEventListener('click', () => {
-          this.selectIsland(island.id);
-          if (island.isCurrent) {
-            this.switchTab('island');
-          }
-        });
-
+        // Clic: ver la ficha. Doble clic en la isla actual: abrir su mapa
+        cell.addEventListener('click', () => this.selectIsland(island.id));
+        cell.addEventListener('dblclick', () => { if (island.isCurrent) this.switchTab('island'); });
         this.crossGridEl.appendChild(cell);
       }
     }
@@ -470,11 +441,8 @@ export class WorldMapModal {
     this.selectedIslandKey = islandId;
 
     // Highlight card in grid
-    document.querySelectorAll('.island-card').forEach(c => {
-      c.classList.remove('selected-island');
-      if (c.dataset.islandId === islandId) {
-        c.classList.add('selected-island');
-      }
+    document.querySelectorAll('#world-map-modal .lk-isle').forEach(c => {
+      c.classList.toggle('lk-is-sel', c.dataset.islandId === islandId);
     });
 
     // Update Detail Sidebar
@@ -487,19 +455,27 @@ export class WorldMapModal {
     const landmarksList = document.getElementById('detail-landmarks-list');
     const actionBtn = document.getElementById('btn-detail-switch-view');
 
+    const li = this._levelInfo(island);
+    const lvl = this._playerLevel();
+    const under = lvl < li.min;
+    const page = document.getElementById('world-map-detail');
+    if (page) page.style.setProperty('--ic', island.color);
     if (badgeEl) {
-      badgeEl.textContent = `${island.icon} ${BIOME_LABELS[island.biome] || island.biome.toUpperCase()}`;
-      badgeEl.style.color = island.color;
-      badgeEl.style.borderColor = island.color;
+      badgeEl.textContent = ({ forest: 'Bosque', arctic: 'Ártico', savannah: 'Sabana', mystic: 'Místico', dungeon: 'Genesis' })[island.biome] || BIOME_LABELS[island.biome] || island.biome;
+      badgeEl.style.removeProperty('color');
+      badgeEl.style.removeProperty('border-color');
     }
     if (nameEl) nameEl.textContent = island.name;
-    if (coordEl) {
-      coordEl.textContent = `Posición: ${island.direction} · ${island.isCurrent ? '★ (UBICACIÓN ACTUAL)' : 'Explorable'}`;
-    }
-    if (levelRangeEl) levelRangeEl.textContent = island.levelRange;
+    if (coordEl) coordEl.textContent = `${this._dirLabel(island)} · ${island.tagline}`;
+    if (levelRangeEl) levelRangeEl.textContent = `Nv. ${li.label}`;
     if (statusEl) {
-      statusEl.textContent = island.isCurrent ? 'Ubicación Actual' : 'Explorable';
-      statusEl.className = 'meta-val status-active';
+      statusEl.textContent = island.isCurrent ? 'Estás aquí' : (under ? 'Peligrosa' : 'Explorable');
+      statusEl.className = `meta-val ${island.isCurrent ? 'lk-is-here' : under ? 'lk-is-hard' : 'lk-is-ok'}`;
+    }
+    const warn = document.getElementById('detail-level-warn');
+    if (warn) {
+      warn.hidden = !under;
+      if (under) warn.textContent = `Tu Sapidae es nivel ${lvl}. Se recomienda nivel ${li.min} o más: las quimeras de esta isla serán muy duras.`;
     }
     if (descEl) descEl.textContent = island.description;
 
@@ -508,52 +484,89 @@ export class WorldMapModal {
       landmarksList.innerHTML = '';
       (island.landmarks || []).forEach(lm => {
         const row = document.createElement('div');
-        row.className = 'landmark-row';
+        row.className = 'landmark-row lk-wmap__poi';
         row.innerHTML = `
           <div class="landmark-icon">${lm.icon}</div>
           <div class="landmark-info">
             <span class="landmark-name">${lm.name}</span>
             <span class="landmark-desc">${lm.desc}</span>
           </div>
+          ${island.isCurrent && lm.coords ? '<span class="lk-wmap__poi-go" aria-hidden="true">Seguir</span>' : ''}
         `;
+        row.dataset.chartId = 'poi_' + lm.id;
         if (island.isCurrent) {
           row.style.cursor = 'pointer';
-          row.title = 'Ver en el mapa de la isla';
+          row.title = 'Seguir en el mapa de la isla';
           row.addEventListener('click', () => {
-            this.switchTab('island');
-            if (lm.coords) {
-              this.islandPan.x = -lm.coords.x * 1.35;
-              this.islandPan.y = -lm.coords.z * 1.35;
-              this.renderIslandMap();
+            if (this.currentTab !== 'island') this.switchTab('island');
+            if (lm.coords && this.chart) {
+              if (this.chart.follow !== row.dataset.chartId) this.chart.setFollow(row.dataset.chartId);
+              this.chart.focus(lm.coords.x, lm.coords.z, 160);
             }
           });
+          row.addEventListener('mouseenter', () => this.chart?.highlight(row.dataset.chartId));
+          row.addEventListener('mouseleave', () => this.chart?.highlight(null));
         }
         landmarksList.appendChild(row);
       });
     }
 
-    if (actionBtn) {
-      if (island.isCurrent) {
-        actionBtn.style.display = 'block';
-        actionBtn.textContent = (this.currentTab === 'world') ? '🏝️ Ver Mapa de la Isla' : '🌍 Volver a Mapa Mundi';
-        actionBtn.onclick = () => {
-          this.switchTab(this.currentTab === 'world' ? 'island' : 'world');
-        };
-      } else {
-        // Show travel option to explore other active islands
-        actionBtn.style.display = 'block';
-        actionBtn.textContent = `⛵ Viajar a ${island.name}`;
-        actionBtn.onclick = async () => {
-          this.close();
-          if (this.wmm && typeof this.wmm.travelToIsland === 'function') {
-            await this.wmm.travelToIsland(island.id);
-          }
-        };
+    const travelNote = document.getElementById('detail-travel-note');
+    if (travelNote) {
+      travelNote.hidden = island.isCurrent;
+      if (!island.isCurrent) {
+        travelNote.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 17l2 3h14l2-3"/><path d="M12 3v11"/><path d="M12 4l6 9H12"/><path d="M2 21c2 0 2-1 4-1s2 1 4 1 2-1 4-1 2 1 4 1 2-1 4-1"/></svg><span>Para ir a <b>${island.name}</b> habla con el <b>barquero</b> en el muelle de tu isla.</span>`;
       }
     }
+    // Sin botón de cambio de vista: las pestañas Archipiélago / Isla actual ya cumplen esa función
+  }
+
+  /** Carta del cartógrafo: se crea la primera vez que se abre la pestaña de la isla. */
+  _ensureChart() {
+    if (this.chart || !this.wmm?.om) return this.chart;
+    const host = document.getElementById('island-chart-host');
+    if (!host) return null;
+    this.chart = new IslandChart(host, this.wmm.om);
+    this.chart.onFollow = () => this._renderChartTrack();
+    this.chart.onHover = (id) => {
+      document.querySelectorAll('#detail-landmarks-list .lk-wmap__poi').forEach((r) => r.classList.toggle('lk-is-hot', Boolean(id) && r.dataset.chartId === id));
+    };
+    return this.chart;
+  }
+
+  _showChartSide(on) {
+    const tr = document.getElementById('detail-chart-track');
+    const ex = document.getElementById('detail-chart-explored');
+    if (tr) tr.hidden = !on;
+    if (ex) ex.hidden = !on;
+  }
+
+  _renderChartTrack() {
+    const box = document.getElementById('detail-chart-track');
+    if (!box || !this.chart) return;
+    const t = this.chart.target();
+    const p = this.wmm?.om?.player?.position;
+    if (!t) { box.innerHTML = '<small>Destino</small><b>Sin destino</b><span>Haz clic en un lugar del mapa para seguirlo.</span>'; }
+    else {
+      const d = p ? Math.round(Math.hypot(t.x - p.x, t.z - p.z)) : null;
+      box.innerHTML = `<small>${t.label}</small><b>${t.title}</b><span>${d !== null ? `a ${d} m · ` : ''}sigue la ruta dorada</span>`;
+    }
+    document.querySelectorAll('#detail-landmarks-list .lk-wmap__poi').forEach((r) => {
+      const on = Boolean(this.chart.follow) && r.dataset.chartId === this.chart.follow;
+      r.classList.toggle('lk-is-follow', on);
+      const go = r.querySelector('.lk-wmap__poi-go'); if (go) go.textContent = on ? 'Siguiendo' : 'Seguir';
+    });
   }
 
   renderIslandMap() {
+    if (this._ensureChart()) {
+      const pct = this.chart.open();
+      this._showChartSide(true);
+      const ex = document.getElementById('detail-chart-explored');
+      if (ex) { ex.querySelector('[data-ref="pct"]').textContent = `${Math.round(pct * 100)} %`; ex.querySelector('[data-ref="bar"]').style.width = `${Math.round(pct * 100)}%`; }
+      this._renderChartTrack();
+      return;
+    }
     if (!this.islandCanvas || !this.islandCtx) return;
     const canvas = this.islandCanvas;
     const ctx = this.islandCtx;
@@ -590,7 +603,7 @@ export class WorldMapModal {
 
     const watermarkTitleEl = document.getElementById('island-watermark-title');
     if (watermarkTitleEl) {
-      watermarkTitleEl.textContent = isSavannah ? '🏜️ ISLA DE LA SABANA · LUNACIA' : '🌲 ISLA DEL BOSQUE · LUNACIA';
+      watermarkTitleEl.textContent = isSavannah ? 'Isla de la Sabana · Lunacia' : 'Isla del Bosque · Lunacia';
     }
 
     ctx.save();
@@ -1005,13 +1018,17 @@ export class WorldMapModal {
     }
     this.isOpen = true;
     this.modalEl.classList.remove('hidden');
+    void this.modalEl.offsetWidth; // la ventana entra con la transición del sistema
+    this.modalEl.classList.add('lk-is-open');
 
     if (this.currentTab === 'world') {
+      // Al abrir, la ficha muestra la isla en la que estás
+      this.selectedIslandKey = this._currentKey();
       this.renderIslandsCross();
-      this.selectIsland(this.selectedIslandKey || 'island_forest');
+      this.selectIsland(this.selectedIslandKey);
     } else {
       this.renderIslandMap();
-      this.selectIsland('island_forest');
+      this.selectIsland(this._currentKey());
     }
 
     // Audio feedback
@@ -1027,6 +1044,8 @@ export class WorldMapModal {
 
   close() {
     this.isOpen = false;
+    this.chart?.close();
+    this.modalEl.classList.remove('lk-is-open');
     this.modalEl.classList.add('hidden');
   }
 

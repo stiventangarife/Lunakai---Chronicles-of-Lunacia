@@ -27,7 +27,7 @@ export const BIOME_COLORS = {
   savannah: '#FAC651',  // Yellow Desert (#FAC651)
   forest: '#22c55e',    // Green
   mystic: '#a855f7',    // Purple / Pink
-  dungeon: '#ef4444'    // Red
+  dungeon: '#f5c542'    // Gold (Genesis)
 };
 
 export const BIOME_LABELS = {
@@ -35,7 +35,7 @@ export const BIOME_LABELS = {
   savannah: '🏜️ Savannah',
   forest: '🌲 Forest',
   mystic: '🔮 Mystic',
-  dungeon: '🏰 Dungeon'
+  dungeon: '✨ Genesis'
 };
 
 /**
@@ -90,10 +90,10 @@ export const ISLANDS_REGISTRY = {
     status: 'active',
     levelRange: 'Nivel 1 - 3',
     icon: '🏜️',
-    description: 'Vastas mesetas doradas, cañones escarpados y calor abrasador. Hogar de los duelistas nómadas, el arquero Bing y feroces quimeras del desierto.',
+    description: 'Vastas mesetas doradas, cañones escarpados y calor abrasador. Hogar de los duelistas nómadas, el alegre cachorro Bing y feroces quimeras del desierto.',
     landmarks: [
       { id: 'desert_sun', name: 'Altar de Atia', icon: '☀️', coords: { x: 68.0, z: -30.0 }, desc: 'Altar escalonado de arenisca con la estatua del espíritu de Atia, custodiado por el Centinela del Desierto.' },
-      { id: 'bing_post', name: 'Campamento de Bing', icon: '🏹', coords: { x: -28.0, z: -35.0 }, desc: 'Refugio nómada del arquero alado con mirador sobre el oasis.' },
+      { id: 'bing_post', name: 'Campamento de Bing', icon: '🐶', coords: { x: -28.0, z: -35.0 }, desc: 'Refugio nómada del alegre cachorro Bing, con mirador sobre el oasis y su reserva de helados.' },
       { id: 'blacksmith', name: 'Fragua Nómada de Baruk', icon: '🔨', coords: { x: 42.0, z: 48.0 }, desc: 'Gran herrería del cañón forjando acero de Atia.' }
     ]
   },
@@ -126,8 +126,8 @@ export const ISLANDS_REGISTRY = {
     name: 'Isla Mística',
     tagline: 'Vacío Astral y Santuario Cósmico',
     biome: 'mystic',
-    color: '#6366f1',
-    accentColor: '#818cf8',
+    color: '#F27BA0', // rosa (antes índigo, que ahora es de Genesis)
+    accentColor: '#FFB3CA',
     gridPos: { row: 1, col: 0 },
     zoneId: 'zone_1_2',
     isCurrent: false,
@@ -138,29 +138,29 @@ export const ISLANDS_REGISTRY = {
     landmarks: [
       { id: 'astral_void', name: 'Santuario del Vacío Astral', icon: '✨', desc: 'Monolitos celestes que resuenan con las constelaciones.' },
       { id: 'astral_nebula', name: 'Nebulosa de Lunacia', icon: '🌌', desc: 'Fisura mágica de polvo estelar y tiempo distorsionado.' },
-      { id: 'oracle_tower', name: 'Observatorio del Oráculo', icon: '🔮', desc: 'Torre de contemplación cósmica y profecías.' }
+      { id: 'oracle_tower', name: 'Observatorio Astral', icon: '🔭', desc: 'Torre del astrólogo, donde se leen las constelaciones.' }
     ]
   },
   island_dungeon: {
     id: 'island_dungeon',
     position: 'bottom',
     direction: 'ABAJO (SUR)',
-    name: 'Isla de la Mazmorra',
-    tagline: 'Fortaleza Ígnea y Cripta Profunda',
+    name: 'Isla Genesis',
+    tagline: 'Jardines Reales del Origen',
     biome: 'dungeon',
-    color: '#ef4444',
-    accentColor: '#f87171',
+    color: '#6366f1', // índigo (el color que antes tenía la Isla Mística)
+    accentColor: '#818cf8',
     gridPos: { row: 2, col: 1 },
     zoneId: 'zone_2_3',
     isCurrent: false,
     status: 'active',
     levelRange: 'Nivel > 10',
-    icon: '🏰',
-    description: 'Epicentro volcánico de roca fundida y catacumbas ancestrales. En lo más profundo aguardan las trampas de la cripta y el combate definitivo.',
+    icon: '✨',
+    description: 'Los jardines reales del continente: un santuario antiguo y exclusivo, reservado a la élite de los entrenadores de Axies. El aire es denso en magia y las auroras iluminan su cielo; en el Santuario del Origen aguarda el combate definitivo.',
     landmarks: [
-      { id: 'dungeon_threshold', name: 'Caldera de Magma', icon: '🌋', desc: 'Epicentro volcánico activo sobre ríos de lava y azufre.' },
-      { id: 'crypt_catacombs', name: 'Cráter de la Cripta Lunar', icon: '🌑', desc: 'Cuenca de impacto cósmica y catacumbas ancestrales.' },
-      { id: 'boss_altar', name: 'Fortaleza de las Sombras', icon: '🏰', desc: 'Cámara volcánica suprema y combate definitivo de Lunacia.' }
+      { id: 'dungeon_threshold', name: 'Puerta del Santuario', icon: '⛩️', desc: 'Pórtico monumental con un velo de aurora: cruzarlo es entrar en un santuario prohibido.' },
+      { id: 'crypt_catacombs', name: 'Jardín Real', icon: '🌳', desc: 'Plaza central con el tótem de Genesis, monumentos antiguos y anillos de arena dorada.' },
+      { id: 'boss_altar', name: 'Santuario del Origen', icon: '🏛️', desc: 'Templo ancestral del Espíritu de Atia y escenario del combate definitivo de Lunacia.' }
     ]
   }
 };
@@ -179,8 +179,8 @@ const LANDMARKS = {
 
   // Row 3 (gy = 3)
   '1_3': { name: 'Sanctuary of the Astral Void', title: 'Astral Sanctuary' },
-  '2_3': { name: 'Igneous Stronghold Threshold', title: 'Dungeon Threshold' },
-  '3_3': { name: 'Catacombs of the Deep Crypt', title: 'Crypt Catacombs', isBoss: true }
+  '2_3': { name: 'Royal Gardens of Genesis', title: 'Genesis Gardens' },
+  '3_3': { name: 'Sanctum of Origin', title: 'Sanctum of Origin', isBoss: true }
 };
 
 function generateZoneName(gx, gy, biome) {
@@ -192,14 +192,14 @@ function generateZoneName(gx, gy, biome) {
     savannah: ['Steppe', 'Desert', 'Wasteland', 'Plateau', 'Canyon'],
     forest: ['Grove', 'Meadow', 'Valley', 'Thicket', 'Path'],
     mystic: ['Rift', 'Sanctuary', 'Nebula', 'Abyss', 'Vortex'],
-    dungeon: ['Catacombs', 'Hall', 'Gallery', 'Vault', 'Pit']
+    dungeon: ['Gardens', 'Sanctum', 'Terrace', 'Grove', 'Court']
   };
   const suffixes = {
     arctic: ['of Frost', 'of Ice', 'Snowy', 'Boreal', 'Frozen'],
     savannah: ['of Sand', 'Arid', 'of the Sun', 'of Dust', 'Steppic'],
     forest: ['Green', 'of Lunacia', 'of Wind', 'Blooming', 'Ancestral'],
     mystic: ['Astral', 'of the Void', 'of Shadows', 'Arcane', 'Cosmic'],
-    dungeon: ['of Fire', 'of Oblivion', 'of Ash', 'Corrupt', 'of the Crypt']
+    dungeon: ['of Genesis', 'of Origin', 'Royal', 'Ancient', 'Ethereal']
   };
 
   const pList = prefixes[biome] || prefixes.forest;
@@ -220,7 +220,7 @@ export const ZONE_NPCS = {
   ],
   // East Savannah Island [3, 2]: Bing (Main 2 Recruit), Sentinel (Main 3 & 4), Blacksmith Baruk (Side 4), Hunter Zarek (Side 5)
   '3_2': [
-    { id: 'bing_npc', type: 'recruit', heroId: 'bing', questId: 'quest_prove_ferocity', position: { x: -30.24, y: 0, z: -37.24 }, rotation: Math.PI / 4, name: 'Bing', model: 'bing.glb', title: '🏹 Winged Archer', bubbleQuote: 'Over here! Help me drive off these chimeras!', avatar: 'bing' },
+    { id: 'bing_npc', type: 'recruit', heroId: 'bing', questId: 'quest_prove_ferocity', position: { x: -30.24, y: 0, z: -37.24 }, rotation: Math.PI / 4, name: 'Bing', model: 'bing.glb', title: '🐶 Savannah Pup', bubbleQuote: 'Woof! Over here! Help me drive off these chimeras!', avatar: 'bing' },
     { id: 'sentinel', type: 'quest_giver', questId: 'quest_hostile_sands', position: { x: 58.5, y: 0, z: -24.0 }, rotation: -1.8, name: 'Desert Sentinel', model: 'kibo.glb', title: '🏜️ Dune Watcher', bubbleQuote: 'Beware the scorching sun and the desert chimeras!', avatar: 'kibo' },
     { id: 'blacksmith', type: 'quest_giver', questId: 'quest_nomad_steel', position: { x: 42.39, y: 0, z: 48.73 }, rotation: -2.356, name: 'Blacksmith Baruk', model: 'sapidae-m-b.glb', title: '🔨 Canyon Smith', bubbleQuote: 'By fire and hammer! Looking to forge true savannah steel?', avatar: 'sapidae-m-b' },
     { id: 'hunter', type: 'quest_giver', questId: 'quest_keen_eye_trial', position: { x: 2.5, y: 0, z: -10.0 }, rotation: (80 * Math.PI) / 180, name: 'Hunter Zarek', model: 'sapidae-m-c.glb', title: '🎯 Savannah Marksman', bubbleQuote: 'Hey, duelist! Think your aim rivals the desert wind?', avatar: 'sapidae-m-c' }
@@ -229,7 +229,7 @@ export const ZONE_NPCS = {
   '3_1': [],
   // North Arctic [2, 1]: Pomodoro (Main 5 Recruit & Main 6), Chef Boreal (Side 6)
   '2_1': [
-    { id: 'pomodoro_npc', type: 'recruit', heroId: 'pomodoro', questId: 'quest_frozen_seed', position: { x: 8.0, y: 0, z: 18.6 }, rotation: -0.5, name: 'Pomodoro', model: 'pomodoro.glb', title: '🌿 Botanical Guardian', bubbleQuote: 'My roots are freezing! Help me against these ice chimeras!', avatar: 'pomodoro' },
+    { id: 'pomodoro_npc', type: 'recruit', heroId: 'pomodoro', questId: 'quest_frozen_seed', position: { x: 8.0, y: 0, z: 18.6 }, rotation: -0.5, name: 'Pomodoro', model: 'pomodoro.glb', title: '🍳 Leaf-Shell Guardian', bubbleQuote: 'My leaves are freezing! Help me against these ice chimeras!', avatar: 'pomodoro' },
     { id: 'chef', type: 'quest_giver', questId: 'quest_blizzard_stew', position: { x: -5.4, y: 0, z: -39.0 }, rotation: -0.3, name: 'Chef Boreal', model: 'sapidae-m-d.glb', title: '🍲 Snow Cook', bubbleQuote: 'Brrr! Even my cauldron freezes among these ice floes!', avatar: 'sapidae-m-d' }
   ],
   // North-West Arctic [1, 1]: Glacial Hermit (Side 7)
@@ -246,12 +246,12 @@ export const ZONE_NPCS = {
     { id: 'oracle', type: 'quest_giver', questId: 'quest_forbidden_resonance', position: { x: 13.6, y: 0, z: -24.2 }, rotation: -0.5, name: 'Astral Oracle', model: 'sapidae-f-d.glb', title: '🔮 Voice of the Constellations', bubbleQuote: 'The bell of destiny has begun to toll across Lunacia.', avatar: 'sapidae-f-d' },
     { id: 'shaman', type: 'quest_giver', questId: 'quest_shadow_mirror', position: { x: 35.3, y: 0, z: 5.9 }, rotation: -1.7, name: 'Spiritual Shaman', model: 'sapidae-f-e.glb', title: '🔮 Astral Threshold Guardian', bubbleQuote: 'Careful traveler! In this mist, your own shadow will hunt you...', avatar: 'sapidae-f-e' }
   ],
-  // South Dungeon [2, 3]: Kotaro (Main 9), Tripp (Side 10)
+  // South Genesis [2, 3]: Kotaro (Main 9), Tripp (Side 10)
   '2_3': [
-    { id: 'sulfur_guard', type: 'quest_giver', questId: 'quest_sulfur_threshold', position: { x: 0, y: 0, z: -4 }, name: 'Kotaro', model: 'kotaro.glb', title: '🔥 Threshold Guardian', bubbleQuote: 'Only those who master tactical art can shatter the seal!', avatar: './assets/portraits/kotaro.png' },
-    { id: 'miner', type: 'quest_giver', questId: 'quest_forgotten_miner_relic', position: { x: -3, y: 0, z: 1 }, name: 'Tripp', model: 'tripp.glb', title: '⛏️ Miner Warrior', bubbleQuote: 'A hundred years wandering through fire searching for my beloved golden pickaxe...!', avatar: 'tripp' }
+    { id: 'sulfur_guard', type: 'quest_giver', questId: 'quest_sulfur_threshold', position: { x: 104, y: 0, z: 13 }, rotation: 1.24, name: 'Kotaro', model: 'kotaro.glb', title: '✨ Threshold Guardian', bubbleQuote: 'Only those who master tactical art can shatter the seal!', avatar: './assets/portraits/kotaro.png' },
+    { id: 'miner', type: 'quest_giver', questId: 'quest_forgotten_miner_relic', position: { x: -50, y: 0, z: -50 }, rotation: 0.785, name: 'Tripp', model: 'tripp.glb', title: '⛏️ Miner Warrior', bubbleQuote: 'A hundred years wandering these ancient gardens searching for my beloved golden pickaxe...!', avatar: 'tripp' }
   ],
-  // South-East Dungeon [3, 3]: Spirit of Atia (Main 10 Final Boss)
+  // South-East Genesis [3, 3]: Spirit of Atia (Main 10 Final Boss)
   '3_3': [
     {
       id: 'atia_spirit',
@@ -384,7 +384,7 @@ for (let gy = 1; gy <= 3; gy++) {
     } else if (gx === 2) {
       // River corridor zones (gx = 2): keep wandering chimeras on East bank (x >= 13)
       if (biome === 'dungeon') {
-        monsters.push({ id: `mob_${gx}_${gy}`, type: 'slime', name: 'Igneous Dungeon Chimera', waypoints: [[14, 0, 3], [17, 0, -2], [16, 0, 7], [13, 0, 4]] });
+        monsters.push({ id: `mob_${gx}_${gy}`, type: 'slime', name: 'Genesis Warden Chimera', waypoints: [[14, 0, 3], [17, 0, -2], [16, 0, 7], [13, 0, 4]] });
       } else if (biome === 'arctic') {
         monsters.push({ id: `mob_${gx}_${gy}`, type: 'slime', name: 'Ice Chimera', waypoints: [[14, 0, -4], [18, 0, -8], [16, 0, -11], [13, 0, -6]] });
       } else {
@@ -393,7 +393,7 @@ for (let gy = 1; gy <= 3; gy++) {
     } else {
       // Wandering Chimeras by Biome
       if (biome === 'dungeon') {
-        monsters.push({ id: `mob_${gx}_${gy}`, type: 'slime', name: 'Igneous Dungeon Chimera', waypoints: [[7, 0, 3], [10, 0, -2], [8, 0, 7], [4, 0, 4]] });
+        monsters.push({ id: `mob_${gx}_${gy}`, type: 'slime', name: 'Genesis Warden Chimera', waypoints: [[7, 0, 3], [10, 0, -2], [8, 0, 7], [4, 0, 4]] });
       } else if (biome === 'arctic') {
         monsters.push({ id: `mob_${gx}_${gy}`, type: 'slime', name: 'Ice Chimera', waypoints: [[6, 0, -4], [10, 0, -8], [5, 0, -11], [2, 0, -6]] });
       } else if (biome === 'savannah') {

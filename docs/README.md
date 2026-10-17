@@ -2,11 +2,19 @@
 
 Bienvenido al repositorio de documentación técnica, arquitectura y especificaciones de **Lunakai: Chronicles of Lunacia** (anteriormente *Axie Tactics*), un RPG táctico 3D con exploración de mundo abierto (*Overworld*) estilizado y combates estratégicos por turnos basado en la propiedad intelectual de Axie Infinity.
 
-> **Estado actual (13-oct-2026):** el mundo jugable son las **5 grandes islas** con dirección de arte Genshin: Bosque, Sabana, Ártico, Mística y Mazmorra lunar volcánica.
+> **Estado actual (17-oct-2026) — versión de prueba:** el mundo jugable son las **5 grandes islas** con dirección de arte Genshin: Bosque, Sabana, Ártico, Mística y **Genesis** (la antigua Mazmorra, rediseñada en el Hito 24).
 > - **Viaje entre islas:** se habla con el barquero **Pomodoro** en la playa de cada isla; los portales cardinales están retirados.
-> - **Mundo demo 1.0.0:** los terrenos de 80 m (cuadrícula de macro-zonas) ya no se construyen. Su contenido de misiones vive en las islas.
+> - **Cuentas y nube (Hito 25):** inicio de sesión con Sky Mavis o correo y guardado en Supabase; falta la configuración del servidor.
+> - **Motor de combate nuevo (Hitos 26–32):**
+>   - eventos separados de los VFX;
+>   - 22 estados alterados y triángulo de clases;
+>   - las 24 habilidades de Sapidae;
+>   - vínculo y Duo Ultimates, y Axie Care para subir el vínculo;
+>   - las 235 cartas de partes con las cartas reales de cada Axie;
+>   - pronóstico de daño, enemigos con estados y primera pasada de equilibrio.
+> - **Pruebas de equilibrio:** cada combate queda registrado en el navegador. En la consola (F12), `lkDebug.balanceExport()` descarga el registro (Hito 32).
 >
-> Los hitos 2, 3, 6, 9, 10, 11 y 21 describen sistemas históricos y llevan una nota de estado al principio.
+> Los hitos 2, 3, 6, 9, 10, 11 y 21 describen sistemas históricos y llevan una nota de estado al principio. Donde aparece "Mazmorra", hoy es Genesis.
 
 ---
 
@@ -119,7 +127,7 @@ Bienvenido al repositorio de documentación técnica, arquitectura y especificac
 
 19. [**Hito 19: Islas Lejanas del Horizonte, Balizas de Misión y Determinismo Procedimental**](HITO_19_ISLAS_LEJANAS_HORIZONTE_Y_DETERMINISMO_SEMILLAS.md)
     - Islas lejanas visibles en 360° en el horizonte con shaders atmosféricos sin coste en GPU (`DistantIsland.js`).
-    - Silueta volcánica lunar en el sur con caldera principal, cráter de impacto con pico central y espiras de basalto.
+    - Silueta volcánica lunar en el sur con caldera principal, cráter de impacto con pico central y espiras de basalto (sustituida por la silueta de Genesis en el Hito 24).
     - Baliza de misión estilizada con punta de flecha limpia (sin carteles permanentes ni círculos deformados en el suelo).
     - Desaparición suave del indicador al aproximarse al NPC.
     - Determinismo procedural 100% consistente mediante algoritmo Mulberry32 (`createSeededRandom`), fijando posiciones permanentes de árboles, rocas y vegetación en cada reinicio.
@@ -158,7 +166,7 @@ Bienvenido al repositorio de documentación técnica, arquitectura y especificac
     - Sabana: oasis en la cima a ras de suelo, hierba dorada, acacias y palmeras, estratos de arenisca y peñas en el mar.
     - Ártico: cuernos glaciares, valle en U, río y lago helados, cristales de hielo y permafrost con las rocas del pack Ártico.
     - Mística: Árbol Arcano, rocas grandes de cristal púrpura, pantano luminoso, santuario y observatorio.
-    - Mazmorra: luna volcánica con cráteres en todo el mapa, volcán, ríos de lava, cripta y fortaleza; carga diferida de las islas nuevas.
+    - Mazmorra: luna volcánica con cráteres en todo el mapa, volcán, ríos de lava, cripta y fortaleza (reemplazada por Genesis en el Hito 24); carga diferida de las islas nuevas.
     - Sabana:
       - acacias con la copa apoyada en las ramas;
       - paleta de la sabana de Axie Infinity;
@@ -168,6 +176,56 @@ Bienvenido al repositorio de documentación técnica, arquitectura y especificac
     - Zonas de esquina fusionadas en sus islas.
     - Barquero Pomodoro en lugar de las flechas de teleport.
     - Corrección del spawn de la Quimera Picuda (misión “Hunt of the Beaked Chimera”).
+
+24. [**Hito 24: Mejora de Biomas (Bosque, Sabana, Ártico, Mística) y Rediseño de Genesis**](HITO_24_MEJORA_BIOMAS_SABANA_ARTICO_MISTICA_GENESIS.md)
+    - Bosque: puente de madera (`bridge.glb`, 4 módulos en arco) sobre los rápidos, con tablero caminable y barandillas.
+    - Sabana: cactus `cactus_forge3D`, casa de Bing, Altar de Atia, fragua y casa de Baruk, oasis con espuma, plantas y peces, rocas, arbustos, flores y polen dorado.
+    - Ártico: casa de Pomodoro con hoguera, granja helada, puesto del Chef, cabaña del Ermitaño, Altar de Atia, hielo translúcido, peces congelados y niebla.
+    - Ártico: 76 árboles nuevos (abetos turquesa, árboles menta y muertos blanqueados) con *Fade LOD* por *dither* de 70 a 95 m.
+    - Mística: Observatorio Astral y casa del astrólogo, sauce luminoso con pilar rúnico, hongos y flores luminosos del pack, mariposas, peces, luciérnagas, lianas del Árbol Arcano, cristales emisivos con 3 luces, hierba en dos tonos y espuma.
+    - Genesis (antes Mazmorra): rediseño total con Puerta del Santuario, Jardín Real, cantera de cristal y Santuario del Origen; caminos dorados, pilares lavanda y auroras.
+    - Genesis: nombres, misiones y textos actualizados, nueva silueta en el horizonte y NPC reubicados.
+
+25. [**Hito 25: Cuentas (Sign in with Sky Mavis + correo) y guardado en la nube**](HITO_25_CUENTAS_SKY_MAVIS_Y_GUARDADO_EN_LA_NUBE.md)
+    - Inicio de sesión con Sky Mavis (OAuth + PKCE, validado en una Edge Function de Supabase) o con código por correo; modo invitado.
+    - Ranuras de guardado por jugador en Supabase con control de versión; `localStorage` queda como caché.
+    - Indicador «Guardado en la nube / Guardando… / Sin conexión» y resolución de conflictos entre dispositivos.
+    - Pendiente del dueño del proyecto: crear el proyecto de Supabase y registrar la app en la Ronin Developer Console. El *client secret* va solo en los *secrets* de Supabase.
+
+26. [**Hito 26: Motor de combate — Fase 0 (lógica separada de la presentación)**](HITO_26_MOTOR_DE_COMBATE_FASE_0_EVENTOS.md)
+    - `castSpell` convertido en un pipeline que emite eventos (`CombatEvents.js`); los VFX y sonidos escuchan esos eventos (`SpellPresentation.js`).
+    - Azar propio de las reglas (`spellManager.rng`), clase de Axie en cada unidad y consola de pruebas `lkDebug`.
+
+27. [**Hito 27: Motor de combate — Fase 1 (estados, áreas, triángulo elemental y efectos por datos)**](HITO_27_MOTOR_DE_COMBATE_FASE_1_ESTADOS_Y_EFECTOS.md)
+    - 22 estados alterados con iconos y duración, obstáculos y zonas temporales, y áreas nuevas (cruz 2, círculos, líneas, todos los enemigos…).
+    - Triángulo de clases ±15 %: Asalto → Bastión → Torrente → Asalto.
+    - Habilidades escritas como datos (`effects: [...]`, `EffectResolver.js`).
+
+28. [**Hito 28: Motor de combate — Fase 2 (las 24 habilidades de Sapidae)**](HITO_28_MOTOR_DE_COMBATE_FASE_2_HABILIDADES_SAPIDAE.md)
+    - Las 24 habilidades de las 4 clases de Sapidae hacen lo que dice su descripción (Manifiesto, sección 3), escritas como efectos por datos.
+
+29. [**Hito 29: Motor de combate — Fase 3 (vínculo y Duo Ultimates)**](HITO_29_MOTOR_DE_COMBATE_FASE_3_VINCULO_Y_ULTIMATES.md)
+    - Vínculo guardado por Axie y 3 Duo Ultimates según la tríada del Axie principal: Embestida Destructiva, Égida de Gaia y Maelstrom Celeste.
+    - Requisitos de la Ultimate: vínculo al 100 %, desde la ronda 2, una vez por combate. Se lanza con la tecla 7 o el botón del HUD.
+
+30. [**Hito 30: Axie Care — subir el vínculo con tu compañero**](HITO_30_AXIE_CARE_VINCULO.md)
+    - Clic sobre el Axie compañero: acariciar, dar de comer (comida en el inventario y el botín) y caminar juntos.
+
+31. [**Hito 31: Fase 4 — Cartas de partes (235) y Axies reales**](HITO_31_FASE_4_CARTAS_DE_PARTES.md)
+    - 235 cartas de partes con ilustración oficial de Origins.
+    - Cada Axie usa las 6 cartas de sus partes reales: se leen de la API de Sky Mavis o de sus genes, con caché.
+    - Bing (Beast) y Pomodoro (Bug) con sus 6 cartas α de Origins y su historia reescrita.
+    - Cartas de colección Japan y Xmas, y un VFX propio para cada colección especial.
+    - Herramienta `tools/part-mapper.html` y la lista de imágenes pendientes (`IMAGENES_PENDIENTES_CARTAS.md`).
+
+32. [**Hito 32: Fase 5 — Integración y equilibrio**](HITO_32_FASE_5_INTEGRACION_Y_EQUILIBRIO.md)
+    - Pronóstico de daño exacto en el HUD: clase, escudo, crítico, golpe letal, estados y área.
+    - 19 hechizos enemigos con estados (veneno, provocación, sangrado…) y una IA que decide con el pronóstico.
+    - Correcciones:
+      - 1 uso por turno para las cartas que dan PA o PM;
+      - unidades superpuestas al pasar turno;
+      - tutorial siempre superable.
+    - Primera pasada de equilibrio de las cartas y registro de partidas para las siguientes (`lkDebug.balance()`).
 
 ---
 
@@ -182,6 +240,11 @@ Bienvenido al repositorio de documentación técnica, arquitectura y especificac
 | **`[L]` o `[J]`** | Abrir / Cerrar Diario de Aventuras. | — |
 | **`[M]`** | Abrir / Cerrar Mapa del Mundo e Isla. | — |
 | **`[ESC]`** | Abrir / Cerrar Menú de Opciones. | Deseleccionar acción. |
+| **`[1]`–`[6]`** | — | Seleccionar las 6 habilidades de la unidad activa. |
+| **`[7]`** | — | Duo Ultimate (Sapidae, vínculo al 100 %, desde la ronda 2). |
+| **Botón ⓘ del HUD** | — | Ayuda de combate: controles, estados, triángulo de clases y pronóstico. |
+| **Clic en el Axie compañero** | Panel Axie Care (acariciar, comida, paseo). | — |
+| **`F12` → `lkDebug.help()`** | — | Consola de pruebas; `lkDebug.balance()` / `balanceExport()` para el equilibrio. |
 
 ---
 

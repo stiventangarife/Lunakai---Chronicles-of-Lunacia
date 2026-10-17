@@ -1,11 +1,12 @@
 import * as THREE from 'three';
+import { buildGenesisSilhouette } from '../islands/dungeon/GenesisSilhouette.js';
 
 /**
  * SavannaDistantIslands.js - Distant Island Silhouettes viewed from Savannah Island:
  * Since Savannah Island is located on the East (X = +1550 in world coordinates):
  * 1. WEST: Isla del Bosque (Center) - Rolling green hills, Dojo ridge, and the Colossal Sacred Elder Tree of Atia.
  * 2. NORTH: Isla del Ártico - Jagged glacial horn peaks (Matterhorn style) and polar ice needles.
- * 3. SOUTH: Isla Lunar / Volcánica - Colossal impact calderas, basalt spires, and magma crests.
+ * 3. SOUTH: Isla Genesis - Garden plateau, layered lavender pillars, round canopies and the Sanctum arch.
  * 4. FAR WEST: Isla Mística - Arcane spires and floating crystals.
  * 
  * 100% Optimized:
@@ -45,14 +46,17 @@ export class SavannaDistantIslands {
     );
     this.buildArcticIsland(0, -1.0, -1550, arcticMat);
 
-    // 3. ISLA SUR: ISLA LUNAR Y VOLCÁNICA
-    const volcanoMat = this.createThemedAtmosphericMaterial(
-      0x1c1219, // Basalto y obsidiana
-      0x6b1f25, // Roca ígnea oxidada
-      0xf97316, // Fulgor incandescente de magma
-      350
+    // 3. ISLA SUR: GENESIS (Jardines Reales del Origen)
+    const genesisMat = this.createThemedAtmosphericMaterial(
+      0x1b2142, // Azul noche de la tierra de Genesis
+      0x7a6fc4, // Lavanda de los pilares
+      0xf2d48a, // Dorado de los caminos y del arco
+      260
     );
-    this.buildLunarVolcanoIsland(0, -1.0, 1550, volcanoMat);
+    const genesis = new THREE.Group();
+    genesis.position.set(0, -1.0, 1550);
+    buildGenesisSilhouette(genesis, genesisMat);
+    this.group.add(genesis);
   }
 
   // =========================================================================

@@ -2,6 +2,7 @@
 import { ITEMS_DB } from './ItemDatabase.js';
 import { getHeroSpells, SAPIDAE_CLASSES } from '../rpg/SaveSlotManager.js';
 import { portraitService } from './CharacterPortraitService.js';
+import { STARTER_DECKS } from './data/StarterCards.js';
 
 export class EquipmentManager {
   constructor() {
@@ -55,9 +56,9 @@ export class EquipmentManager {
       bing: {
         id: 'bing',
         name: 'Bing',
-        class: 'Bird',
-        archetype: 'Bird Lunakai (Ranged Marksman)',
-        avatar: '🏹',
+        class: 'Beast', // Axie inicial de Origins (Puppy · Toy Ball · Cone Shell · Shiba)
+        archetype: 'Beast Lunakai (Morale Support)',
+        avatar: '🐶',
         baseHP: 240,
         basePA: 6,
         basePM: 4,
@@ -68,9 +69,9 @@ export class EquipmentManager {
       pomodoro: {
         id: 'pomodoro',
         name: 'Pomodoro',
-        class: 'Plant',
-        archetype: 'Plant Lunakai (Healer & Control)',
-        avatar: '🌱',
+        class: 'Bug', // Axie inicial de Origins (Passion · Leaf Bug · Platypus · Lost Dream · Village Hero)
+        archetype: 'Bug Lunakai (Shield Guardian)',
+        avatar: '🍳',
         baseHP: 260,
         basePA: 6,
         basePM: 3,
@@ -82,6 +83,8 @@ export class EquipmentManager {
 
     // Sapidae protagonist and companion Axie (Kotaro / Shinji) are active by default
     this.unlockedHeroes = ['sapidae', 'kotaro'];
+    // Escuadrón elegido en el panel Escuadrón (tecla K): ['sapidae', principal, apoyo, apoyo]; null = todos los axies desbloqueados
+    this.squad = null;
 
     // 5 equipment slots per hero: weapon, hat, shield, body, boots
     this.equipped = {
@@ -141,11 +144,7 @@ export class EquipmentManager {
           agility: 0,
           essence: 0
         },
-        skillLevels: {
-          bing_explosive: 1,
-          bing_retreat: 1,
-          bing_slow: 1
-        }
+        skillLevels: Object.fromEntries(STARTER_DECKS.bing.map((id) => [id, 1]))
       },
       pomodoro: {
         level: 1,
@@ -158,11 +157,7 @@ export class EquipmentManager {
           agility: 0,
           essence: 0
         },
-        skillLevels: {
-          pomodoro_heal: 1,
-          pomodoro_stim: 1,
-          pomodoro_bramble: 1
-        }
+        skillLevels: Object.fromEntries(STARTER_DECKS.pomodoro.map((id) => [id, 1]))
       }
     };
 
@@ -234,6 +229,7 @@ export class EquipmentManager {
   }
 
   applySlotData(slotData) {
+    this.squad = Array.isArray(slotData?.squad) ? [...slotData.squad] : null;
     if (!slotData || !slotData.hero) return;
 
     const h = slotData.hero;
@@ -390,6 +386,7 @@ export class EquipmentManager {
       inventory: [...this.inventory],
       equipped: JSON.parse(JSON.stringify(this.equipped)),
       unlockedHeroes: Array.from(new Set(this.unlockedHeroes || ['kotaro'])),
+      squad: Array.isArray(this.squad) ? [...this.squad] : null,
       progression: JSON.parse(JSON.stringify(this.heroProgression))
     };
   }
@@ -404,9 +401,61 @@ export class EquipmentManager {
     this._notifyChange();
   }
 
+  /**
+   * Escuadrón activo: siempre 4 puestos ['sapidae', principal, apoyo, apoyo] (null = puesto libre).
+   * Sin elección guardada, entran los axies desbloqueados en su orden (máximo 3), como antes.
+   */
+  getSquad() {
+    const owned = (this.unlockedHeroes || []).filter((id) => id !== 'sapidae' && this.heroesBase[id]);
+    let axies = Array.isArray(this.squad)
+      ? this.squad.slice(1).map((id) => (id && owned.includes(id) ? id : null))
+      : owned.slice(0, 3);
+    while (axies.length < 3) axies.push(null);
+    axies = axies.slice(0, 3);
+    // El compañero principal nunca queda vacío
+    if (!axies[0]) {
+      const k = axies.findIndex(Boolean);
+      if (k > 0) { axies[0] = axies[k]; axies[k] = null; } else if (owned.length) axies[0] = owned.find((id) => !axies.includes(id)) || owned[0];
+    }
+    return ['sapidae', ...axies];
+  }
+
+  /** Guarda el escuadrón elegido. slots = ['sapidae', principal, apoyo, apoyo]. */
+  setSquad(slots = []) {
+    const owned = (this.unlockedHeroes || []).filter((id) => id !== 'sapidae' && this.heroesBase[id]);
+    const seen = new Set();
+    const axies = [1, 2, 3].map((i) => {
+      const id = slots[i];
+      if (!id || !owned.includes(id) || seen.has(id)) return null;
+      seen.add(id);
+      return id;
+    });
+    this.squad = ['sapidae', ...axies];
+    this.squad = this.getSquad();
+    this._notifyChange();
+    return this.squad;
+  }
+
+  /** Reparto de XP del combate: Sapidae 100 %, axie principal 80 %, axies de apoyo 60 %. */
+  getExpShare(heroId, mainHeroId = null) {
+    if (heroId === 'sapidae' || heroId === 'sapidae_hero' || this.heroesBase[heroId]?.isSapidae) return 1;
+    const main = mainHeroId || (typeof this.getSquad === 'function' ? this.getSquad()[1] : null);
+    return heroId === main ? 0.8 : 0.6;
+  }
+
+  /** Axies del escuadrón que entran en combate, en orden (principal primero). */
+  getCombatHeroIds() {
+    return this.getSquad().slice(1).filter(Boolean);
+  }
+
   unlockHero(heroId) {
     if (!this.unlockedHeroes.includes(heroId)) {
       this.unlockedHeroes.push(heroId);
+      // Un axie nuevo ocupa el primer puesto libre del escuadrón, si lo hay
+      if (Array.isArray(this.squad) && heroId !== 'sapidae') {
+        const free = this.squad.indexOf(null, 1);
+        if (free > 0) this.squad[free] = heroId;
+      }
       this._notifyChange();
     }
   }
@@ -659,20 +708,20 @@ export class EquipmentManager {
     const results = {};
     if (!baseExp || baseExp <= 0) return results;
 
-    // Only heroes in the active participating squad (max 3 heroes) receive EXP
+    // Only heroes in the active participating squad (Sapidae + 3 axies = max 4) receive EXP
     let squad;
     if (Array.isArray(participatingHeroIds) && participatingHeroIds.length > 0) {
-      squad = participatingHeroIds.slice(0, 3);
+      squad = participatingHeroIds.slice(0, 4);
+    } else if (typeof this.getSquad === 'function') {
+      squad = this.getSquad().filter(Boolean);
     } else if (this.unlockedHeroes && this.unlockedHeroes.length > 0) {
-      squad = this.unlockedHeroes.slice(0, 3);
+      squad = this.unlockedHeroes.slice(0, 4);
     } else {
       squad = ['kotaro'];
     }
 
     squad.forEach(heroId => {
-      const isMain = (heroId === mainHeroId);
-      // Active hero in battle gets 100% EXP, participating squad allies receive 60% EXP
-      const earnedExp = isMain ? baseExp : Math.floor(baseExp * 0.6);
+      const earnedExp = Math.floor(baseExp * this.getExpShare(heroId, mainHeroId));
       results[heroId] = this.addExpToHero(heroId, earnedExp);
     });
 

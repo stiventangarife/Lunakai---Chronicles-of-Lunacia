@@ -25,45 +25,30 @@ export class MinimapHUD {
   }
 
   _createDOM() {
+    // Minimapa del sistema de diseño (pantalla 20): círculo con bisel dorado y la N arriba, dentro del HUD (arriba a la izquierda)
     let el = document.getElementById('overworld-minimap-hud');
     if (!el) {
       el = document.createElement('div');
       el.id = 'overworld-minimap-hud';
-      el.className = 'overworld-minimap-hud';
+      el.className = 'lk-ow-minimap';
       el.innerHTML = `
-        <div class="minimap-outer-wrapper">
-          <!-- Zone Title Bar -->
-          <div class="minimap-header">
-            <span class="minimap-biome-dot"></span>
-            <span id="minimap-zone-title" class="minimap-zone-title">🌲 Isla del Bosque</span>
-            <button id="minimap-map-btn" class="minimap-expand-btn" title="Open Island Map [M]">🗺️</button>
-          </div>
-
-          <!-- Radar Frame & Canvas -->
-          <div class="minimap-radar-frame" id="minimap-radar-frame" title="Click to view Island Map [M]">
-            <canvas id="minimap-canvas" width="${this.size}" height="${this.size}"></canvas>
-
-            <!-- Cardinal Compass Labels -->
-            <span class="compass-marker compass-n">N</span>
-            <span class="compass-marker compass-s">S</span>
-            <span class="compass-marker compass-e">E</span>
-            <span class="compass-marker compass-w">W</span>
-
-            <!-- Zoom Controls -->
-            <div class="minimap-zoom-controls">
-              <button id="minimap-zoom-in" class="minimap-zoom-btn" title="Zoom In">+</button>
-              <button id="minimap-zoom-out" class="minimap-zoom-btn" title="Zoom Out">−</button>
-            </div>
-          </div>
-
-          <!-- Live Coordinates & Tracker -->
-          <div class="minimap-footer">
-            <span id="minimap-coords-text" class="minimap-coords-text">X: 0.0 | Z: 0.0</span>
-            <span id="minimap-target-dist" class="minimap-target-dist hidden">🎯 0m</span>
+        <div class="lk-minimap" id="minimap-radar-frame" title="Mapa de la isla [M]">
+          <canvas id="minimap-canvas" width="${this.size}" height="${this.size}"></canvas>
+          <span class="lk-n">N</span>
+          <div class="lk-minimap__zoom minimap-zoom-controls">
+            <button type="button" id="minimap-zoom-in" title="Acercar">+</button>
+            <button type="button" id="minimap-zoom-out" title="Alejar">−</button>
           </div>
         </div>
+        <div class="lk-minimap__meta">
+          <span id="minimap-zone-title" class="lk-minimap__zone">Isla del Bosque</span>
+          <span id="minimap-target-dist" class="lk-minimap__dist hidden">0 m</span>
+          <button type="button" id="minimap-map-btn" hidden></button>
+          <span id="minimap-coords-text" class="lk-minimap__coords">X 0.0 · Z 0.0</span>
+        </div>
       `;
-      document.body.appendChild(el);
+      const slot = document.getElementById('lk-minimap-slot');
+      (slot || document.body).appendChild(el);
     }
 
     this.container = el;
@@ -146,12 +131,12 @@ export class MinimapHUD {
     const isSavannah = Boolean(ISLANDS_REGISTRY.island_savannah?.isCurrent);
     const titleEl = document.getElementById('minimap-zone-title');
     if (titleEl) {
-      titleEl.textContent = isSavannah ? '🏜️ Isla de la Sabana' : '🌲 Isla del Bosque';
+      titleEl.textContent = isSavannah ? 'Isla de la Sabana' : 'Isla del Bosque';
     }
 
     const coordsEl = document.getElementById('minimap-coords-text');
     if (coordsEl) {
-      coordsEl.textContent = `X: ${playerPos.x.toFixed(1)} | Z: ${playerPos.z.toFixed(1)}`;
+      coordsEl.textContent = `X ${playerPos.x.toFixed(1)} · Z ${playerPos.z.toFixed(1)}`;
     }
 
     const ctx = this.ctx;
@@ -171,15 +156,15 @@ export class MinimapHUD {
 
     // Dark high-tech / fantasy slate background
     const bgGrad = ctx.createRadialGradient(cx, cy, 10, cx, cy, r);
-    bgGrad.addColorStop(0, '#0f1f1d');
-    bgGrad.addColorStop(0.7, '#071317');
-    bgGrad.addColorStop(1, '#03080c');
+    bgGrad.addColorStop(0, '#22325A');
+    bgGrad.addColorStop(0.7, '#141D36');
+    bgGrad.addColorStop(1, '#0B0F1C');
     ctx.fillStyle = bgGrad;
     ctx.fillRect(0, 0, this.size, this.size);
 
     // 2. Subtle Water / River Flow indication (relative to player)
     // River crosses from roughly (-60, -40) to (40, 20)
-    ctx.strokeStyle = 'rgba(56, 189, 248, 0.22)';
+    ctx.strokeStyle = 'rgba(169, 204, 255, 0.28)';
     ctx.lineWidth = 14 * scale;
     ctx.lineCap = 'round';
     ctx.lineJoin = 'round';
@@ -200,7 +185,7 @@ export class MinimapHUD {
     ctx.stroke();
 
     // 3. Roads / Paths cues
-    ctx.strokeStyle = 'rgba(217, 119, 6, 0.28)';
+    ctx.strokeStyle = 'rgba(211, 174, 108, 0.32)';
     ctx.lineWidth = 5 * scale;
     ctx.beginPath();
     const roadWaypoints = [
@@ -221,7 +206,7 @@ export class MinimapHUD {
     ctx.stroke();
 
     // 4. Radar Grid Rings (Range circles: 25m, 50m, 75m...)
-    ctx.strokeStyle = 'rgba(34, 197, 94, 0.16)';
+    ctx.strokeStyle = 'rgba(211, 174, 108, 0.16)';
     ctx.lineWidth = 1;
     [0.35, 0.70, 1.0].forEach(frac => {
       ctx.beginPath();
@@ -230,7 +215,7 @@ export class MinimapHUD {
     });
 
     // Crosshairs
-    ctx.strokeStyle = 'rgba(34, 197, 94, 0.12)';
+    ctx.strokeStyle = 'rgba(211, 174, 108, 0.10)';
     ctx.beginPath();
     ctx.moveTo(cx - r, cy);
     ctx.lineTo(cx + r, cy);
@@ -247,11 +232,14 @@ export class MinimapHUD {
       const distSq = dx * dx + dy * dy;
 
       if (distSq < (r - 6) * (r - 6)) {
+        // Lugar de interés: rombo dorado (como .poi del sistema de diseño)
         ctx.save();
-        ctx.font = '11px sans-serif';
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        ctx.fillText(lm.icon, cx + dx, cy + dy);
+        ctx.translate(cx + dx, cy + dy);
+        ctx.rotate(Math.PI / 4);
+        ctx.shadowColor = 'rgba(238, 211, 154, 0.8)';
+        ctx.shadowBlur = 6;
+        ctx.fillStyle = '#D3AE6C';
+        ctx.fillRect(-3, -3, 6, 6);
         ctx.restore();
       }
     });
@@ -269,19 +257,12 @@ export class MinimapHUD {
         if (dist <= r - 4) {
           // NPC Dot & Halo
           ctx.beginPath();
-          ctx.arc(cx + dx, cy + dy, 4.5, 0, Math.PI * 2);
-          ctx.fillStyle = npc.type === 'mentor' ? '#f59e0b' : '#38bdf8';
+          ctx.arc(cx + dx, cy + dy, 3.6, 0, Math.PI * 2);
+          ctx.fillStyle = npc.type === 'mentor' ? '#EED39A' : '#A9CCFF';
           ctx.fill();
-          ctx.lineWidth = 1.5;
-          ctx.strokeStyle = '#ffffff';
+          ctx.lineWidth = 1.2;
+          ctx.strokeStyle = 'rgba(11, 15, 28, 0.9)';
           ctx.stroke();
-
-          // NPC Icon
-          ctx.font = '9px sans-serif';
-          ctx.textAlign = 'center';
-          ctx.textBaseline = 'middle';
-          const icon = npc.type === 'mentor' ? '🥋' : '💬';
-          ctx.fillText(icon, cx + dx, cy + dy - 7);
         }
       });
     }
@@ -295,7 +276,7 @@ export class MinimapHUD {
 
       if (distTextEl) {
         distTextEl.classList.remove('hidden');
-        distTextEl.textContent = `🎯 ${Math.round(worldDist)}m`;
+        distTextEl.textContent = `${Math.round(worldDist)} m`;
       }
 
       const screenDx = qdx * scale;
@@ -308,13 +289,15 @@ export class MinimapHUD {
         ctx.save();
         ctx.beginPath();
         ctx.arc(cx + screenDx, cy + screenDy, 7 * pulse, 0, Math.PI * 2);
-        ctx.fillStyle = 'rgba(234, 179, 8, 0.4)';
+        ctx.fillStyle = 'rgba(238, 211, 154, 0.35)';
         ctx.fill();
-
-        ctx.font = '13px sans-serif';
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        ctx.fillText('🎯', cx + screenDx, cy + screenDy);
+        ctx.translate(cx + screenDx, cy + screenDy);
+        ctx.rotate(Math.PI / 4);
+        ctx.fillStyle = '#EED39A';
+        ctx.strokeStyle = 'rgba(11, 15, 28, 0.9)';
+        ctx.lineWidth = 1.2;
+        ctx.fillRect(-4.5, -4.5, 9, 9);
+        ctx.strokeRect(-4.5, -4.5, 9, 9);
         ctx.restore();
       } else {
         // Clamped to perimeter: Arrow pointing towards target
@@ -328,8 +311,8 @@ export class MinimapHUD {
         ctx.rotate(angle);
 
         // Golden chevron
-        ctx.fillStyle = '#facc15';
-        ctx.strokeStyle = '#000000';
+        ctx.fillStyle = '#EED39A';
+        ctx.strokeStyle = 'rgba(11, 15, 28, 0.9)';
         ctx.lineWidth = 1;
         ctx.beginPath();
         ctx.moveTo(8, 0);
@@ -360,8 +343,8 @@ export class MinimapHUD {
 
     // Forward light cone (oriented along look heading)
     const coneGrad = ctx.createRadialGradient(0, 0, 2, 0, 0, 26);
-    coneGrad.addColorStop(0, 'rgba(56, 189, 248, 0.50)');
-    coneGrad.addColorStop(1, 'rgba(56, 189, 248, 0.0)');
+    coneGrad.addColorStop(0, 'rgba(238, 211, 154, 0.45)');
+    coneGrad.addColorStop(1, 'rgba(238, 211, 154, 0.0)');
     ctx.fillStyle = coneGrad;
     ctx.beginPath();
     ctx.moveTo(0, 0);
@@ -370,8 +353,8 @@ export class MinimapHUD {
     ctx.fill();
 
     // Direction arrow pointing forward
-    ctx.fillStyle = '#38bdf8';
-    ctx.strokeStyle = '#ffffff';
+    ctx.fillStyle = '#F5F0E6';
+    ctx.strokeStyle = 'rgba(11, 15, 28, 0.85)';
     ctx.lineWidth = 1.5;
     ctx.beginPath();
     ctx.moveTo(11, 0);
@@ -396,7 +379,7 @@ export class MinimapHUD {
     ctx.beginPath();
     ctx.arc(cx, cy, r, 0, Math.PI * 2);
     ctx.lineWidth = 2.5;
-    ctx.strokeStyle = isSavannah ? 'rgba(250, 198, 81, 0.85)' : 'rgba(34, 197, 94, 0.75)'; // Biome Accent
+    ctx.strokeStyle = 'rgba(211, 174, 108, 0.85)'; // bisel dorado
     ctx.stroke();
 
     ctx.beginPath();

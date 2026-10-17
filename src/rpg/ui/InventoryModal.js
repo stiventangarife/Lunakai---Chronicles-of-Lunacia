@@ -1,8 +1,14 @@
-// InventoryModal.js - Comprehensive 3-Column Inventory, Equipment & Skills Progression Modal for Axies
+// InventoryModal.js — Mochila y equipo (Crónica Celeste, etapa 6)
+// Pantalla 18 del sistema de diseño ("Mochila y equipo") con las clases lk- de src/ui/ds.generated.css.
+// API pública intacta: new InventoryModal(equipmentManager, audio), open(heroId), close(), toggle(heroId), isOpen,
+// setTutorialLock(isLocked, itemId), onOpen, onClose, onItemEquipped(heroId, slot, itemId), onItemUnequipped(heroId, slot).
 import { ITEMS_DB } from '../../tactics/ItemDatabase.js';
 import { SPELLS_DB } from '../../tactics/Spells.js';
+import { STARTER_DECKS } from '../../tactics/data/StarterCards.js';
 import { getHeroSpells } from '../SaveSlotManager.js';
 import { portraitService } from '../../tactics/CharacterPortraitService.js';
+import { asset, sprite, toast } from '../../ui/lk.js';
+import { HeroModelPreview } from './HeroModelPreview.js';
 
 export function getAxieClassIcon(cls) {
   const s = String(cls || '').toLowerCase();
@@ -17,9 +23,44 @@ export function getAxieClassIcon(cls) {
 
 const HERO_SPELLS = {
   kotaro: ['kotaro_slash', 'kotaro_push', 'kotaro_jump'],
-  bing: ['bing_explosive', 'bing_retreat', 'bing_slow'],
-  pomodoro: ['pomodoro_heal', 'pomodoro_stim', 'pomodoro_bramble']
+  bing: STARTER_DECKS.bing, // las 6 cartas originales de Origins (tactics/data/StarterCards.js)
+  pomodoro: STARTER_DECKS.pomodoro
 };
+
+const I = (n) => asset(`assets/ui/icons/${n}.png`);
+const EQ_SLOTS = ['weapon', 'hat', 'shield', 'body', 'boots'];
+const SLOT1 = { weapon: 'Arma', hat: 'Sombrero', shield: 'Escudo', body: 'Armadura', boots: 'Botas', consumable: 'Consumible', quest: 'Objeto de misión' };
+const TABS = [['all', 'Todo'], ['weapon', 'Armas'], ['hat', 'Sombreros'], ['shield', 'Escudos'], ['body', 'Armaduras'], ['boots', 'Botas'], ['consumable', 'Consumibles'], ['quest', 'Misión']];
+const STAT_ES = { hp: 'Vida', damage: 'Daño', pa: 'PA', pm: 'PM', initiative: 'Iniciativa', shield: 'Escudo' };
+/** Efecto principal de un consumible u objeto de misión, para la franja inferior de su casilla. */
+const effectCap = (it, k) => {
+  const e = it.effect || {};
+  if (e.bond) return `+${e.bond}% Vínculo`;
+  if (e.heal) return `Cura ${e.heal}`;
+  if (e.shield) return `+${e.shield} Escudo`;
+  if (e.pa || e.pm) return [e.pa && `+${e.pa} PA`, e.pm && `+${e.pm} PM`].filter(Boolean).join(' · ');
+  if (k === 'quest') return 'Misión';
+  return SLOT1[k] || 'Objeto';
+};
+const RAR_ORDER = { legendary: 5, epic: 4, rare: 3, uncommon: 2, common: 1 };
+const RAR_NAME = { legendary: 'Legendario', epic: 'Épico', rare: 'Raro', uncommon: 'Poco común', common: 'Común' };
+// Ranuras en una sola columna, en el borde derecho del modelo 3D (junto a la cuadrícula de objetos: arrastre más corto),
+// de arriba abajo en orden del cuerpo: sombrero, armadura, arma, escudo, botas
+const RAIL_ORDER = ['hat', 'body', 'weapon', 'shield', 'boots'];
+const DOLL_POS = Object.fromEntries(RAIL_ORDER.map((s, i) => [s, ['calc(100% - 46px)', `${12 + i * 19}%`]]));
+const ATTRS = [
+  ['vitality', 'Vitalidad', '+1 Vida'],
+  ['ferocity', 'Ferocidad', '+1,5 cuerpo a cuerpo · +1 colisión'],
+  ['agility', 'Agilidad', '+1,2 a distancia · +0,5% crítico'],
+  ['essence', 'Esencia', '+1,2 magia · +2% apoyo']
+];
+
+const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const slotOf = (it) => (it.slot === 'consumable' || it.category === 'consumable' || it.type === 'consumable') ? 'consumable'
+  : (it.slot === 'quest' || it.category === 'quest' || it.type === 'quest') ? 'quest' : it.slot;
+const rv = (r) => `var(--lk-rar-${r === 'legendary' ? 'legendary' : (r || 'common')})`;
+const isImg = (s) => typeof s === 'string' && (/^(\.\/|\/|assets\/|http|data:image)/.test(s) || /\.(png|jpe?g|webp|svg)$/i.test(s));
+const art = (it) => isImg(it.icon) ? `<img src="${it.icon}" alt="" draggable="false">` : `<span class="lk-emoji">${it.icon || '📦'}</span>`;
 
 export class InventoryModal {
   constructor(equipmentManager, audioSystem = null) {
@@ -27,189 +68,141 @@ export class InventoryModal {
     this.audio = audioSystem;
     this.isOpen = false;
     this.selectedHeroId = 'sapidae';
-    this.activeHeroTab = 'equipment'; // 'equipment' | 'skills'
-    this.activeCategoryFilter = 'all'; // 'all', 'weapon', 'hat', 'shield', 'body', 'boots'
+    this.activeHeroTab = 'equipment'; // 'equipment' (mochila) | 'skills'
+    this.activeCategoryFilter = 'all';
+    this.sort = 'rar';
     this.isTutorialEquipLocked = false;
     this.tutorialTargetItemId = null;
     this.tutorialManager = null;
     this.questManager = null;
+    this.pinned = null; // { id, anchor }
+    this.justDropped = false;
 
     this._createDOM();
   }
 
+  // ------------------------------------------------------------ DOM
   _createDOM() {
-    let modal = document.getElementById('inventory-modal');
-    if (!modal) {
-      modal = document.createElement('div');
-      modal.id = 'inventory-modal';
-      modal.className = 'inventory-modal hidden';
-      modal.innerHTML = `
-        <div class="inventory-backdrop"></div>
-        <div id="inv-floating-tooltip" class="inv-floating-tooltip hidden"></div>
-        <div class="inventory-container">
-          <!-- Modal Header -->
-          <div class="inventory-header">
-            <div class="inventory-title-group">
-              <span class="inventory-header-badge">🎒 LUNACIA ARSENAL & BACKPACK</span>
-              <h2 class="inventory-title">Squad Inventory & Progression</h2>
-            </div>
-            <div id="inv-header-gold-pill" class="inv-header-gold-pill" style="display:flex;align-items:center;gap:6px;background:rgba(234,179,8,0.18);border:1px solid rgba(234,179,8,0.5);border-radius:20px;padding:6px 14px;color:#facc15;font-weight:700;font-size:14px;">
-              <span>🪙</span>
-              <span id="inv-gold-amount">0</span>
-              <span style="font-size:11px;color:#eab308;text-transform:uppercase;letter-spacing:0.5px;">Gold</span>
-            </div>
-            <button id="inventory-close-btn" class="inventory-close-btn" title="Close [I] / [Escape]">✕</button>
-          </div>
-
-          <!-- Main 3-Column Body -->
-          <div class="inventory-body">
-            <!-- Column 1: Hero Roster Selection -->
-            <div class="inv-col-roster">
-              <h3 class="inv-section-title">👥 Squad</h3>
-              <div id="inv-roster-list" class="inv-roster-list">
-                <!-- Injected dynamically -->
-              </div>
-            </div>
-
-            <!-- Column 2: Selected Hero Equipment & Live Stats / Skills -->
-            <div class="inv-col-equipment">
-              <!-- Hero Identity & EXP Progress Banner -->
-              <div class="inv-hero-identity">
-                <div class="inv-hero-meta">
-                  <div class="inv-hero-title-row">
-                    <h3 id="inv-hero-name" class="inv-hero-name">Hero</h3>
-                    <span id="inv-hero-level-badge" class="inv-hero-level-badge">Lv. 1</span>
-                  </div>
-                  <span id="inv-hero-archetype" class="inv-hero-archetype">Beast Axie (Melee Duelist)</span>
-                  <div class="inv-hero-exp-row">
-                    <div class="inv-hero-exp-track">
-                      <div id="inv-hero-exp-fill" class="inv-hero-exp-fill" style="width: 0%;"></div>
-                    </div>
-                    <span id="inv-hero-exp-text" class="inv-hero-exp-text">0 / 100 EXP</span>
-                  </div>
-                </div>
-              </div>
-
-              <!-- Column 2 Navigation Subtabs -->
-              <div class="inv-col2-nav-tabs">
-                <button id="inv-subtab-equipment" class="inv-subtab-btn active">🛡️ Gear & Stats</button>
-                <button id="inv-subtab-skills" class="inv-subtab-btn">
-                  ✨ Skills <span id="inv-skills-tab-dot" class="inv-tab-notify-dot hidden">!</span>
-                </button>
-              </div>
-
-              <!-- View 1: Equipment Slots & Calculated Combat Stats -->
-              <div id="inv-view-equipment" class="inv-view-pane">
-                <!-- 5 Equipment Slots (Equipment Slots) -->
-                <div class="inv-doll-wrapper">
-                  <h4 class="inv-sub-title">Equipment Slots</h4>
-                  <div id="inv-doll-grid" class="inv-doll-grid">
-                    <!-- 5 slots injected dynamically in cross formation -->
-                  </div>
-                </div>
-
-                <!-- Live Calculated Combat Stats with Points Allocation -->
-                <div class="inv-stats-wrapper">
-                  <div class="inv-stats-header-row">
-                    <h4 class="inv-sub-title">Combat Stats</h4>
-                    <span id="inv-stat-points-badge" class="inv-unspent-badge hidden">⚡ 0 Points</span>
-                  </div>
-                  <div id="inv-stats-list" class="inv-stats-list">
-                    <!-- Stats injected dynamically with + buttons -->
-                  </div>
-                </div>
-              </div>
-
-              <!-- View 2: Skills & Progression -->
-              <div id="inv-view-skills" class="inv-view-pane hidden">
-                <div class="inv-skills-header-row">
-                  <h4 class="inv-sub-title">Combat Skills (Lv. 1 to 5)</h4>
-                  <span id="inv-skill-points-badge" class="inv-unspent-badge hidden">✨ 0 Skill Pts</span>
-                </div>
-                <div id="inv-skills-list" class="inv-skills-list">
-                  <!-- 3 Skill cards injected dynamically with upgrade buttons -->
-                </div>
-              </div>
-            </div>
-
-            <!-- Column 3: Backpack Items with Filters, Lore & Benefits -->
-            <div class="inv-col-backpack">
-              <div class="inv-backpack-header">
-                <div class="inv-backpack-title-row">
-                  <h3 class="inv-section-title">🎒 Item Backpack</h3>
-                  <span id="inv-items-count" class="inv-items-counter">0 items</span>
-                </div>
-
-                <!-- Slot Category Filter Bar -->
-                <div id="inv-filter-bar" class="inv-filter-bar">
-                  <button class="inv-filter-btn active" data-filter="all">All</button>
-                  <button class="inv-filter-btn" data-filter="weapon">⚔️ Weapons</button>
-                  <button class="inv-filter-btn" data-filter="equipment">🎽 Gear</button>
-                  <button class="inv-filter-btn" data-filter="shield">🛡️ Shields</button>
-                  <button class="inv-filter-btn" data-filter="consumable">🧪 Consumables</button>
-                  <button class="inv-filter-btn" data-filter="quest" title="Quest Items">📜 Quest Items</button>
-                </div>
-              </div>
-
-              <!-- Scrollable Item Cards Grid -->
-              <div id="inv-items-grid" class="inv-items-grid">
-                <!-- Item cards injected dynamically -->
-              </div>
-            </div>
-          </div>
+    document.getElementById('inventory-modal')?.remove();
+    const modal = document.createElement('div');
+    modal.id = 'inventory-modal';
+    modal.className = 'lk-ui lk-backdrop lk-bag-layer hidden';
+    modal.innerHTML = `
+      <div class="lk-panel-modal-window lk-bag" role="dialog" aria-label="Mochila">
+        <div class="lk-panel-head">
+          <span class="lk-emblem"><img class="lk-ai" src="${I('inventory')}" alt=""></span>
+          <h3><small>Inventario</small>Mochila</h3>
+          <button type="button" class="lk-btn lk-btn-moon lk-btn--sm lk-bag__squad" data-ref="squadBtn" title="Tecla K"><span class="lk-b-ico"><img class="lk-ai" src="${I('team')}" alt=""></span>Escuadrón</button>
+          <div class="lk-segmented" data-ref="viewTabs"><button type="button" aria-pressed="true" data-view="equipment">Mochila</button><button type="button" aria-pressed="false" data-view="skills">Habilidades<span class="lk-bag-dot" data-ref="skillDot" hidden></span></button></div>
+          <span class="lk-res-pill" title="Oro"><span class="lk-ico" style="background:var(--lk-gilt-300)"><img src="${I('resource')}" alt="" style="width:15px;height:15px"></span><span data-ref="gold">0</span></span>
+          <button type="button" class="lk-btn-close-x" data-ref="close" aria-label="Cerrar">${sprite('i-close')}</button>
         </div>
-      `;
-      document.body.appendChild(modal);
-
-      // Event listeners for close
-      modal.querySelector('.inventory-backdrop').addEventListener('click', () => this.close());
-      document.getElementById('inventory-close-btn').addEventListener('click', () => this.close());
-
-      // Subtab click listeners
-      document.getElementById('inv-subtab-equipment').addEventListener('click', () => {
-        if (this.audio && this.audio.playStep) this.audio.playStep();
-        this.activeHeroTab = 'equipment';
-        this._renderHeroDetails();
-      });
-      document.getElementById('inv-subtab-skills').addEventListener('click', () => {
-        if (this.audio && this.audio.playStep) this.audio.playStep();
-        this.activeHeroTab = 'skills';
-        this._renderHeroDetails();
-      });
-
-      // Prevent wheel scrolling inside inventory modal from zooming 3D overworld camera
-      modal.addEventListener('wheel', (e) => {
-        e.stopPropagation();
-      }, { passive: true });
-
-      // Filter button listeners
-      const filterBtns = modal.querySelectorAll('.inv-filter-btn');
-      filterBtns.forEach(btn => {
-        btn.addEventListener('click', () => {
-          if (this.audio && this.audio.playStep) this.audio.playStep();
-          filterBtns.forEach(b => b.classList.remove('active'));
-          btn.classList.add('active');
-          this.activeCategoryFilter = btn.dataset.filter;
-          this._renderBackpackItems();
-        });
-      });
-    }
-
+        <div class="lk-bag__body lk-bag__body--3">
+          <div class="lk-bag__attrs">
+            <div class="lk-sq-strip" data-ref="strip" aria-label="Escuadrón"></div>
+            <div class="lk-hero-stats" data-ref="stats"></div>
+          </div>
+          <div class="lk-bag__doll lk-bag__doll--model">
+            <div class="lk-doll lk-doll--model" data-ref="doll">
+              <div class="lk-doll__stage" data-ref="stage"></div>
+              <span class="lk-doll__hint">Arrastra para girar</span>
+              <span class="lk-doll__rail" aria-hidden="true"></span>
+              ${RAIL_ORDER.map((s) => `<button type="button" class="lk-eq-slot" data-slot="${s}" style="--x:${DOLL_POS[s][0]};--y:${DOLL_POS[s][1]}"></button>`).join('')}
+            </div>
+          </div>
+          <div class="lk-bag__grid-wrap" data-ref="bagView">
+            <div class="lk-bag__bar">
+              <div class="lk-codex__filters" data-ref="tabs"></div>
+              <label class="lk-bag__sort"><span class="lk-label">Orden</span>
+                <select data-ref="sort" class="lk-input" style="min-height:32px;width:auto;padding:0 10px;font-size:.8rem"><option value="rar">Rareza</option><option value="tier">Nivel</option><option value="name">Nombre</option></select></label>
+            </div>
+            <div class="lk-bag-tut" data-ref="tut" hidden></div>
+            <div class="lk-bag__grid" data-ref="grid"></div>
+            <div class="lk-bag__cap"><span class="lk-drag-hint" style="margin-right:auto">Pasa el ratón para ver la ficha · clic para fijarla · doble clic o arrastra para equipar.</span><span data-ref="count"></span></div>
+          </div>
+          <div class="lk-bag__grid-wrap lk-bag-skills" data-ref="skillsView" hidden></div>
+        </div>
+      </div>`;
+    document.body.appendChild(modal);
     this.modalEl = modal;
+    this.$ = (n) => modal.querySelector(`[data-ref="${n}"]`);
+
+    // Ficha de objeto (hover = vista previa · clic = fijada con acciones)
+    this.itip = document.getElementById('lk-item-tip') || document.createElement('div');
+    this.itip.id = 'lk-item-tip';
+    this.itip.className = 'lk-ui lk-tooltip-tactical lk-tt-item';
+    this.itip.setAttribute('role', 'dialog');
+    document.body.appendChild(this.itip);
+
+    this._bind();
   }
 
+  _bind() {
+    const m = this.modalEl;
+    m.addEventListener('click', (e) => { if (e.target === m) this.close(); });
+    this.$('close').addEventListener('click', () => this.close());
+    this.$('squadBtn').addEventListener('click', () => { if (this.onOpenSquad) this.onOpenSquad(); });
+    m.addEventListener('wheel', (e) => e.stopPropagation(), { passive: true });
+
+    this.$('viewTabs').querySelectorAll('button').forEach((b) => b.addEventListener('click', () => {
+      this._sfx();
+      this.activeHeroTab = b.dataset.view;
+      this._renderHeroDetails();
+    }));
+    this.$('sort').addEventListener('change', (e) => { this.sort = e.target.value; this._renderBackpackItems(); });
+
+    // Arrastrar y soltar (ratón, lápiz y táctil)
+    this.$('grid').addEventListener('pointerdown', (e) => {
+      const b = e.target.closest('.lk-it[data-slot]');
+      if (!b || e.button > 0) return;
+      e.preventDefault();
+      this._startDrag(e, b, b.dataset.id, 'grid');
+    });
+    this.$('doll').addEventListener('pointerdown', (e) => {
+      const b = e.target.closest('.lk-eq-slot.lk-has');
+      if (!b || e.button > 0) return;
+      e.preventDefault();
+      this._startDrag(e, b, this._equipped()[b.dataset.slot], 'slot');
+    });
+    [this.$('grid'), this.$('doll')].forEach((el) => el.addEventListener('dragstart', (e) => e.preventDefault()));
+
+    this.$('doll').querySelectorAll('.lk-eq-slot').forEach((b) => {
+      b.addEventListener('mouseenter', () => { const id = this._equipped()[b.dataset.slot]; if (id) this._hoverTip(b, id); });
+      b.addEventListener('mouseleave', () => this._unhoverTip());
+      b.addEventListener('click', () => {
+        if (this.justDropped) return;
+        const id = this._equipped()[b.dataset.slot];
+        if (this.activeCategoryFilter !== b.dataset.slot) {
+          this.activeCategoryFilter = b.dataset.slot;
+          this._renderBackpackItems();
+          // Solo cambia el foco: la ranura no se vuelve a pintar, así el doble clic llega a ella
+          this.$('doll').querySelectorAll('.lk-eq-slot').forEach((x) => x.classList.toggle('lk-is-focus', x === b));
+        }
+        if (id && this.pinned?.id !== id) this._pinTip(id, b, 'slot');
+        else this._closeTip();
+      });
+      // Doble clic en una ranura ocupada: el objeto vuelve a la mochila
+      b.addEventListener('dblclick', () => { if (this._equipped()[b.dataset.slot]) this._unequip(b.dataset.slot); });
+    });
+
+    document.addEventListener('pointerdown', (e) => {
+      if (this.pinned && !this.itip.contains(e.target) && !e.target.closest('#inventory-modal .lk-it, #inventory-modal .lk-eq-slot')) this._closeTip();
+    });
+    window.addEventListener('keydown', (e) => {
+      if (this.isOpen && e.key === 'Escape' && this.pinned) { this._closeTip(); e.stopImmediatePropagation(); }
+    }, true);
+    this.$('grid').addEventListener('scroll', () => this._closeTip());
+    window.addEventListener('resize', () => this._closeTip());
+  }
+
+  // ------------------------------------------------------------ apertura
   _renderGold() {
-    const goldEl = document.getElementById('inv-gold-amount');
-    if (goldEl && this.equipmentManager) {
-      const currentGold = typeof this.equipmentManager.getGold === 'function'
-        ? this.equipmentManager.getGold()
-        : (this.equipmentManager.gold || 0);
-      goldEl.textContent = Number(currentGold).toLocaleString();
-    }
+    const g = typeof this.equipmentManager?.getGold === 'function' ? this.equipmentManager.getGold() : (this.equipmentManager?.gold || 0);
+    this.$('gold').textContent = Number(g).toLocaleString('es');
   }
 
   open(heroId = null) {
-    if (document.body.classList.contains('state-combat') || 
+    if (document.body.classList.contains('state-combat') ||
         (window.__AXIE_TACTICS_APP__ && window.__AXIE_TACTICS_APP__.gameState === 'BATTLE')) {
       return;
     }
@@ -217,36 +210,28 @@ export class InventoryModal {
       this.selectedHeroId = heroId;
     }
     if (this.isOpen) {
-      this._renderRoster();
-      this._renderHeroDetails();
-      this._renderGold();
+      this._renderAll();
       return;
     }
     this.isOpen = true;
     this.modalEl.classList.remove('hidden');
-
-    if (this.audio && this.audio.playBuff) {
-      this.audio.playBuff();
-    }
-
-    this._renderRoster();
-    this._renderHeroDetails();
-    this._renderBackpackItems();
-    this._renderGold();
+    void this.modalEl.offsetWidth;
+    this.modalEl.classList.add('lk-is-open');
+    this._modelShown = null;
+    this.model?.start();
+    if (this.audio && this.audio.playBuff) this.audio.playBuff();
+    this._renderAll();
     if (this.onOpen) this.onOpen();
   }
 
   toggle(heroId = null) {
-    if (document.body.classList.contains('state-combat') || 
+    if (document.body.classList.contains('state-combat') ||
         (window.__AXIE_TACTICS_APP__ && window.__AXIE_TACTICS_APP__.gameState === 'BATTLE')) {
       this.close();
       return;
     }
-    if (this.isOpen) {
-      this.close();
-    } else {
-      this.open(heroId);
-    }
+    if (this.isOpen) this.close();
+    else this.open(heroId);
   }
 
   setTutorialLock(isLocked, targetItemId = 'wood_sword') {
@@ -259,23 +244,15 @@ export class InventoryModal {
   }
 
   _isTutorialEquipActive() {
-    if (!this.isTutorialEquipLocked || !this.tutorialTargetItemId) {
-      return false;
-    }
-
+    if (!this.isTutorialEquipLocked || !this.tutorialTargetItemId) return false;
     if (this.tutorialManager) {
-      if (!this.tutorialManager.isActive || this.tutorialManager.currentStep === 'COMPLETED' || this.tutorialManager.hasEquippedSword) {
-        this.isTutorialEquipLocked = false;
-        this.tutorialTargetItemId = null;
-        return false;
-      }
-      if (this.tutorialManager.currentStep !== 'EQUIP_SWORD') {
+      if (!this.tutorialManager.isActive || this.tutorialManager.currentStep === 'COMPLETED' || this.tutorialManager.hasEquippedSword
+          || this.tutorialManager.currentStep !== 'EQUIP_SWORD') {
         this.isTutorialEquipLocked = false;
         this.tutorialTargetItemId = null;
         return false;
       }
     }
-
     if (this.questManager) {
       const q = this.questManager.quests?.quest_slime_purification;
       if (q && q.status === 'completed') {
@@ -284,7 +261,6 @@ export class InventoryModal {
         return false;
       }
     }
-
     return true;
   }
 
@@ -292,898 +268,537 @@ export class InventoryModal {
     if (!this.equipmentManager || !this.tutorialTargetItemId) return false;
     const eq = this.equipmentManager.equipped;
     if (!eq) return false;
-    const heroEq = eq[this.selectedHeroId] || eq['kotaro'];
+    const heroEq = eq[this.selectedHeroId] || eq.kotaro;
     if (!heroEq) return false;
     return heroEq.weapon === this.tutorialTargetItemId || Object.values(heroEq).includes(this.tutorialTargetItemId);
   }
 
   _showTutorialBlockedFeedback() {
-    if (this.audio && typeof this.audio.playCollision === 'function') {
-      this.audio.playCollision();
-    }
-    const container = this.modalEl?.querySelector('.inventory-container');
-    if (container) {
-      container.classList.remove('shake-warning');
-      void container.offsetWidth;
-      container.classList.add('shake-warning');
-      setTimeout(() => container.classList.remove('shake-warning'), 500);
-    }
-    const hint = this.modalEl?.querySelector('.inv-tutorial-hint');
-    if (hint) {
-      hint.classList.remove('shake-warning');
-      void hint.offsetWidth;
-      hint.classList.add('shake-warning');
-      setTimeout(() => hint.classList.remove('shake-warning'), 500);
-    }
-    const targetCard = this.modalEl?.querySelector('.tutorial-spotlight-sword');
-    if (targetCard) {
-      targetCard.scrollIntoView({ behavior: 'smooth', block: 'center' });
-    }
+    if (this.audio && typeof this.audio.playCollision === 'function') this.audio.playCollision();
+    const win = this.modalEl.querySelector('.lk-bag');
+    [win, this.$('tut')].forEach((el) => {
+      if (!el || !el.animate) return;
+      el.animate([{ transform: 'translateX(0)' }, { transform: 'translateX(-8px)' }, { transform: 'translateX(8px)' }, { transform: 'translateX(0)' }], { duration: 320 });
+    });
+    this.modalEl.querySelector('.lk-tut-spot')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    toast(`Primero equipa ${ITEMS_DB[this.tutorialTargetItemId]?.name || 'el objeto indicado'}`, true);
   }
 
   close() {
     if (!this.isOpen) return;
-
     if (this._isTutorialEquipActive() && !this._isTargetItemEquipped()) {
       this._showTutorialBlockedFeedback();
       return;
     }
-
     if (this.tutorialTargetItemId && this._isTargetItemEquipped()) {
       this.isTutorialEquipLocked = false;
       this.tutorialTargetItemId = null;
     }
-
     this._hideTooltip();
     this.isOpen = false;
+    this.modalEl.classList.remove('lk-is-open');
     this.modalEl.classList.add('hidden');
-
-    if (this.audio && this.audio.playStep) {
-      this.audio.playStep();
-    }
+    this.model?.stop();
+    if (this.audio && this.audio.playStep) this.audio.playStep();
     if (this.onClose) this.onClose();
   }
 
-  _showTooltip(item, e) {
-    const tt = document.getElementById('inv-floating-tooltip');
-    if (!tt || !item) return;
-
-    let statsHTML = '';
-    if (item.stats.damage) statsHTML += `<span class="inv-stat-pill pill-dmg">+${item.stats.damage} Damage</span>`;
-    if (item.stats.hp) statsHTML += `<span class="inv-stat-pill pill-hp">+${item.stats.hp} HP</span>`;
-    if (item.stats.pa) statsHTML += `<span class="inv-stat-pill pill-pa">+${item.stats.pa} AP</span>`;
-    if (item.stats.pm) statsHTML += `<span class="inv-stat-pill pill-pm">+${item.stats.pm} MP</span>`;
-    if (item.stats.shield) statsHTML += `<span class="inv-stat-pill pill-shield">+${item.stats.shield} Shield</span>`;
-    if (item.stats.initiative) statsHTML += `<span class="inv-stat-pill pill-init">+${item.stats.initiative} Init</span>`;
-
-    const slotLabels = {
-      weapon: 'WEAPON',
-      hat: 'HAT',
-      shield: 'SHIELD',
-      body: 'ARMOR',
-      boots: 'BOOTS'
-    };
-    const slotName = slotLabels[item.slot] || (item.slot ? item.slot.toUpperCase() : 'GEAR');
-
-    tt.innerHTML = `
-      <div class="inv-tt-header">
-        <img class="inv-tt-icon" src="${item.icon}" alt="">
-        <div class="inv-tt-title-group">
-          <span class="inv-tt-title">${item.name}</span>
-          <div class="inv-tt-tags">
-            <span class="inv-tt-slot-tag">${slotName}</span>
-            <span class="inv-rarity-badge ${item.rarity}">${item.rarity.toUpperCase()}</span>
-          </div>
-        </div>
-      </div>
-      <div class="inv-tt-divider"></div>
-      ${item.description ? `<div class="inv-tt-desc">${item.description}</div>` : ''}
-      <div class="inv-tt-stats">${statsHTML}</div>
-      <div class="inv-tt-hint">🖱️ Click to unequip</div>
-    `;
-
-    this._positionTooltip(e);
-    tt.classList.remove('hidden');
+  // ------------------------------------------------------------ render
+  _renderAll() {
+    this._showModel();
+    this._renderRoster();
+    this._renderHeroDetails();
+    this._renderBackpackItems();
+    this._renderGold();
   }
 
-  _positionTooltip(e) {
-    const tt = document.getElementById('inv-floating-tooltip');
-    if (!tt) return;
-
-    const offset = 14;
-    let x = e.clientX + offset;
-    let y = e.clientY + offset;
-
-    const width = 230;
-    const height = 150;
-
-    if (x + width > window.innerWidth - 10) {
-      x = e.clientX - width - 10;
+  // Modelo 3D del héroe seleccionado (se crea la primera vez que se abre la mochila)
+  _showModel() {
+    if (!this.isOpen) return;
+    if (!this.model) {
+      this.model = new HeroModelPreview(this.$('stage'), {
+        fallbackPortrait: (id) => {
+          const base = this._base(id);
+          const key = this._isSapi(id) ? (base?.modelType || 'sapidae-f-a') : (base?.axieId || id);
+          return portraitService.getPortraitSync(key) || (this._isSapi(id) ? `./assets/portraits/${key}.png` : base?.image || `./assets/portraits/${id}.png`);
+        }
+      });
+      this.model.start();
     }
-    if (y + height > window.innerHeight - 10) {
-      y = e.clientY - height - 10;
-    }
-
-    tt.style.left = `${Math.max(10, x)}px`;
-    tt.style.top = `${Math.max(10, y)}px`;
+    if (this._modelShown === this.selectedHeroId) return;
+    this._modelShown = this.selectedHeroId;
+    this.model.show(this.selectedHeroId, this._base(), this._equipped()).then(() => { if (this.isOpen) this.model.start(); });
   }
 
-  _hideTooltip() {
-    const tt = document.getElementById('inv-floating-tooltip');
-    if (tt) {
-      tt.classList.add('hidden');
-    }
+  _refreshModelEquipment() {
+    if (this.model && this._isSapi(this.selectedHeroId)) this.model.applyEquipment(this._base(), this._equipped());
   }
 
-  toggle() {
-    if (this.isOpen) {
-      this.close();
-    } else {
-      this.open();
-    }
+  _equipped() { return this.equipmentManager.getEquipped(this.selectedHeroId) || {}; }
+  _base(id = this.selectedHeroId) { return this.equipmentManager.heroesBase[id]; }
+  _isSapi(id) { return id === 'sapidae' || this._base(id)?.isSapidae; }
+  _clsKey(id) {
+    if (this._isSapi(id)) return null;
+    const c = String(getAxieClassIcon(this._base(id)?.class)).match(/classes\/(\w+)\.png/)?.[1];
+    return c || 'beast';
+  }
+  _portrait(id, size) {
+    const base = this._base(id);
+    const sapi = this._isSapi(id);
+    const key = sapi ? (base?.modelType || 'sapidae-f-a') : (base?.axieId || id);
+    let url = portraitService.getPortraitSync(key) || (sapi ? `./assets/portraits/${key}.png` : base?.image || null);
+    if (!url) portraitService.getPortrait(key).then((u) => { if (u && this.isOpen) this._renderRoster(); }).catch(() => {});
+    const cc = sapi ? 'var(--lk-gilt-300)' : `var(--lk-class-${this._clsKey(id)})`;
+    return `<span class="lk-med" style="--cc:${cc}${size ? `;--s:${size}px` : ''}">${url ? `<img src="${url}" alt="">` : ''}</span>`;
+  }
+
+  _heroIds() {
+    const em = this.equipmentManager;
+    const ids = em.unlockedHeroes && em.unlockedHeroes.length ? em.unlockedHeroes : ['sapidae', 'kotaro'];
+    // Mismo orden que el escuadrón (líder, principal, apoyos) y después los axies de la colección
+    const squad = typeof em.getSquad === 'function' ? em.getSquad().filter(Boolean) : [];
+    const rest = ids.filter((id) => !squad.includes(id));
+    return [...squad, ...rest.filter((id) => this._isSapi(id)), ...rest.filter((id) => !this._isSapi(id))].filter((id, i, a) => this._base(id) && a.indexOf(id) === i);
   }
 
   _renderRoster() {
-    const container = document.getElementById('inv-roster-list');
-    if (!container) return;
-    container.innerHTML = '';
-
-    // If current selected hero is not unlocked, default to first unlocked hero
-    if (!this.equipmentManager.isHeroUnlocked(this.selectedHeroId)) {
-      this.selectedHeroId = (this.equipmentManager.unlockedHeroes && this.equipmentManager.unlockedHeroes[0]) || 'sapidae';
-    }
-
-    const unlockedHeroIds = this.equipmentManager.unlockedHeroes && this.equipmentManager.unlockedHeroes.length > 0
-      ? this.equipmentManager.unlockedHeroes
-      : ['sapidae', 'kotaro'];
-
-    const sapidaeHeroIds = unlockedHeroIds.filter(id => id === 'sapidae' || this.equipmentManager.heroesBase[id]?.isSapidae);
-    const axieHeroIds = unlockedHeroIds.filter(id => id !== 'sapidae' && !this.equipmentManager.heroesBase[id]?.isSapidae);
-
-    const renderCard = (heroId, isSapidae) => {
-      const base = this.equipmentManager.heroesBase[heroId];
-      if (!base) return null;
-
-      const isSelected = (this.selectedHeroId === heroId);
-      const prog = this.equipmentManager.getProgression(heroId);
-      const totalUnspent = (prog.unspentStatPoints || 0) + (prog.unspentSkillPoints || 0);
-
-      const portraitKey = isSapidae ? (base.modelType || 'sapidae-f-a') : (base.axieId || heroId);
-      let portraitUrl = portraitService.getPortraitSync(portraitKey);
-      if (!portraitUrl && isSapidae) {
-        portraitUrl = `./assets/portraits/${portraitKey}.png`;
-      }
-      if (!portraitUrl) {
-        portraitService.getPortrait(portraitKey);
-      }
-
-      const card = document.createElement('div');
-      card.className = `inv-roster-card ${isSelected ? 'active' : ''} ${isSapidae ? 'roster-card-sapidae' : ''}`;
-      if (isSapidae) {
-        card.style.borderColor = isSelected ? '#fbbf24' : 'rgba(251, 191, 36, 0.4)';
-        card.style.background = isSelected ? 'rgba(251, 191, 36, 0.12)' : 'rgba(15, 23, 42, 0.6)';
-      }
-      card.innerHTML = `
-        <div class="inv-roster-avatar">
-          <img class="inv-roster-avatar" src="${portraitUrl || ''}" alt="${base.name}" style="${portraitUrl ? '' : 'display: none;'} ${isSapidae ? 'border: 1.5px solid #fbbf24;' : ''}">
-        </div>
-        <div class="inv-roster-info">
-          <div class="inv-roster-name-row">
-            <span class="inv-roster-name" style="${isSapidae ? 'color:#fef08a; font-weight:800;' : ''}">${base.name}</span>
-            <span class="inv-roster-level-badge" style="${isSapidae ? 'background:rgba(251, 191, 36, 0.25); color:#fbbf24; border-color:#fbbf24;' : ''}">Lv. ${prog.level}</span>
-          </div>
-          <div class="inv-roster-meta-row">
-            <span class="inv-roster-role" style="${isSapidae ? 'color:#fbbf24;' : ''}">${base.archetype}</span>
-            ${totalUnspent > 0 ? `<span class="inv-roster-notify-badge" title="${prog.unspentStatPoints} stats, ${prog.unspentSkillPoints} skills available">⚡</span>` : ''}
-          </div>
-        </div>
-      `;
-
-      card.addEventListener('click', () => {
-        if (this.audio && this.audio.playStep) this.audio.playStep();
-        this.selectedHeroId = heroId;
-        this._renderRoster();
-        this._renderHeroDetails();
-        this._renderBackpackItems();
-      });
-
-      return card;
-    };
-
-    // 1. SECTION: Sapidae (Líder)
-    if (sapidaeHeroIds.length > 0) {
-      const headerSap = document.createElement('div');
-      headerSap.className = 'inv-roster-section-header';
-      headerSap.style.cssText = 'display:flex; align-items:center; gap:6px; font-size:11px; font-weight:800; color:#fbbf24; text-transform:uppercase; letter-spacing:0.8px; margin:4px 0 6px 4px;';
-      headerSap.innerHTML = `<span>👑</span><span>Sapidae</span>`;
-      container.appendChild(headerSap);
-
-      sapidaeHeroIds.forEach(id => {
-        const el = renderCard(id, true);
-        if (el) container.appendChild(el);
-      });
-    }
-
-    // 2. SECTION: Axies (Compañeros)
-    if (axieHeroIds.length > 0) {
-      const headerAxie = document.createElement('div');
-      headerAxie.className = 'inv-roster-section-header';
-      headerAxie.style.cssText = 'display:flex; align-items:center; gap:6px; font-size:11px; font-weight:800; color:#38bdf8; text-transform:uppercase; letter-spacing:0.8px; margin:14px 0 6px 4px; border-top:1px solid rgba(255,255,255,0.08); padding-top:10px;';
-      headerAxie.innerHTML = `<span>🐾</span><span>Axies</span>`;
-      container.appendChild(headerAxie);
-
-      axieHeroIds.forEach(id => {
-        const el = renderCard(id, false);
-        if (el) container.appendChild(el);
-      });
-    }
+    const em = this.equipmentManager;
+    if (!em.isHeroUnlocked(this.selectedHeroId)) this.selectedHeroId = this._heroIds()[0] || 'sapidae';
+    this.$('strip').innerHTML = this._heroIds().map((id, i) => {
+      const p = em.getProgression(id);
+      const pending = (p.unspentStatPoints || 0) + (p.unspentSkillPoints || 0);
+      return `<button type="button" class="lk-sq-pip" data-h="${id}" aria-pressed="${this.selectedHeroId === id}" aria-label="Equipar a ${esc(this._base(id).name)}">${this._portrait(id)}${i === 1 ? `<span class="lk-hb" title="Compañero principal"><img src="${I('heart')}" alt=""></span>` : ''}${pending ? '<span class="lk-bag-pend" title="Puntos sin asignar">!</span>' : ''}<span class="lk-nm">${esc(this._base(id).name)}</span></button>`;
+    }).join('');
+    this.$('strip').querySelectorAll('.lk-sq-pip').forEach((b) => b.addEventListener('click', () => {
+      this._sfx();
+      this.selectedHeroId = b.dataset.h;
+      this._closeTip();
+      this._renderAll();
+    }));
   }
 
   _renderHeroDetails() {
     this._hideTooltip();
-    const base = this.equipmentManager.heroesBase[this.selectedHeroId];
+    const base = this._base();
     if (!base) return;
+    const em = this.equipmentManager;
+    const prog = em.getProgression(this.selectedHeroId);
+    const req = em.getRequiredExp(prog.level);
+    const pct = Math.min(100, Math.round((prog.currentExp / req) * 100));
+    this._xp = { level: prog.level, cur: prog.currentExp, req, pct };
 
-    const prog = this.equipmentManager.getProgression(this.selectedHeroId);
-    const reqExp = this.equipmentManager.getRequiredExp(prog.level);
-    const expPct = Math.min(100, Math.round((prog.currentExp / reqExp) * 100));
+    this.$('skillDot').hidden = !(prog.unspentSkillPoints > 0);
+    this.$('viewTabs').querySelectorAll('button').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.view === this.activeHeroTab)));
+    this.$('bagView').hidden = this.activeHeroTab !== 'equipment';
+    this.$('skillsView').hidden = this.activeHeroTab !== 'skills';
 
-    // 1. Identity & Level / EXP Header
-    document.getElementById('inv-hero-name').textContent = base.name;
-    document.getElementById('inv-hero-archetype').textContent = base.archetype;
-    document.getElementById('inv-hero-level-badge').textContent = `Lv. ${prog.level}`;
-    document.getElementById('inv-hero-exp-fill').style.width = `${expPct}%`;
-    document.getElementById('inv-hero-exp-text').textContent = `${prog.currentExp} / ${reqExp} EXP`;
-
-    // 2. Subtab State Switcher
-    const eqBtn = document.getElementById('inv-subtab-equipment');
-    const skBtn = document.getElementById('inv-subtab-skills');
-    const eqPane = document.getElementById('inv-view-equipment');
-    const skPane = document.getElementById('inv-view-skills');
-    const skillsTabDot = document.getElementById('inv-skills-tab-dot');
-
-    if (prog.unspentSkillPoints > 0) {
-      skillsTabDot.classList.remove('hidden');
-    } else {
-      skillsTabDot.classList.add('hidden');
-    }
-
-    if (this.activeHeroTab === 'equipment') {
-      eqBtn.classList.add('active');
-      skBtn.classList.remove('active');
-      eqPane.classList.remove('hidden');
-      skPane.classList.add('hidden');
-      this._renderEquipmentTab(base, prog);
-    } else {
-      skBtn.classList.add('active');
-      eqBtn.classList.remove('active');
-      skPane.classList.remove('hidden');
-      eqPane.classList.add('hidden');
-      this._renderSkillsTab(base, prog);
-    }
+    this._renderDoll();
+    if (this.activeHeroTab === 'skills') this._renderSkillsTab(base, prog);
   }
 
-  _renderEquipmentTab(base, prog) {
-    // Render 5 Equipment Slots in Paper Doll Cross Formation
-    const dollGrid = document.getElementById('inv-doll-grid');
-    if (dollGrid) {
-      dollGrid.innerHTML = '';
-
-      const slotDefinitions = [
-        { key: 'hat', label: 'Hat', icon: '👑' },
-        { key: 'weapon', label: 'Weapon', icon: '⚔️' },
-        { key: 'body', label: 'Armor', icon: '🥋' },
-        { key: 'shield', label: 'Shield', icon: '🛡️' },
-        { key: 'boots', label: 'Boots', icon: '🥾' }
-      ];
-
-      const equipped = this.equipmentManager.getEquipped(this.selectedHeroId) || {};
-
-      slotDefinitions.forEach(slotDef => {
-        const itemId = equipped[slotDef.key];
-        const item = itemId ? ITEMS_DB[itemId] : null;
-
-        const slotBox = document.createElement('div');
-        slotBox.dataset.slot = slotDef.key;
-
-        if (item) {
-          // Equipped slot: displays ONLY the item icon/image
-          const isImg = typeof item.icon === 'string' && (
-            item.icon.startsWith('./') || item.icon.startsWith('/') || item.icon.includes('.png') || item.icon.startsWith('data:image')
-          );
-          slotBox.className = `inv-doll-slot has-item rarity-${item.rarity}`;
-          slotBox.innerHTML = isImg 
-            ? `<img class="inv-doll-item-icon" src="${item.icon}" alt="">` 
-            : `<span class="inv-doll-item-emoji">${item.icon}</span>`;
-          slotBox.title = ''; // Suppress browser default title tooltip
-
-          // Hover: shows floating tooltip with item info
-          slotBox.addEventListener('mouseenter', (e) => this._showTooltip(item, e));
-          slotBox.addEventListener('mousemove', (e) => this._positionTooltip(e));
-          slotBox.addEventListener('mouseleave', () => this._hideTooltip());
-
-          // Click: immediately un-equips the item
-          slotBox.addEventListener('click', (e) => {
-            e.stopPropagation();
-            this._hideTooltip();
-            if (this.audio && this.audio.playStep) this.audio.playStep();
-            this.equipmentManager.unequipItem(this.selectedHeroId, slotDef.key);
-            if (typeof this.onItemUnequipped === 'function') {
-              this.onItemUnequipped(this.selectedHeroId, slotDef.key);
-            }
-            this._renderHeroDetails();
-            this._renderBackpackItems();
-          });
-        } else {
-          // Empty slot: displays placeholder icon and label
-          slotBox.className = 'inv-doll-slot empty';
-          slotBox.innerHTML = `
-            <span class="inv-doll-slot-icon">${slotDef.icon}</span>
-            <span class="inv-doll-slot-label">${slotDef.label}</span>
-          `;
-        }
-
-        dollGrid.appendChild(slotBox);
-      });
-    }
-
-    // Render Stats Calculation Sheet with Allocation Buttons
-    const stats = this.equipmentManager.getCalculatedStats(this.selectedHeroId);
-    const statsList = document.getElementById('inv-stats-list');
-    const statBadge = document.getElementById('inv-stat-points-badge');
-    statsList.innerHTML = '';
-
-    if (prog.unspentStatPoints > 0) {
-      statBadge.textContent = `⚡ ${prog.unspentStatPoints} Points Available`;
-      statBadge.classList.remove('hidden');
-    } else {
-      statBadge.classList.add('hidden');
-    }
-
-    // 1. Group Header: Attributes
-    const attrHeader = document.createElement('div');
-    attrHeader.className = 'inv-stat-group-title';
-    attrHeader.innerHTML = `
-      <span>✦ ATTRIBUTES</span>
-      <span class="inv-stat-hint">3 pts / level</span>
-    `;
-    statsList.appendChild(attrHeader);
-
-    // 4 Allocatable Attributes (Vitality, Ferocity, Agility, Essence)
-    const elementalAttributes = [
-      {
-        key: 'vitality',
-        label: 'Vitality',
-        desc: '+1 HP',
-        pts: stats.allocated.points.vitality || 0,
-        bonusVal: `+${stats.allocated.vitality} HP`,
-        allocText: '+1 HP'
-      },
-      {
-        key: 'ferocity',
-        label: 'Ferocity',
-        desc: '+1.5 Melee · +1 Collision',
-        pts: stats.allocated.points.ferocity || 0,
-        bonusVal: `+${Number(stats.allocated.ferocity || 0).toFixed(1)} Melee`,
-        allocText: '+1.5 Melee / +1 Collision'
-      },
-      {
-        key: 'agility',
-        label: 'Agility',
-        desc: '+1.2 Ranged · +0.5% Crit',
-        pts: stats.allocated.points.agility || 0,
-        bonusVal: `+${Number(stats.allocated.agility || 0).toFixed(1)} Ranged`,
-        allocText: '+1.2 Ranged / +0.5% Crit'
-      },
-      {
-        key: 'essence',
-        label: 'Essence',
-        desc: '+1.2 Magic · +2% Support',
-        pts: stats.allocated.points.essence || 0,
-        bonusVal: `+${Number(stats.allocated.essence || 0).toFixed(1)} Magic`,
-        allocText: '+1.2 Magic / +2% Support'
-      }
-    ];
-
-    elementalAttributes.forEach(attr => {
-      const rowEl = document.createElement('div');
-      rowEl.className = 'inv-stat-row inv-attr-row';
-
-      let allocateBtnHTML = '';
-      if (prog.unspentStatPoints > 0) {
-        allocateBtnHTML = `<button class="inv-stat-add-btn" data-stat="${attr.key}" title="Allocate 1 point (${attr.allocText})">+</button>`;
-      }
-
-      rowEl.innerHTML = `
-        <div class="inv-stat-label-group">
-          <span class="inv-stat-label">${attr.label}</span>
-          <span class="inv-stat-hint-tag">${attr.desc}</span>
-        </div>
-        <div class="inv-stat-vals">
-          <span class="inv-stat-alloc-pts">${attr.pts} pts</span>
-          ${attr.pts > 0 ? `<span class="inv-stat-alloc-bonus">(${attr.bonusVal})</span>` : ''}
-          ${allocateBtnHTML}
-        </div>
-      `;
-
-      if (prog.unspentStatPoints > 0) {
-        const addBtn = rowEl.querySelector('.inv-stat-add-btn');
-        if (addBtn) {
-          addBtn.addEventListener('click', (e) => {
-            e.stopPropagation();
-            const ok = this.equipmentManager.allocateStatPoint(this.selectedHeroId, attr.key);
-            if (ok) {
-              if (this.audio && this.audio.playBuff) this.audio.playBuff();
-              this._renderHeroDetails();
-              this._renderRoster();
-            }
-          });
-        }
-      }
-
-      statsList.appendChild(rowEl);
+  _renderDoll(flash = []) {
+    const id = this.selectedHeroId;
+    const eq = this._equipped();
+    this.$('doll').querySelectorAll('.lk-eq-slot').forEach((b) => {
+      const it = eq[b.dataset.slot] && ITEMS_DB[eq[b.dataset.slot]];
+      b.classList.toggle('lk-has', !!it);
+      b.style.setProperty('--rc', it ? rv(it.rarity) : '');
+      b.classList.toggle('lk-is-focus', this.activeCategoryFilter === b.dataset.slot);
+      b.innerHTML = it ? art(it) : `<span class="lk-ph">${SLOT1[b.dataset.slot]}</span>`;
+      b.setAttribute('aria-label', it ? it.name : SLOT1[b.dataset.slot]);
     });
-
-    // 2. Group Header: Combat Stats & Gear
-    const combatHeader = document.createElement('div');
-    combatHeader.className = 'inv-stat-group-title';
-    combatHeader.innerHTML = `
-      <span>⚔️ COMBAT STATS</span>
-      <span class="inv-stat-hint">Base & Gear</span>
-    `;
-    statsList.appendChild(combatHeader);
-
-    // Combat Stats: AP, MP, Extra damage, Starting shield and Initiative
-    const combatStats = [
-      {
-        label: 'Max HP',
-        val: stats.maxHP,
-        breakdown: [
-          stats.levelBonuses.hp > 0 ? `<span class="inv-stat-level-bonus" title="Level Bonus (+2/lv)">+${stats.levelBonuses.hp} lv</span>` : '',
-          stats.allocated.vitality > 0 ? `<span class="inv-stat-alloc-bonus" title="Vitality Bonus">+${stats.allocated.vitality} vit</span>` : '',
-          stats.gear.hp > 0 ? `<span class="inv-stat-gear-bonus" title="Gear Bonus">+${stats.gear.hp} eq</span>` : ''
-        ].filter(Boolean).join(' ')
-      },
-      {
-        label: 'Initiative',
-        val: stats.initiative,
-        breakdown: [
-          stats.levelBonuses.initiative > 0 ? `<span class="inv-stat-level-bonus" title="Level Bonus (+3/lv)">+${stats.levelBonuses.initiative} lv</span>` : '',
-          stats.gear.initiative > 0 ? `<span class="inv-stat-gear-bonus" title="Gear Bonus">+${stats.gear.initiative} eq</span>` : ''
-        ].filter(Boolean).join(' ')
-      },
-      {
-        label: 'Extra Damage',
-        val: `+${stats.bonusDamage}`,
-        breakdown: stats.gear.damage > 0 ? `<span class="inv-stat-gear-bonus" title="Gear Bonus">+${stats.gear.damage} eq</span>` : ''
-      },
-      {
-        label: 'Starting Shield',
-        val: `+${stats.initialShield}`,
-        breakdown: stats.gear.shield > 0 ? `<span class="inv-stat-gear-bonus" title="Gear Bonus">+${stats.gear.shield} eq</span>` : ''
-      },
-      {
-        label: 'Action (AP)',
-        val: stats.maxPA,
-        breakdown: stats.gear.pa > 0 ? `<span class="inv-stat-gear-bonus" title="Gear Bonus">+${stats.gear.pa} eq</span>` : ''
-      },
-      {
-        label: 'Movement (MP)',
-        val: stats.maxPM,
-        breakdown: stats.gear.pm > 0 ? `<span class="inv-stat-gear-bonus" title="Gear Bonus">+${stats.gear.pm} eq</span>` : ''
-      },
-      {
-        label: 'Crit Chance',
-        val: `${stats.critRate}%`,
-        breakdown: stats.allocated.critRate > 0 ? `<span class="inv-stat-alloc-bonus" title="Agility Bonus">+${stats.allocated.critRate}% agi</span>` : ''
-      },
-      {
-        label: 'Support / Heal',
-        val: `+${stats.supportPower}%`,
-        breakdown: stats.allocated.supportPower > 0 ? `<span class="inv-stat-alloc-bonus" title="Essence Bonus">+${stats.allocated.supportPower}% ess</span>` : ''
-      }
-    ];
-
-    const combatGrid = document.createElement('div');
-    combatGrid.className = 'inv-combat-grid';
-
-    combatStats.forEach(cs => {
-      const itemEl = document.createElement('div');
-      itemEl.className = 'inv-combat-stat-item';
-      itemEl.innerHTML = `
-        <div class="inv-combat-stat-top">
-          <span class="inv-combat-stat-label">${cs.label}</span>
-          <span class="inv-combat-stat-val">${cs.val}</span>
-        </div>
-        ${cs.breakdown ? `<div class="inv-combat-stat-breakdown">${cs.breakdown}</div>` : ''}
-      `;
-      combatGrid.appendChild(itemEl);
-    });
-
-    statsList.appendChild(combatGrid);
+    this._renderStats(flash);
   }
 
-  _renderSkillsTab(base, prog) {
-    const skillsList = document.getElementById('inv-skills-list');
-    const skillBadge = document.getElementById('inv-skill-points-badge');
-    skillsList.innerHTML = '';
-
-    if (prog.unspentSkillPoints > 0) {
-      skillBadge.textContent = `✨ ${prog.unspentSkillPoints} Skill Points`;
-      skillBadge.classList.remove('hidden');
-    } else {
-      skillBadge.classList.add('hidden');
-    }
-
-    const spellIds = (this.selectedHeroId === 'kotaro'
-      ? (base.spellIds || getHeroSpells(base.heroKey || base.axieId))
-      : HERO_SPELLS[this.selectedHeroId]) || [];
-    const multipliers = [1.0, 1.0, 1.20, 1.40, 1.60, 1.85];
-
-    spellIds.forEach(spellId => {
-      const spell = SPELLS_DB[spellId];
-      if (!spell) return;
-
-      const currentLvl = this.equipmentManager.getSkillLevel(this.selectedHeroId, spellId);
-      const currentMult = multipliers[Math.min(5, Math.max(1, currentLvl))];
-      const nextMult = currentLvl < 5 ? multipliers[currentLvl + 1] : null;
-
-      // Render 5 pip indicators
-      let pipsHTML = '';
-      for (let i = 1; i <= 5; i++) {
-        pipsHTML += `<span class="inv-skill-pip ${i <= currentLvl ? 'active' : ''}"></span>`;
+  _renderStats(flash = []) {
+    const em = this.equipmentManager;
+    const s = em.getCalculatedStats(this.selectedHeroId);
+    const prog = em.getProgression(this.selectedHeroId);
+    if (!s) { this.$('stats').innerHTML = ''; return; }
+    const g = s.gear || {};
+    const IC = {
+      hp: sprite('i-hp', { fill: true }), damage: sprite('i-sword'), pa: sprite('i-pa', { fill: true }), pm: sprite('i-pm'),
+      initiative: `<img class="lk-ai" src="${I('hourglass')}" alt="">`, shield: sprite('i-shield'),
+      crit: `<img class="lk-ai" src="${I('swords')}" alt="">`, support: sprite('i-hand')
+    };
+    const cell = (k, label, full, val, gear) => `<div class="lk-st ${flash.includes(k) ? 'lk-flash' : ''}" title="${full}"><span><i class="lk-st-ic">${IC[k]}</i>${label}</span><b>${val}${gear ? `<em>+${gear}</em>` : ''}</b></div>`;
+    const pts = prog.unspentStatPoints || 0;
+    const ap = prog.allocatedStats || {};
+    const base = this._base();
+    const CLS_ES = { beast: 'Bestia', bird: 'Pájaro', plant: 'Planta', aquatic: 'Acuático', bug: 'Bicho', reptile: 'Reptil' };
+    const clsName = this._isSapi(this.selectedHeroId) ? 'Sapidae' : (CLS_ES[this._clsKey(this.selectedHeroId)] || 'Axie');
+    const xp = this._xp || { level: prog.level, cur: prog.currentExp, req: em.getRequiredExp(prog.level), pct: 0 };
+    // Estadísticas en cuadrícula de 2 columnas (pantalla 18 del sistema de diseño)
+    this.$('stats').innerHTML = `<span class="lk-label">${esc(base.name)} · ${esc(clsName)}</span>`
+      + `<div class="lk-bag-xp"><span>Nv ${xp.level}</span><span class="lk-bar lk-bar--xp" style="--v:${xp.pct}%"><i></i></span><b>${xp.cur}/${xp.req}</b></div>`
+      + '<div class="lk-hero-stats lk-hero-stats--grid">'
+      + cell('hp', 'Vida', 'Vida máxima', s.maxHP, g.hp)
+      + cell('damage', 'Daño', 'Daño extra', `+${s.bonusDamage}`, g.damage)
+      + cell('pa', 'PA', 'Puntos de acción', s.maxPA, g.pa)
+      + cell('pm', 'PM', 'Puntos de movimiento', s.maxPM, g.pm)
+      + cell('initiative', 'Inic.', 'Iniciativa', s.initiative, g.initiative)
+      + cell('shield', 'Escudo', 'Escudo inicial', `+${s.initialShield}`, g.shield)
+      + cell('crit', 'Crít.', 'Probabilidad de crítico', `${s.critRate}%`)
+      + cell('support', 'Apoyo', 'Poder de apoyo', `+${s.supportPower}%`)
+      + '</div>'
+      // Atributos: se reparten aquí con los 3 puntos que da cada nivel (EquipmentManager.allocateStatPoint)
+      + `<div class="lk-attr-block"><span class="lk-label">Atributos${pts ? `<span class="lk-attr-pts">${pts} ${pts === 1 ? 'punto' : 'puntos'}</span>` : '<span class="lk-attr-pts lk-is-off">3 por nivel</span>'}</span>`
+      + ATTRS.map(([k, label, hint]) => `<div class="lk-attr ${pts ? 'lk-can' : ''}"><span><b>${label}</b><small>${hint}</small></span><strong>${ap[k] || 0}</strong>${pts ? `<button type="button" class="lk-attr-add" data-stat="${k}" aria-label="Asignar 1 punto a ${label}">+</button>` : ''}</div>`).join('')
+      + '</div>';
+    this.$('stats').querySelectorAll('.lk-attr-add').forEach((b) => b.addEventListener('click', () => {
+      if (em.allocateStatPoint(this.selectedHeroId, b.dataset.stat)) {
+        if (this.audio && this.audio.playBuff) this.audio.playBuff();
+        this._renderRoster();
+        this._renderDoll(['hp', 'damage', 'crit', 'support']);
       }
+    }));
+  }
 
-      // Scaling preview text
-      let scalingText = `Effectiveness: x${currentMult.toFixed(2)}`;
-      if (currentLvl < 5 && nextMult) {
-        const diffPercent = Math.round((nextMult - currentMult) * 100);
-        scalingText += ` ➔ Next Level: x${nextMult.toFixed(2)} (+${diffPercent}% effectiveness)`;
-      } else {
-        scalingText += ` (Maximum mastery reached)`;
-      }
-
-      // Upgrade Action Cost
-      const cost = currentLvl; // Nv 1->2: 1 pt, Nv 2->3: 2 pts, Nv 3->4: 3 pts, Nv 4->5: 4 pts
-      const canAfford = (prog.unspentSkillPoints >= cost);
-
-      let actionHTML = '';
-      if (currentLvl >= 5) {
-        actionHTML = `<span class="inv-skill-status-tag max">⭐ MAX LEVEL</span>`;
-      } else if (canAfford) {
-        actionHTML = `<button class="inv-skill-upgrade-btn" data-spell="${spellId}">+ Upgrade to Lv. ${currentLvl + 1} (${cost} ${cost === 1 ? 'Pt' : 'Pts'})</button>`;
-      } else {
-        actionHTML = `<span class="inv-skill-status-tag locked">Requires ${cost} Skill ${cost === 1 ? 'Point' : 'Points'} (${prog.unspentSkillPoints}/${cost})</span>`;
-      }
-
-      const card = document.createElement('div');
-      card.className = 'inv-skill-card';
-      card.innerHTML = `
-        <div class="inv-skill-card-top">
-          <div class="inv-skill-title-group">
-            <span class="inv-skill-icon">${(spell.icon && (spell.icon.includes('/') || spell.icon.endsWith('.png'))) ? `<img src="${spell.icon}" alt="${spell.name}" style="width: 26px; height: 26px; object-fit: contain; vertical-align: middle; border-radius: 4px;">` : spell.icon}</span>
-            <div>
-              <span class="inv-skill-name">${spell.name}</span>
-              <div class="inv-skill-cost-row">
-                <span class="inv-skill-pa">${spell.paCost} AP</span>
-                <span class="inv-skill-range">Range ${spell.minRange}-${spell.maxRange}</span>
-              </div>
-            </div>
-          </div>
-          <div class="inv-skill-level-block">
-            <span class="inv-skill-level-text">Lv. ${currentLvl} / 5</span>
-            <div class="inv-skill-pips">${pipsHTML}</div>
-          </div>
-        </div>
-
-        <p class="inv-skill-desc">${spell.description}</p>
-        
-        <div class="inv-skill-scaling-box">
-          <span class="inv-skill-scaling-label">MASTERY SCALING:</span>
-          <span class="inv-skill-scaling-val">${scalingText}</span>
-        </div>
-
-        <div class="inv-skill-action-row">
-          ${actionHTML}
-        </div>
-      `;
-
-      if (currentLvl < 5 && canAfford) {
-        const upBtn = card.querySelector('.inv-skill-upgrade-btn');
-        if (upBtn) {
-          upBtn.addEventListener('click', (e) => {
-            e.stopPropagation();
-            const ok = this.equipmentManager.upgradeSkill(this.selectedHeroId, spellId);
-            if (ok) {
-              if (this.audio && this.audio.playBuff) this.audio.playBuff();
-              this._renderHeroDetails();
-              this._renderRoster();
-            }
-          });
-        }
-      }
-
-      skillsList.appendChild(card);
-    });
+  _invGroups() {
+    // La mochila guarda ids repetidos: se agrupan con su cantidad
+    const counts = new Map();
+    (this.equipmentManager.inventory || []).forEach((id) => { if (ITEMS_DB[id]) counts.set(id, (counts.get(id) || 0) + 1); });
+    return [...counts.entries()].map(([id, qty]) => ({ it: ITEMS_DB[id], qty }));
   }
 
   _renderBackpackItems() {
-    const container = document.getElementById('inv-items-grid');
-    if (!container) return;
-    container.innerHTML = '';
+    const all = this._invGroups();
+    const tab = this.activeCategoryFilter;
+    this.$('tabs').innerHTML = TABS.map(([k, label]) => {
+      const n = k === 'all' ? all.length : all.filter((g) => slotOf(g.it) === k).length;
+      return `<button type="button" class="lk-fchip lk-no-ico" data-k="${k}" aria-pressed="${tab === k}">${label} <span style="opacity:.55">${n}</span></button>`;
+    }).join('');
+    this.$('tabs').querySelectorAll('.lk-fchip').forEach((b) => b.addEventListener('click', () => {
+      this._sfx();
+      this.activeCategoryFilter = b.dataset.k;
+      this._closeTip();
+      this._renderBackpackItems();
+      this._renderDoll();
+    }));
 
-    const inv = this.equipmentManager.inventory || [];
-    const countEl = document.getElementById('inv-items-count');
-    if (countEl) {
-      countEl.textContent = `${inv.length} item${inv.length !== 1 ? 's' : ''}`;
+    let list = all.filter((g) => tab === 'all' || slotOf(g.it) === tab);
+    list.sort(this.sort === 'name' ? (a, b) => a.it.name.localeCompare(b.it.name)
+      : this.sort === 'tier' ? (a, b) => (b.it.tier || 0) - (a.it.tier || 0)
+        : (a, b) => (RAR_ORDER[b.it.rarity] || 0) - (RAR_ORDER[a.it.rarity] || 0) || (b.it.tier || 0) - (a.it.tier || 0));
+
+    // Tutorial: equipar la espada de Paladill
+    const tutOn = this._isTutorialEquipActive();
+    const tutDone = tutOn && this._isTargetItemEquipped();
+    const tut = this.$('tut');
+    tut.hidden = !tutOn;
+    if (tutOn) {
+      const heroName = this._base()?.name || 'tu héroe';
+      const target = ITEMS_DB[this.tutorialTargetItemId]?.name || 'la espada';
+      tut.className = `lk-bag-tut ${tutDone ? 'lk-ok' : ''}`;
+      tut.innerHTML = tutDone
+        ? `<img class="lk-ai" src="${I('tick')}" alt=""><span><b>¡Equipado!</b> Pulsa <kbd>I</kbd>, <kbd>Esc</kbd> o la ✕ para cerrar la mochila.</span>`
+        : `<img class="lk-ai" src="${I('mission')}" alt=""><span><b>Misión del Maestro Paladill:</b> arrastra <b>${esc(target)}</b> a la ranura de arma de ${esc(heroName)}, o haz clic en él y pulsa «Equipar».</span>`;
     }
 
-    // Filter items by slot category: Armas, Equipo (Sombrero, Armadura, Botas), Escudo, Consumibles, Objetos de Misión
-    const filteredItemIds = inv.filter(itemId => {
-      const item = ITEMS_DB[itemId];
-      if (!item) return false;
-      if (this.activeCategoryFilter === 'all') return true;
-      if (this.activeCategoryFilter === 'weapon') {
-        return item.slot === 'weapon' || item.category === 'weapon';
-      }
-      if (this.activeCategoryFilter === 'equipment') {
-        return ['hat', 'body', 'boots', 'equipment'].includes(item.slot) || item.category === 'equipment' || item.category === 'gear';
-      }
-      if (this.activeCategoryFilter === 'shield') {
-        return item.slot === 'shield' || item.category === 'shield';
-      }
-      if (this.activeCategoryFilter === 'consumable') {
-        return item.slot === 'consumable' || item.category === 'consumable' || item.type === 'consumable';
-      }
-      if (this.activeCategoryFilter === 'quest') {
-        return item.slot === 'quest' || item.category === 'quest' || item.type === 'quest';
-      }
-      return item.slot === this.activeCategoryFilter;
+    const cells = list.map(({ it, qty }) => {
+      const k = slotOf(it);
+      const st = it.stats || {};
+      // Franja inferior = siempre el efecto principal; la cantidad va en la chapa de la esquina y el nombre en la ficha
+      const cap = EQ_SLOTS.includes(k)
+        ? (Object.entries(st).filter(([, v]) => v).slice(0, 1).map(([s, v]) => `+${v} ${STAT_ES[s] || s}`).join('') || SLOT1[k])
+        : effectCap(it, k);
+      const spot = tutOn && !tutDone && it.id === this.tutorialTargetItemId;
+      return `<button type="button" class="lk-it ${this.pinned?.id === it.id ? 'lk-is-sel' : ''} ${spot ? 'lk-tut-spot' : ''}" data-id="${it.id}" ${EQ_SLOTS.includes(k) ? `data-slot="${k}"` : ''} style="--r:${rv(it.rarity)}" aria-label="${esc(it.name)}${qty > 1 ? ` ×${qty}` : ''}"><span class="lk-art">${art(it)}${it.tier ? `<span class="lk-tier">T${it.tier}</span>` : ''}${qty > 1 ? `<span class="lk-qty">×${qty}</span>` : ''}</span><span class="lk-cap">${esc(cap)}</span></button>`;
     });
-
-    if (inv.length === 0) {
-      container.innerHTML = `
-        <div class="inv-empty-backpack">
-          <div class="inv-empty-icon">🎒</div>
-          <div class="inv-empty-title">Empty Backpack</div>
-          <div class="inv-empty-desc">You have no items in your inventory. Complete quests or defeat chimeras to obtain gear and supplies.</div>
-        </div>
-      `;
-      return;
+    const pad = Math.max(0, Math.ceil((cells.length + 1) / 8) * 8 - cells.length);
+    const grid = this.$('grid');
+    if (!all.length) {
+      grid.innerHTML = '<p class="lk-bag-empty"><b>Mochila vacía</b>Completa misiones o derrota quimeras para conseguir equipo y provisiones.</p>';
+    } else if (!list.length) {
+      grid.innerHTML = '<p class="lk-bag-empty"><b>Nada en esta categoría</b>Elige «Todo» para ver toda la mochila.</p>';
+    } else {
+      grid.innerHTML = cells.join('') + Array.from({ length: Math.min(pad, 8) }, () => '<span class="lk-it lk-is-empty"><span class="lk-art"></span><span class="lk-cap">&nbsp;</span></span>').join('');
     }
-
-    if (filteredItemIds.length === 0) {
-      container.innerHTML = `
-        <div class="inv-empty-backpack">
-          <div class="inv-empty-icon">🔍</div>
-          <div class="inv-empty-title">No items in this category</div>
-          <div class="inv-empty-desc">You have no items matching this filter. Select "All" to view the full inventory.</div>
-        </div>
-      `;
-      return;
-    }
-
-    const activeHero = this.equipmentManager.heroesBase[this.selectedHeroId];
-    const heroName = activeHero ? activeHero.name : 'Axie';
-    const isTutorialActive = this._isTutorialEquipActive();
-    const isTargetEquipped = isTutorialActive && this._isTargetItemEquipped();
-
-    if (isTutorialActive) {
-      const hintEl = document.createElement('div');
-      hintEl.className = `inv-tutorial-hint ${isTargetEquipped ? 'success' : ''}`;
-      hintEl.innerHTML = isTargetEquipped
-        ? `<span>✅</span><span><b>Sword equipped successfully!</b> Press <kbd>[I]</kbd>, <kbd>[Escape]</kbd> or click <kbd>[✕]</kbd> to close the inventory.</span>`
-        : `<span>🗡️</span><span><b>Master Paladill's Quest:</b> Click on the <b>Wooden Sword</b> to equip it to ${heroName}.</span>`;
-      container.appendChild(hintEl);
-    }
-
-    filteredItemIds.forEach(itemId => {
-      const item = ITEMS_DB[itemId];
-      if (!item) return;
-
-      const isConsumable = (item.slot === 'consumable' || item.category === 'consumable' || item.type === 'consumable');
-      const isQuest = (item.slot === 'quest' || item.category === 'quest' || item.type === 'quest');
-
-      const isTutorialHighlight = isTutorialActive && !isTargetEquipped && itemId === this.tutorialTargetItemId;
-      const card = document.createElement('div');
-      card.className = `inv-item-card rarity-${item.rarity || 'common'} ${isConsumable ? 'item-consumable' : ''} ${isQuest ? 'item-quest' : ''} ${isTutorialHighlight ? 'tutorial-spotlight-sword' : ''}`;
-
-      const isImageIcon = typeof item.icon === 'string' && (
-        item.icon.startsWith('./') ||
-        item.icon.startsWith('/') ||
-        item.icon.startsWith('assets/') ||
-        item.icon.startsWith('http') ||
-        item.icon.startsWith('data:image') ||
-        /\.(png|jpg|jpeg|webp|svg)$/i.test(item.icon)
-      );
-
-      const iconHTML = isImageIcon
-        ? `<img class="inv-card-icon" src="${item.icon}" alt="${item.name}">`
-        : `<span class="inv-card-icon-emoji">${item.icon || (isConsumable ? '🧪' : (isQuest ? '📜' : '📦'))}</span>`;
-
-      const slotLabels = {
-        weapon: 'WEAPON',
-        hat: 'HAT',
-        shield: 'SHIELD',
-        body: 'ARMOR',
-        boots: 'BOOTS',
-        equipment: 'GEAR',
-        consumable: 'CONSUMABLE',
-        quest: 'QUEST ITEM'
-      };
-
-      const slotName = isConsumable
-        ? 'CONSUMABLE'
-        : (isQuest ? 'QUEST ITEM' : (slotLabels[item.slot] || (item.slot ? item.slot.toUpperCase() : 'GEAR')));
-      const slotClass = isConsumable
-        ? 'consumable'
-        : (isQuest ? 'quest' : (['hat', 'body', 'boots', 'equipment'].includes(item.slot) ? 'equipment' : item.slot));
-
-      let benefitsHTML = '';
-      if (isConsumable) {
-        let effHTML = '';
-        if (item.effect?.heal) effHTML += `<span class="inv-stat-pill pill-hp">💚 +${item.effect.heal} HP</span>`;
-        if (item.effect?.pa) effHTML += `<span class="inv-stat-pill pill-pa">⚡ +${item.effect.pa} AP</span>`;
-        if (item.effect?.pm) effHTML += `<span class="inv-stat-pill pill-pm">👟 +${item.effect.pm} MP</span>`;
-        if (item.effect?.shield) effHTML += `<span class="inv-stat-pill pill-shield">🛡️ +${item.effect.shield} Shield</span>`;
-        benefitsHTML = `
-          <div class="inv-card-stats-row">
-            <span class="inv-benefits-label">EFFECT ON USE:</span>
-            <div class="inv-benefits-pills">${effHTML || '<span class="inv-stat-pill pill-hp">Consumable</span>'}</div>
-          </div>
-        `;
-      } else if (isQuest) {
-        benefitsHTML = `
-          <div class="inv-card-stats-row">
-            <span class="inv-benefits-label">ITEM TYPE:</span>
-            <div class="inv-benefits-pills">
-              <span class="inv-stat-pill pill-quest">📜 Quest Key Item</span>
-            </div>
-          </div>
-        `;
-      } else {
-        // Equipment stat badges
-        let statsHTML = '';
-        if (item.stats?.damage) statsHTML += `<span class="inv-stat-pill pill-dmg">+${item.stats.damage} Damage</span>`;
-        if (item.stats?.hp) statsHTML += `<span class="inv-stat-pill pill-hp">+${item.stats.hp} HP</span>`;
-        if (item.stats?.pa) statsHTML += `<span class="inv-stat-pill pill-pa">+${item.stats.pa} AP</span>`;
-        if (item.stats?.pm) statsHTML += `<span class="inv-stat-pill pill-pm">+${item.stats.pm} MP</span>`;
-        if (item.stats?.shield) statsHTML += `<span class="inv-stat-pill pill-shield">+${item.stats.shield} Shield</span>`;
-        if (item.stats?.initiative) statsHTML += `<span class="inv-stat-pill pill-init">+${item.stats.initiative} Init</span>`;
-
-        benefitsHTML = `
-          <div class="inv-card-stats-row">
-            <span class="inv-benefits-label">BENEFITS:</span>
-            <div class="inv-benefits-pills">${statsHTML || '<span class="inv-stat-pill">No stats</span>'}</div>
-          </div>
-        `;
-      }
-
-      let actionHTML = '';
-      if (isConsumable) {
-        actionHTML = `<button class="inv-use-btn">🧪 Use on ${heroName}</button>`;
-      } else if (isQuest) {
-        actionHTML = `<div class="inv-quest-badge-btn">📜 Key Quest Item</div>`;
-      } else {
-        actionHTML = `
-          <button class="inv-equip-btn ${isTutorialHighlight ? 'btn-pulse' : ''}">⚔️ Equip to ${heroName}</button>
-          ${isTutorialHighlight ? `<div class="inv-tutorial-sword-banner">✨ CLICK HERE TO EQUIP!</div>` : ''}
-        `;
-      }
-
-      card.innerHTML = `
-        <div class="inv-card-header">
-          <div class="inv-card-title-group">
-            ${iconHTML}
-            <span class="inv-card-name">${item.name}</span>
-          </div>
-          <div class="inv-card-tags">
-            <span class="inv-slot-badge ${slotClass}">${slotName}</span>
-            <span class="inv-rarity-badge ${item.rarity || 'common'}">${(item.rarity || 'common').toUpperCase()}</span>
-          </div>
-        </div>
-
-        <!-- Description (Lore and functionality) -->
-        <div class="inv-card-desc">${item.description || ''}</div>
-
-        <!-- Stat Benefits or Effect -->
-        ${benefitsHTML}
-
-        <!-- Action Button -->
-        <div class="inv-card-action">
-          ${actionHTML}
-        </div>
-      `;
-
-      card.addEventListener('click', (e) => {
-        if (isConsumable) {
-          e.stopPropagation();
-          this._useConsumable(item);
-          return;
-        }
-        if (isQuest) {
-          e.stopPropagation();
-          if (this.audio && this.audio.playStep) this.audio.playStep();
-          this._showToast(`📜 ${item.name}: Stored in your backpack for active quests.`);
-          return;
-        }
-
-        // Equipment click
-        if (this.audio && this.audio.playBuff) this.audio.playBuff();
-        this.equipmentManager.equipItem(this.selectedHeroId, item.slot, item.id);
-        if (this.onItemEquipped) {
-          this.onItemEquipped(this.selectedHeroId, item.slot, item.id);
-        }
-        if (this.isTutorialEquipLocked && item.id === this.tutorialTargetItemId) {
-          this.isTutorialEquipLocked = false;
-          this.tutorialTargetItemId = null;
-        }
-        this._renderHeroDetails();
-        this._renderBackpackItems();
+    grid.querySelectorAll('.lk-it[data-id]').forEach((b) => {
+      b.addEventListener('mouseenter', () => this._hoverTip(b, b.dataset.id));
+      b.addEventListener('mouseleave', () => this._unhoverTip());
+      b.addEventListener('click', () => {
+        if (this.justDropped) return;
+        if (this.pinned?.id === b.dataset.id) { this._closeTip(); return; }
+        this._pinTip(b.dataset.id, b, 'grid');
       });
-
-      container.appendChild(card);
+      // Doble clic: equipar al héroe seleccionado (o usar, si es un consumible)
+      b.addEventListener('dblclick', () => this._quickUse(b.dataset.id));
     });
+    const n = (this.equipmentManager.inventory || []).length;
+    this.$('count').textContent = `${n} ${n === 1 ? 'objeto' : 'objetos'}`;
+    if (this.pinned && !this.pinned.anchor.isConnected) this._closeTip();
   }
 
+  _renderSkillsTab(base, prog) {
+    const view = this.$('skillsView');
+    const em = this.equipmentManager;
+    const spellIds = (this.selectedHeroId === 'kotaro'
+      ? (base.spellIds || getHeroSpells(base.heroKey || base.axieId))
+      : HERO_SPELLS[this.selectedHeroId]) || [];
+    const mult = [1.0, 1.0, 1.20, 1.40, 1.60, 1.85];
+    const pts = prog.unspentSkillPoints || 0;
+    const cls = this._clsKey(this.selectedHeroId);
+    const cards = spellIds.map((sid) => {
+      const sp = SPELLS_DB[sid];
+      if (!sp) return '';
+      const lv = em.getSkillLevel(this.selectedHeroId, sid);
+      const cur = mult[Math.min(5, Math.max(1, lv))];
+      const next = lv < 5 ? mult[lv + 1] : null;
+      const cost = lv;
+      const can = pts >= cost;
+      const part = sp.partIcon || (sp.part && cls ? `./assets/parts/${cls}-${sp.part}.png` : null);
+      const action = lv >= 5 ? '<span class="lk-bag-max">Maestría máxima</span>'
+        : can ? `<button type="button" class="lk-btn lk-btn-primary-gold lk-btn--sm" data-up="${sid}"><span class="lk-b-ico"><img class="lk-ai" src="${I('upgrade')}" alt=""></span>Subir a Nv ${lv + 1} · ${cost} ${cost === 1 ? 'punto' : 'puntos'}</button>`
+          : `<span class="lk-bag-need">Necesita ${cost} ${cost === 1 ? 'punto' : 'puntos'} de habilidad (${pts}/${cost})</span>`;
+      const dmg = sp.baseMinDamage ? `<span class="lk-tt-stat">Daño<b>${sp.baseMinDamage}${sp.baseMaxDamage && sp.baseMaxDamage !== sp.baseMinDamage ? `–${sp.baseMaxDamage}` : ''}</b></span>` : '';
+      return `<div class="lk-bag-skill" style="--cc:${cls ? `var(--lk-class-${cls})` : 'var(--lk-gilt-500)'}">
+        <span class="lk-spell">${isImg(sp.icon) ? `<img src="${sp.icon}" alt="">` : `<span class="lk-emoji">${sp.icon || '✦'}</span>`}${part ? `<img class="lk-spell-part" src="${part}" alt="">` : ''}</span>
+        <div class="lk-bag-skill__main">
+          <div class="lk-bag-skill__top"><b>${esc(sp.name)}</b><span class="lk-bag-pips" aria-label="Nivel ${lv} de 5">${[1, 2, 3, 4, 5].map((i) => `<i class="${i <= lv ? 'lk-on' : ''}"></i>`).join('')}</span></div>
+          <div class="lk-bag-skill__stats"><span><img class="lk-ai" src="${I('pa')}" alt="">${sp.paCost} PA</span><span><img class="lk-ai" src="${I('range')}" alt="">AL ${sp.minRange}${sp.maxRange !== sp.minRange ? `–${sp.maxRange}` : ''}</span><span><img class="lk-ai" src="${I('vision')}" alt="">${sp.requiresLoS === false ? 'Sin visión' : 'Visión'}</span>${dmg ? dmg.replace('lk-tt-stat', 'lk-bag-dmg') : ''}</div>
+          <p>${esc(sp.description || '')}</p>
+          <div class="lk-bag-skill__foot"><span class="lk-bag-mult">Eficacia ×${cur.toFixed(2)}${next ? ` → ×${next.toFixed(2)}` : ''}</span>${action}</div>
+        </div>
+      </div>`;
+    }).join('');
+    view.innerHTML = `<div class="lk-bag__bar"><span class="lk-label">Habilidades de ${esc(base.name)} · nivel 1 a 5</span>${pts ? `<span class="lk-attr-pts">${pts} ${pts === 1 ? "punto" : "puntos"} de habilidad</span>` : ''}</div>`
+      + (cards || '<p class="lk-bag-empty"><b>Sin habilidades que mejorar</b>Este héroe no tiene hechizos con maestría todavía.</p>');
+    view.querySelectorAll('[data-up]').forEach((b) => b.addEventListener('click', () => {
+      if (em.upgradeSkill(this.selectedHeroId, b.dataset.up)) {
+        if (this.audio && this.audio.playBuff) this.audio.playBuff();
+        toast(`${SPELLS_DB[b.dataset.up]?.name || 'Habilidad'} mejorada`);
+        this._renderRoster();
+        this._renderHeroDetails();
+      }
+    }));
+  }
+
+  // ------------------------------------------------------------ ficha de objeto
+  _tipHTML(it, pinned) {
+    const k = slotOf(it);
+    const eqSlot = EQ_SLOTS.includes(k);
+    const eq = this._equipped();
+    const curId = eqSlot ? eq[k] : null;
+    const cur = curId ? ITEMS_DB[curId] : null;
+    const isOn = curId === it.id && !(this.equipmentManager.inventory || []).includes(it.id);
+    const hero = this._base()?.name || 'tu héroe';
+    const st = it.stats || {};
+    const keys = eqSlot ? [...new Set([...Object.keys(st), ...Object.keys((!isOn && cur?.stats) || {})])].filter((s) => STAT_ES[s] && (st[s] || (!isOn && cur?.stats?.[s]))) : [];
+    const diff = (s) => {
+      if (isOn || !cur) return '';
+      const d = (st[s] || 0) - (cur.stats?.[s] || 0);
+      return d === 0 ? '' : `<span class="${d > 0 ? 'lk-up' : 'lk-down'}">${d > 0 ? '▲' : '▼'}${Math.abs(d)}</span>`;
+    };
+    const eff = it.effect || {};
+    const effRows = k === 'consumable' ? [['heal', 'Curación'], ['pa', 'PA'], ['pm', 'PM'], ['shield', 'Escudo'], ['bond', 'Vínculo']].filter(([e]) => eff[e]).map(([e, l]) => `<span class="lk-tt-stat">${l}<b>+${eff[e]}${e === 'bond' ? ' %' : ''}</b></span>`).join('') : '';
+    let acts = '';
+    if (eqSlot) {
+      acts = isOn
+        ? `<button type="button" class="lk-btn lk-btn-secondary-wood lk-btn--sm" data-act="unequip"><span class="lk-b-ico">${sprite('i-close')}</span>Quitar</button>`
+        : `<button type="button" class="lk-btn lk-btn-primary-gold lk-btn--sm" data-act="equip"><span class="lk-b-ico"><img class="lk-ai" src="${I('tick')}" alt=""></span>Equipar a ${esc(hero)}</button>`;
+    } else if (k === 'consumable' && eff.bond) {
+      acts = `<button type="button" class="lk-btn lk-btn-primary-gold lk-btn--sm" data-act="use"><span class="lk-b-ico"><img class="lk-ai" src="${I('heart')}" alt=""></span>Dar a tu Axie</button>`;
+    } else if (k === 'consumable') {
+      acts = `<button type="button" class="lk-btn lk-btn-primary-gold lk-btn--sm" data-act="use"><span class="lk-b-ico"><img class="lk-ai" src="${I('tick')}" alt=""></span>Usar en ${esc(hero)}</button>`;
+    }
+    const r = it.rarity || 'common';
+    return `${pinned ? `<button type="button" class="lk-tt-x" aria-label="Cerrar ficha">${sprite('i-close')}</button>` : ''}
+      <header><span class="lk-tt-art">${art(it)}</span><div><small>${SLOT1[k] || 'Objeto'}${it.tier ? ` · Nivel ${it.tier}` : ''}</small><b>${esc(it.name)}</b><span class="lk-rar-chip" data-r="${r === 'legendary' ? 'mystic' : r}">${RAR_NAME[r] || r}</span></div></header>
+      <div class="lk-tt-body">
+        ${keys.length || effRows ? `<div class="lk-tt-stats">${keys.map((s) => `<span class="lk-tt-stat">${STAT_ES[s]}<b>${st[s] ? `+${st[s]}` : '—'}${diff(s)}</b></span>`).join('')}${effRows}</div>` : ''}
+        ${isOn ? `<span class="lk-tt-note">Equipado en ${esc(hero)}</span>` : cur ? `<span class="lk-tt-note">Comparado con ${esc(cur.name)} (equipado en ${esc(hero)})</span>` : ''}
+        ${k === 'quest' ? '<span class="lk-tt-note">Objeto de misión: se guarda para tus misiones activas.</span>' : ''}
+        ${it.description ? `<p class="${pinned ? '' : 'lk-clamp'}">${esc(it.description)}</p>` : ''}
+        ${pinned ? (acts ? `<div class="lk-actions">${acts}</div>` : '') : `<span class="lk-tt-hint">${eqSlot ? 'Clic: fijar ficha · Doble clic o arrastra: equipar' : k === 'consumable' ? 'Clic: fijar ficha · Doble clic: usar' : 'Clic: fijar ficha'}</span>`}
+      </div>`;
+  }
+
+  _placeTip(el) {
+    const tip = this.itip;
+    const r = el.getBoundingClientRect(), w = tip.offsetWidth, h = tip.offsetHeight;
+    let x = r.right + 12;
+    if (x + w > innerWidth - 8) x = r.left - w - 12;
+    if (x < 8) x = Math.max(8, Math.min(innerWidth - w - 8, r.left + r.width / 2 - w / 2));
+    tip.style.left = `${x}px`;
+    tip.style.top = `${Math.max(8, Math.min(innerHeight - h - 8, r.top - 6))}px`;
+  }
+
+  _hoverTip(el, id) {
+    if (this.pinned || document.body.classList.contains('lk-is-dragging')) return;
+    const it = ITEMS_DB[id];
+    if (!it) return;
+    this.itip.style.setProperty('--c', rv(it.rarity));
+    this.itip.innerHTML = this._tipHTML(it, false);
+    this.itip.classList.add('lk-is-on');
+    this._placeTip(el);
+  }
+
+  _unhoverTip() { if (!this.pinned) this.itip.classList.remove('lk-is-on'); }
+
+  _closeTip() {
+    this.pinned = null;
+    this.itip.classList.remove('lk-is-on', 'lk-is-pinned');
+    this.modalEl.querySelectorAll('.lk-it.lk-is-sel').forEach((x) => x.classList.remove('lk-is-sel'));
+  }
+
+  _hideTooltip() { this._closeTip(); }
+
+  _pinTip(id, anchor) {
+    const it = ITEMS_DB[id];
+    if (!it || !anchor) { this._closeTip(); return; }
+    this.pinned = { id, anchor };
+    this.modalEl.querySelectorAll('.lk-it[data-id]').forEach((x) => x.classList.toggle('lk-is-sel', x.dataset.id === id));
+    this.itip.style.setProperty('--c', rv(it.rarity));
+    this.itip.innerHTML = this._tipHTML(it, true);
+    this.itip.classList.add('lk-is-on', 'lk-is-pinned');
+    this._placeTip(anchor);
+    this.itip.querySelector('.lk-tt-x')?.addEventListener('click', () => this._closeTip());
+    this.itip.querySelector('[data-act="equip"]')?.addEventListener('click', () => this._equip(it));
+    this.itip.querySelector('[data-act="unequip"]')?.addEventListener('click', () => this._unequip(slotOf(it)));
+    this.itip.querySelector('[data-act="use"]')?.addEventListener('click', () => { this._closeTip(); this._useConsumable(it); });
+  }
+
+  // ------------------------------------------------------------ equipar
+  _statKeys() {
+    const s = this.equipmentManager.getCalculatedStats(this.selectedHeroId) || {};
+    return { hp: s.maxHP, damage: s.bonusDamage, pa: s.maxPA, pm: s.maxPM, initiative: s.initiative, shield: s.initialShield };
+  }
+
+  _equip(it) {
+    const hero = this.selectedHeroId;
+    const slot = it.slot;
+    const before = this._statKeys();
+    const prev = this._equipped()[slot];
+    if (!this.equipmentManager.equipItem(hero, slot, it.id)) { toast(`${it.name} no se puede equipar aquí`, true); return; }
+    if (this.audio && this.audio.playBuff) this.audio.playBuff();
+    if (this.onItemEquipped) this.onItemEquipped(hero, slot, it.id);
+    this._refreshModelEquipment();
+    if (this.isTutorialEquipLocked && it.id === this.tutorialTargetItemId) {
+      // El aviso de «¡Equipado!» se mantiene hasta cerrar la mochila
+    }
+    const after = this._statKeys();
+    this._closeTip();
+    this._renderRoster();
+    this._renderBackpackItems();
+    this._renderDoll(Object.keys(after).filter((k) => after[k] !== before[k]));
+    const el = this.$('doll').querySelector(`.lk-eq-slot[data-slot="${slot}"]`);
+    if (el) { el.classList.remove('lk-just-equipped'); void el.offsetWidth; el.classList.add('lk-just-equipped'); }
+    toast(`${it.name} equipado${prev && prev !== it.id ? ` · ${ITEMS_DB[prev]?.name || 'el anterior'} vuelve a la mochila` : ''}`);
+  }
+
+  _unequip(slot) {
+    const hero = this.selectedHeroId;
+    const id = this._equipped()[slot];
+    if (!id) return;
+    const before = this._statKeys();
+    this.equipmentManager.unequipItem(hero, slot);
+    if (this.audio && this.audio.playStep) this.audio.playStep();
+    if (typeof this.onItemUnequipped === 'function') this.onItemUnequipped(hero, slot);
+    this._refreshModelEquipment();
+    const after = this._statKeys();
+    this._closeTip();
+    this._renderBackpackItems();
+    this._renderDoll(Object.keys(after).filter((k) => after[k] !== before[k]));
+    toast(`${ITEMS_DB[id]?.name || 'Objeto'} vuelve a la mochila`);
+  }
+
+  _startDrag(e, src, id, from) {
+    const it = ITEMS_DB[id];
+    if (!it || !EQ_SLOTS.includes(it.slot)) return;
+    const sx = e.clientX, sy = e.clientY;
+    let ghost = null, over = null;
+    const slots = [...this.$('doll').querySelectorAll('.lk-eq-slot')];
+    const grid = this.$('bagView');
+    const move = (ev) => {
+      if (!ghost) {
+        if (Math.hypot(ev.clientX - sx, ev.clientY - sy) < 6) return;
+        ghost = document.createElement('div');
+        ghost.className = 'lk-ui lk-it lk-drag-ghost';
+        ghost.style.setProperty('--r', rv(it.rarity));
+        ghost.innerHTML = `<span class="lk-art">${art(it)}</span><span class="lk-cap">${SLOT1[it.slot]}</span>`;
+        document.body.appendChild(ghost);
+        document.body.classList.add('lk-is-dragging');
+        src.classList.add('lk-is-dragging');
+        this._closeTip();
+        slots.forEach((s) => s.classList.add(s.dataset.slot === it.slot ? 'lk-is-valid' : 'lk-is-invalid'));
+        if (from === 'slot') grid.classList.add('lk-is-drop');
+      }
+      ghost.style.left = `${ev.clientX}px`;
+      ghost.style.top = `${ev.clientY}px`;
+      const t = document.elementFromPoint(ev.clientX, ev.clientY);
+      over = t && (t.closest('#inventory-modal .lk-eq-slot') || t.closest('#inventory-modal [data-ref="bagView"]'));
+      slots.forEach((s) => s.classList.toggle('lk-is-hover', s === over && s.dataset.slot === it.slot));
+    };
+    const up = () => {
+      document.removeEventListener('pointermove', move);
+      document.removeEventListener('pointerup', up);
+      document.removeEventListener('pointercancel', up);
+      if (!ghost) return;
+      ghost.remove();
+      document.body.classList.remove('lk-is-dragging');
+      src.classList.remove('lk-is-dragging');
+      grid.classList.remove('lk-is-drop');
+      slots.forEach((s) => s.classList.remove('lk-is-valid', 'lk-is-invalid', 'lk-is-hover'));
+      this.justDropped = true;
+      setTimeout(() => { this.justDropped = false; }, 0);
+      if (over && over.classList && over.classList.contains('lk-eq-slot')) {
+        if (over.dataset.slot === it.slot) { if (this._equipped()[it.slot] !== id || from === 'grid') this._equip(it); }
+        else toast(`${it.name} va en la ranura de ${SLOT1[it.slot]}`, true);
+      } else if (from === 'slot' && over && over.dataset.ref === 'bagView') {
+        this._unequip(it.slot);
+      }
+    };
+    document.addEventListener('pointermove', move);
+    document.addEventListener('pointerup', up);
+    document.addEventListener('pointercancel', up);
+  }
+
+  _quickUse(id) {
+    const it = ITEMS_DB[id];
+    if (!it) return;
+    const k = slotOf(it);
+    this._closeTip();
+    if (EQ_SLOTS.includes(k)) this._equip(it);
+    else if (k === 'consumable') this._useConsumable(it);
+  }
+
+  // ------------------------------------------------------------ consumibles
   _useConsumable(item) {
     if (!item || !this.equipmentManager) return;
+    // Comida: siempre para el Axie principal (Axie Care), sin importar el héroe seleccionado
+    if (item.effect && item.effect.bond) {
+      const care = typeof window !== 'undefined' ? window.lunakaiAxieCare : null;
+      const r = care ? care.feed(item.id) : { ok: false };
+      if (this.audio && typeof this.audio.playBuff === 'function' && r.ok) this.audio.playBuff();
+      toast(r.ok ? `Tu Axie se come ${item.name}: vínculo ${r.before}% → ${r.after}%` : 'Ahora no puedes darle de comer');
+      this._renderHeroDetails();
+      this._renderBackpackItems();
+      return;
+    }
     const heroId = this.selectedHeroId;
-    const heroBase = this.equipmentManager.heroesBase[heroId];
-    const heroName = heroBase ? heroBase.name : 'Hero';
+    const heroName = this._base(heroId)?.name || 'Héroe';
     const stats = this.equipmentManager.getCalculatedStats(heroId);
     const maxHP = stats ? stats.maxHP : 300;
     const currentHP = this.equipmentManager.getCurrentHP(heroId);
-
-    let used = false;
-    let message = '';
-
+    let message;
     if (item.effect && item.effect.heal) {
-      const healAmt = item.effect.heal;
-      const newHP = Math.min(maxHP, currentHP + healAmt);
-      const actualHealed = newHP - currentHP;
+      const newHP = Math.min(maxHP, currentHP + item.effect.heal);
+      const healed = newHP - currentHP;
       this.equipmentManager.setCurrentHP(heroId, newHP);
-      used = true;
-      message = actualHealed > 0 
-        ? `💚 ${heroName} drank ${item.name} and recovered +${actualHealed} HP! (${newHP}/${maxHP})`
-        : `✨ ${heroName} used ${item.name} (health already at 100%).`;
-    } else if (item.effect && (item.effect.pa || item.effect.pm || item.effect.shield)) {
-      used = true;
-      message = `✨ Effect of ${item.name} activated on ${heroName}!`;
+      message = healed > 0 ? `${heroName} recupera +${healed} de vida (${newHP}/${maxHP})` : `${heroName} ya tenía la vida completa`;
     } else {
-      used = true;
-      message = `✨ ${heroName} used ${item.name}.`;
+      message = `${item.name}: efecto activado en ${heroName}`;
     }
-
-    if (used) {
-      const idx = this.equipmentManager.inventory.indexOf(item.id);
-      if (idx !== -1) {
-        this.equipmentManager.inventory.splice(idx, 1);
-      }
-
-      if (this.audio && typeof this.audio.playBuff === 'function') {
-        this.audio.playBuff();
-      }
-
-      this._showToast(message);
-      this._renderHeroDetails();
-      this._renderBackpackItems();
-    }
+    const idx = this.equipmentManager.inventory.indexOf(item.id);
+    if (idx !== -1) this.equipmentManager.inventory.splice(idx, 1);
+    if (this.audio && typeof this.audio.playBuff === 'function') this.audio.playBuff();
+    toast(message);
+    this._renderHeroDetails();
+    this._renderBackpackItems();
   }
 
-  _showToast(msg) {
-    let toast = document.getElementById('inv-toast-msg');
-    if (!toast) {
-      toast = document.createElement('div');
-      toast.id = 'inv-toast-msg';
-      toast.className = 'inv-toast-msg';
-      document.body.appendChild(toast);
-    }
-    toast.textContent = msg;
-    toast.classList.add('visible');
-    clearTimeout(this._toastTimeout);
-    this._toastTimeout = setTimeout(() => {
-      toast.classList.remove('visible');
-    }, 3000);
-  }
+  _showToast(msg) { toast(msg); }
+
+  _sfx() { if (this.audio && this.audio.playStep) this.audio.playStep(); }
 }

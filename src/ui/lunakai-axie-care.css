@@ -1,0 +1,116 @@
+/* Axie Care: panel flotante sobre el compañero (src/ui/AxieCarePanel.js) · Crónica Celeste
+   Luna de vínculo de la maqueta «09 · Vínculo Supremo», carril de los cuatro estados y acciones como filas claras. */
+
+#canvas-container.lk-care-hover, #canvas-container.lk-care-hover canvas { cursor: pointer; }
+
+.lk-care {
+  --sc: #EED39A;
+  position: fixed; left: 0; top: 0; z-index: 1800; width: 304px;
+  padding: 16px 16px 14px; border-radius: var(--lk-r-lg, 18px);
+  color: var(--lk-ivory-50, #FAF6EE);
+  background: var(--lk-lattice), linear-gradient(180deg, rgba(31, 42, 74, .97), rgba(16, 22, 40, .97));
+  box-shadow: inset 0 0 0 1px var(--lk-gilt-line, rgba(211, 174, 108, .45)), 0 18px 40px rgba(0, 0, 0, .5);
+  -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px);
+  font: 600 .8rem/1.4 var(--lk-font-ui, system-ui, sans-serif);
+  animation: lkCareIn .22s var(--lk-ease, ease-out);
+  pointer-events: auto;
+}
+.lk-care[hidden] { display: none; }
+/* Hilo de luz arriba con el color del estado del vínculo */
+.lk-care::before { content: ""; position: absolute; left: 22px; right: 22px; top: 0; height: 2px; background: linear-gradient(90deg, transparent, var(--sc), transparent); }
+/* Pico hacia el Axie */
+.lk-care::after { content: ""; position: absolute; left: -7px; top: 58%; width: 12px; height: 12px; transform: rotate(45deg); background: #1B2440; box-shadow: -1px 1px 0 0 var(--lk-gilt-line, rgba(211, 174, 108, .45)); }
+
+.lk-care__x { position: absolute; right: 10px; top: 10px; width: 28px; height: 28px; padding: 0; border: 0; border-radius: 50%; cursor: pointer; display: grid; place-items: center;
+  color: var(--lk-ivory-100, #EFE8DA); background: rgba(11, 15, 28, .55); box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .1); transition: color .15s, box-shadow .15s; }
+.lk-care__x svg { width: 13px; height: 13px; }
+.lk-care__x:hover, .lk-care__x:focus-visible { outline: none; color: var(--lk-gilt-100, #FFF1CF); box-shadow: inset 0 0 0 1px var(--lk-gilt-300, #EED39A); }
+
+.lk-care__kick { display: block; font: 800 .6rem/1.3 var(--lk-font-ui, system-ui); letter-spacing: .18em; text-transform: uppercase; color: var(--lk-gilt-500, #D3AE6C); }
+
+/* Cabecera: retrato del compañero */
+.lk-care__head { display: flex; align-items: center; gap: 12px; padding-right: 34px; }
+.lk-care__por { flex: none; width: 44px; height: 44px; border-radius: 50%; overflow: hidden; display: grid; place-items: center;
+  background: radial-gradient(circle at 50% 35%, #3A4870, #161D33 75%); box-shadow: 0 0 0 2px rgba(11, 15, 28, .8), 0 0 0 3.5px var(--lk-gilt-500, #D3AE6C); }
+.lk-care__por img { width: 122%; height: 122%; object-fit: contain; margin-top: 10%; }
+.lk-care__head b { display: block; font: 400 1.3rem/1.15 var(--lk-font-display, Georgia, serif); color: var(--lk-ivory-50, #FAF6EE); }
+
+/* Vínculo: luna + estado */
+.lk-care__bond { display: grid; grid-template-columns: 76px minmax(0, 1fr); gap: 12px; align-items: center; margin-top: 14px; }
+.lk-care__moon { position: relative; width: 76px; height: 76px; }
+.lk-care__moon svg { width: 100%; height: 100%; overflow: visible; }
+.lk-care__moon .lk-care__liq { animation: lkCareWave 3.2s ease-in-out infinite; }
+.lk-care__moon span { position: absolute; left: 0; right: 0; bottom: -6px; text-align: center; font: 400 1.05rem/1 var(--lk-font-display, Georgia, serif); color: var(--lk-ivory-50, #FAF6EE); text-shadow: 0 1px 4px rgba(0, 0, 0, .8); }
+.lk-care__moon.lk-is-full svg { filter: drop-shadow(0 0 10px rgba(242, 123, 160, .65)); animation: lkCareBreathe 2.4s ease-in-out infinite; }
+.lk-care__state b { display: block; margin-top: 1px; font: 400 1.2rem/1.15 var(--lk-font-display, Georgia, serif); color: var(--sc); }
+.lk-care__state p { margin: 4px 0 0; font-size: .72rem; line-height: 1.4; color: #AEB6CB; }
+
+/* Carril de los cuatro estados */
+.lk-care__rail { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); margin-top: 14px; border-top: 1px solid rgba(211, 174, 108, .2); }
+.lk-care__rail span { position: relative; padding-top: 9px; text-align: center; font: 800 .6rem/1.2 var(--lk-font-ui, system-ui); color: #6E7894; }
+.lk-care__rail i { position: absolute; left: 50%; top: -5px; width: 9px; height: 9px; transform: translateX(-50%) rotate(45deg); background: #0B0F1C; box-shadow: inset 0 0 0 1px #6E7894; }
+.lk-care__rail span.lk-is-past { color: #8D97AF; }
+.lk-care__rail span.lk-is-past i { box-shadow: inset 0 0 0 1px var(--c); }
+.lk-care__rail span.lk-is-on { color: var(--c); }
+.lk-care__rail span.lk-is-on i { background: var(--c); box-shadow: 0 0 10px var(--c); }
+
+/* Duo Ultimate */
+.lk-care__duo { display: flex; align-items: flex-start; gap: 8px; margin-top: 12px; padding: 8px 10px; border-radius: var(--lk-r-sm, 8px); font-size: .72rem; line-height: 1.4; color: #C8CFDF; background: rgba(11, 15, 28, .45); box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .06); }
+.lk-care__duo svg { flex: none; width: 14px; height: 14px; margin-top: 1px; color: #6E7894; }
+.lk-care__duo b { color: var(--lk-ivory-50, #FAF6EE); }
+.lk-care__duo.lk-is-ready { color: var(--lk-ivory-100, #EFE8DA); background: linear-gradient(90deg, rgba(211, 174, 108, .18), rgba(211, 174, 108, .05)); box-shadow: inset 0 0 0 1px rgba(238, 211, 154, .45); }
+.lk-care__duo.lk-is-ready svg { color: var(--lk-gilt-300, #EED39A); filter: drop-shadow(0 0 5px rgba(238, 211, 154, .8)); }
+.lk-care__duo.lk-is-ready b { color: var(--lk-gilt-100, #FFF1CF); }
+
+/* Secciones */
+.lk-care__sec { margin-top: 12px; padding-top: 10px; border-top: 1px solid rgba(211, 174, 108, .18); }
+.lk-care__label { display: block; margin-bottom: 7px; font: 800 .6rem/1.3 var(--lk-font-ui, system-ui); letter-spacing: .18em; text-transform: uppercase; color: var(--lk-gilt-500, #D3AE6C); }
+
+/* Filas de acción (acariciar y comida) con el mismo esquema: icono · texto · llamada */
+.lk-care__pet, .lk-care__food { position: relative; display: flex; align-items: center; gap: 10px; width: 100%; padding: 7px 10px 7px 7px; border: 0; border-radius: 12px; cursor: pointer; text-align: left; color: inherit; font: inherit; overflow: hidden;
+  background: rgba(255, 255, 255, .05); box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .08); transition: background .15s, box-shadow .15s, transform .15s; }
+.lk-care__pet:not([disabled]):hover, .lk-care__food:hover, .lk-care__pet:not([disabled]):focus-visible, .lk-care__food:focus-visible { outline: none; background: rgba(211, 174, 108, .14); box-shadow: inset 0 0 0 1px var(--lk-gilt-300, #EED39A); transform: translateY(-1px); }
+.lk-care__pet-ico, .lk-care__food-ico { position: relative; flex: none; width: 34px; height: 34px; display: grid; place-items: center; border-radius: 10px; font-size: 19px; background: rgba(11, 15, 28, .65); box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .08); }
+.lk-care__pet-ico { color: var(--lk-bond-heart-magenta, #F27BA0); }
+.lk-care__pet-ico svg { width: 19px; height: 19px; }
+.lk-care__food-ico img { width: 26px; height: 26px; object-fit: contain; }
+.lk-care__food-ico em { position: absolute; right: -6px; bottom: -5px; min-width: 20px; height: 17px; padding: 0 4px; border-radius: 9px; display: grid; place-items: center; font: 900 .58rem/1 var(--lk-font-ui, system-ui); font-style: normal; color: var(--lk-ink-900, #2E3448); background: var(--lk-ivory-100, #EFE8DA); box-shadow: 0 0 0 2px #141B30; }
+.lk-care__pet-txt, .lk-care__food-txt { flex: 1; min-width: 0; }
+.lk-care__pet-txt b, .lk-care__food-txt b { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: .8rem; font-weight: 800; color: var(--lk-ivory-50, #FAF6EE); }
+.lk-care__pet-txt small, .lk-care__food-txt small { display: block; font-size: .68rem; font-weight: 800; color: #FFB3CA; }
+.lk-care__pet-go, .lk-care__food-go { flex: none; padding: 3px 10px; border-radius: var(--lk-r-pill, 999px); font: 800 .66rem/1.4 var(--lk-font-ui, system-ui); color: var(--lk-ink-900, #2E3448); background: linear-gradient(180deg, var(--lk-ivory-50, #FAF6EE), var(--lk-ivory-200, #E2D7C3)); }
+/* Recarga: la fila se llena de izquierda a derecha y la llamada pasa a contador */
+.lk-care__pet.lk-is-wait { cursor: default; }
+.lk-care__pet.lk-is-wait::before { content: ""; position: absolute; inset: 0 auto 0 0; width: var(--pp, 0%); background: linear-gradient(90deg, rgba(242, 123, 160, .05), rgba(242, 123, 160, .14)); transition: width .5s linear; pointer-events: none; }
+.lk-care__pet.lk-is-wait .lk-care__pet-ico { color: #8D97AF; }
+.lk-care__pet.lk-is-wait .lk-care__pet-txt small { color: #8D97AF; }
+.lk-care__pet.lk-is-wait .lk-care__pet-go { color: #C8CFDF; background: rgba(11, 15, 28, .6); box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .1); font-variant-numeric: tabular-nums; }
+.lk-care__foods { display: grid; gap: 6px; }
+.lk-care__empty { margin: 0; padding: 8px 10px; border-radius: 10px; font-size: .72rem; color: #AEB6CB; background: rgba(11, 15, 28, .4); }
+
+/* Paseo */
+.lk-care__walk-row { display: flex; align-items: center; gap: 10px; }
+.lk-care__walk-ico { flex: none; width: 34px; height: 34px; display: grid; place-items: center; border-radius: 10px; color: var(--lk-gilt-300, #EED39A); background: rgba(11, 15, 28, .65); box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .08); }
+.lk-care__walk-ico svg { width: 18px; height: 18px; }
+.lk-care__walk-txt { flex: 1; min-width: 0; }
+.lk-care__walk-txt b { display: block; font-size: .8rem; font-weight: 800; }
+.lk-care__walk-txt small { display: block; font-size: .68rem; font-weight: 800; color: #AEB6CB; }
+.lk-care__walk-num { flex: none; font: 900 .82rem/1 var(--lk-font-ui, system-ui); color: var(--lk-ivory-50, #FAF6EE); font-variant-numeric: tabular-nums; }
+.lk-care__walk-num i { font-style: normal; font-weight: 800; font-size: .66rem; color: #8D97AF; }
+.lk-care__walk-bar { height: 6px; margin-top: 8px; }
+
+/* Efectos: corazones y ganancia */
+.lk-care-fx { position: fixed; inset: 0; pointer-events: none; z-index: 1790; }
+.lk-care-heart { position: absolute; font-size: 20px; transform: translate(-50%, -50%); animation: lkCareHeart 1.5s ease-out forwards; }
+.lk-care-gain { position: absolute; transform: translate(-50%, -50%); padding: 2px 10px; border-radius: 999px; white-space: nowrap;
+  font: 900 .8rem/1.4 var(--lk-font-ui, system-ui); color: #FFE3EC; background: rgba(176, 58, 100, .85); box-shadow: 0 0 0 1.5px rgba(255, 194, 210, .7), 0 6px 14px rgba(0, 0, 0, .35);
+  animation: lkCareGain 1.7s ease-out forwards; }
+
+@keyframes lkCareIn { from { opacity: 0; scale: .94; } to { opacity: 1; scale: 1; } }
+@keyframes lkCareWave { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-1.5px); } }
+@keyframes lkCareBreathe { 0%, 100% { scale: 1; } 50% { scale: 1.04; } }
+@keyframes lkCareHeart { 0% { opacity: 0; translate: 0 0; scale: .6; } 15% { opacity: 1; scale: 1.1; } 100% { opacity: 0; translate: 0 -90px; scale: .9; } }
+@keyframes lkCareGain { 0% { opacity: 0; translate: 0 6px; } 15% { opacity: 1; translate: 0 0; } 80% { opacity: 1; } 100% { opacity: 0; translate: 0 -34px; } }
+@media (prefers-reduced-motion: reduce) { .lk-care, .lk-care-heart, .lk-care-gain, .lk-care__moon svg, .lk-care__moon .lk-care__liq { animation-duration: .01s; animation-iteration-count: 1; } }
+.lk-care__food[disabled] { cursor: default; opacity: .6; }
+.lk-care__food[disabled] .lk-care__food-go { color: #C8CFDF; background: rgba(11, 15, 28, .6); }

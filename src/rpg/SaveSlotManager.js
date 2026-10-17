@@ -375,23 +375,115 @@ export const SAPIDAE_CLASSES = {
   }
 };
 
+// Invitado: la clave histórica (conserva el progreso que ya existía en el dispositivo).
 const STORAGE_KEY = 'axie_tactics_adventure_slots_v1';
+// Cuenta: una caché local separada por usuario, para que cambiar de cuenta nunca mezcle ni muestre progreso ajeno.
+const ACCOUNT_KEY_PREFIX = 'lunakai_slots_u_';
+
+const emptySync = () => ({ versions: {}, dirty: {}, pendingDeletes: {} });
 
 export class SaveSlotManager {
   constructor() {
     this.slots = { 1: null, 2: null, 3: null };
     this.activeSlotId = null;
+    this.owner = { mode: 'guest' };
+    this.storageKey = STORAGE_KEY;
+    this.sync = emptySync();
+    // Ganchos que activa CloudSave cuando hay una cuenta conectada
+    this.onLocalChange = null;   // (slotIds[]) => void
+    this.onLocalDelete = null;   // (slotId) => void
     this._loadFromStorage();
+  }
+
+  // ---------------------------------------------------------------- dueño de las ranuras (invitado / cuenta)
+
+  /** Cambia de quién son las ranuras en memoria: { mode: 'guest' } o { mode: 'account', userId }. */
+  setOwner(owner) {
+    const next = owner && owner.mode === 'account' && owner.userId ? { mode: 'account', userId: owner.userId } : { mode: 'guest' };
+    this.owner = next;
+    this.storageKey = next.mode === 'account' ? ACCOUNT_KEY_PREFIX + next.userId : STORAGE_KEY;
+    this.slots = { 1: null, 2: null, 3: null };
+    this.activeSlotId = null;
+    this.sync = emptySync();
+    this._loadFromStorage();
+  }
+
+  isAccount() { return this.owner.mode === 'account'; }
+
+  /** Borra la caché local de la cuenta actual (al cerrar sesión) y vuelve a modo invitado. */
+  clearAccountCache() {
+    if (this.isAccount()) {
+      try { localStorage.removeItem(this.storageKey); } catch { /* nada */ }
+    }
+    this.setOwner({ mode: 'guest' });
+  }
+
+  /** Aventuras de invitado guardadas en este dispositivo (sin cargarlas). */
+  readGuestSlots() {
+    try {
+      const data = JSON.parse(localStorage.getItem(STORAGE_KEY) || 'null');
+      return data && data.slots ? Object.assign({ 1: null, 2: null, 3: null }, data.slots) : { 1: null, 2: null, 3: null };
+    } catch { return { 1: null, 2: null, 3: null }; }
+  }
+
+  hasGuestSlots() { return Object.values(this.readGuestSlots()).some(Boolean); }
+
+  /** Tras subirlas a una cuenta, las aventuras de invitado se archivan (no se borran) para no volver a ofrecerlas. */
+  archiveGuestSlots() {
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      if (raw) localStorage.setItem(`${STORAGE_KEY}_linked_${Date.now()}`, raw);
+      localStorage.removeItem(STORAGE_KEY);
+    } catch { /* nada */ }
+  }
+
+  // ---------------------------------------------------------------- estado de sincronización (lo usa CloudSave)
+
+  isDirty(slotId) { return Boolean(this.sync.dirty[slotId]); }
+  markDirty(slotId) { this.sync.dirty[slotId] = true; this._writeStorage(); }
+  clearDirty(slotId) { delete this.sync.dirty[slotId]; this._writeStorage(); }
+  getDirtySlotIds() { return Object.keys(this.sync.dirty).map(Number); }
+  getCloudVersion(slotId) { return this.sync.versions[slotId] || 0; }
+  setCloudVersion(slotId, v) { this.sync.versions[slotId] = v; this._writeStorage(); }
+  getPendingDeletes() { return Object.keys(this.sync.pendingDeletes).map(Number); }
+  addPendingDelete(slotId) { this.sync.pendingDeletes[slotId] = true; this._writeStorage(); }
+  clearPendingDelete(slotId) { delete this.sync.pendingDeletes[slotId]; delete this.sync.versions[slotId]; this._writeStorage(); }
+
+  /** Escribe una ranura que viene de la nube (no la marca como pendiente). */
+  applyCloudSlot(slotId, data, version) {
+    const prev = this.slots[slotId];
+    const merged = { ...data, id: slotId };
+    if (prev && prev.sapidaePortrait && !merged.sapidaePortrait) merged.sapidaePortrait = prev.sapidaePortrait;
+    this.slots[slotId] = merged;
+    this.sync.versions[slotId] = version;
+    delete this.sync.dirty[slotId];
+    this._writeStorage();
+  }
+
+  /** Quita una ranura solo en local (se borró en otro dispositivo). */
+  removeSlotLocal(slotId) {
+    this.slots[slotId] = null;
+    if (this.activeSlotId === slotId) this.activeSlotId = null;
+    delete this.sync.versions[slotId];
+    delete this.sync.dirty[slotId];
+    this._writeStorage();
+  }
+
+  /** Inserta una aventura traída del invitado y la marca para subir. */
+  importSlot(slotId, data) {
+    this.slots[slotId] = data;
+    this._saveToStorage([slotId]);
   }
 
   _loadFromStorage() {
     try {
-      const raw = localStorage.getItem(STORAGE_KEY);
+      const raw = localStorage.getItem(this.storageKey);
       if (raw) {
         const data = JSON.parse(raw);
         if (data && data.slots) {
           this.slots = Object.assign({ 1: null, 2: null, 3: null }, data.slots);
           this.activeSlotId = data.activeSlotId || null;
+          this.sync = Object.assign(emptySync(), data.sync || {});
 
           // Auto-migrate legacy slots: update old Beast Axie ID (11968787) or old genes to Axie #10455
           const OLD_BEAST_GENES_PREFIX = '0x10001c0e090020c0';
@@ -473,7 +565,21 @@ export class SaveSlotManager {
     }
   }
 
-  _saveToStorage() {
+  /**
+   * Guarda en la caché local. `changedSlotIds` = ranuras cuyo contenido cambió:
+   * con una cuenta conectada se marcan como pendientes y se avisa a CloudSave.
+   */
+  _saveToStorage(changedSlotIds = []) {
+    const ids = changedSlotIds.map(Number).filter((id) => id >= 1 && id <= 3 && this.slots[id]);
+    if (this.isAccount()) ids.forEach((id) => { this.sync.dirty[id] = true; });
+    const ok = this._writeStorage();
+    if (ids.length && this.isAccount() && typeof this.onLocalChange === 'function') {
+      try { this.onLocalChange(ids); } catch (e) { console.warn('[SaveSlotManager] onLocalChange', e); }
+    }
+    return ok;
+  }
+
+  _writeStorage() {
     try {
       const payload = {
         version: 1,
@@ -481,9 +587,13 @@ export class SaveSlotManager {
         slots: this.slots,
         updatedAt: Date.now()
       };
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
+      if (this.isAccount()) payload.sync = this.sync;
+      localStorage.setItem(this.storageKey, JSON.stringify(payload));
+      return true;
     } catch (e) {
       console.warn('[SaveSlotManager] Error saving slots to localStorage:', e);
+      this.lastLocalError = e;
+      return false;
     }
   }
 
@@ -584,7 +694,7 @@ export class SaveSlotManager {
 
     this.slots[slotId] = newSlot;
     this.activeSlotId = slotId;
-    this._saveToStorage();
+    this._saveToStorage([slotId]);
     console.log(`[SaveSlotManager] Created Slot #${slotId} with hero: ${heroTemplate.name} (#${heroTemplate.axieId})`);
     return newSlot;
   }
@@ -602,6 +712,7 @@ export class SaveSlotManager {
     if (progressData.questProgress) slot.questProgress = progressData.questProgress;
     if (progressData.tutorialProgress) slot.tutorialProgress = progressData.tutorialProgress;
     if (progressData.unlockedHeroes) slot.unlockedHeroes = progressData.unlockedHeroes;
+    if (progressData.squad !== undefined) slot.squad = progressData.squad;
     if (progressData.inventory) slot.inventory = progressData.inventory;
     if (progressData.equipped) slot.equipped = progressData.equipped;
     if (progressData.progression) slot.progression = progressData.progression;
@@ -610,8 +721,9 @@ export class SaveSlotManager {
     if (progressData.playerName) slot.playerName = progressData.playerName;
     if (progressData.sapidaeClass) slot.sapidaeClass = progressData.sapidaeClass;
     if (progressData.customization) slot.customization = progressData.customization;
+    if (progressData.bond) slot.bond = progressData.bond; // vínculo por Axie (BondService)
 
-    this._saveToStorage();
+    return this._saveToStorage([this.activeSlotId]);
   }
 
   deleteSlot(slotId) {
@@ -620,7 +732,11 @@ export class SaveSlotManager {
       if (this.activeSlotId === slotId) {
         this.activeSlotId = null;
       }
+      delete this.sync.dirty[slotId];
       this._saveToStorage();
+      if (this.isAccount() && typeof this.onLocalDelete === 'function') {
+        try { this.onLocalDelete(slotId); } catch (e) { console.warn('[SaveSlotManager] onLocalDelete', e); }
+      }
       console.log(`[SaveSlotManager] Deleted Slot #${slotId}`);
       return true;
     }

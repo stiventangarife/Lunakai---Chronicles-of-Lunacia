@@ -487,7 +487,7 @@ export const ITEMS_DB = {
     rarity: 'epic',
     tier: 3,
     stats: { hp: 100 },
-    description: 'Brooch blessed by Pomodoro\'s flowers. Grants +100 HP and boosts your defenses.'
+    description: 'Brooch woven from Pomodoro\'s autumn leaves. Grants +100 HP and boosts your defenses.'
   },
   concentration_talisman: {
     id: 'concentration_talisman',
@@ -583,6 +583,46 @@ export const ITEMS_DB = {
     tier: 5,
     stats: { pm: 1, hp: 70, initiative: 14, shield: 30 },
     description: 'Mystic footwear granting supernatural speed. +1 MP, +70 HP, +14 Initiative and +30 Shield.'
+  },
+
+  // ==========================================
+  // --- 5b. COMIDA PARA EL AXIE (Axie Care: sube el vínculo, ver rpg/AxieCareService.js) ---
+  // ==========================================
+  food_berry: {
+    id: 'food_berry',
+    name: 'Mandarina lunar',
+    category: 'food',
+    slot: 'consumable',
+    icon: './assets/food/mandarin.png',
+    rarity: 'common',
+    tier: 1,
+    stats: {},
+    effect: { bond: 10 },
+    description: 'Mandarina dulce que brilla bajo la luna de Lunacia. A tu Axie le encanta: +10 % de vínculo.'
+  },
+  food_rice_cake: {
+    id: 'food_rice_cake',
+    name: 'Pastelito de arroz del dojo',
+    category: 'food',
+    slot: 'consumable',
+    icon: './assets/food/rice.png',
+    rarity: 'uncommon',
+    tier: 2,
+    stats: {},
+    effect: { bond: 15 },
+    description: 'Receta casera del Valle del Dojo, todavía tibia. +15 % de vínculo con tu Axie.'
+  },
+  food_feast: {
+    id: 'food_feast',
+    name: 'Festín de Lunacia',
+    category: 'food',
+    slot: 'consumable',
+    icon: './assets/food/feast.png',
+    rarity: 'rare',
+    tier: 3,
+    stats: {},
+    effect: { bond: 25 },
+    description: 'Banquete de frutas, néctar y arroz dorado para ocasiones especiales. +25 % de vínculo con tu Axie.'
   },
 
   // ==========================================

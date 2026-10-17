@@ -33,13 +33,19 @@ export class DynamicCombatFactory {
       ? equipmentManager.unlockedHeroes
       : ['kotaro'];
 
-    // Up to 3 active heroes (kotaro primary, plus unlocked allies)
-    const activeHeroIds = ['kotaro'];
-    if (unlockedHeroes.includes('bing') && !activeHeroIds.includes('bing')) {
-      activeHeroIds.push('bing');
-    }
-    if (unlockedHeroes.includes('pomodoro') && !activeHeroIds.includes('pomodoro')) {
-      activeHeroIds.push('pomodoro');
+    // Up to 3 active heroes: the squad chosen in the Escuadrón panel (main companion first).
+    // Fallback (no squad API): kotaro primary, plus unlocked allies, as before.
+    const activeHeroIds = (equipmentManager && typeof equipmentManager.getCombatHeroIds === 'function')
+      ? equipmentManager.getCombatHeroIds().slice(0, 3)
+      : [];
+    if (!activeHeroIds.length) {
+      activeHeroIds.push('kotaro');
+      if (unlockedHeroes.includes('bing') && !activeHeroIds.includes('bing')) {
+        activeHeroIds.push('bing');
+      }
+      if (unlockedHeroes.includes('pomodoro') && !activeHeroIds.includes('pomodoro')) {
+        activeHeroIds.push('pomodoro');
+      }
     }
 
     // Temporary quest allies in specific macro zones:
@@ -52,7 +58,7 @@ export class DynamicCombatFactory {
 
     // Bing fights alongside the player in macro-zone [3, 2] once the player accepts his mission (find_bing step done)
     // or during the direct surprise ambush battle (encounterData.monsterId === 'mob_bing_ambush')
-    if (!activeHeroIds.includes('bing') && qm) {
+    if (!activeHeroIds.includes('bing') && activeHeroIds.length < 3 && qm) {
       const qBing = qm.getQuest('quest_prove_ferocity');
       const hasFoundBing = qBing?.objective?.steps?.find(s => s.id === 'find_bing')?.done;
       if ((zoneKey === '3_2' || encounterData.monsterId === 'mob_bing_ambush') && qBing && qBing.status === 'active' && (hasFoundBing || encounterData.monsterId === 'mob_bing_ambush')) {
@@ -61,7 +67,7 @@ export class DynamicCombatFactory {
     }
 
     // Pomodoro fights alongside the player in macro-zone [2, 1] once the player speaks with him (reach_arctic step done)
-    if (!activeHeroIds.includes('pomodoro') && qm) {
+    if (!activeHeroIds.includes('pomodoro') && activeHeroIds.length < 3 && qm) {
       const qPomo = qm.getQuest('quest_frozen_seed');
       const hasReachedArctic = qPomo?.objective?.steps?.find(s => s.id === 'reach_arctic')?.done;
       if ((zoneKey === '2_1' || encounterData.monsterId === 'mob_pomodoro_battle') && qPomo && qPomo.status === 'active' && hasReachedArctic) {

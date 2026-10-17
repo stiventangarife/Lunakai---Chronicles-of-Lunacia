@@ -1,0 +1,111 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Part Mapper — Lunakai</title>
+<style>
+  :root { --bg:#14111c; --panel:#1f1a2b; --ink:#f1ecff; --mute:#a99fc4; --acc:#ffb84d; --ok:#6fdc8c; --bad:#ff7a7a; }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--ink); font:14px/1.45 system-ui, sans-serif; padding:24px 16px; }
+  main { max-width:960px; margin:0 auto; }
+  h1 { font-size:22px; margin:0 0 4px; } p { color:var(--mute); margin:4px 0 16px; }
+  .row { display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin:8px 0; }
+  input, button { font:inherit; border-radius:8px; border:1px solid #3a3150; background:var(--panel); color:var(--ink); padding:8px 10px; }
+  input { flex:1; min-width:220px; } button { cursor:pointer; background:var(--acc); color:#1a1200; border:0; font-weight:600; }
+  button:disabled { opacity:.5; cursor:default; }
+  #log { background:var(--panel); border-radius:10px; padding:10px; height:160px; overflow:auto; font:12px/1.4 ui-monospace, monospace; white-space:pre-wrap; }
+  table { width:100%; border-collapse:collapse; margin-top:12px; font-size:12px; }
+  td, th { padding:4px 6px; border-bottom:1px solid #2c2540; text-align:left; } .miss { color:var(--bad); } .ok { color:var(--ok); }
+</style>
+</head>
+<body>
+<main>
+  <h1>Part Mapper</h1>
+  <p>Construye <code>src/tactics/data/PartVariants.js</code> (variante del gen → nombre de la parte) con Axies reales del marketplace de Sky Mavis.
+     Ábrelo con el servidor del juego: <code>node server.js 8082</code> → <code>http://localhost:8082/tools/part-mapper.html</code>.</p>
+  <div class="row"><input id="key" placeholder="X-API-Key de Sky Mavis (la misma del juego)"><input id="pages" type="number" value="10" min="1" max="100" style="max-width:110px" title="Páginas de 100 Axies"></div>
+  <div class="row"><button id="run">Muestrear marketplace</button><button id="dl" disabled>Descargar PartVariants.js</button><span id="stat"></span></div>
+  <div id="log"></div>
+  <table id="grid"></table>
+</main>
+<script type="module">
+import { PART_VARIANTS } from '../src/tactics/data/PartVariants.js';
+import { findPartCard } from '../src/tactics/data/PartCards.js';
+
+const API = 'https://api-gateway.skymavis.com/graphql/axie-marketplace';
+const CLASSES = { 0:'beast', 1:'bug', 2:'bird', 3:'plant', 4:'aquatic', 5:'reptile', 16:'mech', 17:'dawn', 18:'dusk' };
+const ORDER = ['eyes', 'mouth', 'ears', 'horn', 'back', 'tail']; // orden de las partes en los genes de 512 bits
+const map = { ...PART_VARIANTS };
+const $ = (id) => document.getElementById(id);
+const log = (m) => { $('log').textContent += m + '\n'; $('log').scrollTop = 1e9; };
+try { $('key').value = localStorage.getItem('lk-part-mapper-key') || ''; } catch {}
+
+/** Mismo formato que el decodificador del Axie Mixer (genes-decoder): cabecera de 128 bits + 6 partes de 64. */
+function decode(genes) {
+  const v = BigInt('0x' + String(genes).replace(/^0x/, '').padStart(128, '0'));
+  let off = 0;
+  const rd = (n) => { const r = Number((v >> BigInt(512 - off - n)) & ((1n << BigInt(n)) - 1n)); off += n; return r; };
+  rd(5); rd(45); rd(5); rd(1); rd(9); rd(9); rd(9); rd(9); for (let i = 0; i < 6; i++) rd(6);
+  return ORDER.map((type) => { rd(2); rd(13); rd(1); const skin = rd(9); const cls = CLASSES[rd(5)]; const variant = rd(8); rd(5); rd(8); rd(5); rd(8); return { type, skin, cls, variant }; });
+}
+
+function render() {
+  const rows = [];
+  for (const c of ['beast', 'bug', 'bird', 'plant', 'aquatic', 'reptile']) for (const t of ['eyes', 'ears', 'mouth', 'horn', 'back', 'tail']) {
+    const cells = ['02', '04', '06', '08', '10', '12'].map((v) => {
+      const n = map[`${c}-${t}-${v}`];
+      if (!n) return '<td class="miss">—</td>';
+      return `<td class="${findPartCard(c, t, n) ? 'ok' : 'miss'}">${n}</td>`;
+    });
+    rows.push(`<tr><th>${c} ${t}</th>${cells.join('')}</tr>`);
+  }
+  $('grid').innerHTML = '<tr><th></th><th>02</th><th>04</th><th>06</th><th>08</th><th>10</th><th>12</th></tr>' + rows.join('');
+  $('stat').textContent = `${Object.keys(map).length} variantes conocidas`;
+}
+
+async function page(from, key) {
+  const query = `query($f:Int!){ axies(from:$f, size:100, sort: IdDesc){ results{ id newGenes parts{ name class type } } } }`;
+  const r = await fetch(API, { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-API-Key': key }, body: JSON.stringify({ query, variables: { f: from } }) });
+  const j = await r.json();
+  if (j.errors) throw new Error(j.errors[0].message);
+  return j.data.axies.results;
+}
+
+$('run').onclick = async () => {
+  const key = $('key').value.trim();
+  if (!key) return log('Falta la API key.');
+  try { localStorage.setItem('lk-part-mapper-key', key); } catch {}
+  $('run').disabled = true;
+  let added = 0, conflicts = 0;
+  const pages = Math.max(1, Math.min(100, Number($('pages').value) || 10));
+  for (let p = 0; p < pages; p++) {
+    try {
+      for (const ax of await page(p * 100, key)) {
+        if (!ax.newGenes) continue;
+        const d = decode(ax.newGenes);
+        for (const part of ax.parts) {
+          const type = part.type.toLowerCase();
+          const g = d.find((x) => x.type === type);
+          if (!g || !g.cls) continue;
+          const k = `${g.cls}-${type}-${String(g.variant).padStart(2, '0')}` + (g.skin ? `-s${g.skin}` : '');
+          if (!map[k]) { map[k] = part.name; added++; } else if (map[k] !== part.name) { conflicts++; log(`Conflicto ${k}: ${map[k]} / ${part.name}`); }
+        }
+      }
+      log(`Página ${p + 1}/${pages}: +${added} nuevas, ${conflicts} conflictos`);
+    } catch (e) { log(`Página ${p + 1}: ${e.message}`); }
+    render();
+  }
+  $('run').disabled = false; $('dl').disabled = false;
+};
+
+$('dl').onclick = () => {
+  const lines = Object.keys(map).sort().map((k) => `  '${k}': ${JSON.stringify(map[k]).replace(/^"|"$/g, "'")},`);
+  const src = `// PartVariants.js — generado con tools/part-mapper.html el ${new Date().toISOString().slice(0, 10)}\n// Formato: 'beast-horn-10': 'Dual Blade'\n\nexport const PART_VARIANTS = {\n${lines.join('\n')}\n};\n`;
+  const a = Object.assign(document.createElement('a'), { href: URL.createObjectURL(new Blob([src], { type: 'text/javascript' })), download: 'PartVariants.js' });
+  a.click();
+};
+render();
+</script>
+</body>
+</html>

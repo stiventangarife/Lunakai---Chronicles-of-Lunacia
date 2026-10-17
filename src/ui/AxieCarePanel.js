@@ -1,0 +1,316 @@
+// AxieCarePanel.js — Panel flotante de Axie Care en el mundo abierto.
+//
+// · Clic (sin arrastrar la cámara) sobre el Axie compañero → panel anclado sobre él: vínculo, estado de ánimo,
+//   Acariciar (+5 %, con recarga), comida del inventario (+10/+15/+25 %) y progreso del paseo (+2 % cada 500 m).
+// · Al pasar el ratón por encima del compañero el cursor cambia a una mano.
+// · Corazones flotantes y un saltito del Axie al acariciarlo o darle de comer.
+// · Cuenta los metros caminados juntos mientras se explora (sin teletransportes ni transiciones).
+// La lógica (y el guardado) está en rpg/AxieCareService.js; este módulo solo lee la escena y pinta.
+
+import * as THREE from 'three';
+import { AxieCareService, PET_BOND, PET_COOLDOWN_MS, WALK_STEP_METERS, WALK_BOND } from '../rpg/AxieCareService.js';
+import { portraitService } from '../tactics/CharacterPortraitService.js';
+import { ITEMS_DB } from '../tactics/ItemDatabase.js';
+import { toast } from './lk.js';
+
+const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+const CLICK_SLOP = 6;           // px: más movimiento = arrastre de cámara, no clic
+const MAX_PANEL_DIST = 9;       // m: si el jugador se aleja más, el panel se cierra
+const MAX_STEP = 3;             // m por fotograma: más = teletransporte o cambio de zona (no cuenta)
+const fmtTime = (ms) => { const s = Math.ceil(ms / 1000); return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`; };
+
+export function attachAxieCare(game) {
+  const ow = game.overworldManager;
+  if (!ow || game.__lkAxieCare) return null;
+  game.__lkAxieCare = true;
+
+  const service = new AxieCareService({
+    equipmentManager: game.equipmentManager,
+    itemsDb: ITEMS_DB,
+    onSave: () => { try { game._saveCurrentProgress?.(); } catch { /* nada */ } },
+  });
+  window.lunakaiAxieCare = service;
+
+  // ------------------------------------------------------------------ DOM
+  const panel = document.createElement('div');
+  panel.className = 'lk-ui lk-care';
+  panel.hidden = true;
+  panel.setAttribute('role', 'dialog');
+  panel.setAttribute('aria-label', 'Cuidar a tu Axie');
+  document.body.appendChild(panel);
+  const fx = document.createElement('div');
+  fx.className = 'lk-care-fx';
+  document.body.appendChild(fx);
+
+  const container = ow.container || document.getElementById('canvas-container');
+  const raycaster = new THREE.Raycaster();
+  const ndc = new THREE.Vector2();
+  const tmp = new THREE.Vector3();
+  let open = false;
+  let pressed = null;
+  let lastPos = null;
+  let tickTimer = 0;
+  let placed = null;
+
+  const player = () => ow.player;
+  const companion = () => player()?.companionGroup || null;
+  const exploring = () => ow.state === 'EXPLORING' && !(typeof ow.isAnyModalOpen === 'function' && ow.isAnyModalOpen());
+  const companionName = () => player()?.companionName || game.equipmentManager?.heroesBase?.[service.companionId()]?.name || 'tu Axie';
+
+  /** Posición en pantalla de un punto sobre el compañero (alto en metros). */
+  function screenOf(height = 1.5) {
+    const c = companion();
+    const cam = ow.camera;
+    if (!c || !cam) return null;
+    c.getWorldPosition(tmp);
+    tmp.y += height;
+    tmp.project(cam);
+    if (tmp.z > 1) return null; // detrás de la cámara
+    const r = container.getBoundingClientRect();
+    return { x: r.left + (tmp.x + 1) / 2 * r.width, y: r.top + (1 - tmp.y) / 2 * r.height };
+  }
+
+  /** ¿El puntero está sobre el compañero? Rayo contra la malla y, de respaldo, distancia en pantalla. */
+  function hitsCompanion(clientX, clientY) {
+    const c = companion();
+    const cam = ow.camera;
+    if (!c || !c.visible || !cam) return false;
+    const r = container.getBoundingClientRect();
+    ndc.set(((clientX - r.left) / r.width) * 2 - 1, -((clientY - r.top) / r.height) * 2 + 1);
+    raycaster.setFromCamera(ndc, cam);
+    try { if (raycaster.intersectObject(c, true).length) return true; } catch { /* mallas sin geometría */ }
+    const p = screenOf(0.55);
+    if (!p) return false;
+    c.getWorldPosition(tmp);
+    const dist = cam.position.distanceTo(tmp);
+    const radius = THREE.MathUtils.clamp(520 / Math.max(1, dist), 26, 90);
+    return Math.hypot(clientX - p.x, clientY - p.y) < radius;
+  }
+
+  // ------------------------------------------------------------------ pintar
+  // Estados del vínculo (maqueta «09 · Vínculo Supremo»): qué significa cada tramo en combate
+  const STATES = [
+    { id: 'neglected', max: 25, t: 'Desatendido', c: '#FFB4AE', d: 'La sinergia con tu Sapidae se apaga y puede vacilar al empezar su turno.' },
+    { id: 'neutral', max: 50, t: 'Neutral', c: '#EED39A', d: 'Combate sin penalizaciones ni bonificaciones.' },
+    { id: 'loyal', max: 75, t: 'Fiel', c: '#A8F0B6', d: 'La sinergia Sapidae–Axie se activa por completo.' },
+    { id: 'soul', max: 100, t: 'Resonancia', c: '#FFB3CA', d: 'Escudo de afecto ante un golpe letal y +10 % de crítico.' },
+  ];
+  const ICO_HAND = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 13V5.5a1.5 1.5 0 0 1 3 0V12"/><path d="M11 11.5v-7a1.5 1.5 0 0 1 3 0V12"/><path d="M14 11.5V6a1.5 1.5 0 0 1 3 0v7.5"/><path d="M17 9.5a1.5 1.5 0 0 1 3 0V15a7 7 0 0 1-7 7h-1.2a7 7 0 0 1-5.4-2.6L3.3 15.6a1.6 1.6 0 0 1 2.4-2.1L8 15.5"/></svg>';
+  const ICO_WALK = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="13" cy="4" r="2"/><path d="M7 22l3-7 3 2v5"/><path d="M10 15l-1-6 4-1 3 4 3 1"/><path d="M9 9l-3 3"/></svg>';
+  const ICO_STAR = '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2l2.6 6.3L21 9l-5 4.4L17.6 20 12 16.6 6.4 20 8 13.4 3 9l6.4-.7z"/></svg>';
+
+  function portraitUrl() {
+    const id = service.companionId();
+    const base = game.equipmentManager?.heroesBase?.[id];
+    const key = base?.axieId || player()?.axieId || id;
+    try { return portraitService.getPortraitSync(key) || portraitService.getPortraitSync(id) || null; } catch { return null; }
+  }
+
+  /** Luna del vínculo: el líquido sube con el porcentaje. */
+  function moonSVG(bond) {
+    const y = 6 + 52 * (1 - bond / 100);
+    return `<svg viewBox="0 0 64 64" aria-hidden="true">
+      <defs><clipPath id="lkCareMoon"><circle cx="32" cy="32" r="25"/></clipPath>
+      <linearGradient id="lkCareLiq" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#FFD3E0"/><stop offset="1" stop-color="#E25C88"/></linearGradient></defs>
+      <circle cx="32" cy="32" r="25" fill="#141B2E"/>
+      <g clip-path="url(#lkCareMoon)"><path class="lk-care__liq" d="M-4 ${y} q9 -2.5 18 0 t18 0 t18 0 t18 0 V70 H-4z" fill="url(#lkCareLiq)"/>
+      <circle cx="23" cy="25" r="3.2" fill="#fff" opacity=".14"/></g>
+      <circle cx="32" cy="32" r="25" fill="none" stroke="#EED39A" stroke-opacity=".75"/>
+      <circle cx="32" cy="32" r="29" fill="none" stroke="#EED39A" stroke-opacity=".25" stroke-dasharray="1.5 4"/>
+      <path d="M32 40s-7-4.2-7-8.9c0-2.2 1.6-3.5 3.4-3.5 1.6 0 2.6.9 3.6 2.2 1-1.3 2-2.2 3.6-2.2 1.8 0 3.4 1.3 3.4 3.5 0 4.7-7 8.9-7 8.9z" fill="#fff" fill-opacity=".92"/>
+    </svg>`;
+  }
+
+  function render() {
+    const s = service.status();
+    const name = companionName();
+    const si = Math.max(0, STATES.findIndex((x) => s.bond <= x.max));
+    const st = STATES[si];
+    const img = portraitUrl();
+    const petPct = s.petReady ? 100 : Math.max(0, Math.min(100, (1 - s.petLeftMs / PET_COOLDOWN_MS) * 100));
+    const walked = Math.round(WALK_STEP_METERS - s.walkToNext);
+    const walkPct = (walked / WALK_STEP_METERS) * 100;
+    const foodIco = (ic) => (/[/.]/.test(String(ic || '')) ? `<img src="${esc(ic)}" alt="">` : esc(ic || '🍎'));
+    const foods = s.foods.length
+      ? s.foods.map((f) => `<button type="button" class="lk-care__food" data-food="${esc(f.id)}" ${s.max ? 'disabled' : ''} title="${s.max ? 'El vínculo ya está al 100 %: guarda la comida para más adelante' : esc(f.item.description || f.item.name)}">
+            <span class="lk-care__food-ico">${foodIco(f.item.icon)}<em>×${f.count}</em></span>
+            <span class="lk-care__food-txt"><b>${esc(f.item.name)}</b><small>+${f.bond} % vínculo</small></span>
+            <span class="lk-care__food-go">${s.max ? 'Lleno' : 'Dar'}</span>
+          </button>`).join('')
+      : `<p class="lk-care__empty">No llevas comida. Cada victoria en combate te da una mandarina lunar.</p>`;
+
+    panel.style.setProperty('--sc', st.c);
+    panel.innerHTML = `
+      <button type="button" class="lk-care__x" data-act="close" aria-label="Cerrar" title="Cerrar (Esc)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+      <header class="lk-care__head">
+        <span class="lk-care__por">${img ? `<img src="${img}" alt="">` : ''}</span>
+        <div><span class="lk-care__kick">Tu compañero</span><b>${esc(name)}</b></div>
+      </header>
+
+      <section class="lk-care__bond" aria-label="Vínculo ${s.bond} %">
+        <div class="lk-care__moon ${s.max ? 'lk-is-full' : ''}">${moonSVG(s.bond)}<span>${s.bond}%</span></div>
+        <div class="lk-care__state">
+          <span class="lk-care__kick">Vínculo</span>
+          <b>${esc(st.t)}</b>
+          <p>${esc(st.d)}</p>
+        </div>
+      </section>
+      <div class="lk-care__rail" aria-hidden="true">${STATES.map((x, i) => `<span class="${i === si ? 'lk-is-on' : i < si ? 'lk-is-past' : ''}" style="--c:${x.c}"><i></i>${x.t}</span>`).join('')}</div>
+      <div class="lk-care__duo ${s.max ? 'lk-is-ready' : ''}">${ICO_STAR}<span>${s.max ? '<b>Duo Ultimate lista.</b> Úsala en combate con el medallón dorado.' : `Al 100 % se desbloquea la <b>Duo Ultimate</b>. Te falta un ${100 - s.bond} %.`}</span></div>
+
+      <div class="lk-care__sec">
+        <span class="lk-care__label">Cuidar</span>
+        <button type="button" class="lk-care__pet ${s.petReady ? '' : 'lk-is-wait'}" data-act="pet" ${s.petReady ? '' : 'disabled'} style="--pp:${petPct.toFixed(1)}%">
+          <span class="lk-care__pet-ico">${ICO_HAND}</span>
+          <span class="lk-care__pet-txt"><b>Acariciar</b><small>${s.petReady ? `+${PET_BOND} % vínculo` : `Disponible en ${fmtTime(s.petLeftMs)}`}</small></span>
+          <span class="lk-care__pet-go">${s.petReady ? 'Listo' : fmtTime(s.petLeftMs)}</span>
+        </button>
+      </div>
+
+      <div class="lk-care__sec">
+        <span class="lk-care__label">Dar de comer</span>
+        <div class="lk-care__foods">${foods}</div>
+      </div>
+
+      <div class="lk-care__sec lk-care__walk">
+        <div class="lk-care__walk-row"><span class="lk-care__walk-ico">${ICO_WALK}</span>
+          <span class="lk-care__walk-txt"><b>Paseo juntos</b><small>${Math.max(0, WALK_STEP_METERS - walked)} m más para +${WALK_BOND} %</small></span>
+          <span class="lk-care__walk-num">${walked}<i>/${WALK_STEP_METERS} m</i></span></div>
+        <div class="lk-bar lk-bar--xp lk-care__walk-bar" style="--v:${walkPct.toFixed(1)}%"><i></i></div>
+      </div>`;
+  }
+
+  function place() {
+    if (!open) return;
+    const p = screenOf(1.7);
+    if (!p) { panel.style.visibility = 'hidden'; return; }
+    panel.style.visibility = '';
+    const w = panel.offsetWidth, h = panel.offsetHeight;
+    const x = Math.round(Math.max(12, Math.min(innerWidth - w - 12, p.x + 28)));
+    const y = Math.round(Math.max(12, Math.min(innerHeight - h - 12, p.y - h * 0.6)));
+    // Solo se mueve si el Axie se desplaza de verdad: así el panel no tiembla y los botones son fáciles de pulsar
+    if (placed && Math.abs(x - placed.x) < 4 && Math.abs(y - placed.y) < 4) return;
+    placed = { x, y };
+    panel.style.transform = `translate(${x}px, ${y}px)`;
+  }
+
+  function show() {
+    if (!exploring() || !companion()) return;
+    placed = null;
+    const gift = service.grantStarterFood();
+    open = true;
+    panel.hidden = false;
+    render();
+    place();
+    if (gift.length) toast(`¡Has recibido ${gift.length} mandarinas lunares para alimentar a ${companionName()}!`);
+  }
+  function hide() {
+    open = false;
+    panel.hidden = true;
+  }
+
+  // ------------------------------------------------------------------ efectos
+  function burst(text, kind = 'heart') {
+    const p = screenOf(1.2);
+    if (!p) return;
+    const icons = kind === 'heart' ? ['❤️', '💗', '💖'] : ['💗'];
+    for (let i = 0; i < (kind === 'heart' ? 6 : 2); i++) {
+      const el = document.createElement('span');
+      el.className = 'lk-care-heart';
+      el.textContent = icons[i % icons.length];
+      el.style.left = `${p.x + (Math.random() - 0.5) * 60}px`;
+      el.style.top = `${p.y + (Math.random() - 0.5) * 20}px`;
+      el.style.animationDelay = `${i * 70}ms`;
+      fx.appendChild(el);
+      setTimeout(() => el.remove(), 1700);
+    }
+    if (text) {
+      const t = document.createElement('span');
+      t.className = 'lk-care-gain';
+      t.textContent = text;
+      t.style.left = `${p.x}px`;
+      t.style.top = `${p.y - 18}px`;
+      fx.appendChild(t);
+      setTimeout(() => t.remove(), 1800);
+    }
+    const pl = player();
+    if (pl) pl.companionHopTimer = 0.45; // saltito de alegría
+  }
+
+  service.onChange((res) => {
+    if (res.kind === 'walk') {
+      burst(`+${res.gained} % vínculo`, 'walk');
+      toast(`Paseando con ${companionName()}: vínculo ${res.after}%`);
+    }
+    if (open) render();
+  });
+
+  // ------------------------------------------------------------------ eventos
+  panel.addEventListener('pointerdown', (e) => e.stopPropagation());
+  panel.addEventListener('click', (e) => {
+    const act = e.target.closest('[data-act]')?.dataset.act;
+    const food = e.target.closest('[data-food]')?.dataset.food;
+    if (act === 'close') { hide(); return; }
+    if (act === 'pet') {
+      const r = service.pet();
+      if (r.ok) { game.audio?.playBuff?.(); burst(`+${r.gained} % vínculo`); }
+      return;
+    }
+    if (food) {
+      const r = service.feed(food);
+      if (r.ok) { game.audio?.playBuff?.(); burst(`+${r.gained} % vínculo`); }
+    }
+  });
+
+  container.addEventListener('pointerdown', (e) => {
+    if (e.button !== 0) return;
+    pressed = { x: e.clientX, y: e.clientY };
+  });
+  window.addEventListener('pointerup', (e) => {
+    if (!pressed || e.button !== 0) return;
+    const moved = Math.hypot(e.clientX - pressed.x, e.clientY - pressed.y);
+    pressed = null;
+    if (moved > CLICK_SLOP) return;                       // fue un arrastre de cámara
+    if (panel.contains(e.target)) return;
+    if (e.target.closest?.('button, input, select, textarea, .modal, .lk-modal')) return;
+    if (exploring() && hitsCompanion(e.clientX, e.clientY)) { open ? render() : show(); return; }
+    if (open) hide();                                     // clic en otra parte: cerrar
+  });
+  let hoverAt = 0;
+  container.addEventListener('pointermove', (e) => {
+    const t = performance.now();
+    if (t - hoverAt < 90 || e.buttons) return;
+    hoverAt = t;
+    container.classList.toggle('lk-care-hover', exploring() && hitsCompanion(e.clientX, e.clientY));
+  });
+  window.addEventListener('keydown', (e) => { if (open && e.code === 'Escape') hide(); });
+
+  // ------------------------------------------------------------------ bucle: anclaje, cierre y paseo
+  function loop() {
+    requestAnimationFrame(loop);
+    const pl = player();
+    const pos = pl?.position || pl?.group?.position; // player.position es la fuente (el grupo la copia)
+    const canWalk = ow.state === 'EXPLORING' && companion()?.visible && !ow.isLoadingZone;
+    if (pos && canWalk) {
+      if (lastPos) {
+        const d = Math.hypot(pos.x - lastPos.x, pos.z - lastPos.z);
+        if (d > 0.001 && d < MAX_STEP) service.addWalk(d);
+      }
+      lastPos = { x: pos.x, z: pos.z };
+    } else {
+      lastPos = null;
+    }
+    if (!open) return;
+    if (!exploring() || !companion()) { hide(); return; }
+    // Distancia jugador ↔ compañero: si se separan mucho, se cierra
+    const c = companion();
+    if (pos && c && Math.hypot(pos.x - c.position.x, pos.z - c.position.z) > MAX_PANEL_DIST) { hide(); return; }
+    place();
+    // Cuenta atrás de la caricia
+    tickTimer += 1;
+    if (tickTimer % 30 === 0 && !service.status().petReady) render();
+  }
+  requestAnimationFrame(loop);
+
+  return { service, show, hide, panel };
+}

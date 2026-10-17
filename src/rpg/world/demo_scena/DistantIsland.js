@@ -1,11 +1,12 @@
 import * as THREE from 'three';
+import { buildGenesisSilhouette } from '../islands/dungeon/GenesisSilhouette.js';
 
 /**
  * DistantIsland.js - Islas Remotas del Horizonte con Siluetas y Biomas Temáticos:
  * 1. NORTE: ÁRTICO (Picos glaciares afilados estilo Cervino / agujas de hielo polar y plataformas de icebergs)
  * 2. ESTE: SABANA (Mesetas de cañón / tepuyes escalonados, estratos horizontales y siluetas de acacias gigantes)
  * 3. OESTE: BOSQUE MÍSTICO (Árbol Arcano Colosal, cúpulas de follaje sagrado, espiras orgánicas y raíces monolíticas)
- * 4. SUR: ISLA LUNAR Y VOLCÁNICA (Calderas colosales, cráteres de impacto lunar con domos centrales, espiras de basalto y fulgor de magma)
+ * 4. SUR: ISLA GENESIS (meseta ajardinada, pilares de lavanda apilados, copas redondas y el gran arco del Santuario del Origen)
  * 
  * Máxima Optimización:
  * - Geometrías de baja carga poligonal con formas características de silueta.
@@ -50,14 +51,15 @@ export class DistantIsland {
     );
     this.buildMysticForestIsland(-1550, -1.0, -60, mysticMat, 430);
 
-    // 4. ISLA SUR: MAZMORRA / LUNAR VOLCÁNICA (Calderas colosales, cráteres de impacto lunar, espiras de basalto y fulgor de magma)
-    const volcanoMat = this.createThemedAtmosphericMaterial(
-      0x1c1219, // Basalto / obsidiana / regolito lunar
-      0x6b1f25, // Roca ígnea y escoria volcánica oxidada
-      0xf97316, // Fulgor incandescente de magma y calderas
-      340
+    // 4. ISLA SUR: GENESIS (Jardines Reales del Origen: meseta ajardinada, pilares de lavanda apilados,
+    //    copas redondas y el gran arco del Santuario del Origen)
+    const genesisMat = this.createThemedAtmosphericMaterial(
+      0x1b2142, // Azul noche de la tierra de Genesis
+      0x7a6fc4, // Lavanda de los pilares
+      0xf2d48a, // Dorado de los caminos y del arco
+      260
     );
-    this.buildLunarVolcanoIsland(60, -1.0, 1550, volcanoMat, 440);
+    this.buildGenesisIsland(60, -1.0, 1550, genesisMat, 440);
   }
 
   // =========================================================================
@@ -482,6 +484,18 @@ export class DistantIsland {
     this.addMistLayer(group, mistRadius, 0x3d1720, 0.44);
     this.addMistLayer(group, mistRadius * 0.72, 0x5c201a, 0.28);
 
+    this.group.add(group);
+  }
+
+  // =========================================================================
+  // 4. GENESIS (SUR) - Jardines Reales del Origen
+  // =========================================================================
+  buildGenesisIsland(posX, posY, posZ, material, mistRadius) {
+    const group = new THREE.Group();
+    group.position.set(posX, posY, posZ);
+    buildGenesisSilhouette(group, material);
+    this.addMistLayer(group, mistRadius, 0x2a2a5e, 0.4);
+    this.addMistLayer(group, mistRadius * 0.72, 0x4a3f8a, 0.24);
     this.group.add(group);
   }
 

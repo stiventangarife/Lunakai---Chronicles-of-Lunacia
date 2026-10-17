@@ -1,9 +1,9 @@
 # PROJECT_CONTEXT.md — Lunakai: Chronicles of Lunacia
 ## Guía Integral de Arquitectura, Estado y Continuidad Técnica
 
-> **Última actualización:** 2026-10-13 (Hito 23 + ajustes: islas Genshin, barquero Pomodoro, mundo demo 1.0.0 retirado)  
+> **Última actualización:** 2026-10-17 (Hito 32: Fase 5 del motor de combate — versión de prueba)  
 > **Nombre del Proyecto:** Lunakai: Chronicles of Lunacia (anteriormente Axie Tactics / Axie Adventures)  
-> **Estado actual:** mundo abierto 3D con **5 Grandes Islas** de 480 m y dirección de arte Genshin (cel-shading suave, pictórico, con bruma): Bosque (Hito 22), Sabana, Ártico, Mística y Mazmorra lunar volcánica (Hito 23). Las islas nuevas se construyen la primera vez que se visitan. El viaje entre islas se hace con el **barquero Pomodoro**, en la playa de cada isla; los portales cardinales están retirados. Los terrenos del mundo demo 1.0.0 (cuadrícula de macro-zonas de 80 m) ya no se construyen y su contenido de misiones vive en las islas. NPC, monstruos y nodos de misión están validados sobre el terreno real. Se mantienen la auditoría WebGL anti-NaN, el sistema dual de mapas, el minimapa radar y el determinismo Mulberry32.  
+> **Estado actual:** mundo abierto 3D con **5 Grandes Islas** de 480 m y dirección de arte Genshin (cel-shading suave, pictórico, con bruma): Bosque (Hito 22), Sabana, Ártico, Mística (Hito 23) y **Genesis**, la antigua Mazmorra rediseñada (Hito 24). El Hito 24 añade también un plan de mejora por bioma (puente del Bosque; lugares de la Sabana, el Ártico y la Mística; *Fade LOD* de árboles en el Ártico). Las islas nuevas se construyen la primera vez que se visitan. El viaje entre islas se hace con el **barquero Pomodoro**, en la playa de cada isla; los portales cardinales están retirados. Los terrenos del mundo demo 1.0.0 (cuadrícula de macro-zonas de 80 m) ya no se construyen y su contenido de misiones vive en las islas. NPC, monstruos y nodos de misión están validados sobre el terreno real. Se mantienen la auditoría WebGL anti-NaN, el sistema dual de mapas, el minimapa radar y el determinismo Mulberry32. Desde el Hito 25 hay cuentas con Sky Mavis y guardado en Supabase. Los Hitos 26–32 rehacen el motor de combate en 6 fases (0–5): eventos, estados, habilidades de Sapidae, Ultimates, cartas de partes reales, pronóstico de daño y equilibrio. Ver la sección 5.19.  
 > **Idioma de comunicación con el usuario:** **Siempre en español**.
 
 ---
@@ -70,7 +70,28 @@ axie-tactics-web/
 │   │   ├── TacticalAudio.js         ← Motor de audio procedimental Web Audio API
 │   │   ├── TextureGenerator.js      ← Generación de texturas de casillas
 │   │   ├── TutorialManager.js       ← Tutorial guiado paso a paso con flecha 3D
-│   │   └── VFXManager.js            ← Partículas de hechizos, proyectiles e impactos
+│   │   ├── VFXManager.js            ← Partículas de hechizos, proyectiles e impactos
+│   │   ├── combat/                  ← MOTOR DE REGLAS (Hitos 26–32)
+│   │   │   ├── CombatEvents.js      ← Bus de eventos del combate (spell:cast, unit:damaged, status:applied…)
+│   │   │   ├── SpellPresentation.js ← VFX, sonidos y textos por defecto (escucha los eventos)
+│   │   │   ├── StatusSystem.js      ← 22 estados alterados con duración y modificadores
+│   │   │   ├── EffectResolver.js    ← Ejecuta las habilidades escritas como datos (effects: [...])
+│   │   │   ├── Elements.js          ← Triángulo de clases ±15 %
+│   │   │   ├── BattlefieldObjects.js ← Obstáculos y zonas temporales
+│   │   │   ├── UltimateSystem.js    ← Duo Ultimates (vínculo al 100 %)
+│   │   │   ├── Forecast.js          ← Pronóstico de daño sin efectos secundarios (HUD e IA)
+│   │   │   ├── CollectionVFX.js     ← VFX de las partes de colección especial
+│   │   │   ├── CombatTelemetry.js   ← Registro de equilibrio de cada combate (localStorage)
+│   │   │   ├── TutorialCombatHooks.js ← Reglas especiales del tutorial
+│   │   │   └── CombatDebug.js       ← Consola window.lkDebug
+│   │   └── data/
+│   │       ├── PartCards.js         ← 235 cartas de partes (generado: no editar a mano)
+│   │       ├── PartVariants.js      ← Variante de arte de cada parte
+│   │       ├── StarterCards.js      ← Cartas α de Bing y Pomodoro
+│   │       ├── CollectionCards.js   ← Cartas de colección Japan y Xmas
+│   │       └── EnemySpellEffects.js ← Estados de los hechizos enemigos
+│   ├── net/                         ← CUENTAS Y NUBE (Hito 25): AuthService, CloudSave, AccountManager, config
+│   ├── ui/                          ← HUD DE COMBATE Y PANELES: CombatHUD, ForecastPanel, UltimateButton, AxieCarePanel, CSS lunakai-*
 │   └── rpg/                         ← MOTOR DE EXPLORACIÓN DE MUNDO ABIERTO (OVERWORLD)
 │       ├── OverworldManager.js      ← Director general del Overworld, loop y renderizado
 │       ├── PlayerEntity.js          ← Héroe explorador Sapidae humanoide y Compañero Axie seguidor (modelos 3D y animaciones)
@@ -120,12 +141,12 @@ axie-tactics-web/
 │       │   │   ├── SavannaParticles.js  ← Ráfagas de viento y polvo de arena del desierto en suspensión
 │       │   │   ├── SavannaDistantIslands.js ← Siluetas panorámicas 360° vistas desde la cima de la meseta
 │       │   │   └── SavannaAssetManager.js ← Carga y gestión de recursos 3D y texturas de la Sabana
-│       │   ├── islands/                 ← HITO 23: kit Genshin compartido + Ártico, Mística y Mazmorra (480 m, carga diferida)
+│       │   ├── islands/                 ← HITO 23/24: kit Genshin compartido + Ártico, Mística y Genesis (480 m, carga diferida)
 │       │   │   ├── kit/                 ← Terreno/caminos, césped, árboles, cielo, agua, cristales, partículas, orquestador
 │       │   │   ├── GrandIslandZone.js   ← Zona base de isla grande (terreno, luces, rocas, colisiones, horizonte)
 │       │   │   ├── GrandIslands.js      ← Registro zona → isla y puntos de llegada de "Viajar a"
 │       │   │   ├── IslandWorldLayout.js ← Zonas fusionadas, muelles del barquero, anclas de monstruos y NPC reubicados
-│       │   │   └── arctic/ · mystic/ · dungeon/ ← Geografía, perfil de arte y puntos de interés de cada isla
+│       │   │   └── arctic/ · mystic/ · dungeon/ ← Geografía, perfil de arte y puntos de interés de cada isla (dungeon/ = Genesis: DungeonIsland, GenesisLandmarks, GenesisNature, GenesisSilhouette)
 │       │   └── demo_scena/              ← ENTORNO DE MUNDO ABIERTO DE ALTA FIDELIDAD (GENSHIN/BOTW STYLE)
 │       │       ├── genshin/             ← CAPA DE DIRECCIÓN DE ARTE GENSHIN (Hito 22): cielo, montañas, césped, árboles, agua, post
 │       │       ├── DemoScenaZone22.js   ← Orquestador de la escena de mundo abierto
@@ -134,7 +155,7 @@ axie-tactics-web/
 │       │       ├── PropsManager.js      ← ~350 árboles y rocas reales texturizados instanciados en ~30 draw calls
 │       │       ├── WaterManager.js      ← Río continuo con peces animados, espadañas, rocas y ondas de choque
 │       │       ├── LandmarksManager.js  ← Gran Árbol Sagrado, Dojō, Santuario con monolitos levitantes y partículas
-│       │       ├── DistantIsland.js     ← Siluetas de islas remotas en 360° (Ártico, Sabana, Místico, Volcánica Lunar)
+│       │       ├── DistantIsland.js     ← Siluetas de islas remotas en 360° (Ártico, Sabana, Místico, Genesis)
 │       │       ├── MathUtils.js         ← Generador determinista Mulberry32 (`createSeededRandom`) y SimplexNoise
 │       │       ├── AtmosphereManager.js ← Niebla atmosférica, cielo dinámico e iluminación de horizonte
 │       │       ├── LightingManager.js   ← Sol direccional PBR, sombras calibradas y luz ambiental
@@ -152,7 +173,9 @@ axie-tactics-web/
 │           ├── FerryTravelUI.js         ← Selector de islas del barquero Pomodoro
 │           ├── CharacterPreviewDiorama.js ← Diorama 3D interactivo con rotación 360° para personalización
 │           └── StartScreenUI.js         ← Pantalla de inicio, gestión de ranuras y estudio de creación
-└── docs/                            ← Documentación técnica e hitos históricos (Hitos 1 al 23)
+├── supabase/                        ← Migración SQL y Edge Function skymavis-auth (Hito 25)
+├── tools/part-mapper.html           ← Herramienta para revisar el mapeo de partes y cartas
+└── docs/                            ← Documentación técnica e hitos (Hitos 1 al 32; índice en docs/README.md)
 ```
 
 ---
@@ -174,7 +197,7 @@ index.html
             ├─ BiomeDecorationManager.init()    ← await (sin props en las islas: las islas grandes lo omiten)
             ├─ DemoScenaZone22.init()           ← await (Isla del Bosque + capa Genshin)
             ├─ SavannaZone.init()               ← await (Isla de la Sabana + SavannaGenshinArt)
-            ├─ grandIslands (Ártico/Mística/Mazmorra) ← grupos vacíos; se construyen al primer viaje
+            ├─ grandIslands (Ártico/Mística/Genesis) ← grupos vacíos; se construyen al primer viaje
             └─ WorldMapManager.init()           ← loadMap(canonicalZoneId(id)) → activa la isla
 ```
 
@@ -196,7 +219,7 @@ El mapa mundial ha evolucionado de la antigua cuadrícula rígida de macro-zonas
   (Nivel 7 - 9)       (Nivel 1 - Demo)     (Nivel 1 - 3)
                          |
                          |
-                 🌋 Isla de la Mazmorra
+                 ✨ Isla Genesis
                    (Nivel > 10)
                       [ SUR ]
 ```
@@ -210,20 +233,20 @@ Todas las islas se encuentran desbloqueadas desde el inicio para libre exploraci
    - **🏛️ Santuario del Portal Antiguo:** Monolitos flotantes con levitación mágica y runas ancestrales (`x: 115.0, z: 65.0`).
 2. **🏜️ Isla de la Sabana (Este - Nivel 1 - 3):**
    - **☀️ Desierto del Sol Naciente:** Dunas inmensas donde vigilan los centinelas del desierto.
-   - **🏹 Campamento de Bing:** Refugio del arquero alado y sus aprendices nómadas.
+   - **🐶 Campamento de Bing:** Refugio nómada del alegre cachorro Bing (Beast) y su reserva de helados.
    - **🔨 Fragua Nómada de Baruk:** Gran herrería del cañón forjando acero de Atia.
 3. **❄️ Isla del Ártico (Norte - Nivel 4 - 6):**
-   - **🏔️ Valle de la Escarcha Eterna:** Santuario congelado protegido por tótems sagrados.
-   - **🌱 Invernadero de Pomodoro:** Refugio botánico aclimatado contra las ventiscas polares.
+   - **🏔️ Valle de la Escarcha Eterna:** Santuario congelado con el Altar de Atia (sustituye a los tótems).
+   - **🌱 Invernadero de Pomodoro:** Refugio botánico; Pomodoro vive ahora en su casa de troncos junto a la hoguera.
    - **🍲 Campamento de Cocina Boreal:** Puesto de provisiones y estofado de nieve.
 4. **🔮 Isla Mística (Oeste - Nivel 7 - 9):**
    - **✨ Santuario del Vacío Astral:** Monolitos celestes que resuenan con las constelaciones.
    - **🌌 Nebulosa de Lunacia:** Fisura mágica de polvo estelar y tiempo distorsionado.
-   - **🔮 Observatorio del Oráculo:** Torre de contemplación cósmica y profecías estelares.
-5. **🌋 Isla de la Mazmorra / Lunar Volcánica (Sur - Nivel > 10):**
-   - **🌋 Caldera de Magma:** Epicentro volcánico activo sobre ríos de lava y azufre.
-   - **🌑 Cráter de la Cripta Lunar:** Cuenca de impacto cósmica y catacumbas ancestrales.
-   - **🏰 Fortaleza de las Sombras:** Cámara volcánica suprema y combate definitivo de Lunacia.
+   - **🔭 Observatorio Astral:** Torre de contemplación cósmica con cúpula de amatista y telescopio, junto a la casa del astrólogo.
+5. **✨ Isla Genesis — Jardines Reales del Origen (Sur - Nivel > 10, antes Mazmorra):**
+   - **⛩️ Puerta del Santuario:** Puerta monumental con velo de aurora custodiada por Kotaro.
+   - **🌸 Jardín Real:** Plaza central con tótem, monumentos abstractos y cristales.
+   - **🏛️ Santuario del Origen:** Columnas antiguas, gran arco y Trono del Origen con el Espíritu de Atia.
 
 ---
 
@@ -253,7 +276,10 @@ Todas las islas se encuentran desbloqueadas desde el inicio para libre exploraci
   - **Shinji** (Beast #10455, líder inicial): Especialista en combate cuerpo a cuerpo y crítico letal.
   - **Early Bird** (Bird): Daño aéreo a distancia, ráfagas de plumas y gran movilidad.
   - **Big Yak** (Plant): Coloso tanque con escudos de espinas, drenaje vital y trampas de raíces.
-  - **Bing** y **Pomodoro**: Especialistas de apoyo táctico y control de masas.
+  - **Bing** (Beast) y **Pomodoro** (Bug): Axies iniciales oficiales de Origins con sus 6 cartas α originales (`tactics/data/StarterCards.js`).
+    - Bing es un cachorro alegre de la Sabana; su historia ya no es «el arquero alado». Cartas: Puppy (×3), Toy Ball (provocación), Cone Shell y Shiba (golpe fuerte que potencia).
+    - Pomodoro es el «Leaf-Shell Guardian» y sigue siendo el barquero. Cartas: Passion, Leaf Bug, Platypus, Lost Dream y Village Hero.
+  - **Axies del jugador:** cada Axie usa las 6 cartas de sus partes reales (`rpg/AxiePartsResolver.js`: caché → API de Sky Mavis → genes). La ranura del Axie principal tiene el id interno `kotaro`, heredado del prototipo; en pantalla se ve el nombre real del Axie.
 - **Iconos de Habilidades Dedicados**: Ubicados en `assets/skills/heroes/<nombre>/1.png` a `6.png`, integrados en `Spells.js`, `InventoryModal.js` y `StartScreenUI.js`.
 - **Enemigos Quimeras y Slimes**: Modelos 3D animados con animaciones de idle, walk, attack, skill y faint.
 
@@ -298,7 +324,7 @@ Todas las islas se encuentran desbloqueadas desde el inicio para libre exploraci
   - **Norte:** Picos glaciares Cervino y plataformas de hielo.
   - **Este:** Mesetas de cañón y acacias gigantes desplegadas a lo ancho del horizonte (rotación 90°).
   - **Oeste:** Gran Árbol Arcano con dosel mágico y arco marino.
-  - **Sur:** Isla Lunar Volcánica con caldera principal de 310m, cono parásito, cráter de impacto lunar con pico central resurgente (estilo Tycho/Copérnico), espiras de basalto y fulgor de magma.
+  - **Sur:** Isla Genesis (`GenesisSilhouette.js`, Hito 24): meseta-jardín en dos terrazas, pilares lavanda en capas, copas de árboles y el gran arco del Santuario. Sustituye a la antigua silueta lunar volcánica.
 
 ### 5.11 Determinismo Procedural con Semillas Fijas (Algoritmo Mulberry32)
 - **Eliminación del Salto de Elementos**: Sustitución de `Math.random()` por generadores con semilla determinista (`createSeededRandom` en `MathUtils.js`).
@@ -352,7 +378,7 @@ Todas las islas se encuentran desbloqueadas desde el inicio para libre exploraci
 ### 5.17 Rediseño Genshin de las 4 Islas (`world/islands/`, Hito 23)
 - **Kit compartido** (`islands/kit/`): hereda de los módulos `demo_scena/genshin/` del Bosque sin modificarlos. Cada isla aporta un perfil (paleta, luz, niebla, hooks GLSL de suelo y acantilado, caminos, vegetación, agua y partículas).
 - **Sabana**: `SavannaGenshinArt.js` (capa sobre `SavannaZone`); oasis en la cima a ras de la meseta (`SavannaTerrain.oasisShelf / oasisPoolRadius / oasisWaterLevel`). Conmutador: `window.savannaGenshinArt.setEnabled()`.
-- **Ártico / Mística / Mazmorra**: `GrandIslandZone` creada en `OverworldManager.grandIslands` y construida la primera vez que se viaja a la isla. `WorldMapManager._updateGrandIslandVisuals()` activa la isla y oculta el mundo antiguo de 80 m; `travelToIsland` usa `GRAND_ISLAND_TRAVEL`.
+- **Ártico / Mística / Genesis**: `GrandIslandZone` creada en `OverworldManager.grandIslands` y construida la primera vez que se viaja a la isla. `WorldMapManager._updateGrandIslandVisuals()` activa la isla y oculta el mundo antiguo de 80 m; `travelToIsland` usa `GRAND_ISLAND_TRAVEL`.
 - **Niebla**: cada isla usa su propia `FogExp2` y la reaplica cada fotograma mientras está activa (la escena es compartida entre zonas).
 - **Mundo de 5 islas** (`islands/IslandWorldLayout.js`):
   - las zonas de esquina de la cuadrícula 3×3 se fusionaron en sus islas (`MERGED_ZONES`, `canonicalZoneId`);
@@ -366,6 +392,56 @@ Todas las islas se encuentran desbloqueadas desde el inicio para libre exploraci
 - **Monstruos**:
   - `spawnMonster` los coloca en la altura real del suelo;
   - la Quimera Picuda de misión usa `wolf-aquatic` en el mapa (`bird-early` no existe como `.glb`).
+
+### 5.18 Mejora de Biomas y Rediseño de Genesis (Hito 24)
+- **Bosque**: `demo_scena/ForestBridge.js`, puente `bridge.glb` de 4 módulos en arco entre (17.3, 27) y (53.4, 22); `getDeckHeight()` y barandillas `forest_bridge_rail`.
+- **Sabana**:
+  - `SavannaGenshinLandmarks.js`: casa de Bing, Altar de Atia y fragua de Baruk;
+  - `SavannaGenshinOasis.js`: plantas, espuma y peces;
+  - `SavannaGenshinNature.js`: rocas, arbustos, flores, bruma y polen;
+  - cactus `cactus_forge3D`.
+- **Ártico**:
+  - `ArcticSites.js`, `ArcticLandmarks.js` y `ArcticIce.js`, el plan de 12 puntos;
+  - 76 árboles nuevos (`firteal`, `frostbroad`, muertos);
+  - `ArcticTreeLOD.js`: *Fade LOD* con *dither* de 70 a 95 m hacia *proxies* de bajo poligonaje.
+- **Mística**:
+  - `MysticLandmarks.js`: Observatorio Astral, casa del astrólogo, islote con sauce luminoso y pilar rúnico;
+  - `MysticLife.js`: mariposas, vegetación luminosa de `assets/mystic`, peces, luciérnagas, lianas, guijarros y espuma;
+  - canal emisivo de cristales, 3 luces puntuales y hierba en dos tonos.
+- **Genesis** (`islands/dungeon/`, id interno `dungeon`):
+  - `DungeonIsland.js` reescrito;
+  - `GenesisLandmarks.js`: Puerta del Santuario, Jardín Real, cantera y Santuario del Origen;
+  - `GenesisNature.js`: pilares lavanda, troncos y espuma;
+  - `GenesisSilhouette.js`: silueta del horizonte;
+  - nombres, misiones y textos renombrados a Genesis.
+- **Primitivas**: los lugares nuevos son marcadores de posición con primitivas (`bakeParts` → una malla con color por vértice + una de brillo) hasta tener assets propios. Máximo 3 luces puntuales nuevas por isla.
+
+### 5.19 Cuentas y motor de combate nuevo (Hitos 25–32)
+
+| Hito | Sistema | Puntos clave |
+| --- | --- | --- |
+| 25 | Cuentas y nube | Sky Mavis (OAuth + PKCE en la Edge Function) o correo; ranuras en Supabase; `localStorage` solo como caché. |
+| 26 | Fase 0: eventos | `castSpell` es un pipeline que emite eventos; los VFX escuchan (`SpellPresentation`). El azar de las reglas va aparte (`spellManager.rng`). |
+| 27 | Fase 1: estados | 22 estados, áreas nuevas, triángulo de clases ±15 % y habilidades como datos (`effects`). |
+| 28 | Fase 2: Sapidae | Las 24 habilidades de las 4 clases, fieles al Manifiesto. |
+| 29 | Fase 3: Ultimates | Vínculo por Axie y 3 Duo Ultimates según la tríada del Axie principal (tecla 7). |
+| 30 | Axie Care | Clic en el compañero: acariciar, comida y paseo para subir el vínculo. |
+| 31 | Fase 4: cartas | 235 cartas de partes con arte oficial, cartas reales por Axie, Bing y Pomodoro de Origins, y colecciones Japan y Xmas. |
+| 32 | Fase 5: integración | Pronóstico de daño, enemigos con estados, IA con pronóstico, 1 uso por turno de las cartas de tempo, corrección de unidades superpuestas, equilibrio y registro de partidas. |
+
+**Reglas del combate que conviene recordar:**
+
+- **Nada de VFX dentro de las reglas.** Los efectos visuales escuchan los eventos de `CombatEvents.js`; el motor de VFX propio se conectará ahí.
+- **Habilidades nuevas como datos.** Se escriben como `effects: [...]`. `Forecast.js` debe seguir coincidiendo con el daño real; la prueba de fase 5 lo comprueba carta por carta.
+- **Cartas de tempo.** Las cartas que dan PA o PM al propio equipo llevan `castsPerTurn: 1`.
+- **Turnos y casillas.** `TurnManager.turnEnding` bloquea las órdenes mientras se pasa el turno, y `syncOccupancy()` repara las casillas al empezar cada turno.
+- **Cartas de partes.** `PartCards.js` se genera con un script; los ajustes de equilibrio van en ese script, no a mano en el archivo.
+
+**Equilibrio:** cada combate queda registrado. En la consola (F12), `lkDebug.balance()`, `balanceFights()` y `balanceExport()` muestran y descargan el registro. Las propuestas pendientes de las primeras partidas reales están en el Hito 32: suavizar la escala de Mística y Genesis y subir el daño de Stargazer.
+
+**Siguiente:** conectar el motor de VFX propio a los eventos de combate; después, runas y amuletos.
+
+---
 
 ## 6. Reglas Inmutables para Desarrolladores y Agentes
 
@@ -381,11 +457,13 @@ Para garantizar la estabilidad del proyecto, cualquier persona o agente que trab
 4. **Respetar la nomenclatura táctica `AL` (Alcance)**:
    - En el motor de combate, el alcance se denomina siempre **`AL`**, nunca "PO" ni "Range".
 5. **Colisiones y Paso de Aliados**:
-   - En combate: dos aliados no pueden terminar en la misma casilla, pero pueden atravesarse consumiendo 1 PM.
+   - En combate: dos unidades vivas nunca terminan en la misma casilla (`Unit.moveAlongPath` se detiene antes). Los aliados pueden atravesarse consumiendo 1 PM.
    - En overworld: colisiones calculadas con `OverworldCollisions.js`, que permite deslizamiento suave en paredes diagonales sin atascos.
 6. **Guardar variables de carga como propiedades de clase (`this.*`)**:
    - Nunca almacenar referencias críticas de geometrías o centros en variables locales de métodos `async load()`, ya que métodos síncronos posteriores como `setZone()` fallarán con `ReferenceError`.
-7. **Idioma de comunicación**:
+7. **Secretos**:
+   - El *client secret* de Sky Mavis nunca va en el código ni en el chat: solo en los *secrets* de Supabase.
+8. **Idioma de comunicación**:
    - Mensajes y explicaciones al usuario: **Siempre en español**.
    - Código, comentarios técnicos y commits/logs: En inglés o español según consistencia del archivo.
 
@@ -407,6 +485,10 @@ Para garantizar la estabilidad del proyecto, cualquier persona o agente que trab
 | **Rueda del Ratón** | — | Zoom táctico dinámico |
 | **`[Q] / [E]`** | — | Rotar cámara en pasos de 45° |
 | **`[R]`** | — | Centrar cámara en el héroe activo |
+| **`[1]`–`[6]`** | — | Seleccionar las habilidades de la unidad activa |
+| **`[7]`** | — | Duo Ultimate (Sapidae, vínculo al 100 %, desde la ronda 2) |
+| **Botón ⓘ** | — | Ayuda de combate: controles, estados, triángulo de clases y pronóstico |
+| **Clic en el Axie compañero** | Panel Axie Care | — |
 
 ---
 
@@ -424,6 +506,8 @@ curl -I http://localhost:8082/
 # 3. Probar en navegador:
 # Abrir http://localhost:8082 y abrir consola F12 para validar que no haya errores rojos.
 ```
+
+Consola de combate (F12): `lkDebug.help()` lista los comandos; `lkDebug.auditParts()` muestra las cartas de cada Axie y `lkDebug.balance()` el registro de equilibrio.
 
 ---
 *Este documento es la fuente definitiva de verdad arquitectónica para Lunakai: Chronicles of Lunacia.*

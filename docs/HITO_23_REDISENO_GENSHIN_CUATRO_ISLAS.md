@@ -2,6 +2,9 @@
 
 > **Fecha de implementación:** Octubre 2026
 > **Estado:** Completado y verificado (capturas headless + recorrido completo entre islas)
+> [!IMPORTANT]
+> **Actualización (16-oct-2026):** la Mazmorra (sección 3.4) se rediseñó por completo y ahora es **✨ Genesis**. La Sabana, el Ártico y la Mística recibieron un plan de mejora, y varios NPC cambiaron de sitio (tabla 6.3). Ver el Hito 24.
+
 > **Módulos clave:** `world/islands/kit/*`, `world/islands/GrandIslandZone.js`, `world/islands/GrandIslands.js`, `world/islands/{arctic,mystic,dungeon}/*`, `world/savanna/SavannaGenshinArt.js`
 
 ---
@@ -15,7 +18,7 @@ Las cuatro islas exteriores adoptan la dirección de arte de la Isla del Bosque 
 | 🏜️ Sabana (Este, `zone_3_2`) | 5 mesetas escalonadas con acacias | Meseta de 25,5 m con terrazas y rampas; **oasis en la cima a ras de suelo**; peñas sueltas en el mar | Tarde dorada, neblina ocre-melocotón |
 | ❄️ Ártico (Norte, `zone_2_1`) | 5 cuernos glaciares + plataformas de hielo | Anillo de cuernos al norte (fondo), valle glaciar en U, río y lago helados, plataformas de hielo al sur, icebergs | Mañana fría, aurora tenue, nieve |
 | 🔮 Mística (Oeste, `zone_1_2`) | Árbol Arcano + 3 espiras | Colina con el Árbol Arcano (fondo), raíces-arco, **rocas grandes de cristal púrpura**, pantano luminoso, islotes flotantes | Atardecer violeta con estrellas, luciérnagas |
-| 🌋 Mazmorra (Sur, `zone_2_3`) | Volcán + cráter lunar | **Luna volcánica: cráteres en todo el mapa** (grandes, medianos y pequeños; lunares y volcánicos), volcán de fondo, ríos de lava | Ocaso de brasas bajo ceniza, luna con cráteres |
+| 🌋 Mazmorra (Sur, `zone_2_3`), hoy ✨ Genesis (Hito 24) | Volcán + cráter lunar | **Luna volcánica: cráteres en todo el mapa** (grandes, medianos y pequeños; lunares y volcánicos), volcán de fondo, ríos de lava | Ocaso de brasas bajo ceniza, luna con cráteres |
 
 La Isla del Bosque **no se modifica**: ningún archivo de `demo_scena/` cambia, y el kit reutiliza sus módulos por herencia.
 
@@ -68,6 +71,8 @@ La Isla del Bosque **no se modifica**: ningún archivo de `demo_scena/` cambia, 
 - Pantano luminoso con terrazas, fisura de la Nebulosa de Lunacia con polvo estelar, Santuario del Vacío Astral (monolitos flotantes alrededor de un altar estelar) y Observatorio del Oráculo.
 
 ### 3.4 Mazmorra (`dungeon/DungeonIsland.js`)
+> **Reemplazada:** este diseño lunar volcánico ya no existe. Ver el Hito 24, sección 6 (Genesis).
+
 - **Cráteres en todo el mapa**:
   - 2 grandes: la Cripta Lunar, con los NPC en su fondo, y el de la Fortaleza, con su pico central.
   - 14 medianos: lunares, volcánicos con lava, o pozas que reflejan la luna.
@@ -95,7 +100,7 @@ La Isla del Bosque **no se modifica**: ningún archivo de `demo_scena/` cambia, 
 ---
 
 ## 5. Pendiente / fuera del alcance de este hito
-- Las siluetas de la Mística y la Mazmorra **vistas desde el Bosque** no se tocaron, para no alterar el entorno del Bosque.
+- Las siluetas de la Mística y la Mazmorra **vistas desde el Bosque** no se tocaron, para no alterar el entorno del Bosque. → La del sur se sustituyó por la silueta de Genesis en el Hito 24.
 - El minimapa y la pestaña "Mapa de la Isla" siguen mostrando los datos del Bosque cuando el jugador está en las islas nuevas, porque la interfaz no se modificó en este hito.
 - ~~Los portales cardinales de la cuadrícula 3×3 siguen activos~~ → resuelto en la sección 6 (barquero Pomodoro).
 
@@ -135,10 +140,10 @@ La Isla del Bosque **no se modifica**: ningún archivo de `demo_scena/` cambia, 
 ### 6.3 Zonas de esquina fusionadas en sus islas (`world/islands/IslandWorldLayout.js`)
 | Zona antigua | Isla | Contenido trasladado |
 |---|---|---|
-| [1, 1] Valle de la Escarcha | Ártico | Ermitaño Glacial (−52, −66) y la manada del Gólem Polar (−64, −72) |
+| [1, 1] Valle de la Escarcha | Ártico | Ermitaño Glacial (−39.2, −70.4), junto a su cabaña desde el Hito 24, y la manada del Gólem Polar (−64, −72) |
 | [3, 1] Yermos Áridos | Sabana | Manada (96, −64) y quimeras de misión Acorazada (64, 32) y Picuda (−40, −8) |
-| [1, 3] Santuario del Vacío | Mística | Oráculo (34, −36), Chamán (−40, 40) y manada de la Dríade (−80, 16) |
-| [3, 3] Catacumbas | Mazmorra | Espíritu de Atia (0, −13) y manada del Hombre Lobo (0, 104) |
+| [1, 3] Santuario del Vacío | Mística | Oráculo (3.5, −45.5), al pie del Árbol Arcano desde el Hito 24, Chamán (−40, 40) y manada de la Dríade (−80, 16) |
+| [3, 3] Catacumbas | Genesis | Espíritu de Atia (0, 92) en el Santuario del Origen y manada del Hombre Lobo (14, 50), ambos desde el Hito 24 |
 
 - Las manadas fusionadas conservan su zona lógica (`logicalZone`), que se usa como `currentBattlingZoneKey`, así las misiones avanzan igual que antes.
 - `canonicalZoneId()`:
@@ -156,7 +161,7 @@ La Isla del Bosque **no se modifica**: ningún archivo de `demo_scena/` cambia, 
   | Sabana | (−133, 42), al pie de la rampa A |
   | Ártico | (14, 136) |
   | Mística | (136, 14) |
-  | Mazmorra | (136, 18) |
+  | Genesis | (136, 18) |
 
 - Al hablarle abre `ui/FerryTravelUI.js`:
   - muestra las 5 islas y la actual marcada;
