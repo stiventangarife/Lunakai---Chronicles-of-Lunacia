@@ -27,6 +27,12 @@
   <FilesMatch "\.(html)$">
     Header set Cache-Control "no-cache, no-store, must-revalidate"
   </FilesMatch>
+
+  # Código del juego: el navegador siempre pregunta si hay una versión nueva (con ETag, sin volver a descargar si no cambió).
+  # Evita mezclar archivos de dos versiones tras subir una build (p. ej. main.js nuevo con Spells.js viejo).
+  <FilesMatch "\.(js|mjs|css|json)$">
+    Header set Cache-Control "no-cache, must-revalidate"
+  </FilesMatch>
 </IfModule>
 
 # Gzip / Deflate Compression

@@ -19,7 +19,10 @@ export class Unit {
     this.audio = audio;
 
     this.maxHP = config.maxHP || 300;
-    this.currentHP = this.maxHP;
+    // Vida persistente (18-oct): los héroes entran al combate con la vida que tenían en el mundo abierto
+    this.currentHP = (typeof config.currentHP === 'number' && !isNaN(config.currentHP))
+      ? Math.max(1, Math.min(this.maxHP, Math.round(config.currentHP)))
+      : this.maxHP;
     this.shield = config.initialShield || 0;
     this.bonusDamage = config.bonusDamage || 0;
     this.bonusMeleeDamage = config.bonusMeleeDamage || 0;
@@ -811,11 +814,19 @@ export class Unit {
 
     const cur = typeof this.currentHP === 'number' && !isNaN(this.currentHP) ? this.currentHP : 0;
     this.currentHP = Math.max(0, cur - actualDamage);
+    // Runas y charms (RuneCharmEffects): sobrevivir a un golpe letal (Puffer's Plight, Wooden Idol) y reaccionar al daño
+    if (this.currentHP <= 0 && typeof this.lethalGuard === 'function' && this.lethalGuard(this)) {
+      this.currentHP = Math.max(1, this.currentHP);
+    }
+    if (this.currentHP > 0 && actualDamage > 0 && typeof this.afterDamage === 'function') this.afterDamage(this);
     this.updateHUD();
     this._flashDamage();
 
     if (this.currentHP <= 0) {
       this.isDead = true;
+      if (typeof this.onDeath === 'function') {
+        try { this.onDeath(this); } catch (err) { console.warn(`[Unit] onDeath ${this.id}:`, err); }
+      }
       const g = window.tacticsGame;
       const isLastEnemy = this.team === 'enemy' && g && g.units && g.units.filter(u => u.team === 'enemy' && !u.isDead && u !== this).length === 0;
       try {

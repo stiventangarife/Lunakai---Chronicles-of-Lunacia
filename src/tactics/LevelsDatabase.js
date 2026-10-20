@@ -7,8 +7,11 @@ export const LEVELS_CONFIG = {
     subtitle: 'Combat Tutorial',
     badgeText: '1 vs 2 Tutorial',
     biome: 'training_dojo',
-    biomeName: 'Training Dojo',
+    biomeName: 'Maple Glade',
     biomeIcon: '🥋',
+    // Hito 37: el tutorial se juega en el Claro de Arces (10×10, mismas coordenadas que el Dojo:
+    // todas las casillas del guion — (4,3), (3,4), (4,5), (4,6), (3,6), (3,7), (4,7) — están libres)
+    battleMapId: 'forest_maple_glade',
     heroIds: ['kotaro'],
     sapidaePosition: { x: 4, z: 3 },
     heroPositions: [{ id: 'kotaro', x: 3, z: 4 }],

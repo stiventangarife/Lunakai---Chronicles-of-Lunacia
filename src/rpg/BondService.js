@@ -12,7 +12,11 @@ import { saveSlotManager } from './SaveSlotManager.js';
 
 const LEGACY_KEY = 'lunakai_demo_bond';
 const hash = (str) => [...String(str)].reduce((h, c) => (h * 31 + c.charCodeAt(0)) >>> 0, 7);
-const clamp = (v) => Math.max(0, Math.min(100, Math.round(Number(v) || 0)));
+// Admite décimas (paseo +0,5 %, bajada por tiempo sin jugar)
+const clamp = (v) => Math.max(0, Math.min(100, Math.round((Number(v) || 0) * 10) / 10));
+
+/** Vínculo para mostrar: «63» o «63,5». */
+export const formatBond = (v) => { const r = Math.round((Number(v) || 0) * 10) / 10; return Number.isInteger(r) ? String(r) : r.toFixed(1).replace('.', ','); };
 
 export const BOND_MAX = 100;
 

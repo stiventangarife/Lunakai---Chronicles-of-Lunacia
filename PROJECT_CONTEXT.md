@@ -90,6 +90,7 @@ axie-tactics-web/
 │   │       ├── StarterCards.js      ← Cartas α de Bing y Pomodoro
 │   │       ├── CollectionCards.js   ← Cartas de colección Japan y Xmas
 │   │       └── EnemySpellEffects.js ← Estados de los hechizos enemigos
+│   ├── vfx/                         ← MOTOR DE VFX (Hito 33): vfx-core.js (sin DOM), vfx-lib.js, modules/mod-<clase>-<parte>.js (235 efectos), vfx-cards.js (carta → efecto)
 │   ├── net/                         ← CUENTAS Y NUBE (Hito 25): AuthService, CloudSave, AccountManager, config
 │   ├── ui/                          ← HUD DE COMBATE Y PANELES: CombatHUD, ForecastPanel, UltimateButton, AxieCarePanel, CSS lunakai-*
 │   └── rpg/                         ← MOTOR DE EXPLORACIÓN DE MUNDO ABIERTO (OVERWORLD)
@@ -175,6 +176,7 @@ axie-tactics-web/
 │           └── StartScreenUI.js         ← Pantalla de inicio, gestión de ranuras y estudio de creación
 ├── supabase/                        ← Migración SQL y Edge Function skymavis-auth (Hito 25)
 ├── tools/part-mapper.html           ← Herramienta para revisar el mapeo de partes y cartas
+├── tools/vfx-lab/                   ← Laboratorio de VFX (no se sube al hosting); ver su README
 └── docs/                            ← Documentación técnica e hitos (Hitos 1 al 32; índice en docs/README.md)
 ```
 
@@ -439,7 +441,15 @@ Todas las islas se encuentran desbloqueadas desde el inicio para libre exploraci
 
 **Equilibrio:** cada combate queda registrado. En la consola (F12), `lkDebug.balance()`, `balanceFights()` y `balanceExport()` muestran y descargan el registro. Las propuestas pendientes de las primeras partidas reales están en el Hito 32: suavizar la escala de Mística y Genesis y subir el daño de Stargazer.
 
-**Siguiente:** conectar el motor de VFX propio a los eventos de combate; después, runas y amuletos.
+**VFX (Fase 6):** etapas 1 y 2 completadas (Hitos 33 y 34). El núcleo y los módulos viven en `src/vfx/` y el laboratorio en `tools/vfx-lab/`. `VfxBridge.js` reproduce los efectos en combate: `ctx.vfx.untilImpact` retrasa el daño hasta el impacto y `SpellPresentation` no dibuja el impacto por defecto de esas cartas. Siguiente: etapas 3 y 4 (todas las cartas). Después, runas y amuletos.
+
+### 5.20 Mapas de combate por bioma (Hito 35)
+
+- **Elección:** los combates del mundo abierto usan uno de los 3 mapas del bioma, al azar y sin repetir el último. Los jefes usan su mapa fijo: líder 👑 (`pack.isBoss`), rol `apex_boss` o `armored_titan`, y las misiones `mob_polar_golem` y `mob_oracle_chimera`. La campaña antigua y `lkDebug.arena()` siguen en el 10×10; el tutorial se juega en el Claro de Arces (Hito 37).
+- **Datos:** `src/tactics/maps/BattleMaps.js`, con una letra por casilla (leyenda en `BattleMapLayout.js`). Tras cualquier cambio, `node tools/battle-maps/check-maps.mjs`.
+- **Tablero:** `GridManager.loadLayout(mapa)` cambia el tamaño y la forma; fuera del tablero `isValidCoord` es falso. El agua corta el paso, pero no la visión. Un empuje contra el vacío choca como contra un muro. En los mapas con forma, `TacticalAI` se acerca por distancia caminando.
+- **Escenario:** `src/tactics/arena/BattleArena.js` y `BattleArenaThemes.js`, con el arte de las islas. Lo coloca `SceneManager.setArena()` y se libera al volver al mundo abierto. Ver `docs/HITO_35_MAPAS_DE_COMBATE_POR_BIOMA.md`.
+- **Dither fading (Hito 37):** `src/tactics/arena/ArenaOcclusionDither.js` disuelve el escenario que tapa a una unidad o a la casilla bajo el ratón; obstáculos del tablero ≥ 35 % visibles, decoración ≥ 8 %. Los puntos los da `main._occlusionPoints()`.
 
 ---
 

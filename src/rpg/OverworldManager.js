@@ -516,6 +516,7 @@ export class OverworldManager {
   _wireSquadModal() {
     if (!this.squadModal) return;
     this.squadModal.onChange = () => {
+      this._syncCompanionToSquad(true); // nuevo Axie principal: humo y cambio de compañero (19-oct)
       if (this.squadHUD) this.squadHUD.render();
       if (this.inventoryModal && this.inventoryModal.isOpen) this.inventoryModal._renderAll();
       if (typeof window !== 'undefined' && window.__AXIE_TACTICS_APP__?._saveCurrentProgress) window.__AXIE_TACTICS_APP__._saveCurrentProgress();
@@ -527,6 +528,29 @@ export class OverworldManager {
         if (!this.inventoryModal.isOpen) this.squadModal.open();
       };
     }
+  }
+
+  /**
+   * El Axie compañero del mundo abierto sigue al principal del escuadrón (squad[1]).
+   * animate: el anterior desaparece en una nubecita de humo y aparece el nuevo (PlayerEntity.swapCompanion).
+   */
+  _syncCompanionToSquad(animate = true) {
+    const em = this.equipmentManager;
+    if (!em || !this.player || typeof em.getSquad !== 'function') return;
+    const main = em.getSquad()[1] || 'kotaro';
+    if (main === this._companionHeroId) return;
+    const base = em.heroesBase?.[main];
+    if (!base) return;
+    this._companionHeroId = main;
+    // Bing y Pomodoro no tienen ID de Axie: se usa su modelo GLB (misma proporción que en combate)
+    const GLB = { bing: 1.05 / 0.88, pomodoro: 1.0 / 0.88 };
+    this.player.swapCompanion({
+      axieId: base.axieId || null,
+      genes: base.genes || null,
+      name: base.name,
+      modelFile: base.axieId || base.genes ? null : main,
+      modelScale: GLB[main] || 1,
+    }, { animate });
   }
 
   isAnyModalOpen() {
@@ -910,6 +934,9 @@ export class OverworldManager {
 
     console.log('[DIAG] Cargando modelo del jugador Sapidae y compañero Axie...');
     await this.player.loadModel(this.renderer);
+    // El compañero que sigue al Sapidae es el Axie principal del escuadrón (al cargar, sin animación)
+    this._companionHeroId = 'kotaro';
+    this._syncCompanionToSquad(false);
     const initialEquipped = this.equipmentManager ? (this.equipmentManager.equipped.sapidae || this.equipmentManager.equipped.kotaro) : null;
     if (initialEquipped) {
       this.player.applyEquipment(initialEquipped);
@@ -1225,6 +1252,14 @@ export class OverworldManager {
     }
   }
 
+  /** Rótulo de la transición de combate: «Slime Espina ×3 · Valle del Dojō». */
+  _encounterInfo(monster) {
+    const raw = String(monster?.name || '').replace(/[\u{1F000}-\u{1FAFF}\u{2600}-\u{27BF}\u{FE0F}]/gu, '').replace(/\s*\(x(\d+)\)\s*$/i, ' ×$1').trim();
+    const foe = raw ? raw.charAt(0).toUpperCase() + raw.slice(1) : 'Quimeras salvajes';
+    const place = this.worldMapManager?.currentMapDef?.name || '';
+    return { subtitle: place ? `${foe} · ${place}` : foe };
+  }
+
   _handleMonsterEncounter(monster) {
     if (this.state === 'TRANSITION' || this.state === 'COMBAT') return;
     this.state = 'TRANSITION';
@@ -1294,7 +1329,8 @@ export class OverworldManager {
       },
       () => {
         console.log('[OverworldManager] Tactical battle initialized.');
-      }
+      },
+      this._encounterInfo(monster)
     );
   }
 

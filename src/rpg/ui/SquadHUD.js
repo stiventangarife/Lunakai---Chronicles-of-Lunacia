@@ -1,4 +1,5 @@
 // SquadHUD.js - Overworld Squad UI with Stylized Hero Frames, Real-Time 3D Portraits, HP, PA & PM
+import { formatBond } from '../BondService.js';
 import { portraitService } from '../../tactics/CharacterPortraitService.js';
 import { SAPIDAE_CLASSES } from '../SaveSlotManager.js';
 import { BondDemo } from './CombatEndScreen.js';
@@ -138,14 +139,16 @@ export class SquadHUD {
 
     this._boundPortraitListener = (id, dataUrl) => {
       if (!this.container) return;
-      let card = this.container.querySelector(`.lk-party-med[data-hero-id="${id}"]`);
+      // El id del retrato del Sapidae lleva comillas (JSON de su aspecto): se escapa para el selector (19-oct)
+      const sel = (v) => `.lk-party-med[data-hero-id="${typeof CSS !== 'undefined' && CSS.escape ? CSS.escape(String(v)) : String(v).replace(/["\\]/g, '\\$&')}"]`;
+      let card = this.container.querySelector(sel(id));
       if (!card && (id === 'sapidae' || (typeof id === 'string' && id.startsWith('sapidae_')))) {
         card = this.container.querySelector(`.lk-party-med[data-hero-id="sapidae"]`);
       }
       if (!card && this.equipmentManager) {
         for (const [hId, base] of Object.entries(this.equipmentManager.heroesBase)) {
           if (base.axieId === id) {
-            card = this.container.querySelector(`.lk-party-med[data-hero-id="${hId}"]`);
+            card = this.container.querySelector(sel(hId));
             break;
           }
         }
@@ -235,8 +238,9 @@ export class SquadHUD {
         }
       } else {
         const portraitKey = base.axieId || heroId;
-        portraitUrl = portraitService.getPortraitSync(portraitKey) || portraitService.getPortraitSync(heroId);
-        if (!portraitUrl) portraitService.getPortrait(portraitKey);
+        // Axies con ID: solo su propio retrato (el de «kotaro» es de otro Axie); llega en cuanto se fotografía su modelo
+        portraitUrl = portraitService.getPortraitSync(portraitKey) || (base.axieId ? null : portraitService.getPortraitSync(heroId));
+        if (!portraitUrl && !base.axieId) portraitService.getPortrait(portraitKey);
       }
 
       const isMain = heroId === mainId;
@@ -244,7 +248,7 @@ export class SquadHUD {
       // Vínculo del principal: orbe pequeño con el corazón y el líquido rosa a su nivel (como el medidor de vínculo del sistema de diseño)
       const lvl = (24 * (1 - bond / 100)).toFixed(1);
       const ring = isMain
-        ? `<span class="lk-pm-bond" title="Vínculo ${bond}%"><svg viewBox="0 0 26 26" aria-hidden="true"><defs><clipPath id="lkPmClip-${heroId}"><circle cx="13" cy="13" r="11"/></clipPath><linearGradient id="lkPmLiq-${heroId}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#FFD3E0"/><stop offset="1" stop-color="#E25C88"/></linearGradient></defs><circle cx="13" cy="13" r="11" fill="#121829"/><rect x="0" y="${(1 + +lvl).toFixed(1)}" width="26" height="26" fill="url(#lkPmLiq-${heroId})" clip-path="url(#lkPmClip-${heroId})"/><path d="M13 18.4l-.8-.7C9.3 15.1 7.4 13.4 7.4 11.3c0-1.7 1.3-3 3-3 .95 0 1.86.44 2.46 1.14.6-.7 1.51-1.14 2.46-1.14 1.7 0 3 1.3 3 3 0 2.1-1.9 3.8-4.8 6.4l-.52.7z" fill="#fff" stroke="rgba(11,15,28,.35)" stroke-width=".6"/><circle cx="13" cy="13" r="11.6" fill="none" stroke="#D3AE6C" stroke-width="1.2"/></svg></span>`
+        ? `<span class="lk-pm-bond" title="Vínculo ${formatBond(bond)}%"><svg viewBox="0 0 26 26" aria-hidden="true"><defs><clipPath id="lkPmClip-${heroId}"><circle cx="13" cy="13" r="11"/></clipPath><linearGradient id="lkPmLiq-${heroId}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#FFD3E0"/><stop offset="1" stop-color="#E25C88"/></linearGradient></defs><circle cx="13" cy="13" r="11" fill="#121829"/><rect x="0" y="${(1 + +lvl).toFixed(1)}" width="26" height="26" fill="url(#lkPmLiq-${heroId})" clip-path="url(#lkPmClip-${heroId})"/><path d="M13 18.4l-.8-.7C9.3 15.1 7.4 13.4 7.4 11.3c0-1.7 1.3-3 3-3 .95 0 1.86.44 2.46 1.14.6-.7 1.51-1.14 2.46-1.14 1.7 0 3 1.3 3 3 0 2.1-1.9 3.8-4.8 6.4l-.52.7z" fill="#fff" stroke="rgba(11,15,28,.35)" stroke-width=".6"/><circle cx="13" cy="13" r="11.6" fill="none" stroke="#D3AE6C" stroke-width="1.2"/></svg></span>`
         : '';
 
       // Ficha del tooltip

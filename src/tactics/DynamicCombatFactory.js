@@ -1,5 +1,11 @@
 import { BIOMES } from './Biomes.js';
 import { ITEMS_DB, TIER_DROPS, ROLE_DROPS } from './ItemDatabase.js';
+import { pickBattleMap } from './maps/BattleMaps.js';
+import { facingTowards } from './maps/BattleMapLayout.js';
+
+// Hito 35: combates que siempre usan el mapa de jefe de su bioma (además de las manadas con líder 👑)
+const BOSS_ENCOUNTER_IDS = new Set(['mob_polar_golem', 'mob_oracle_chimera']);
+const BOSS_ROLES = new Set(['apex_boss', 'armored_titan']);
 
 export class DynamicCombatFactory {
   /**
@@ -14,6 +20,14 @@ export class DynamicCombatFactory {
       dungeon: 'boss_arena'
     };
     return BIOME_MAP[biome] || 'lunacia_plains';
+  }
+
+  /** Hito 35: ¿es un jefe? Manada con líder fijo (👑), rol de jefe o combate de misión de jefe. */
+  static isBossEncounter(encounterData, pack, members) {
+    if (pack && pack.isBoss) return true;
+    if (encounterData && BOSS_ENCOUNTER_IDS.has(encounterData.monsterId)) return true;
+    if (encounterData && typeof encounterData.monsterId === 'string' && encounterData.monsterId.startsWith('mob_boss_')) return true;
+    return (members || []).some((m) => BOSS_ROLES.has(m.role));
   }
 
   /**
@@ -120,7 +134,9 @@ export class DynamicCombatFactory {
         ];
       } else if (encounterData.monsterId === 'mob_beaked_chimera') {
         members = [
-          { id: 'beaked_alpha_1', name: 'Beaked Alpha Chimera', type: 'bird-early', scale: 1.55, tintColor: 0xf59e0b, maxHP: 260, maxPA: 6, maxPM: 4, initiative: 80, initialShield: 50, bonusDamage: 6, spellIds: ['bird_cupid', 'bird_owl', 'bird_aerial_jump'], expValue: 140, role: 'skirmisher' },
+          // sub-jefe (19-oct): antes era 'bird-early' (un Axie sin modelo de enemigo → primitiva) con habilidades antiguas sin VFX;
+          // ahora es el alfa de la manada de lobos acuáticos, en ámbar, y más fuerte que la Armored Chimera
+          { id: 'beaked_alpha_1', name: 'Beaked Alpha Chimera', type: 'wolf-aquatic-alpha', scale: 1.7, tintColor: 0xf59e0b, maxHP: 330, maxPA: 7, maxPM: 4, initiative: 85, initialShield: 70, bonusDamage: 10, spellIds: ['wolf_aquatic_alpha_splash', 'wolf_aquatic_alpha_roar'], expValue: 180, role: 'apex_hunter' },
           { id: 'beaked_flock_2', name: 'Winged Beaked Chimera', type: 'wolf-aquatic', scale: 1.25, tintColor: null, maxHP: 160, maxPA: 5, maxPM: 4, initiative: 70, initialShield: 20, bonusDamage: 3, spellIds: ['wolf_aquatic_bite', 'chimera_bite'], expValue: 70, role: 'pack_hunter' }
         ];
       } else if (encounterData.monsterId === 'mob_shadow_mirror') {
@@ -159,7 +175,42 @@ export class DynamicCombatFactory {
       }
     }
 
-    const formation = enemyFormations[members.length] || enemyFormations[1];
+    // Fase 5 (equilibrio): los encuentros fijos de misión de las primeras islas se ganaban en 1–2 rondas
+    // con el 90–100 % de vida (partidas reales del 17-oct). Más vida, escudo y daño solo para esos.
+    const FIXED_ENCOUNTER_TUNING = {
+      mob_bing_ambush: { hp: 1.3, shield: 10, damage: 6 },
+      mob_postman_bandits: { hp: 1.3, shield: 10, damage: 6 },
+      mob_rosalba_plant_guardian: { hp: 1.35, shield: 10, damage: 6 },
+      mob_beaked_chimera: { hp: 1.25, shield: 10, damage: 5 },
+      mob_pomodoro_battle: { hp: 1.3, shield: 10, damage: 6 },
+      mob_oracle_chimera: { hp: 1.25, shield: 10, damage: 5 },
+    };
+    const tune = !pack && FIXED_ENCOUNTER_TUNING[encounterData.monsterId];
+    if (tune) {
+      members = members.map((m) => ({
+        ...m,
+        maxHP: Math.round(m.maxHP * tune.hp),
+        initialShield: (m.initialShield || 0) + tune.shield,
+        bonusDamage: (m.bonusDamage || 0) + tune.damage,
+      }));
+    }
+
+    // Hito 35: mapa del bioma (3 por bioma al azar; los jefes, el suyo fijo). Si no hay mapa, el 10×10 de siempre.
+    const battleMap = pickBattleMap(biome, { isBoss: this.isBossEncounter(encounterData, pack, members) });
+    let sapidaePosition = null;
+    if (battleMap) {
+      const { player, enemy } = battleMap.spawns;
+      sapidaePosition = { ...player[0], facing: facingTowards(player[0], enemy) };
+      heroPositions.forEach((hp, i) => {
+        const c = player[(i + 1) % player.length];
+        hp.x = c.x;
+        hp.z = c.z;
+        hp.facing = facingTowards(c, enemy);
+      });
+    }
+    const formation = battleMap
+      ? battleMap.spawns.enemy.map((c) => ({ x: c.x, z: c.z, facing: facingTowards(c, battleMap.spawns.player) }))
+      : (enemyFormations[members.length] || enemyFormations[1]);
 
     const enemies = members.map((m, idx) => {
       const pos = formation[idx] || { x: 3 + idx * 2, z: 7 };
@@ -177,12 +228,13 @@ export class DynamicCombatFactory {
         bonusDamage: m.bonusDamage || 0,
         scale: m.scale,
         tintColor: m.tintColor,
-        spellIds: m.spellIds
+        spellIds: m.spellIds,
+        ...(pos.facing !== undefined ? { facing: pos.facing } : {})
       };
     });
 
-    // 3. Generate obstacles suitable for the biome
-    const obstacles = this._generateObstacles(tacticalBiome, heroPositions, enemies);
+    // 3. Generate obstacles suitable for the biome (los mapas de bioma traen los suyos)
+    const obstacles = battleMap ? [] : this._generateObstacles(tacticalBiome, heroPositions, enemies);
 
     // 4. Calculate total EXP & Gold
     const totalExp = members.reduce((sum, m) => sum + (m.expValue || 50), 0);
@@ -281,7 +333,8 @@ export class DynamicCombatFactory {
     if (rewardItems.length < 3) rollSlot(chance3);
 
     const title = pack ? pack.packTitle : 'Feral Encounter';
-    const subtitle = `Battle in ${biomeDef.name} (Tier ${tier})`;
+    const placeName = battleMap ? battleMap.name : biomeDef.name;
+    const subtitle = `Battle in ${placeName} (Tier ${tier})`;
 
     return {
       id: pack ? pack.packId : `combat_${Date.now()}`,
@@ -289,7 +342,9 @@ export class DynamicCombatFactory {
       subtitle,
       badgeText: `${members.length} vs ${heroPositions.length}`,
       biome: tacticalBiome,
-      biomeName: biomeDef.name,
+      biomeName: placeName,
+      battleMapId: battleMap ? battleMap.id : null,
+      ...(sapidaePosition ? { sapidaePosition } : {}),
       heroIds: heroPositions.map(h => h.id),
       heroPositions,
       enemies,

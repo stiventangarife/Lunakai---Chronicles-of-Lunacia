@@ -3,6 +3,12 @@
 
 import { STATUS_DEFS } from './StatusSystem.js';
 import { BondService } from '../../rpg/BondService.js';
+import { axieMixerService } from '../../rpg/AxieMixerService.js';
+import { cardsFromApiParts, cardsFromDecoded, normalizeDecoded, applyCollections, applyVariants, PART_ORDER } from '../../rpg/AxiePartsResolver.js';
+import { PART_CARDS } from '../data/PartCards.js';
+import { COLLECTION_CARDS } from '../data/CollectionCards.js';
+import { anyPartCard } from '../data/VariantCards.js';
+import { AXIE_GENES_DECODER } from '@jaatster/threejs-axie-mixer3d-public';
 
 const STATUS_DEFS_REF = () => STATUS_DEFS;
 
@@ -58,8 +64,12 @@ export function installCombatDebug(game) {
         '  obstacle(x, z, rondas)        coloca un obstáculo temporal',
         '  cast("active", {effects:[...], targetType:"enemy", areaType:"cross1"}, x, z)   prueba una habilidad por datos',
         '  auditParts()                  cartas de partes de cada Axie del escuadrón (fuente: caché / API / genes)',
+        '  axieParts(585)                diagnóstico de un Axie por ID: partes de Sky Mavis, genes, colecciones y cartas',
         '  bond(100)                     vínculo con el Axie principal (se guarda; en combate también habilita la Ultimate ya)',
         '  ult()                         estado de la Duo Ultimate y por qué no se puede lanzar',
+        '  runes()                       runas y charms activos en este combate (estadísticas y cartas modificadas)',
+        '  timer(false|true)             apaga / enciende el reloj del turno · timer({ base: 30, max: 45 }) cambia sus valores',
+        '  rune("kotaro", "beast-brutal-claw") / charm("kotaro", "horn", "neutral-deadly-spell")   equipa (se aplica en el próximo combate)',
         '  ultReset()                    permite volver a usar la Ultimate en este combate (pruebas)',
       ].join('\n'));
     },
@@ -189,6 +199,67 @@ export function installCombatDebug(game) {
       return rows;
     },
 
+    /**
+     * Diagnóstico de las cartas de un Axie por su ID (19-oct): qué devuelve Sky Mavis (nombre, clase, id y nivel de
+     * cada parte), qué dicen sus genes (variante y skin de colección) y qué carta se le asigna a cada parte.
+     * Copia el resultado (copy(JSON.stringify(lkDebug.__lastAxieParts))) para revisarlo.
+     */
+    async axieParts(axieId) {
+      const id = String(axieId);
+      const data = await axieMixerService.fetchAxieData(id);
+      const api = (data.parts || []).map((p) => ({ tipo: p.type, clase: p.class, nombre: p.name, id: p.id, nivel: p.stage ?? '—', especial: p.specialGenes ?? '—' }));
+      const byApi = cardsFromApiParts(data.parts || []);
+      let decoded = [];
+      try { decoded = normalizeDecoded(await AXIE_GENES_DECODER.decode(data.newGenes || data.genes)); } catch (e) { console.warn('[lkDebug] genes:', e); }
+      const byGenes = cardsFromDecoded(decoded);
+      const col = applyCollections(byApi.complete ? byApi.ids : byGenes.ids, decoded);
+      const vr = applyVariants(col.ids, col.collections, data.parts || []);
+      col.ids = vr.ids;
+      const name = (cid) => (cid ? anyPartCard(cid)?.name || cid : '—');
+      const rows = PART_ORDER.map((t, i) => {
+        const a = api.find((p) => String(p.tipo).toLowerCase().startsWith(t.slice(0, 3))) || {};
+        const g = decoded.find((d) => String(d.type).toLowerCase().startsWith(t.slice(0, 3))) || {};
+        return { parte: t, api: `${a.nombre || '—'} (${a.clase || '?'})`, apiId: a.id || '—', nivel: a.nivel, genes: g.class ? `${g.class} v${g.variant} skin ${g.skin}` : '—', 'carta por API': name(byApi.ids[i]), 'carta por genes': name(byGenes.ids[i]), colección: col.collections[i] || '—', final: name(col.ids[i]) };
+      });
+      console.log(`[lkDebug] Axie #${id} · ${data.name} · ${data.class}`);
+      console.table(rows);
+      // Modelo 3D: qué pieza pide cada parte (skin y nivel) y si existe en el catálogo del Axie Mixer
+      let modelos = null;
+      try {
+        modelos = await axieMixerService.partModelReport(data.newGenes || data.genes, game.overworldManager?.renderer || game.sceneManager?.renderer || null, data.parts || []);
+        console.log('[lkDebug] Piezas 3D (existe = está en assets/axie; seUsa = la que se dibuja):');
+        console.table(modelos);
+      } catch (e) { console.warn('[lkDebug] modelo 3D:', e); }
+      const out = { id, name: data.name, class: data.class, api, decoded, rows, modelos, apiMissing: byApi.missing, genesMissing: byGenes.missing };
+      this.__lastAxieParts = out;
+      return out;
+    },
+
+    timer(arg = true) {
+      const t = game.turnTimer;
+      if (!t) throw new Error('[lkDebug] El reloj del turno no está instalado.');
+      if (typeof arg === 'boolean') { t.enabled = arg; if (!arg) { t.stop(); const el = document.getElementById('lk-turn-timer'); if (el) el.hidden = true; } }
+      else if (arg && typeof arg === 'object') Object.assign(t.config, arg);
+      return { enabled: t.enabled, ...t.config, reserva: t.bank };
+    },
+    runes() {
+      const rows = game.spellManager?.runeCharms?.summary(game.units || []) || [];
+      if (!rows.length) console.log('[lkDebug] Ningún Axie lleva runas ni charms con efecto en este combate (el tutorial no las aplica).');
+      else console.table(rows);
+      return rows;
+    },
+    rune(heroId, runeId = null) {
+      const svc = window.lunakaiRuneCharms;
+      if (!svc) throw new Error('[lkDebug] RuneCharmService no está disponible.');
+      svc.setRune(heroId, runeId);
+      return svc.get(heroId);
+    },
+    charm(heroId, part, charmId = null) {
+      const svc = window.lunakaiRuneCharms;
+      if (!svc) throw new Error('[lkDebug] RuneCharmService no está disponible.');
+      if (!svc.setCharm(heroId, part, charmId)) console.warn('[lkDebug] No hay PP suficientes (máx. 15) o la parte no existe.');
+      return svc.get(heroId);
+    },
     ultReset() { const u = game.spellManager?.ultimates; if (u) { u.used = false; game._updateHUD?.(game.activeUnit); } return true; },
 
     presentation(on = true) {

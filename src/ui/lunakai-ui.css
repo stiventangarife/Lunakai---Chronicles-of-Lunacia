@@ -587,6 +587,31 @@ body.state-combat #npc-interaction-prompt { display: none !important; }
 #ui-overlay .lk-btn-circle-icon svg { width: 19px; height: 19px; }
 #ui-overlay .lk-btn-circle-icon .lk-ai { width: 20px; height: 20px; }
 
+/* Reloj del turno del jugador (TurnTimerHUD.js): vive en el botón «Pasar turno», la acción que dispara a 0.
+   Barra que se vacía en el borde inferior + «21 s · Espacio»; ≤10 s ámbar, ≤5 s carmesí con halo; notas encima. */
+#ui-overlay .lk-btn-end-turn { position: relative; overflow: visible; }
+#ui-overlay .lk-btn-end-turn .lk-et-time { display: none; min-width: 4.2ch; margin-right: 2px; text-align: right; font: 900 .82rem/1 var(--lk-font-ui); letter-spacing: 0; font-variant-numeric: tabular-nums; color: var(--lk-ink-900); }
+#ui-overlay .lk-btn-end-turn.lk-has-timer .lk-et-time { display: inline-block; }
+#ui-overlay .lk-btn-end-turn .lk-et-bar { position: absolute; left: 12px; right: 12px; bottom: 6px; height: 3px; border-radius: 2px; background: rgba(46, 52, 72, .14); overflow: hidden; opacity: 0; transition: opacity .25s var(--lk-ease); pointer-events: none; }
+#ui-overlay .lk-btn-end-turn.lk-has-timer .lk-et-bar { opacity: 1; }
+#ui-overlay .lk-btn-end-turn .lk-et-bar > i { display: block; height: 100%; border-radius: inherit; background: var(--lk-gilt-500); transform-origin: left center; transition: transform .12s linear, background-color .3s; }
+#ui-overlay .lk-btn-end-turn.lk-is-low .lk-et-bar > i { background: #D9861C; }
+#ui-overlay .lk-btn-end-turn.lk-is-low .lk-et-time { color: #9A5B0C; }
+#ui-overlay .lk-btn-end-turn.lk-is-critical .lk-et-bar > i { background: var(--lk-danger-crimson); }
+#ui-overlay .lk-btn-end-turn.lk-is-critical .lk-et-time { color: #B3423C; }
+#ui-overlay .lk-btn-end-turn.lk-is-critical { animation: lk-et-halo 1s var(--lk-ease-soft, ease-in-out) infinite; }
+@keyframes lk-et-halo { 0%, 100% { box-shadow: 0 0 0 0 rgba(224, 96, 90, 0); } 50% { box-shadow: 0 0 0 3px rgba(224, 96, 90, .55), 0 0 18px rgba(224, 96, 90, .45); } }
+/* Notas sobre el botón: vidrio del sistema con filo de 1 px */
+#ui-overlay .lk-btn-end-turn .lk-et-note { position: absolute; right: 0; bottom: calc(100% + 10px); max-width: 320px; width: max-content; padding: 6px 12px; white-space: nowrap; border-radius: var(--lk-r-pill); font: 800 .74rem/1.25 var(--lk-font-ui); letter-spacing: 0; text-align: right; color: var(--lk-ivory-50); background: rgba(18, 24, 41, .9); box-shadow: inset 0 0 0 1px rgba(211, 174, 108, .35), 0 6px 16px rgba(0, 0, 0, .35); opacity: 0; transform: translateY(4px); transition: opacity .2s var(--lk-ease), transform .3s var(--lk-ease); pointer-events: none; }
+#ui-overlay .lk-btn-end-turn .lk-et-note.lk-is-on { opacity: 1; transform: none; }
+#ui-overlay .lk-btn-end-turn .lk-et-note.lk-is-warn { box-shadow: inset 0 0 0 1px rgba(240, 163, 58, .7), 0 6px 16px rgba(0, 0, 0, .35); color: #FFD9A3; }
+#ui-overlay .lk-btn-end-turn .lk-et-note.lk-is-bad { box-shadow: inset 0 0 0 1px rgba(224, 96, 90, .75), 0 6px 16px rgba(0, 0, 0, .35); color: #FFB4AE; }
+#ui-overlay .lk-btn-end-turn .lk-et-note.lk-is-good { box-shadow: inset 0 0 0 1px rgba(140, 240, 155, .55), 0 6px 16px rgba(0, 0, 0, .35); color: #B9F5C3; }
+@media (prefers-reduced-motion: reduce) {
+  #ui-overlay .lk-btn-end-turn.lk-is-critical { animation: none; box-shadow: 0 0 0 3px rgba(224, 96, 90, .6); }
+  #ui-overlay .lk-btn-end-turn .lk-et-bar > i, #ui-overlay .lk-btn-end-turn .lk-et-note { transition: none; }
+}
+
 /* Línea de iniciativa: los retratos de main.js como nodos del sistema */
 #ui-overlay .lk-cb-timeline .timeline-card { position: relative; flex: none; width: 42px; height: 42px; min-width: 0; padding: 0; margin: 0; border: 0; border-radius: 50%; display: grid; place-items: center; background: radial-gradient(circle at 50% 35%, #33416B, #161D33); box-shadow: 0 0 0 2px rgba(11, 15, 28, .8), 0 0 0 3px var(--lk-hp-vital-green); transform: none; transition: width .35s var(--lk-ease), height .35s var(--lk-ease), box-shadow .35s; overflow: visible; }
 #ui-overlay .lk-cb-timeline .timeline-card.team-enemy { box-shadow: 0 0 0 2px rgba(11, 15, 28, .8), 0 0 0 3px var(--lk-enemy-red); background: radial-gradient(circle at 50% 35%, #5A2A33, #22141B); }
@@ -659,6 +684,8 @@ body:not(.state-combat) #ui-overlay .lk-cb-enemy, body:not(.state-combat) #ui-ov
 #ui-overlay .spell-slot .lk-los.lk-nolos { opacity: .55; filter: grayscale(1); }
 #ui-overlay .spell-slot .lk-cb-cls { width: 20px; height: 20px; display: grid; place-items: center; border-radius: 50%; background: rgba(11, 15, 28, .7); }
 #ui-overlay .spell-slot .lk-cb-cls img { width: 15px; height: 15px; object-fit: contain; }
+#ui-overlay .spell-slot .lk-cb-cls.lk-has-part { width: 22px; height: 22px; }
+#ui-overlay .spell-slot .lk-cb-cls.lk-has-part img { width: 18px; height: 18px; filter: var(--lk-ico-tint,) drop-shadow(0 1px 1px rgba(0, 0, 0, .6)); }
 #ui-overlay .spell-slot .lk-card-dmg:empty { display: none; }
 #ui-overlay .spell-slot .lk-card-dmg.lk-heal { color: #A8F0B6; }
 #ui-overlay .spell-slot .lk-card-dmg.lk-shield { color: #B7F2EC; }
@@ -672,7 +699,7 @@ body:not(.state-combat) #ui-overlay .lk-cb-enemy, body:not(.state-combat) #ui-ov
 #ui-overlay .spell-slot.tut-highlight, #ui-overlay .lk-btn-end-turn.tut-highlight { border: 0 !important; box-shadow: 0 0 0 3px var(--lk-gilt-300), 0 0 26px rgba(238, 211, 154, .85) !important; animation: lkTutTarget 1.4s ease-in-out infinite !important; }
 
 /* Pasar turno */
-#ui-overlay .lk-btn-end-turn { display: inline-flex; flex-direction: column; align-items: center; min-width: 132px; border: 0; box-shadow: none; }
+#ui-overlay .lk-btn-end-turn { display: inline-flex; flex-direction: column; align-items: center; min-width: 156px; border: 0; box-shadow: none; } /* ancho fijo: con y sin reloj */
 #ui-overlay .lk-btn-end-turn small { display: block; margin-top: 2px; }
 
 /* Tooltip del hechizo (marfil) y el antiguo, siempre oculto */
@@ -681,6 +708,11 @@ body:not(.state-combat) #ui-overlay .lk-cb-enemy, body:not(.state-combat) #ui-ov
 .lk-cb-tip .lk-tooltip-tactical { width: 310px; }
 .lk-cb-tip header .lk-cb-tip-cls { flex: none; width: 34px; height: 34px; display: grid; place-items: center; border-radius: 50%; background: rgba(11, 15, 28, .55); box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .2); }
 .lk-cb-tip header .lk-cb-tip-cls img { width: 24px; height: 24px; object-fit: contain; }
+.lk-cb-tip header .lk-cb-tip-cls.lk-has-part img { width: 28px; height: 28px; filter: var(--lk-ico-tint,) drop-shadow(0 1px 2px rgba(0, 0, 0, .6)); }
+/* Mech, Dawn y Dusk no tienen iconos de partes: se tiñe el de su iconClass con el color de su clase */
+img.lk-part-ico--mech { --lk-ico-tint: grayscale(1) brightness(1.3) contrast(1.05); }
+img.lk-part-ico--dawn { --lk-ico-tint: grayscale(1) sepia(1) hue-rotate(200deg) saturate(2) brightness(1.2); }
+img.lk-part-ico--dusk { --lk-ico-tint: grayscale(1) sepia(1) hue-rotate(130deg) saturate(2.2); }
 .lk-cb-tip .lk-cb-tip-warn { margin: 0; font-size: .76rem; font-weight: 800; color: #B3423C; }
 
 /* Pronóstico del objetivo */
@@ -1008,3 +1040,235 @@ body:not(.state-combat) #ui-overlay .lk-cb-enemy, body:not(.state-combat) #ui-ov
 
 /* Mochila: cantidad como chapa en la esquina superior derecha (la franja inferior queda para el efecto) */
 .lk-it .lk-qty { position: absolute; right: 4px; top: 4px; min-width: 20px; padding: 1px 6px; border-radius: 9px; text-align: center; font: 900 .62rem/1.35 var(--lk-font-ui); color: var(--lk-ink-900, #2E3448); background: var(--lk-ivory-100, #EFE8DA); box-shadow: 0 0 0 1.5px rgba(11, 15, 28, .55); pointer-events: none; }
+
+/* ══ Transición de entrada / salida del combate (BattleTransition.js) · lenguaje .lk-cine con acento de quimera ══ */
+.lk-btl { position: fixed; inset: 0; z-index: 1460; pointer-events: auto; --cine-acc: #E0605A; }
+.lk-btl.hidden { display: none !important; }
+.lk-btl__night { position: absolute; inset: 0; z-index: -3; opacity: 0; background: radial-gradient(80% 70% at 50% 40%, #1A2440, #070A14 80%); transition: opacity .25s ease; }
+.lk-btl__night .lk-vista { position: absolute; inset: 0; opacity: .55; }
+.lk-btl.lk-is-cover .lk-btl__night { opacity: 1; }
+.lk-btl .lk-cine__veil { background: radial-gradient(70% 60% at 50% 48%, rgba(70, 18, 24, .3), rgba(8, 10, 20, .85) 75%); }
+.lk-btl__flash { position: absolute; inset: 0; z-index: -1; background: radial-gradient(circle at 50% 46%, #FFF4E0, rgba(255, 214, 160, .55) 35%, transparent 70%); opacity: 0; pointer-events: none; }
+.lk-btl.lk-is-play .lk-btl__flash { animation: lkBtlFlash .55s ease-out forwards; }
+.lk-btl__emblem { color: #FFD6D3; filter: drop-shadow(0 0 18px rgba(224, 96, 90, .75)); }
+.lk-btl .lk-cine__title { background: linear-gradient(180deg, #FFF3EC, #F2A79F 52%, #9C3A34); -webkit-background-clip: text; background-clip: text; }
+.lk-btl .lk-cine__ring { box-shadow: 0 0 0 2px #E0605A, 0 0 40px rgba(224, 96, 90, .9); }
+.lk-btl__sparks { position: absolute; left: 50%; top: 44px; width: 0; height: 0; z-index: -1; }
+.lk-btl__sparks i { position: absolute; left: 0; top: 0; width: 3px; height: 16px; border-radius: 2px; background: linear-gradient(#FFF1D6, #F2C46B); transform: rotate(var(--a)) translateY(-40px); opacity: 0; transform-origin: 50% 0; }
+.lk-btl.lk-is-play .lk-btl__sparks i { animation: lkBtlSpark .5s ease-out var(--d) forwards; }
+/* Carga mientras se monta el tablero */
+.lk-btl__load { position: absolute; left: 50%; bottom: clamp(56px, 13vh, 130px); translate: -50% 0; width: min(560px, calc(100vw - 32px)); display: grid; gap: 12px; justify-items: center; opacity: 0; transition: opacity .3s ease; }
+.lk-btl.lk-is-loading .lk-btl__load { opacity: 1; }
+.lk-btl__bar { display: grid; grid-template-columns: auto 1fr; align-items: center; gap: 6px 10px; width: min(420px, 100%); font: 800 .78rem var(--lk-font-ui); color: #C8CFDF; }
+.lk-btl__bar .lk-moon-spin { width: 20px; height: 20px; }
+.lk-btl__trk { grid-column: 1 / -1; position: relative; display: block; height: 4px; border-radius: 3px; overflow: hidden; background: rgba(239, 232, 218, .12); }
+.lk-btl__trk > i { position: absolute; inset: 0 auto 0 0; width: 40%; border-radius: inherit; background: linear-gradient(90deg, transparent, #F2A79F, var(--lk-gilt-300)); animation: lkBtlScan 1.3s ease-in-out infinite; }
+.lk-btl.lk-is-ready .lk-btl__trk > i { animation: none; width: 100%; transition: width .25s; }
+/* Al abrir el telón sobre el tablero: se disuelve toda la capa (bandas incluidas) */
+.lk-btl.lk-is-out { opacity: 0; transition: opacity .55s ease; }
+.lk-btl.lk-is-out .lk-cine__core { animation: lk-cineOut .45s var(--lk-ease) forwards; }
+/* Vuelta al mundo abierto */
+.lk-btl--back .lk-btl__night { transition: opacity .45s ease; }
+.lk-btl__back { display: flex; align-items: center; gap: 10px; font: 400 1.15rem var(--lk-font-display); color: #DCD3C2; opacity: 0; transition: opacity .35s ease .15s; text-shadow: 0 2px 10px rgba(0, 0, 0, .7); }
+.lk-btl__back .lk-moon-spin { width: 22px; height: 22px; }
+.lk-btl--back.lk-is-cover .lk-btl__back { opacity: 1; }
+.lk-btl--back.lk-is-out .lk-btl__back { opacity: 0; transition-delay: 0s; }
+@keyframes lkBtlFlash { 0% { opacity: 0; } 15% { opacity: 1; } 100% { opacity: 0; } }
+@keyframes lkBtlSpark { 0% { opacity: 0; transform: rotate(var(--a)) translateY(-30px) scaleY(.4); } 30% { opacity: 1; } 100% { opacity: 0; transform: rotate(var(--a)) translateY(calc(-1 * var(--l))) scaleY(1); } }
+@keyframes lkBtlScan { 0% { left: -40%; } 100% { left: 100%; } }
+@media (prefers-reduced-motion: reduce) { .lk-btl__sparks, .lk-btl__flash { display: none; } .lk-btl__trk > i { animation: none; width: 100%; } }
+
+/* ══ Mochila › «Runas y charms» (RunesCharmsPanel.js · pantalla 17 «Preparación» en la columna derecha) ═══════════ */
+.lk-bag-runes { display: flex; flex-direction: column; gap: 14px; overflow-y: auto; scrollbar-width: thin; scrollbar-gutter: stable; scrollbar-color: rgba(211, 174, 108, .35) transparent; }
+.lk-bag-runes > * { flex: none; }
+.lk-bag-runes[hidden] { display: none; }
+.lk-bag-runes__top { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 14px 18px; align-items: center; padding: 12px 14px; border-radius: var(--lk-r-md); background: rgba(18, 24, 41, .55); box-shadow: inset 0 0 0 1px rgba(211, 174, 108, .16); }
+.lk-bag-runes .lk-rune-row { gap: 12px; }
+.lk-bag-runes .lk-socket-master-rune { width: 58px; height: 58px; }
+.lk-bag-runes__rname { font: 400 1.12rem/1.2 var(--lk-font-display); color: var(--lk-ivory-50); }
+.lk-bag-runes__muted { font-size: .72rem; font-weight: 700; color: #8D97AF; }
+.lk-bag-runes .lk-pp-head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+.lk-bag-runes .lk-pp-readout { font-size: .9rem; }
+.lk-bag-runes .lk-pp-readout b { font-size: 1.5rem; }
+.lk-bag-runes .lk-pp-gems { flex-wrap: wrap; gap: 4px; }
+.lk-bag-runes .lk-parts { display: grid; gap: 2px; }
+.lk-bag-runes .lk-part-row { padding: 6px 10px; }
+.lk-bag-runes .lk-part-ico { width: 30px; height: 30px; object-fit: contain; }
+.lk-bag-runes .lk-socket-charm { width: 42px; height: 42px; }
+.lk-bag-runes__shelf { display: grid; gap: 10px; padding-top: 12px; border-top: 1px solid rgba(211, 174, 108, .14); }
+.lk-bag-runes__shelf .lk-bag__bar { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+.lk-bag-runes__hint { font-size: .76rem; font-weight: 700; color: #AEB6CB; }
+.lk-bag-runes__hint b { color: var(--lk-gilt-300); }
+.lk-bag-runes__demo { padding: 2px 10px; border-radius: var(--lk-r-pill); font: 900 .58rem var(--lk-font-ui); letter-spacing: .12em; text-transform: uppercase; color: #8D97AF; box-shadow: inset 0 0 0 1px rgba(141, 151, 175, .45); cursor: help; }
+.lk-bag-runes .lk-shelf { display: grid; grid-template-columns: repeat(auto-fill, minmax(84px, 1fr)); gap: 12px 10px; }
+.lk-bag-runes .lk-charm-item { width: auto; }
+.lk-bag-runes .lk-charm-item .lk-slot-item { width: 100%; }
+.lk-bag-runes__empty { margin: auto; display: grid; justify-items: center; gap: 8px; max-width: 320px; text-align: center; color: #AEB6CB; font-size: .84rem; font-weight: 700; }
+.lk-bag-runes__empty img { width: 56px; height: 56px; opacity: .8; }
+.lk-bag-runes__empty b { font: 400 1.2rem var(--lk-font-display); color: var(--lk-ivory-50); }
+@media (max-width: 760px) { .lk-bag-runes__top { grid-template-columns: minmax(0, 1fr); } }
+/* Partes con su habilidad: arte de la carta y el icono de la parte en la esquina */
+.lk-bag-runes .lk-part-row { grid-template-columns: 52px minmax(0, 1fr) auto 46px; }
+.lk-bag-runes__spell { width: 52px; border-radius: 10px; cursor: help; overflow: hidden; box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--cc) 70%, transparent), 0 3px 8px rgba(0, 0, 0, .35); }
+.lk-bag-runes__spell .lk-spell-part { width: 22px; height: 22px; right: 1px; bottom: 1px; }
+.lk-bag-runes__spell.lk-is-noart .lk-spell-part { position: static; width: 34px; height: 34px; }
+.lk-bag-runes .lk-pn small { display: block; }
+.lk-bag-runes__charm { display: flex !important; align-items: center; gap: 4px; margin-top: 1px; font-size: .68rem !important; color: #6E7894 !important; }
+.lk-bag-runes__charm img { width: 14px; height: 14px; opacity: .55; }
+.lk-bag-runes__charm.lk-is-on { color: var(--lk-gilt-300) !important; }
+.lk-bag-runes__charm.lk-is-on img { opacity: 1; }
+/* Runas y charms · UX (DS §27): filas compactas, «+» en ranuras vacías, rombos de PP con vista previa del coste,
+   arrastrar y soltar con lumen y destello en la ranura en vez de avisos de éxito */
+.lk-bag-runes { gap: 12px; }
+.lk-bag-runes__top { padding: 10px 14px; }
+.lk-bag-runes .lk-socket-master-rune { width: 52px; height: 52px; }
+.lk-bag-runes .lk-parts { gap: 0; }
+.lk-bag-runes .lk-part-row { grid-template-columns: 44px minmax(0, 1fr) auto 40px; gap: 10px; padding: 4px 10px; cursor: pointer; position: relative; }
+.lk-bag-runes__spell { width: 44px; height: 44px; border-radius: 9px; }
+.lk-bag-runes__spell .lk-spell-part { width: 19px; height: 19px; }
+.lk-bag-runes__spell.lk-is-noart .lk-spell-part { width: 30px; height: 30px; }
+.lk-bag-runes .lk-pn b { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.lk-bag-runes .lk-pn small { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.lk-bag-runes__pk { margin-left: 4px; font: 900 .58rem var(--lk-font-ui); letter-spacing: .12em; text-transform: uppercase; color: #6E7894; }
+.lk-bag-runes__chn { color: var(--lk-gilt-300); }
+.lk-bag-runes .lk-pp { font-size: .7rem; font-weight: 900; color: var(--lk-gilt-300); text-align: right; }
+/* Selección en lumen: hilo de 2px a la izquierda y aro en la ranura */
+.lk-bag-runes .lk-part-row.lk-is-target { background: linear-gradient(90deg, rgba(111, 164, 242, .14), transparent 70%); }
+.lk-bag-runes .lk-part-row.lk-is-target::before { content: ""; position: absolute; left: 0; top: 6px; bottom: 6px; width: 2px; border-radius: 2px; background: var(--lk-lumen-500); }
+.lk-bag-runes .lk-socket-charm { width: 38px; height: 38px; transition: box-shadow .25s var(--lk-ease, ease), transform .12s var(--lk-ease, ease); }
+.lk-bag-runes .lk-socket-charm img.lk-charm-art { width: 26px; height: 30px; }
+.lk-bag-runes .lk-socket-charm.lk-is-target { box-shadow: 0 0 0 2px var(--lk-lumen-500), 0 0 12px rgba(111, 164, 242, .45); }
+.lk-bag-runes .lk-socket-charm:active, .lk-bag-runes__rsock:active { transform: scale(.97); }
+.lk-bag-runes__plus { font: 400 1.3rem/1 var(--lk-font-display); color: rgba(211, 174, 108, .7); pointer-events: none; }
+.lk-bag-runes .lk-socket-charm.lk-is-empty:hover .lk-bag-runes__plus, .lk-bag-runes__rsock.lk-is-empty:hover .lk-bag-runes__plus { color: var(--lk-lumen-300); }
+.lk-bag-runes__rsock { display: grid; place-items: center; cursor: pointer; }
+.lk-bag-runes__rsock .lk-bag-runes__plus { font-size: 1.6rem; }
+/* PP: 15 rombos (unidad lunar) */
+.lk-bag-runes__pp { display: grid; gap: 7px; }
+.lk-bag-runes__ppread { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; font-weight: 800; color: #AEB6CB; font-size: .84rem; }
+.lk-bag-runes__ppread b { font: 400 1.4rem var(--lk-font-display); color: var(--lk-ivory-50); }
+.lk-bag-runes__ppread small { font-size: .72rem; color: #8D97AF; transition: color .2s; }
+.lk-bag-runes__ppread small.lk-is-bad { color: var(--lk-danger-crimson); }
+.lk-bag-runes__pips { display: flex; flex-wrap: wrap; gap: 5px; }
+.lk-bag-runes__pip { width: 10px; height: 10px; transform: rotate(45deg); border-radius: 2px; background: linear-gradient(135deg, var(--lk-gilt-300), #B98A45); box-shadow: 0 0 6px rgba(211, 174, 108, .35); transition: background .2s, box-shadow .2s, opacity .2s; }
+.lk-bag-runes__pip.lk-is-spent { background: rgba(141, 151, 175, .18); box-shadow: inset 0 0 0 1px rgba(141, 151, 175, .35); }
+.lk-bag-runes__pip.lk-is-preview { background: var(--lk-lumen-300); box-shadow: 0 0 8px rgba(111, 164, 242, .7); }
+.lk-bag-runes__pip.lk-is-over { background: var(--lk-danger-crimson); box-shadow: 0 0 8px rgba(224, 96, 90, .6); }
+/* PP por clase (Hito 44): cada rombo del color de la clase que lo aporta, agrupados por clase */
+.lk-bag-runes__pips { column-gap: 10px; row-gap: 6px; }
+.lk-bag-runes__pipgrp { display: inline-flex; gap: 5px; }
+.lk-bag-runes__pip.lk-has-cls { background: var(--c); box-shadow: 0 0 6px color-mix(in srgb, var(--c) 55%, transparent); }
+.lk-bag-runes__pip.lk-has-cls.lk-is-spent { background: color-mix(in srgb, var(--c) 16%, transparent); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--c) 45%, transparent); }
+.lk-bag-runes__pip.lk-has-cls.lk-is-preview { background: color-mix(in srgb, var(--c) 45%, #fff); box-shadow: 0 0 0 1px #fff, 0 0 9px color-mix(in srgb, var(--c) 80%, transparent); }
+.lk-bag-runes__pip.lk-has-cls.lk-is-over { background: var(--lk-danger-crimson); box-shadow: 0 0 8px rgba(224, 96, 90, .6); }
+.lk-bag-runes__ppleg { font-size: .72rem; font-weight: 700; color: #8D97AF; }
+.lk-bag-runes__ppleg b { font-weight: 900; }
+.lk-bag-runes__ppwarn { font-size: .72rem; color: var(--lk-danger-crimson); }
+/* Estantería */
+.lk-bag-runes__shelf { gap: 8px; scroll-margin-top: 8px; }
+.lk-bag-runes__bar { display: flex; align-items: center; justify-content: space-between; gap: 8px 10px; flex-wrap: wrap; }
+.lk-bag-runes__tools { display: flex; align-items: center; gap: 8px; margin-left: auto; }
+.lk-bag-runes .lk-codex__filters .lk-fchip { padding: 3px 10px; font-size: .72rem; }
+.lk-bag-runes__kind button { padding: 6px 14px; }
+.lk-bag-runes__kind .lk-ai { width: 18px; height: 18px; }
+.lk-bag-runes .lk-slot-item.lk-is-poor { opacity: .55; }
+.lk-bag-runes .lk-slot-item[draggable="true"] { cursor: grab; }
+.lk-bag-runes__tt-on { margin: 0 0 6px; font-size: .74rem; color: var(--lk-lumen-300); }
+.lk-bag-runes__pick { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; margin-top: 6px; }
+/* Arrastrar y soltar: destinos válidos en lumen, el resto apagado */
+.lk-bag-runes.lk-drag-charm .lk-part-row:not(.lk-can-drop) { opacity: .4; }
+.lk-bag-runes.lk-drag-charm .lk-part-row.lk-can-drop .lk-socket-charm,
+.lk-bag-runes.lk-drag-rune .lk-bag-runes__rsock { box-shadow: 0 0 0 2px var(--lk-lumen-300), 0 0 14px rgba(111, 164, 242, .5); }
+.lk-bag-runes .lk-part-row.lk-is-over { background: rgba(111, 164, 242, .16); }
+.lk-bag-runes .lk-part-row.lk-is-over .lk-socket-charm, .lk-bag-runes__rsock.lk-is-over { transform: scale(1.08); }
+/* Confirmación en la propia ranura (sustituye al aviso de éxito) */
+@keyframes lk-sockSet { 0% { transform: scale(.82); box-shadow: 0 0 0 0 rgba(169, 204, 255, .9); } 60% { transform: scale(1.04); box-shadow: 0 0 0 8px rgba(169, 204, 255, 0); } 100% { transform: scale(1); } }
+.lk-bag-runes .lk-is-set { animation: lk-sockSet .32s var(--lk-ease, ease) both; }
+@media (prefers-reduced-motion: reduce) {
+  .lk-bag-runes .lk-is-set { animation: none; box-shadow: 0 0 0 2px var(--lk-lumen-300); }
+  .lk-bag-runes__pip, .lk-bag-runes .lk-socket-charm { transition: none; }
+}
+/* Estantería de runas y charms: mismo tamaño que las casillas de la Mochila (.lk-bag__grid · minmax 76px, hueco 10px) */
+.lk-bag-runes .lk-shelf { grid-template-columns: repeat(auto-fill, minmax(76px, 1fr)); gap: 10px; align-items: start; }
+.lk-bag-runes .lk-shelf .lk-charm-item { align-content: start; }
+.lk-bag-runes .lk-charm-item { gap: 4px; }
+.lk-bag-runes .lk-shelf .lk-slot-item .lk-art { height: 66px; display: grid; place-items: center; }
+.lk-bag-runes .lk-shelf .lk-slot-item .lk-art img.lk-charm-art { width: 40px; height: 40px; }
+.lk-bag-runes .lk-shelf .lk-slot-item .lk-cap { padding: 3px 4px 4px; font-size: .64rem; line-height: 14px; white-space: nowrap; }
+.lk-bag-runes .lk-shelf .lk-slot-item .lk-cc { transform: scale(.85); transform-origin: top right; }
+.lk-bag-runes .lk-charm-item small { font-size: .62rem; line-height: 1.2; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+/* Selector compacto (Orden de la Mochila y de la estantería de charms): cristal, filo dorado, chevrón dorado,
+   foco lumen y lista desplegable oscura (color-scheme) en lugar del blanco del sistema */
+.lk-ui select.lk-select, select.lk-select {
+  appearance: none; -webkit-appearance: none; color-scheme: dark;
+  width: auto; min-height: 32px; padding: 0 30px 0 12px; border: 0; border-radius: var(--lk-r-pill); cursor: pointer;
+  font: 800 .78rem var(--lk-font-ui); color: var(--lk-ivory-50);
+  background: rgba(18, 24, 41, .75) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 8'%3E%3Cpath d='M1 1.5l5 5 5-5' fill='none' stroke='%23D3AE6C' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") no-repeat right 11px center / 10px 7px;
+  box-shadow: inset 0 0 0 1px rgba(211, 174, 108, .35);
+  transition: box-shadow .25s var(--lk-ease, ease), background-color .25s var(--lk-ease, ease);
+}
+select.lk-select:hover { background-color: rgba(28, 36, 60, .85); box-shadow: inset 0 0 0 1px var(--lk-gilt-300); }
+select.lk-select:focus-visible { outline: none; box-shadow: inset 0 0 0 1px var(--lk-lumen-300), 0 0 0 3px rgba(111, 164, 242, .35); }
+select.lk-select option { background: #121829; color: var(--lk-ivory-50); font-weight: 700; }
+select.lk-select option:checked { background: #22304F; color: var(--lk-lumen-300); }
+@media (prefers-reduced-motion: reduce) { select.lk-select { transition: none; } }
+/* Barra de la estantería: tipo a la izquierda y orden a la derecha; debajo, «Solo compatibles» y para qué parte */
+.lk-bag-runes__sort { margin-left: auto; }
+.lk-bag-runes__bar--fit { justify-content: flex-start; }
+/* Runas y partes fijas; solo la estantería se desplaza. Si la ventana es tan baja que no caben dos filas de
+   estantería, se desplaza todo el panel (mínimo de la estantería ≈ fila y media) */
+.lk-bag-runes { overflow-y: auto; gap: 10px; }
+.lk-bag-runes__top { padding: 8px 14px; }
+.lk-bag-runes .lk-part-row { padding: 3px 10px; }
+.lk-bag-runes__spell { width: 40px; height: 40px; }
+.lk-bag-runes .lk-part-row { grid-template-columns: 40px minmax(0, 1fr) auto 40px; }
+.lk-bag-runes .lk-socket-charm { width: 36px; height: 36px; }
+.lk-bag-runes__shelf { flex: 1 1 auto; min-height: 210px; display: flex; flex-direction: column; padding-top: 10px; }
+.lk-bag-runes__shelf > * { flex: none; }
+.lk-bag-runes .lk-shelf { flex: 1 1 0; min-height: 0; overflow-y: auto; align-content: start; padding: 4px 4px 8px; margin: 0 -4px; scrollbar-width: thin; scrollbar-gutter: stable; scrollbar-color: rgba(211, 174, 108, .35) transparent; overscroll-behavior: contain; }
+.lk-bag-runes__shelf .lk-drag-hint { display: none; }
+/* Mochila · fila de personajes: columnas iguales alineadas a la izquierda (sin hueco en el centro con 2 personajes) */
+.lk-bag .lk-sq-strip { display: grid; grid-template-columns: repeat(auto-fill, minmax(68px, 1fr)); justify-content: start; gap: 8px 6px; }
+.lk-bag .lk-sq-strip .lk-sq-pip { width: 100%; }
+.lk-bag .lk-sq-strip .lk-sq-pip .lk-nm { max-width: 100%; }
+
+/* ══ Forja (ForgePanel.js · pantalla 25 «Forja · Crear y evolucionar») ═══════════ */
+.lk-forge-layer > .lk-forge { width: min(1120px, 100%); height: min(760px, calc(100vh - 40px)); }
+.lk-forge-layer .lk-forge-body { flex: 1; min-height: 0; }
+.lk-forge-layer .lk-forge-list { min-height: 0; }
+.lk-forge-layer .lk-forge-rows { max-height: none; min-height: 0; }
+.lk-forge-layer .lk-forge-stage { min-height: 0; overflow-y: auto; scrollbar-width: thin; }
+.lk-forge-layer .lk-emblem .lk-ic { width: 22px; height: 22px; color: var(--lk-gilt-300); }
+.lk-forge-layer .lk-emoji { font-size: 30px; line-height: 1; }
+.lk-mat-tip { z-index: 2050; }
+/* Sin saltos en la cabecera cuando cambian las cantidades */
+.lk-forge-layer .lk-forge-wallet .lk-res-pill { min-width: 82px; }
+.lk-forge-layer .lk-forge-wallet { flex-wrap: nowrap; }
+@media (max-width: 980px) { .lk-forge-layer > .lk-forge { height: auto; } .lk-forge-layer .lk-forge-body { overflow-y: auto; } }
+/* Forja · Evolucionar: el SLP va en el botón, la comisión en bAXS justo debajo y la rapidez solo al acelerar una pieza en curso */
+.lk-forge-go .lk-b-ico .lk-cur-ico { width: 22px; height: 22px; }
+.lk-forge-fee { display: inline-flex; align-items: center; justify-content: center; gap: 6px; font-size: .74rem; font-weight: 700; color: #C8CFDF; }
+.lk-forge-fee img { width: 16px; height: 16px; object-fit: contain; }
+.lk-forge-fee b { color: #F0B8F6; font-weight: 900; }
+.lk-forge-fee.lk-is-short, .lk-forge-fee.lk-is-short b { color: #FF9C95; }
+.lk-forge-speedup .lk-speed__opts button { transition: box-shadow .25s var(--lk-ease), transform .12s var(--lk-ease); }
+.lk-forge-speedup .lk-speed__opts button:hover:not(:disabled) { box-shadow: inset 0 0 0 1.5px var(--lk-gilt-300), 0 0 0 3px rgba(239, 232, 218, .14); }
+.lk-forge-speedup .lk-speed__opts button:active:not(:disabled) { transform: scale(.97); }
+.lk-forge-speedup .lk-speed__opts button:disabled { opacity: .45; cursor: not-allowed; }
+.lk-forge-layer .lk-forge-cost.lk-is-job > div:first-child { display: grid; gap: 4px; }
+
+/* ══ Tienda (ShopPanel.js · pantalla 24 «Tienda · Comprar y vender») ═══════════ */
+.lk-shop-layer > .lk-shop { width: min(1080px, 100%); height: min(720px, calc(100vh - 40px)); }
+.lk-shop-layer .lk-shop-body { flex: 1; min-height: 0; }
+.lk-shop-layer .lk-shop-main { min-height: 0; }
+.lk-shop-layer .lk-shop-grid { max-height: none; min-height: 0; }
+.lk-shop-layer .lk-shop-page { min-height: 0; }
+.lk-shop-layer .lk-emoji { font-size: 30px; line-height: 1; }
+.lk-shop-layer .lk-res-pill { min-width: 92px; }
+@media (max-width: 980px) { .lk-shop-layer > .lk-shop { height: auto; } .lk-shop-layer .lk-shop-body { overflow-y: auto; } }
+#ui-overlay .lk-btn-end-turn .lk-et-sep { display: none; }
+#ui-overlay .lk-btn-end-turn.lk-has-timer .lk-et-sep { display: inline; }
+/* Monedas en la cabecera de la Mochila y la Tienda (oro · SLP · bAXS), igual que en la Forja; ancho fijo: sin saltos */
+.lk-wallet { display: flex; gap: 6px; flex-wrap: nowrap; }
+.lk-wallet .lk-res-pill { min-width: 82px; }
+@media (max-width: 900px) { .lk-wallet .lk-res-pill.lk-cur { display: none; } }

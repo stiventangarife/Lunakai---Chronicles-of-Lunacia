@@ -98,7 +98,7 @@ export class DemoScenaZone22 {
     this.particleManager = new ParticleSystemManager(this.group, this.terrain);
 
     // 8b. Sistema de Game Feel para huellas y polvo al caminar (Sapidae & Axie)
-    this.footstepManager = new FootstepEffectsManager(this.group, this.terrain);
+    this.footstepManager = new FootstepEffectsManager(this.group, this.terrain, (x, z) => this.getHeight(x, z)); // huellas sobre puentes y hielo
 
     // 8c. Slimes auténticos del juego con combate táctico y comportamiento saltarín
     this.slimeCreaturesManager = new SlimeCreaturesManager(this.group, this.terrain, this.assetManager, this.om);

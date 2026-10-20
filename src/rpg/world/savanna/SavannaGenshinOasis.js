@@ -228,7 +228,7 @@ export class SavannaGenshinOasis {
     const body = new THREE.SphereGeometry(0.13, 10, 6);
     body.scale(0.85, 0.75, 2.4);
     const tail = new THREE.ConeGeometry(0.14, 0.26, 4);
-    tail.rotateX(-Math.PI / 2); tail.scale(0.25, 1.0, 1.0); tail.translate(0, 0, -0.38);
+    tail.rotateX(Math.PI / 2); tail.scale(0.25, 1.0, 1.0); tail.translate(0, 0, -0.38); // punta hacia el cuerpo, aleta abierta hacia atrás (19-oct)
     const fin = new THREE.ConeGeometry(0.06, 0.16, 3);
     fin.translate(0, 0.1, 0.02);
     const geo = mergeGeometries([body.toNonIndexed(), tail.toNonIndexed(), fin.toNonIndexed()], false);

@@ -1,6 +1,7 @@
 // GridManager.js - Tactical Isometric Grid, Pathfinding (A*), Line of Sight, and Highlighting
 import * as THREE from 'three';
 import { TextureGenerator } from './TextureGenerator.js';
+import { cellExists } from './maps/BattleMapLayout.js';
 
 export const TILE_SIZE = 1.6;
 export const GRID_WIDTH = 10;
@@ -23,25 +24,81 @@ export class GridManager {
     this.obstacleGroup = new THREE.Group();
     this.scene.add(this.obstacleGroup);
 
+    // Hito 35: el 10×10 de siempre (tutorial y niveles de la campaña) vive en su propio grupo;
+    // los mapas de bioma (loadLayout) lo ocultan y dibujan su tablero en BattleArena.
+    this.legacyTilesGroup = new THREE.Group();
+    this.legacyTilesGroup.name = 'LegacyTiles';
+    this.gridGroup.add(this.legacyTilesGroup);
+    this.layout = null;
+
     this._initGrid();
     this._createVisualTiles();
   }
 
-  _initGrid() {
+  _initGrid(layout = null) {
     this.tiles = [];
     for (let x = 0; x < this.width; x++) {
       this.tiles[x] = [];
       for (let z = 0; z < this.height; z++) {
+        const kind = layout ? layout.cells[x][z] : 'floor';
+        const exists = layout ? cellExists(kind) : true;
+        // Agua: existe (se puede apuntar a través de ella) pero no se pisa; los obstáculos del mapa se ponen aparte
+        const baseWalkable = layout ? (exists && kind !== 'water') : true;
         this.tiles[x][z] = {
           x,
           z,
-          walkable: true,
+          walkable: baseWalkable,
+          baseWalkable,
+          exists,
+          kind,
           obstacle: null,
           unit: null,
           height: 0,
         };
       }
     }
+  }
+
+  /**
+   * Hito 35 — Carga un mapa de bioma (src/tactics/maps/BattleMaps.js): cambia el tamaño y la forma
+   * del tablero y pone sus obstáculos fijos. Solo lógica: el aspecto lo dibuja BattleArena.
+   * Las casillas que no existen devuelven false en isValidCoord, así que movimiento, alcance, áreas,
+   * empujes (chocan como contra un muro) e IA funcionan sin cambios.
+   */
+  loadLayout(map, obstacleTypes = {}) {
+    this.clearObstacles();
+    this.clearHighlights();
+    this.layout = map;
+    this.currentBiomeId = map.biome;
+    this.width = map.width;
+    this.height = map.height;
+    this._initGrid(map);
+    this.legacyTilesGroup.visible = false;
+    for (const o of map.obstacles) {
+      // Sin malla propia: BattleArena dibuja el árbol, la roca o el cristal de esa casilla
+      this.setObstacle(o.x, o.z, obstacleTypes[o.slot] || o.slot, { visual: false, permanent: true });
+    }
+  }
+
+  /** Vuelve al 10×10 de siempre (tutorial, niveles antiguos). No hace nada si ya está activo. */
+  useLegacyLayout() {
+    if (!this.layout) return;
+    this.clearObstacles();
+    this.clearHighlights();
+    this.layout = null;
+    this.width = GRID_WIDTH;
+    this.height = GRID_HEIGHT;
+    this._initGrid();
+    this.legacyTilesGroup.visible = true;
+  }
+
+  /** Extensión del tablero en el mundo (para la cámara, las sombras y el escenario). */
+  getBoardExtents() {
+    return {
+      halfW: (this.width * TILE_SIZE) / 2,
+      halfD: (this.height * TILE_SIZE) / 2,
+      tileSize: TILE_SIZE,
+    };
   }
 
   _createVisualTiles() {
@@ -72,7 +129,7 @@ export class GridManager {
         mesh.position.set(worldPos.x, -0.125, worldPos.z);
         mesh.receiveShadow = true;
         mesh.userData = { gridX: x, gridZ: z, isTile: true };
-        this.gridGroup.add(mesh);
+        this.legacyTilesGroup.add(mesh);
         this.tileMeshes[x][z] = mesh;
 
         const edges = new THREE.EdgesGeometry(tileGeo);
@@ -107,12 +164,13 @@ export class GridManager {
         const tile = this.tiles[x][z];
         tile.obstacle = null;
         tile.obstacleMesh = null;
-        tile.walkable = true;
+        tile.walkable = tile.baseWalkable !== false;
       }
     }
   }
 
   setupBiome(biomeId = 'lunacia_plains', customObstacles = null) {
+    this.useLegacyLayout(); // Hito 35: el tutorial y la campaña antigua siguen en el 10×10
     this.currentBiomeId = biomeId;
     this.clearObstacles();
 
@@ -240,7 +298,7 @@ export class GridManager {
     }
   }
 
-  setObstacle(gx, gz, type = 'pillar') {
+  setObstacle(gx, gz, type = 'pillar', opts = {}) {
     if (!this.isValidCoord(gx, gz)) return;
     const tile = this.tiles[gx][gz];
 
@@ -260,7 +318,8 @@ export class GridManager {
     }
 
     tile.walkable = false;
-    tile.obstacle = { type };
+    tile.obstacle = opts.permanent ? { type, permanent: true } : { type };
+    if (opts.visual === false) return; // Hito 35: obstáculo de mapa, lo dibuja BattleArena
 
     const worldPos = this.gridToWorld(gx, gz);
     let mesh;
@@ -374,6 +433,7 @@ export class GridManager {
   removeObstacle(gx, gz) {
     if (!this.isValidCoord(gx, gz)) return;
     const tile = this.tiles[gx][gz];
+    if (tile.obstacle && tile.obstacle.permanent) return; // Hito 35: los árboles y rocas del mapa no se quitan
     if (tile.obstacleMesh) {
       this.obstacleGroup.remove(tile.obstacleMesh);
       if (tile.obstacleMesh.traverse) {
@@ -388,7 +448,7 @@ export class GridManager {
     }
     tile.obstacleMesh = null;
     tile.obstacle = null;
-    tile.walkable = true;
+    tile.walkable = tile.baseWalkable !== false;
   }
 
   spawnImpactDecal(worldPos, type = 'scorch') {
@@ -472,7 +532,9 @@ export class GridManager {
   }
 
   isValidCoord(gx, gz) {
-    return gx >= 0 && gx < this.width && gz >= 0 && gz < this.height;
+    if (!(gx >= 0 && gx < this.width && gz >= 0 && gz < this.height)) return false;
+    // Hito 35: en los mapas con forma, las casillas fuera del tablero no existen
+    return !this.layout || this.tiles[gx][gz].exists !== false;
   }
 
   getTile(gx, gz) {
@@ -544,6 +606,10 @@ export class GridManager {
 
       const tile = this.tiles[x0][z0];
       if (tile.obstacle) {
+        return false;
+      }
+      // Hito 35: en los mapas con paredes (cañón, glaciar) el terreno fuera del tablero tapa la visión
+      if (this.layout && this.layout.terrainRise && tile.kind === 'none') {
         return false;
       }
     }

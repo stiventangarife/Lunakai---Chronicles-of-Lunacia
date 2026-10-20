@@ -35,8 +35,11 @@ function hitDamage(sm, ctx, target, base, e) {
     if (b.add) dmg += b.add;
     if (b.mult) dmg = Math.round(dmg * b.mult);
   }
-  return sm._applyDamageModifiers(caster, target, dmg, d);
+  return sm._applyDamageModifiers(caster, target, dmg, d, ctx);
 }
+
+/** Multiplicador del crítico (×1,5 + daño crítico de runas y charms). */
+const critMult = (sm, caster, target, e = null) => (sm.runeCharms ? sm.runeCharms.critMultiplier(caster, target, e) : 1.5);
 
 /** Cuánto del daño total se lo comen la barrera y el escudo, y cuánto llega a la vida. */
 function absorb(sm, target, total, pierce = 0, broken = 0) {
@@ -52,9 +55,10 @@ function absorb(sm, target, total, pierce = 0, broken = 0) {
 
 export function forecast(sm, caster, spell, cell) {
   if (!sm || !caster || !spell || !cell) return null;
+  if (sm.runeCharms) spell = sm.runeCharms.spellFor(caster, spell); // carta con los charms de la unidad
   const ctx = { caster, spell, targetCell: cell, spent: spell.paCost === 'X' ? (caster.currentPA || 1) : spell.paCost };
   ctx.affectedCells = sm.getAoECells(cell, spell, caster);
-  const critChance = Math.max(0, Math.min(1, 0.20 + ((caster.critRate || 0) + sm.statuses.mod(caster, 'critPct')) / 100));
+  const critChance = Math.max(0, Math.min(1, ((caster.critRate > 0 ? caster.critRate : 20) + sm.statuses.mod(caster, 'critPct')) / 100));
   const rows = new Map();
   const row = (u) => {
     if (!rows.has(u)) rows.set(u, { unit: u, damage: null, heal: 0, shield: 0, statuses: [], notes: [] });
@@ -70,7 +74,9 @@ export function forecast(sm, caster, spell, cell) {
       const lo = hitDamage(sm, ctx, u, spell.baseMinDamage, e);
       const hi = hitDamage(sm, ctx, u, spell.baseMaxDamage ?? spell.baseMinDamage, e);
       const a = absorb(sm, u, lo.amount), b = absorb(sm, u, hi.amount);
-      row(u).damage = { min: lo.amount, max: hi.amount, critMax: Math.round(hi.amount * 1.5), hits: 1, elemental: lo.elemental, lethal: a.toHP >= u.currentHP, mayKill: b.toHP >= u.currentHP, shieldMin: a.toShield, shieldMax: b.toShield };
+      const ev = sm.runeCharms ? sm.runeCharms.evasionChance(caster, u, dist(caster, u)) : 0;
+      if (ev > 0) row(u).notes.push(`Puede esquivar (${Math.round(ev * 100)} %)`);
+      row(u).damage = { min: lo.amount, max: hi.amount, critMax: Math.round(hi.amount * critMult(sm, caster, u)), hits: 1, elemental: lo.elemental, lethal: a.toHP >= u.currentHP, mayKill: b.toHP >= u.currentHP, shieldMin: a.toShield, shieldMax: b.toShield };
     } else if (u && spell.baseMinHeal) {
       row(u).heal = spell.baseMinHeal;
     }
@@ -90,7 +96,9 @@ export function forecast(sm, caster, spell, cell) {
           const lo = hitDamage(sm, ctx, t, e.min ?? e.amount ?? 0, e);
           const hi = hitDamage(sm, ctx, t, e.max ?? e.amount ?? 0, e);
           const prev = r.damage || { min: 0, max: 0, critMax: 0, hits: 0, elemental: lo.elemental };
-          r.damage = { ...prev, min: prev.min + lo.amount * hits, max: prev.max + hi.amount * hits, critMax: prev.critMax + Math.round(hi.amount * 1.5) * hits, hits: prev.hits + hits, elemental: lo.elemental, pierce: e.pierceShield || prev.pierce || 0 };
+          r.damage = { ...prev, min: prev.min + lo.amount * hits, max: prev.max + hi.amount * hits, critMax: prev.critMax + Math.round(hi.amount * critMult(sm, caster, t, e)) * hits, hits: prev.hits + hits, elemental: lo.elemental, pierce: Math.max(e.pierceShield || 0, prev.pierce || 0, sm.runeCharms ? sm.runeCharms.pierce(caster, dist(caster, t)) : 0) };
+          const ev = sm.runeCharms ? sm.runeCharms.evasionChance(caster, t, dist(caster, t)) : 0;
+          if (ev > 0 && !r.notes.some((n) => n.startsWith('Puede esquivar'))) r.notes.push(`Puede esquivar (${Math.round(ev * 100)} %)`);
           break;
         }
         case 'heal': {

@@ -28,6 +28,9 @@ export class SaveStatusChip {
     });
     this._hideT = null;
     this.visibleInGame = false;
+    // En el mundo abierto se coloca justo encima de la fila de atajos (que puede ocupar 1 o 2 líneas)
+    this._place = () => this._reposition();
+    window.addEventListener('resize', this._place);
 
     this.account.cloud.onStatus((status, cloud) => {
       if (status === 'conflict') { if (cloud.lastNotice) toast(cloud.lastNotice); return; }
@@ -41,11 +44,19 @@ export class SaveStatusChip {
     this.render(this.account.cloud.status);
   }
 
+  /** Por encima de los atajos del mundo abierto si están a la vista; si no, en su esquina (16px). */
+  _reposition() {
+    const keys = document.querySelector('.lk-ow-keys');
+    const r = keys && keys.offsetParent ? keys.getBoundingClientRect() : null;
+    this.el.style.bottom = r && r.height ? `${Math.round(window.innerHeight - r.top + 8)}px` : '';
+  }
+
   render(status) {
     const show = this.visibleInGame && this.account.mode === 'account' && status !== 'idle';
     clearTimeout(this._hideT);
     if (!show) { this.el.hidden = true; return; }
     this.el.hidden = false;
+    this._reposition();
     this.el.dataset.state = status;
     this._txt.textContent = TEXT[status] || '';
     this._btn.hidden = !(status === 'error' || status === 'offline');

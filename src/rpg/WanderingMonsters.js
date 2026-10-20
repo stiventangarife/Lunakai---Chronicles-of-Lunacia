@@ -386,6 +386,7 @@ export class WanderingMonsters {
       else if (gx === 3 && gy === 3 && i === 0) forcedLeader = 'werewolf_boss';
 
       const pack = generatePackForBiome(mapDef.biome || 'forest', [gx, gy], forcedLeader);
+      if (forcedLeader) pack.isBoss = true; // Hito 35: los jefes (👑) combaten siempre en el mapa de jefe del bioma
       const preset = islandLayout
         ? spawnPresets[(presetOffset + i * 2) % spawnPresets.length]
         : (spawnPresets[i] || spawnPresets[0]);
@@ -425,6 +426,7 @@ export class WanderingMonsters {
       const mg = islandLayout.merged;
       const [lgx, lgy] = mg.logicalZone.split('_').map(Number);
       const pack = generatePackForBiome(mg.biome, [lgx, lgy], mg.forcedLeader || null);
+      if (mg.forcedLeader) pack.isBoss = true; // Hito 35: mapa de jefe
       const leader = pack.leader;
       let displayName = leader.name;
       let badge = '👾';
@@ -587,6 +589,7 @@ export class WanderingMonsters {
     const biome = (gx === 1 && gy === 4) ? 'mystic' : (gy === 1 ? 'arctic' : (gy === 5 ? 'dungeon' : 'forest'));
 
     const pack = generatePackForBiome(biome, [gx, gy], forcedArchetypeId);
+    pack.isBoss = true; // Hito 35: mapa de jefe
     const leader = pack.leader;
     const presets = this._getSafeSpawnPresets(gx, gy, biome);
     const preset = presets[0];

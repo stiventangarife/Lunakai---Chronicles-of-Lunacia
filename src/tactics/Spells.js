@@ -8,9 +8,11 @@ import { BattlefieldObjects } from './combat/BattlefieldObjects.js';
 import { EffectResolver } from './combat/EffectResolver.js';
 import { elementalMultiplier } from './combat/Elements.js';
 import { UltimateSystem } from './combat/UltimateSystem.js';
+import { RuneCharmSystem } from './combat/RuneCharmEffects.js';
 import { PART_SPELLS } from './data/PartCards.js';
 import { STARTER_SPELLS } from './data/StarterCards.js';
 import { COLLECTION_SPELLS } from './data/CollectionCards.js';
+import { onVariantRegistered } from './data/VariantCards.js';
 import { applyEnemySpellEffects } from './data/EnemySpellEffects.js';
 
 export const SPELLS_DB = {
@@ -22,7 +24,7 @@ export const SPELLS_DB = {
 
   // --- Forjacubiles (Crafter): control territorial, bloqueo y blindaje
   craft_anvil: {
-    id: 'craft_anvil', name: 'Yunque Táctico', icon: './assets/skills/heroes/crafter/1.png',
+    id: 'craft_anvil', name: 'Yunque Táctico', icon: './assets/skills/heroes/crafter/1.webp',
     paCost: 3, minRange: 1, maxRange: 2, requiresLoS: true, isLinear: true,
     targetType: 'enemy', areaType: 'single', sound: 'melee',
     baseMinDamage: 45, baseMaxDamage: 60, pushDistance: 1,
@@ -33,7 +35,7 @@ export const SPELLS_DB = {
     description: 'Golpe de yunque: 45-60 de daño y empuja al enemigo 1 casilla (daño de colisión si choca).'
   },
   craft_totem: {
-    id: 'craft_totem', name: 'Tótem de Resguardo', icon: './assets/skills/heroes/crafter/2.png',
+    id: 'craft_totem', name: 'Tótem de Resguardo', icon: './assets/skills/heroes/crafter/2.webp',
     paCost: 2, minRange: 1, maxRange: 3, requiresLoS: true, isLinear: false,
     targetType: 'ally', areaType: 'single', sound: 'buff',
     shieldAmount: 50,
@@ -44,7 +46,7 @@ export const SPELLS_DB = {
     description: 'Tótem protector: +50 de Escudo y +1 PM al aliado durante su turno.'
   },
   craft_barricade: {
-    id: 'craft_barricade', name: 'Barricada de Lunacia', icon: './assets/skills/heroes/crafter/3.png',
+    id: 'craft_barricade', name: 'Barricada de Lunacia', icon: './assets/skills/heroes/crafter/3.webp',
     paCost: 2, minRange: 1, maxRange: 3, requiresLoS: false, isLinear: false,
     targetType: 'empty', areaType: 'single', sound: 'push',
     shieldAmount: 30,
@@ -55,7 +57,7 @@ export const SPELLS_DB = {
     description: 'Barricada de madera indestructible que bloquea paso y visión durante 2 rondas. +30 de Escudo al lanzador.'
   },
   craft_quake: {
-    id: 'craft_quake', name: 'Impacto Sísmico', icon: './assets/skills/heroes/crafter/4.png',
+    id: 'craft_quake', name: 'Impacto Sísmico', icon: './assets/skills/heroes/crafter/4.webp',
     paCost: 3, minRange: 1, maxRange: 2, requiresLoS: true, isLinear: false,
     targetType: 'enemy', areaType: 'cross1', sound: 'melee',
     baseMinDamage: 40, baseMaxDamage: 52,
@@ -66,7 +68,7 @@ export const SPELLS_DB = {
     description: 'Martillazo en cruz: 40-52 de daño y −1 PM en su próximo turno a cada enemigo alcanzado.'
   },
   craft_reinforce: {
-    id: 'craft_reinforce', name: 'Refuerzo de Placas', icon: './assets/skills/heroes/crafter/5.png',
+    id: 'craft_reinforce', name: 'Refuerzo de Placas', icon: './assets/skills/heroes/crafter/5.webp',
     paCost: 2, minRange: 1, maxRange: 3, requiresLoS: true, isLinear: false,
     targetType: 'ally', areaType: 'single', sound: 'buff',
     shieldAmount: 70,
@@ -77,7 +79,7 @@ export const SPELLS_DB = {
     description: 'Placas de metal lunar: +70 de Escudo y elimina las penalizaciones de PM del aliado.'
   },
   craft_turret: {
-    id: 'craft_turret', name: 'Balista de Lunacia', icon: './assets/skills/heroes/crafter/6.png',
+    id: 'craft_turret', name: 'Balista de Lunacia', icon: './assets/skills/heroes/crafter/6.webp',
     paCost: 4, minRange: 1, maxRange: 4, requiresLoS: true, isLinear: false,
     targetType: 'enemy', areaType: 'single', sound: 'bow',
     baseMinDamage: 55, baseMaxDamage: 72,
@@ -89,7 +91,7 @@ export const SPELLS_DB = {
 
   // --- Susurrador (Shepherd): sintonía genética, curación y apoyo
   shepard_astral_strike: {
-    id: 'shepard_astral_strike', name: 'Fulgor Cósmico', icon: './assets/skills/heroes/shepard/1.png',
+    id: 'shepard_astral_strike', name: 'Fulgor Cósmico', icon: './assets/skills/heroes/shepard/1.webp',
     paCost: 3, minRange: 1, maxRange: 3, requiresLoS: true, isLinear: false,
     targetType: 'enemy', areaType: 'single', sound: 'buff',
     baseMinDamage: 48, baseMaxDamage: 62,
@@ -99,7 +101,7 @@ export const SPELLS_DB = {
     description: 'Energía de las estrellas de Lunacia: 48-62 de daño mágico a distancia.'
   },
   shepard_balsam: {
-    id: 'shepard_balsam', name: 'Bálsamo Astral', icon: './assets/skills/heroes/shepard/2.png',
+    id: 'shepard_balsam', name: 'Bálsamo Astral', icon: './assets/skills/heroes/shepard/2.webp',
     paCost: 2, minRange: 1, maxRange: 3, requiresLoS: true, isLinear: false,
     targetType: 'ally', areaType: 'single', sound: 'heal',
     baseMinHeal: 30, baseMaxHeal: 42, shieldAmount: 40,
@@ -110,7 +112,7 @@ export const SPELLS_DB = {
     description: 'Bálsamo curativo: restaura 30-42 HP y otorga +40 de Escudo al aliado.'
   },
   shepard_attunement: {
-    id: 'shepard_attunement', name: 'Sintonía Genética', icon: './assets/skills/heroes/shepard/3.png',
+    id: 'shepard_attunement', name: 'Sintonía Genética', icon: './assets/skills/heroes/shepard/3.webp',
     paCost: 2, minRange: 1, maxRange: 4, requiresLoS: true, isLinear: false,
     targetType: 'ally', allyFilter: 'companion', areaType: 'single', sound: 'heal',
     baseMinHeal: 50, baseMaxHeal: 65,
@@ -121,7 +123,7 @@ export const SPELLS_DB = {
     description: 'Despierta el lazo con tu Axie: restaura 50-65 HP y le da +1 PA extra en su turno.'
   },
   shepard_pack_howl: {
-    id: 'shepard_pack_howl', name: 'Aullido de Manada', icon: './assets/skills/heroes/shepard/4.png',
+    id: 'shepard_pack_howl', name: 'Aullido de Manada', icon: './assets/skills/heroes/shepard/4.webp',
     paCost: 2, minRange: 0, maxRange: 0, requiresLoS: false, isLinear: false,
     targetType: 'self', areaType: 'circle2', sound: 'push',
     effects: [
@@ -131,7 +133,7 @@ export const SPELLS_DB = {
     description: 'Aullido: +1 PM y +15 % de daño durante 1 turno a todos los aliados a 2 casillas o menos (incluido el lanzador).'
   },
   shepard_spirit_bond: {
-    id: 'shepard_spirit_bond', name: 'Lazo Simbiótico', icon: './assets/skills/heroes/shepard/5.png',
+    id: 'shepard_spirit_bond', name: 'Lazo Simbiótico', icon: './assets/skills/heroes/shepard/5.webp',
     paCost: 3, minRange: 1, maxRange: 4, requiresLoS: true, isLinear: false,
     targetType: 'ally', allyFilter: 'companion', areaType: 'single', sound: 'heal',
     effects: [
@@ -144,7 +146,7 @@ export const SPELLS_DB = {
     description: 'Vincula al Sapidae y su Axie durante 2 turnos: el daño de habilidades que recibe uno se reparte a medias con el otro y ambos regeneran 25 HP al empezar su turno.'
   },
   shepard_chimeric_awakening: {
-    id: 'shepard_chimeric_awakening', name: 'Despertar Quimérico', icon: './assets/skills/heroes/shepard/6.png',
+    id: 'shepard_chimeric_awakening', name: 'Despertar Quimérico', icon: './assets/skills/heroes/shepard/6.webp',
     paCost: 4, minRange: 1, maxRange: 3, requiresLoS: true, isLinear: false,
     targetType: 'ally', allyFilter: 'companion', areaType: 'single', sound: 'buff',
     shieldAmount: 60,
@@ -158,7 +160,7 @@ export const SPELLS_DB = {
 
   // --- Lunalogista (Botanist): control de masas y drenaje vital
   lunalogist_bramble: {
-    id: 'lunalogist_bramble', name: 'Zarzas Lunares', icon: './assets/skills/heroes/lunalogist/1.png',
+    id: 'lunalogist_bramble', name: 'Zarzas Lunares', icon: './assets/skills/heroes/lunalogist/1.webp',
     paCost: 3, minRange: 1, maxRange: 3, requiresLoS: true, isLinear: false,
     targetType: 'enemy', areaType: 'single', sound: 'bow',
     baseMinDamage: 38, baseMaxDamage: 48,
@@ -169,7 +171,7 @@ export const SPELLS_DB = {
     description: 'Zarzas que inmovilizan: 38-48 de daño y −1 PM y −1 PA en el próximo turno del enemigo.'
   },
   lunalogist_spores: {
-    id: 'lunalogist_spores', name: 'Esporas Vigorizantes', icon: './assets/skills/heroes/lunalogist/2.png',
+    id: 'lunalogist_spores', name: 'Esporas Vigorizantes', icon: './assets/skills/heroes/lunalogist/2.webp',
     paCost: 3, minRange: 1, maxRange: 3, requiresLoS: true, isLinear: false,
     targetType: 'any', areaType: 'cross1', sound: 'heal',
     baseMinDamage: 30, baseMaxDamage: 40,
@@ -180,7 +182,7 @@ export const SPELLS_DB = {
     description: 'Nube de esporas en cruz: 30-40 de daño a los enemigos y +25 HP a los aliados dentro del área.'
   },
   lunalogist_berry: {
-    id: 'lunalogist_berry', name: 'Baya Lunar Alquímica', icon: './assets/skills/heroes/lunalogist/3.png',
+    id: 'lunalogist_berry', name: 'Baya Lunar Alquímica', icon: './assets/skills/heroes/lunalogist/3.webp',
     paCost: 2, minRange: 1, maxRange: 3, requiresLoS: true, isLinear: false,
     targetType: 'ally', areaType: 'single', sound: 'heal',
     shieldAmount: 40,
@@ -191,7 +193,7 @@ export const SPELLS_DB = {
     description: 'Baya de rocío lunar: +40 de Escudo y +1 PM al aliado (ya, si es su turno; si no, en su turno).'
   },
   lunalogist_seed: {
-    id: 'lunalogist_seed', name: 'Semilla Parásita', icon: './assets/skills/heroes/lunalogist/4.png',
+    id: 'lunalogist_seed', name: 'Semilla Parásita', icon: './assets/skills/heroes/lunalogist/4.webp',
     paCost: 3, minRange: 1, maxRange: 3, requiresLoS: true, isLinear: false,
     targetType: 'enemy', areaType: 'single', sound: 'heal',
     baseMinDamage: 35, baseMaxDamage: 45,
@@ -202,7 +204,7 @@ export const SPELLS_DB = {
     description: 'Semilla que roba vida: 35-45 de daño y el lanzador se cura el 60 % del daño infligido.'
   },
   lunalogist_cloak: {
-    id: 'lunalogist_cloak', name: 'Manto Clorofílico', icon: './assets/skills/heroes/lunalogist/5.png',
+    id: 'lunalogist_cloak', name: 'Manto Clorofílico', icon: './assets/skills/heroes/lunalogist/5.webp',
     paCost: 2, minRange: 0, maxRange: 0, requiresLoS: false, isLinear: false,
     targetType: 'self', areaType: 'single', sound: 'buff',
     shieldAmount: 55,
@@ -214,7 +216,7 @@ export const SPELLS_DB = {
     description: 'Manto de hojas: +55 de Escudo y −30 % de daño recibido a distancia durante 1 ronda.'
   },
   lunalogist_bloom: {
-    id: 'lunalogist_bloom', name: 'Brotación Primigenia', icon: './assets/skills/heroes/lunalogist/6.png',
+    id: 'lunalogist_bloom', name: 'Brotación Primigenia', icon: './assets/skills/heroes/lunalogist/6.webp',
     paCost: 4, minRange: 1, maxRange: 3, requiresLoS: true, isLinear: false,
     targetType: 'enemy', areaType: 'box3x3', sound: 'bow',
     baseMinDamage: 45, baseMaxDamage: 60,
@@ -227,18 +229,18 @@ export const SPELLS_DB = {
 
   // --- Astromante (Stargazer): manipulación espacial y gravedad
   stargazer_vortex: {
-    id: 'stargazer_vortex', name: 'Vórtice Gravitacional', icon: './assets/skills/heroes/stargazer/1.png',
+    id: 'stargazer_vortex', name: 'Vórtice Gravitacional', icon: './assets/skills/heroes/stargazer/1.webp',
     paCost: 3, minRange: 1, maxRange: 3, requiresLoS: true, isLinear: false,
     targetType: 'enemy', areaType: 'single', sound: 'push',
-    baseMinDamage: 40, baseMaxDamage: 52, pushDistance: 2,
+    baseMinDamage: 49, baseMaxDamage: 63, pushDistance: 2, // Fase 5 (equilibrio): antes 40-52
     effects: [
-      { type: 'damage', min: 40, max: 52 },
+      { type: 'damage', min: 49, max: 63 },
       { type: 'push', distance: 2, collisionBonus: 20 },
     ],
-    description: 'Onda gravitatoria: 40-52 de daño y empuja 2 casillas; si choca, +20 de daño de colisión.'
+    description: 'Onda gravitatoria: 49-63 de daño y empuja 2 casillas; si choca, +20 de daño de colisión.'
   },
   stargazer_transpose: {
-    id: 'stargazer_transpose', name: 'Transposición Estelar', icon: './assets/skills/heroes/stargazer/2.png',
+    id: 'stargazer_transpose', name: 'Transposición Estelar', icon: './assets/skills/heroes/stargazer/2.webp',
     paCost: 2, minRange: 1, maxRange: 4, requiresLoS: true, isLinear: false,
     targetType: 'ally', allyFilter: 'companion', areaType: 'single', sound: 'buff',
     shieldAmount: 25,
@@ -250,7 +252,7 @@ export const SPELLS_DB = {
     description: 'Intercambia al instante la posición con tu Axie. Ambos ganan +25 de Escudo.'
   },
   stargazer_jump: {
-    id: 'stargazer_jump', name: 'Salto Astral', icon: './assets/skills/heroes/stargazer/3.png',
+    id: 'stargazer_jump', name: 'Salto Astral', icon: './assets/skills/heroes/stargazer/3.webp',
     paCost: 2, minRange: 2, maxRange: 4, requiresLoS: false, isLinear: false,
     targetType: 'empty', areaType: 'single', sound: 'buff',
     shieldAmount: 35,
@@ -262,18 +264,18 @@ export const SPELLS_DB = {
     description: 'Salta a una casilla vacía (2-4): +35 de Escudo y −1 PM en su próximo turno a los enemigos adyacentes al aterrizar.'
   },
   stargazer_nova: {
-    id: 'stargazer_nova', name: 'Nova Estelar', icon: './assets/skills/heroes/stargazer/4.png',
+    id: 'stargazer_nova', name: 'Nova Estelar', icon: './assets/skills/heroes/stargazer/4.webp',
     paCost: 3, minRange: 1, maxRange: 3, requiresLoS: true, isLinear: false,
     targetType: 'enemy', areaType: 'cross1', sound: 'buff',
-    baseMinDamage: 45, baseMaxDamage: 58,
+    baseMinDamage: 55, baseMaxDamage: 71, // Fase 5 (equilibrio): antes 45-58
     effects: [
-      { type: 'damage', min: 45, max: 58, target: 'enemiesInArea' },
+      { type: 'damage', min: 55, max: 71, target: 'enemiesInArea' },
       { type: 'status', status: 'rangeDown', value: 1, duration: 1, target: 'enemiesInArea' },
     ],
-    description: 'Estrella comprimida en cruz: 45-58 de daño y −1 de alcance a los enemigos alcanzados durante su próximo turno.'
+    description: 'Estrella comprimida en cruz: 55-71 de daño y −1 de alcance a los enemigos alcanzados durante su próximo turno.'
   },
   stargazer_gravity_well: {
-    id: 'stargazer_gravity_well', name: 'Pozo Gravitatorio', icon: './assets/skills/heroes/stargazer/5.png',
+    id: 'stargazer_gravity_well', name: 'Pozo Gravitatorio', icon: './assets/skills/heroes/stargazer/5.webp',
     paCost: 2, minRange: 1, maxRange: 4, requiresLoS: true, isLinear: false,
     targetType: 'any', areaType: 'box2x2', sound: 'buff',
     effects: [
@@ -282,7 +284,7 @@ export const SPELLS_DB = {
     description: 'Zona de 2×2 casillas durante 2 rondas: los aliados que empiezan su turno dentro ganan +2 PM; los enemigos pierden 1 PM.'
   },
   stargazer_eclipse: {
-    id: 'stargazer_eclipse', name: 'Eclipse Cataclísmico', icon: './assets/skills/heroes/stargazer/6.png',
+    id: 'stargazer_eclipse', name: 'Eclipse Cataclísmico', icon: './assets/skills/heroes/stargazer/6.webp',
     paCost: 4, minRange: 1, maxRange: 4, requiresLoS: true, isLinear: false,
     targetType: 'enemy', areaType: 'box3x3', sound: 'push',
     baseMinDamage: 60, baseMaxDamage: 78,
@@ -1760,6 +1762,8 @@ export const SPELLS_DB = {
 
 // Fase 4: las 235 cartas de partes de Axie forman parte del catálogo de hechizos (ids part_<clase>_<parte>_<nombre>)
 Object.assign(SPELLS_DB, PART_SPELLS, STARTER_SPELLS, COLLECTION_SPELLS);
+// Cartas variantes (parte de colección con su nombre, partes de nivel 2): se añaden al resolver cada Axie
+onVariantRegistered((id, spell) => { SPELLS_DB[id] = spell; });
 applyEnemySpellEffects(SPELLS_DB); // Fase 5: los enemigos usan estados (veneno, provocación, sangrado…)
 
 export class SpellManager {
@@ -1795,6 +1799,8 @@ export class SpellManager {
     this.effects = new EffectResolver(this);
     // Fase 3: Duo Ultimates (vínculo al 100 %, 6 PA, ronda ≥ 2, un uso)
     this.ultimates = new UltimateSystem(this);
+    // Runas y charms de los Axies del jugador (RuneCharmEffects.js): estadísticas, cartas modificadas y ganchos de reglas
+    this.runeCharms = new RuneCharmSystem(this);
     // Triángulo elemental (±15 %). Se puede apagar para pruebas: sm.elementalEnabled = false
     this.elementalEnabled = true;
   }
@@ -1806,15 +1812,23 @@ export class SpellManager {
       this.field.reset();
       this.ultimates.used = false;
       for (const u of tm.units || []) u.statuses = [];
+      this.runeCharms.onCombatStart(tm.units || []);
     };
-    tm.onRoundStart = (round) => this.field.onRoundStart(round);
+    tm.onRoundStart = (round) => {
+      this.field.onRoundStart(round);
+      this.runeCharms.onRoundStart(round);
+    };
     tm.onUnitTurnStart = (unit) => {
       unit._castsThisTurn = {}; // Fase 5: usos por turno (castsPerTurn)
       this.syncOccupancy(); // Fase 5: cada casilla apunta a la unidad viva que está de verdad en ella
       this.field.onTurnStart(unit);
-      return this.statuses.onTurnStart(unit);
+      this.runeCharms.turnStartPre(unit);
+      const result = this.statuses.onTurnStart(unit);
+      this.runeCharms.turnStartPost(unit, result);
+      return result;
     };
     tm.onUnitTurnEnd = (unit) => {
+      this.runeCharms.turnEnd(unit); // antes de que caduquen estados y escudos
       this.statuses.onTurnEnd(unit);
       // Escudos de habilidades: caducan al final del turno del receptor en la ronda siguiente a recibirlos
       if (unit.shieldExpiresRound != null && this.field.round >= unit.shieldExpiresRound) {
@@ -1861,9 +1875,20 @@ export class SpellManager {
   /** Alias usado por Unit.dieCinematic para el remate cinemático del último enemigo. */
   get vfxManager() { return this.vfx; }
 
-  getSpell(spellId) {
+  /**
+   * Hechizo por id. Con `unit`, devuelve la carta tal como la lanza esa unidad: si un charm la modifica
+   * (daño, alcance, coste…), su copia (mismo id). Sin unidad, la carta base del catálogo.
+   */
+  getSpell(spellId, unit = null) {
     if (!spellId) return null;
-    return SPELLS_DB[spellId] || SPELLS_DB.chimera_bite || null;
+    const base = SPELLS_DB[spellId] || SPELLS_DB.chimera_bite || null;
+    return unit ? this.runeCharms.spellFor(unit, base) : base;
+  }
+
+  /** Coste en PA que pagará la unidad por la carta (descuentos de charms y runas incluidos). */
+  getSpellCost(caster, spell) {
+    if (!spell) return 0;
+    return this.runeCharms.costOf(caster, this.runeCharms.spellFor(caster, spell));
   }
 
   getValidTargetCells(caster, spell) {
@@ -1893,13 +1918,17 @@ export class SpellManager {
         }
 
         const tile = this.gridManager.getTile(x, z);
+        // Casillas inutilizables: fuera del tablero, con obstáculo (roca, árbol, barricada…) o con agua.
+        // Ninguna habilidad se puede lanzar sobre ellas (sí se puede ver y disparar por encima del agua).
+        if (!tile || tile.obstacle || tile.baseWalkable === false) continue;
 
         if (spell.targetType === 'empty') {
           if (!tile || !tile.walkable || tile.obstacle || tile.unit) continue;
         } else if (spell.targetType === 'self') {
           if (x !== fromX || z !== fromZ) continue;
         } else if (spell.targetType === 'enemy') {
-          if (!tile || !tile.unit || tile.unit.team === caster.team) continue;
+          // Fuego amigo (18-oct): un ataque se puede lanzar sobre cualquier unidad (también un aliado), salvo uno mismo
+          if (!tile || !tile.unit || tile.unit === caster) continue;
         } else if (spell.targetType === 'ally') {
           if (!tile || !tile.unit || tile.unit.team !== caster.team) continue;
           // 'companion': solo el Axie compañero (cualquier aliado que no sea un Sapidae ni el lanzador)
@@ -1914,7 +1943,7 @@ export class SpellManager {
     if (isDamage && spell.targetType === 'enemy') {
       const taunting = validCells.filter((c) => {
         const u = this.gridManager.getTile(c.x, c.z)?.unit;
-        return u && u.statuses?.length && this.statuses.has(u, 'taunt');
+        return u && u.team !== caster.team && u.statuses?.length && this.statuses.has(u, 'taunt');
       });
       if (taunting.length) return taunting;
     }
@@ -1978,6 +2007,7 @@ export class SpellManager {
    * Devuelve false si no se pudo lanzar (sin PA suficientes).
    */
   async castSpell(caster, spell, targetCell) {
+    spell = this.runeCharms.spellFor(caster, spell); // carta con los charms de la unidad (si los tiene)
     if (spell.isUltimate && !this.ultimates.canCast(caster)) return false;
     if (!this._canPay(caster, spell)) return false;
     const spent = this._payCost(caster, spell);
@@ -1990,6 +2020,7 @@ export class SpellManager {
       casterPos: this.gridManager.gridToWorld(caster.gridX, caster.gridZ),
       targetPos: this.gridManager.gridToWorld(targetCell.x, targetCell.z),
     };
+    this.runeCharms.onCast(ctx);
     this.events.emit('spell:cast', ctx);
 
     // Mecánicas especiales de las clases de Sapidae
@@ -2011,7 +2042,10 @@ export class SpellManager {
 
     // Hechizo normal: animación, proyectil (si es a distancia) e impacto
     this.events.emit('spell:windup', ctx);
-    if (this._isRangedCast(ctx)) {
+    if (ctx.vfx && ctx.vfx.untilImpact) {
+      // Fase 6: la carta tiene efecto del motor de VFX; el daño se aplica en su fotograma de impacto
+      await ctx.vfx.untilImpact;
+    } else if (this._isRangedCast(ctx)) {
       const travel = this.events.emitAsync('spell:projectile', ctx);
       if (travel) await travel;
     }
@@ -2021,6 +2055,7 @@ export class SpellManager {
     // Habilidades nuevas: lista de efectos
     if (Array.isArray(spell.effects)) {
       await this.effects.run(ctx);
+      this.runeCharms.onResolved(ctx);
       this.events.emit('spell:resolved', ctx);
       return true;
     }
@@ -2031,6 +2066,7 @@ export class SpellManager {
       await this._applyEffects(ctx, tile.unit);
     }
 
+    this.runeCharms.onResolved(ctx);
     this.events.emit('spell:resolved', ctx);
     return true;
   }
@@ -2067,12 +2103,13 @@ export class SpellManager {
   _canPay(caster, spell) {
     if (this.castLimitReached(caster, spell)) return false;
     if (spell.paCost === 'X') return caster.currentPA >= 1; // coste X: gasta todos los PA que queden
-    return caster.currentPA >= spell.paCost;
+    return caster.currentPA >= this.runeCharms.costOf(caster, spell);
   }
 
   /** Paga el coste y devuelve los PA gastados (para cartas de coste X). */
   _payCost(caster, spell) {
-    const cost = spell.paCost === 'X' ? caster.currentPA : spell.paCost;
+    const cost = spell.paCost === 'X' ? caster.currentPA : this.runeCharms.costOf(caster, spell);
+    this.runeCharms.onPaid(caster, spell);
     caster.currentPA -= cost;
     if (spell.castsPerTurn) (caster._castsThisTurn ||= {})[spell.id] = ((caster._castsThisTurn[spell.id]) || 0) + 1;
     caster.updateHUD();
@@ -2187,6 +2224,8 @@ export class SpellManager {
     }
 
     if (spell.baseMinDamage && targetUnit) {
+      const evDist = Math.abs(targetUnit.gridX - caster.gridX) + Math.abs(targetUnit.gridZ - caster.gridZ);
+      if (caster && targetUnit !== caster && this.runeCharms.evade(ctx, targetUnit, evDist)) return; // esquiva (runas)
       const { dmg, isCrit } = this._computeDamage(ctx, targetUnit);
 
       this._dealDamage(ctx, targetUnit, dmg, { isCrit, elemental: ctx.lastElemental || 1 });
@@ -2236,17 +2275,19 @@ export class SpellManager {
         dmg += caster.bonusDamage;
       }
     }
+    const dist0 = Math.abs(targetUnit.gridX - caster.gridX) + Math.abs(targetUnit.gridZ - caster.gridZ);
+    if (caster) dmg += this.runeCharms.flatDamage(caster, spell, dist0); // Shellshock, Red Mirror
 
     const critAllowed = this.hooks.critAllowed.every((fn) => fn(ctx, targetUnit) !== false);
     const statusCrit = caster.statuses?.length ? this.statuses.mod(caster, 'critPct') : 0; // Gafe, Crítico +
-    const critChance = 0.20 + (((caster.critRate || 0) + statusCrit) / 100);
+    const critChance = ((caster.critRate > 0 ? caster.critRate : 20) + statusCrit) / 100; // critRate ya incluye el 20 % base
     const isCrit = critAllowed && (this.rng() < critChance);
     if (isCrit) {
-      dmg = Math.round(dmg * 1.5);
+      dmg = Math.round(dmg * this.runeCharms.critMultiplier(caster, targetUnit)); // ×1,5 (+ daño crítico de runas)
     }
 
-    const dist = Math.abs(targetUnit.gridX - caster.gridX) + Math.abs(targetUnit.gridZ - caster.gridZ);
-    const mods = this._applyDamageModifiers(caster, targetUnit, dmg, dist);
+    const dist = dist0;
+    const mods = this._applyDamageModifiers(caster, targetUnit, dmg, dist, ctx);
     dmg = mods.amount;
     ctx.lastElemental = mods.elemental;
 
@@ -2259,7 +2300,7 @@ export class SpellManager {
    * (Potenciado/Debilitado del atacante, Frágil/Protegido/Cobertura del defensor).
    * Si no hay ningún modificador el daño no se toca (ni se redondea).
    */
-  _applyDamageModifiers(caster, target, dmg, dist = 1) {
+  _applyDamageModifiers(caster, target, dmg, dist = 1, ctx = null) {
     let elemental = 1;
     if (this.elementalEnabled && caster && target) elemental = elementalMultiplier(caster.axieClass, target.axieClass);
     let pct = 0;
@@ -2268,6 +2309,7 @@ export class SpellManager {
       pct += this.statuses.mod(target, 'damageTakenPct');
       if (dist > 1) pct += this.statuses.mod(target, 'rangedDamageTakenPct');
     }
+    pct += this.runeCharms.damagePct(caster, target, dist, ctx); // runas y charms (atacante y defensor)
     const mult = elemental * (1 + pct / 100);
     if (mult === 1) return { amount: dmg, elemental };
     return { amount: Math.max(0, Math.round(dmg * mult)), elemental };
@@ -2293,10 +2335,15 @@ export class SpellManager {
       }
     }
 
+    // Desert Protector: un aliado adyacente con la runa recibe el 20 % del golpe
+    dmg = this.runeCharms.redirect(ctx, target, dmg);
+
     // Barrera (Hermit, Snake Jar): anula el golpe hasta su valor
     if (target.statuses?.length && this.statuses.has(target, 'barrier')) dmg = this.statuses.absorbBarrier(target, dmg);
 
     const initialShield = target.shield || 0;
+    const hitDist = dist ?? (caster ? Math.abs(target.gridX - caster.gridX) + Math.abs(target.gridZ - caster.gridZ) : 1);
+    pierceShield = Math.max(pierceShield, this.runeCharms.pierce(caster, hitDist)); // Sharp Talon
     let actual;
     if (pierceShield > 0 && initialShield > 0) {
       const pierced = Math.round(dmg * Math.min(1, pierceShield));
@@ -2339,6 +2386,9 @@ export class SpellManager {
         this.events.emit('unit:damaged', { unit: caster, source: target, spell: null, actual: back, shieldAbsorbed: 0, isCrit: false, plain: true, reflected: true });
       }
     }
+
+    // Runas y charms: robo de vida, estados al golpear, matar, críticos y contraataques
+    this.runeCharms.afterHit(ctx, target, { actual, shieldAbsorbed, isCrit, dist: hitDist });
     return actual;
   }
 
@@ -2348,8 +2398,8 @@ export class SpellManager {
       this.events.emit('unit:healBlocked', { unit: target, source, spell });
       return 0;
     }
-    if (target.statuses?.length) {
-      const pct = this.statuses.mod(target, 'healTakenPct');
+    {
+      const pct = (target.statuses?.length ? this.statuses.mod(target, 'healTakenPct') : 0) + this.runeCharms.healTakenPct(target);
       if (pct) amount = Math.round(amount * (1 + pct / 100));
     }
     const actual = target.heal(amount);
@@ -2413,13 +2463,16 @@ export class SpellManager {
       if (id.startsWith('kotaro_') || id.startsWith('plant_')) kind = 'melee';
       else if (id.startsWith('bing_') || id.startsWith('bird_')) kind = 'ranged';
       else if (id.startsWith('pomodoro_')) kind = 'magic';
-      else if (/^(craft|shepard|lunalogist|stargazer)_/.test(id)) kind = 'general';
+      // Sapidae (19-oct): Forjador y Pastor usan Ferocidad (1 casilla) o Agilidad (más lejos); Lunalogista y Astromante, Esencia
+      else if (/^(lunalogist|stargazer)_/.test(id)) kind = 'magic';
+      else if (/^(craft|shepard)_/.test(id)) kind = dist <= 1 ? 'melee' : 'ranged';
       else kind = dist <= 1 ? 'melee' : 'ranged';
     }
+    const extra = this.runeCharms ? this.runeCharms.flatDamage(caster, spell, dist) : 0; // Shellshock, Red Mirror
     const pick = { melee: caster.bonusMeleeDamage, ranged: caster.bonusRangedDamage, magic: caster.bonusMagicDamage }[kind];
-    if (pick) return Math.round(pick);
-    if (kind === 'none') return 0;
-    return caster.bonusDamage || 0;
+    if (pick) return Math.round(pick) + extra;
+    if (kind === 'none') return extra;
+    return (caster.bonusDamage || 0) + extra;
   }
 
   _getSpellMultiplier(caster, spell) {
@@ -2468,7 +2521,7 @@ export class SpellManager {
 
     adjacent.forEach(adj => {
       const tile = this.gridManager.getTile(adj.x, adj.z);
-      if (tile && tile.unit && tile.unit.team !== caster.team) {
+      if (tile && tile.unit && tile.unit !== caster) { // fuego amigo: el impacto del salto alcanza a cualquiera
         const mult = this._getSpellMultiplier(caster, spell);
         let dmg = Math.floor((spell.baseMinDamage + this.rng() * (spell.baseMaxDamage - spell.baseMinDamage + 1)) * mult);
         if (caster) {
@@ -2491,6 +2544,7 @@ export class SpellManager {
     }
     const dx = Math.sign(targetUnit.gridX - caster.gridX);
     const dz = Math.sign(targetUnit.gridZ - caster.gridZ);
+    distance = this.runeCharms.pushDistance(targetUnit, distance); // Pure Skill
 
     this.events.emit('unit:pushStart', { unit: targetUnit, source: caster, spell });
 
@@ -2504,12 +2558,15 @@ export class SpellManager {
       const base = collisionDamage != null ? collisionDamage : pushResult.remainingTiles * 20;
       const collisionDamage_ = base + extraCollision + collisionBonus;
 
-      this.events.emit('unit:collision', { unit: targetUnit, source: caster, damage: collisionDamage_, first: true });
-      targetUnit.takeDamage(collisionDamage_);
+      // Sturdy Fighter: inmune al daño de colisión
+      const hitsTarget = !this.runeCharms.collisionImmune(targetUnit);
+      this.events.emit('unit:collision', { unit: targetUnit, source: caster, damage: hitsTarget ? collisionDamage_ : 0, first: true });
+      if (hitsTarget) targetUnit.takeDamage(collisionDamage_);
 
       if (pushResult.collidingUnit) {
-        this.events.emit('unit:collision', { unit: pushResult.collidingUnit, source: caster, damage: collisionDamage_, first: false });
-        pushResult.collidingUnit.takeDamage(collisionDamage_);
+        const hitsOther = !this.runeCharms.collisionImmune(pushResult.collidingUnit);
+        this.events.emit('unit:collision', { unit: pushResult.collidingUnit, source: caster, damage: hitsOther ? collisionDamage_ : 0, first: false });
+        if (hitsOther) pushResult.collidingUnit.takeDamage(collisionDamage_);
       }
     }
   }

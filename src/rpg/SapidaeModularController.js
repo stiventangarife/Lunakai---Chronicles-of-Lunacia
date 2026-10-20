@@ -101,6 +101,48 @@ export const BODY_THEMES = {
   titan_mail: { color: 0x334155, roughness: 0.3, metalness: 0.8 }
 };
 
+// ---------------------------------------------------------------------------------------------------------
+// Pelo blanco (18-oct): versión en escala de grises de la textura del pelo, normalizada para que sus zonas
+// más claras sean blancas. Multiplicada por el color elegido da ese color con las sombras del dibujo original.
+// Se calcula una vez por textura (caché por uuid) y conserva su orientación, repetición y espacio de color.
+const _whiteHairCache = new Map();
+function whiteHairTexture(src) {
+  if (!src || !src.image) return null;
+  if (_whiteHairCache.has(src.uuid)) return _whiteHairCache.get(src.uuid);
+  const img = src.image;
+  const w = img.width || img.naturalWidth, h = img.height || img.naturalHeight;
+  if (!w || !h || typeof document === 'undefined') return null;
+  const canvas = document.createElement('canvas');
+  canvas.width = w; canvas.height = h;
+  const ctx = canvas.getContext('2d', { willReadFrequently: true });
+  try { ctx.drawImage(img, 0, 0, w, h); } catch { return null; }
+  const data = ctx.getImageData(0, 0, w, h);
+  const px = data.data;
+  // Luminancia de cada píxel y el «blanco» de referencia (percentil 98 de los píxeles visibles)
+  const lum = new Float32Array(w * h);
+  const hist = new Uint32Array(256);
+  let count = 0;
+  for (let i = 0, j = 0; i < px.length; i += 4, j++) {
+    const l = 0.2126 * px[i] + 0.7152 * px[i + 1] + 0.0722 * px[i + 2];
+    lum[j] = l;
+    if (px[i + 3] > 8 && l > 4) { hist[Math.min(255, l | 0)]++; count++; }
+  }
+  let ref = 255;
+  for (let acc = 0, k = 255; k >= 0; k--) { acc += hist[k]; if (acc >= count * 0.02) { ref = Math.max(24, k); break; } }
+  for (let i = 0, j = 0; i < px.length; i += 4, j++) {
+    const v = Math.min(255, Math.round(255 * Math.pow(Math.min(1, lum[j] / ref), 0.85)));
+    px[i] = px[i + 1] = px[i + 2] = v;
+  }
+  ctx.putImageData(data, 0, 0);
+  const tex = new THREE.CanvasTexture(canvas);
+  ['flipY', 'wrapS', 'wrapT', 'magFilter', 'minFilter', 'anisotropy', 'colorSpace', 'channel', 'generateMipmaps'].forEach((k) => { if (src[k] !== undefined) tex[k] = src[k]; });
+  tex.repeat.copy(src.repeat); tex.offset.copy(src.offset); tex.center.copy(src.center); tex.rotation = src.rotation;
+  tex.name = `${src.name || 'hair'}_white`;
+  tex.needsUpdate = true;
+  _whiteHairCache.set(src.uuid, tex);
+  return tex;
+}
+
 export class SapidaeModularController {
   constructor() {
     this._hornsCache = new Map();
@@ -423,9 +465,13 @@ export class SapidaeModularController {
         parts.hair.scale.set(1.0, 1.0, 1.0);
       }
 
+      // Color personalizado: el pelo usa una versión blanca de su propia textura (conserva sombras y mechones),
+      // así el color elegido se ve tal cual y no mezclado con el tono pintado del modelo. «Original» la devuelve.
       if (hair && hair !== 'original') {
+        this._setHairWhiteMap(parts.hair, true);
         this._tintMesh(parts.hair, hair);
       } else {
+        this._setHairWhiteMap(parts.hair, false);
         this._tintMesh(parts.hair, '#ffffff');
       }
     }
@@ -1206,6 +1252,25 @@ export class SapidaeModularController {
   /**
    * Helper to tint an object's material(s).
    */
+  /** Cambia la textura del pelo por su versión blanca (useWhite) o devuelve la original. */
+  _setHairWhiteMap(obj, useWhite) {
+    if (!obj) return;
+    obj.traverse((m) => {
+      if (!m.isMesh || !m.material || m.userData?.isOutlineMesh || /outline/i.test(m.name || '')) return;
+      (Array.isArray(m.material) ? m.material : [m.material]).forEach((mat) => {
+        // Algunos modelos (masculino A) también pintan el pelo con colores de vértice: se apagan con color propio
+        if (mat.userData.hairOrigVC === undefined) mat.userData.hairOrigVC = Boolean(mat.vertexColors);
+        const vc = useWhite ? false : mat.userData.hairOrigVC;
+        if (Boolean(mat.vertexColors) !== vc) { mat.vertexColors = vc; mat.needsUpdate = true; }
+        if (!mat.userData.hairOrigMap && mat.map) mat.userData.hairOrigMap = mat.map;
+        const orig = mat.userData.hairOrigMap;
+        if (!orig) return;
+        const next = useWhite ? whiteHairTexture(orig) : orig;
+        if (next && mat.map !== next) { mat.map = next; mat.needsUpdate = true; }
+      });
+    });
+  }
+
   _tintMesh(mesh, colorHex, roughness = 0.65, metalness = 0.05, emissiveHex = null) {
     if (!mesh || !mesh.material) return;
     if (mesh.userData?.isOutlineMesh || mesh.name?.includes(':ToonOutline') || mesh.name?.includes(':AxieOutline')) {

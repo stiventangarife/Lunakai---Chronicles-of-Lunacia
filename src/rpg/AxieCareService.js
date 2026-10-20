@@ -1,8 +1,13 @@
 // AxieCareService.js — Axie Care: las tres formas de subir el vínculo fuera de combate (GDD §2.1).
 //
 //   Acariciar           +5 %   con recarga (PET_COOLDOWN_MS)
-//   Dar de comer        +10 / +15 / +25 % según el alimento (item.effect.bond); consume el objeto
-//   Caminar juntos      +2 % cada 500 m recorridos en el mundo abierto
+//   Dar de comer        +3 / +5 / +8 % según el alimento (item.effect.bond); consume el objeto
+//   Caminar juntos      +0,5 % cada 500 m recorridos en el mundo abierto
+//
+// El vínculo también baja (18-oct):
+//   Jugando             −1 % cada 10 min de juego si en los últimos 10 min no se le dio de comer ni se le acarició
+//   Sin jugar           −5 % por día con el juego cerrado (proporcional: 12 h = −2,5 %)
+// Solo afecta al Axie compañero (el que recibe los cuidados). Nunca baja de 0 %.
 //
 // El vínculo vive en BondService (ranura de guardado). El estado propio de Axie Care también va en la
 // ranura: slot.axieCare = { petAt: { heroId: ms }, walkMeters: { heroId: m }, starterFood: bool }.
@@ -14,7 +19,11 @@ import { saveSlotManager } from './SaveSlotManager.js';
 export const PET_BOND = 5;
 export const PET_COOLDOWN_MS = 2 * 60 * 1000;   // 2 minutos (demo)
 export const WALK_STEP_METERS = 500;
-export const WALK_BOND = 2;
+export const WALK_BOND = 0.5;
+export const DECAY_STEP_MS = 10 * 60 * 1000;     // cada 10 min de juego…
+export const DECAY_BOND = 1;                      // …−1 % si no hubo cuidados en ese tiempo
+export const OFFLINE_DECAY_PER_DAY = 5;           // −5 % por día sin jugar
+const DAY_MS = 24 * 60 * 60 * 1000;
 export const STARTER_FOOD = ['food_berry', 'food_berry', 'food_berry'];
 
 /** Estado emocional según el vínculo (GDD §2.1 B). */
@@ -53,6 +62,7 @@ export class AxieCareService {
     const st = holder.axieCare;
     st.petAt = st.petAt || {};
     st.walkMeters = st.walkMeters || {};
+    st.careAt = st.careAt || {}; // último cuidado (comida o caricia) por Axie
     return st;
   }
 
@@ -96,6 +106,7 @@ export class AxieCareService {
     const before = s.bond;
     const after = this.bond.add(heroId, PET_BOND);
     this._state().petAt[heroId] = this.now();
+    this._state().careAt[heroId] = this.now();
     this._persist();
     const res = { ok: true, kind: 'pet', heroId, before, after, gained: after - before };
     this._emit(res);
@@ -117,12 +128,15 @@ export class AxieCareService {
 
   feed(itemId, heroId = this.companionId()) {
     if (!this.isFood(itemId)) return { ok: false, reason: 'not_food' };
+    // Con el vínculo al 100 % no se gasta la comida (desde Axie Care o desde la Mochila)
+    if (this.bond.get(heroId) >= 100) return { ok: false, reason: 'full' };
     const inv = this.em?.inventory || [];
     const idx = inv.indexOf(itemId);
     if (idx < 0) return { ok: false, reason: 'no_item' };
     inv.splice(idx, 1);
     const before = this.bond.get(heroId);
     const after = this.bond.add(heroId, this.items[itemId].effect.bond);
+    this._state().careAt[heroId] = this.now();
     this._persist();
     const res = { ok: true, kind: 'feed', heroId, itemId, item: this.items[itemId], before, after, gained: after - before };
     this._emit(res);
@@ -141,6 +155,54 @@ export class AxieCareService {
     }
     this._persist();
     return ids;
+  }
+
+  // ------------------------------------------------ bajada del vínculo
+  /**
+   * Al cargar la partida: −5 % por día que pasó desde la última vez que se jugó (proporcional).
+   * Empieza también la cuenta de tiempo de juego. Devuelve el % perdido.
+   */
+  startSession(heroId = this.companionId()) {
+    const st = this._state();
+    const now = this.now();
+    let lost = 0;
+    if (typeof st.lastSeenAt === 'number' && now > st.lastSeenAt) {
+      const loss = Math.round(((now - st.lastSeenAt) / DAY_MS) * OFFLINE_DECAY_PER_DAY * 10) / 10;
+      if (loss > 0) {
+        const r = this.bond.lose(heroId, loss);
+        lost = r.lost;
+        if (lost > 0) this._emit({ ok: true, kind: 'decay_offline', heroId, before: r.before, after: r.after, gained: -lost });
+      }
+    }
+    st.lastSeenAt = now;
+    // El tiempo sin cuidados cuenta desde que empieza la sesión
+    st.careAt[heroId] = now;
+    this._playMs = 0;
+    this._persist();
+    return lost;
+  }
+
+  /**
+   * Tiempo de juego (dtMs con el juego abierto). Cada 10 min: −1 % si no hubo comida ni caricia en esos 10 min.
+   * También anota «última vez visto» para la bajada sin jugar. Devuelve el % perdido en esta llamada.
+   */
+  tickPlay(dtMs, heroId = this.companionId()) {
+    if (!(dtMs > 0)) return 0;
+    const st = this._state();
+    const now = this.now();
+    st.lastSeenAt = now; // se guarda con el siguiente guardado de la partida
+    this._playMs = (this._playMs || 0) + dtMs;
+    let lost = 0;
+    while (this._playMs >= DECAY_STEP_MS) {
+      this._playMs -= DECAY_STEP_MS;
+      if (now - (st.careAt[heroId] || 0) >= DECAY_STEP_MS) {
+        const r = this.bond.lose(heroId, DECAY_BOND);
+        lost += r.lost;
+        if (r.lost > 0) this._emit({ ok: true, kind: 'decay', heroId, before: r.before, after: r.after, gained: -r.lost });
+      }
+    }
+    if (lost > 0) this._persist();
+    return lost;
   }
 
   // ------------------------------------------------ paseo

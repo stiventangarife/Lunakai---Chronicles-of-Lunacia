@@ -15,6 +15,10 @@ import { EquipmentManager } from './tactics/EquipmentManager.js';
 import { TutorialManager } from './tactics/TutorialManager.js';
 import { LEVELS_CONFIG } from './tactics/LevelsDatabase.js';
 import { DynamicCombatFactory } from './tactics/DynamicCombatFactory.js';
+import { BATTLE_MAPS, getBattleMap, forceBattleMap, getForcedBattleMap } from './tactics/maps/BattleMaps.js';
+import { BattleArena } from './tactics/arena/BattleArena.js';
+import { obstacleTypesFor } from './tactics/arena/BattleArenaThemes.js';
+import { OCC_SETTINGS } from './tactics/arena/ArenaOcclusionDither.js';
 import { OverworldManager } from './rpg/OverworldManager.js';
 import { portraitService } from './tactics/CharacterPortraitService.js';
 import { StartScreenUI } from './rpg/ui/StartScreenUI.js';
@@ -23,16 +27,38 @@ import { CombatEndScreen, expPct } from './rpg/ui/CombatEndScreen.js';
 import { CombatBanner } from './rpg/ui/CombatBanner.js';
 import { initLoadingScreen } from './ui/LoadingScreen.js';
 import { initCombatHUDMarkup, attachCombatHUD } from './ui/CombatHUD.js';
+import { attachTurnTimer } from './ui/TurnTimerHUD.js';
 import { accountManager } from './net/AccountManager.js';
 import { SaveStatusChip } from './net/SaveStatusChip.js';
 import { installCombatDebug } from './tactics/combat/CombatDebug.js';
 import { CombatTelemetry } from './tactics/combat/CombatTelemetry.js';
+import { VfxBridge } from './vfx/VfxBridge.js';
+import { installTestArena } from './tactics/combat/TestArena.js';
 import { BondService } from './rpg/BondService.js';
+import { RuneCharmService } from './rpg/RuneCharmService.js';
 import { ULTIMATE_SLOT } from './ui/UltimateButton.js';
 import { attachAxieCare } from './ui/AxieCarePanel.js';
+import { attachRunesCharms } from './ui/RunesCharmsPanel.js';
+import { attachForge } from './ui/ForgePanel.js';
+import { attachShop } from './ui/ShopPanel.js';
 import { AxiePartsResolver } from './rpg/AxiePartsResolver.js';
 import { STARTER_DECKS } from './tactics/data/StarterCards.js';
 import { CollectionVFX } from './tactics/combat/CollectionVFX.js';
+
+/**
+ * Tutorial (19-oct): las cartas de partes del Axie con un ataque que alcance a 1 casilla en la ranura [1],
+ * porque el paso 6 pide usar la [1] contra la Quimera Guardián. null si no tiene ninguno.
+ */
+function tutorialCardOrder(ids) {
+  if (!Array.isArray(ids) || !ids.length) return null;
+  const sp = (id) => SPELLS_DB[id];
+  const melee = (s) => s && s.targetType === 'enemy' && (s.effects || []).some((e) => e.type === 'damage')
+    && (s.minRange ?? 1) <= 1 && (s.maxRange ?? 1) >= 1 && (s.paCost ?? 0) <= 6;
+  const options = ids.filter((id) => melee(sp(id)));
+  if (!options.length) return null;
+  const first = options.find((id) => (sp(id).maxRange || 1) >= 2) || options[0];
+  return [first, ...ids.filter((id) => id !== first)];
+}
 import { renderForecast, clearForecast } from './ui/ForecastPanel.js';
 import { axieMixerService } from './rpg/AxieMixerService.js';
 import { AXIE_GENES_DECODER } from '@jaatster/threejs-axie-mixer3d-public';
@@ -41,6 +67,10 @@ import { AXIE_GENES_DECODER } from '@jaatster/threejs-axie-mixer3d-public';
 initLoadingScreen();
 // HUD de combate con el sistema de diseño (marcado antes de que el juego enganche sus eventos)
 initCombatHUDMarkup();
+
+
+/** Regeneración de vida en el mundo abierto (vida persistente, 18-oct). */
+const OVERWORLD_HP_REGEN = { amount: 10, everySec: 5 };
 
 class AxieTacticsGame {
   constructor() {
@@ -86,7 +116,10 @@ class AxieTacticsGame {
       slots: saveSlotManager,
     });
     window.lunakaiParts = this.partsResolver;
-    this.axieCare = attachAxieCare(this); // Axie Care: clic en el compañero → acariciar / dar de comer; +2 % cada 500 m
+    this.axieCare = attachAxieCare(this); // Axie Care: clic en el compañero → acariciar / dar de comer; +0,5 % cada 500 m
+    this.runesCharms = attachRunesCharms(this); // Tecla U: Mochila › Runas y charms (mejoran las habilidades de cada Axie)
+    this.forge = attachForge(this); // Forja del Valle del Dojō: yunque en el patio (E) → crear Tier 0 y evolucionar equipo
+    this.shop = attachShop(this); // Tienda: el Mercader Ochi (patio del Dojō) la abre al hablar con él
     window.__AXIE_TACTICS_APP__ = this;
 
     this.currentLevel = 1; // 1 = Tutorial (Training Dojo), 2 = Lunacia Plains 3v3
@@ -119,7 +152,7 @@ class AxieTacticsGame {
           const u = unit || this.activeUnit;
           (u?.spellIds || []).slice(0, 6).forEach((id, i) => {
             const slot = document.getElementById(`spell-slot-${i}`);
-            const s = this.spellManager.getSpell(id);
+            const s = this.spellManager.getSpell(id, u);
             const spent = Boolean(s && this.spellManager.castLimitReached(u, s));
             if (!slot) return;
             if (spent) slot.classList.add('disabled');
@@ -132,6 +165,7 @@ class AxieTacticsGame {
       };
     }
     this._setupTurnCallbacks();
+    attachTurnTimer(this); // Reloj del turno del jugador: 30 s, sobrante al siguiente (máx. 45 s), −10 s si no actúa en 10 s
     this.combatBanner = new CombatBanner();
     this.endScreen = new CombatEndScreen({ resolvePortrait: (key) => portraitService.getPortrait(key) });
 
@@ -166,6 +200,14 @@ class AxieTacticsGame {
     installCombatDebug(this);
     // Fase 5: registro de equilibrio de tus partidas (lkDebug.balance(), balanceFights(), balanceExport())
     try { this.telemetry = new CombatTelemetry(this).install(this.spellManager.events, this.turnManager); CombatTelemetry.extendDebug(); } catch (e) { console.warn('[telemetría]', e); }
+    // Fase 6: efectos del motor de VFX (src/vfx) en las cartas de los Axies jugables (lkDebug.vfx())
+    try { this.vfxBridge = new VfxBridge(this).install(this.spellManager.events, this.turnManager); this.vfxBridge.extendDebug(); } catch (e) { console.warn('[vfx]', e); }
+    // Arena de pruebas de habilidades: lkDebug.arena(), lkDebug.probar('id', distancia)
+    try { installTestArena(this); } catch (e) { console.warn('[pruebas]', e); }
+    // Hito 35: mapas de combate por bioma — lkDebug.map('savannah_oasis') fuerza un mapa, lkDebug.map(null) vuelve al azar
+    try { this._installBattleMapDebug(); } catch (e) { console.warn('[mapas]', e); }
+    // Hito 37: dither fading — el escenario se disuelve donde tapa a una unidad o a la casilla bajo el ratón
+    this.sceneManager.occlusionProvider = () => this._occlusionPoints();
     this._isLoadingAdventure = false;
     this._animate();
   }
@@ -177,6 +219,8 @@ class AxieTacticsGame {
 
       // 1. Apply slot data to EquipmentManager (hero, inventory, equipped, progression, unlockedHeroes)
       this.equipmentManager.applySlotData(slotData);
+      // Vínculo: −5 % por día sin jugar desde la última partida y empieza a contar el tiempo de juego
+      try { this.axieCare?.service?.startSession(); } catch (e) { console.warn('[AxieCare] startSession', e); }
 
       // 2. Start Overworld (run prologue only if it's a new adventure)
       const withPrologue = isNewGame;
@@ -247,6 +291,7 @@ class AxieTacticsGame {
       inventory: exported.inventory,
       equipped: exported.equipped,
       progression: exported.progression,
+      currentHP: exported.currentHP,
       sapidaeModel: p?.sapidaeModel || activeSlot?.sapidaeModel || 'sapidae-f-a',
       customization: p?.customization || activeSlot?.customization,
       sapidaePortrait: currentPortrait,
@@ -371,6 +416,10 @@ class AxieTacticsGame {
     // Victory modal action buttons
     document.getElementById('btn-restart').addEventListener('click', () => {
       document.getElementById('gameover-modal').classList.add('hidden');
+      // Reintentar: el combate vuelve a empezar con la vida que se tenía al entrar
+      if (this._battleStartHP && this.equipmentManager) {
+        Object.entries(this._battleStartHP).forEach(([id, hp]) => this.equipmentManager.setCurrentHP(id, hp, { silent: true }));
+      }
       this.gameState = 'BATTLE';
       this._showBattleHUD(true);
       this._startBattle(this.activeBattleConfig || this.currentLevel);
@@ -518,6 +567,10 @@ class AxieTacticsGame {
 
   _showBattleHUD(show) {
     document.body.classList.toggle('state-combat', Boolean(show));
+    if (show || document.body.classList.contains('state-combat-ended')) {
+      document.body.classList.remove('state-combat-ended');
+      ['lk-cb-log', 'lk-cb-enemy'].forEach((id) => { const el = document.getElementById(id); if (el) el.style.display = ''; });
+    }
     const header = document.querySelector('.battle-header');
     const hud = document.querySelector('.tactical-hud');
     const camControls = document.querySelector('.camera-controls');
@@ -703,12 +756,15 @@ class AxieTacticsGame {
     this.combatText.clear();
     this.gridManager.clearObstacles();
     this.gridManager.clearHighlights();
+    // Hito 35: libera el escenario del mapa de bioma (se construye de nuevo en el siguiente combate)
+    if (this.sceneManager.arena) this.sceneManager.setArena(null);
 
     if (isVictory) {
       await this.overworldManager.resumeAfterVictory();
       this._saveCurrentProgress();
     } else {
       await this.overworldManager.resumeAfterDefeat();
+      this._saveCurrentProgress(); // la vida tras la derrota (1 para quien cayó) queda guardada
     }
 
     if (this.overworldManager) {
@@ -729,15 +785,65 @@ class AxieTacticsGame {
     const ids = typeof em.getSquad === 'function' ? em.getSquad() : Object.keys(em.heroesBase);
     const heroes = ids.map((id) => em.heroesBase[id]).filter((h) => h && (h.axieId || h.genes));
     if (!heroes.length) return;
+    // Nivel/AXP de Sky Mavis para la pantalla de victoria (en segundo plano; queda en caché)
+    heroes.forEach((h) => { if (h.axieId) axieMixerService.fetchAxieData(String(h.axieId)).catch(() => null); });
     const work = Promise.all(heroes.map((h) => this.partsResolver.resolve(h).catch(() => null)));
     await Promise.race([work, new Promise((r) => setTimeout(r, timeoutMs))]);
   }
 
+  /** Hito 37: puntos que el escenario no debe tapar durante el combate. */
+  _occlusionPoints() {
+    if (this.gameState !== 'BATTLE') return [];
+    const S = OCC_SETTINGS;
+    const pts = [];
+    for (const u of this.units) {
+      if (!u || u.isDead || !u.group) continue;
+      const sc = Math.max(1, (u.config?.scale || 1) * 0.9);
+      const r = (u === this.activeUnit ? S.activeRadius : S.radius) * sc;
+      pts.push({ key: `u:${u.id}`, x: u.group.position.x, y: u.group.position.y + S.height * sc, z: u.group.position.z, r });
+    }
+    if (this.hoverCell && this.gridManager.isValidCoord(this.hoverCell.x, this.hoverCell.z)) {
+      const p = this.gridManager.gridToWorld(this.hoverCell.x, this.hoverCell.z);
+      pts.push({ key: 'hover', x: p.x, y: 0.35, z: p.z, r: S.hoverRadius });
+    }
+    return pts;
+  }
+
+  /** Hito 35: consola de los mapas de combate (lkDebug.map / lkDebug.maps). */
+  _installBattleMapDebug() {
+    const d = (window.lkDebug ||= {});
+    d.map = (id) => {
+      if (id === undefined) {
+        console.log(`[mapas] Mapa forzado: ${getForcedBattleMap() || 'ninguno (azar por bioma)'}`);
+        return getForcedBattleMap();
+      }
+      if (id !== null && !BATTLE_MAPS[id]) {
+        console.warn(`[mapas] No existe "${id}". Usa lkDebug.maps() para ver la lista.`);
+        return null;
+      }
+      const r = forceBattleMap(id);
+      console.log(r ? `[mapas] Los siguientes combates del mundo abierto usarán ${r}.` : '[mapas] Vuelve la elección al azar por bioma.');
+      return r;
+    };
+    // Hito 37: lkDebug.dither(false|true) apaga / enciende el dither fading; lkDebug.dither({ radius: 1.1 }) ajusta radios
+    d.dither = (v) => {
+      if (typeof v === 'boolean') OCC_SETTINGS.enabled = v;
+      else if (v && typeof v === 'object') Object.assign(OCC_SETTINGS, v);
+      console.log('[dither]', { ...OCC_SETTINGS });
+      return { ...OCC_SETTINGS };
+    };
+    d.maps = () => {
+      console.table(Object.values(BATTLE_MAPS).map((m) => {
+        const p = getBattleMap(m.id);
+        return { id: m.id, bioma: m.biome, nombre: m.nameEs, tamaño: `${p.width}×${p.height}`, casillas: p.walkableCount, jefes: m.boss ? '👑' : '' };
+      }));
+    };
+  }
+
   async _startBattle(levelOrConfig) {
     const lvlCfg = (levelOrConfig && typeof levelOrConfig === 'object') ? levelOrConfig : LEVELS_CONFIG[levelOrConfig];
-    if (!lvlCfg?.isTutorial) {
-      try { await this._resolvePartCards(); } catch (e) { console.warn('[Lunakai] Cartas de partes:', e); }
-    }
+    // Cartas de partes del escuadrón (también en el tutorial, para que el Axie use las suyas)
+    try { await this._resolvePartCards(); } catch (e) { console.warn('[Lunakai] Cartas de partes:', e); }
     this.gameState = 'BATTLE';
     this._showBattleHUD(true);
     document.body.classList.add('state-combat');
@@ -813,9 +919,25 @@ class AxieTacticsGame {
     this.gridManager.clearHighlights();
 
     // Apply Biome & Obstacles cleanly without duplicates
-    const biome = BIOMES[config.biome] || BIOMES.lunacia_plains;
-    this.sceneManager.applyBiome(biome);
-    this.gridManager.setupBiome(config.biome, config.obstacles);
+    // Hito 35: los combates del mundo abierto usan un mapa del bioma (forma, tamaño y escenario propios);
+    // el tutorial, la campaña antigua y la arena de pruebas siguen en el 10×10 de siempre.
+    const battleMap = config.battleMapId ? getBattleMap(config.battleMapId) : null;
+    if (battleMap) {
+      this.gridManager.loadLayout(battleMap, obstacleTypesFor(battleMap.biome));
+      let arena = null;
+      try {
+        arena = await BattleArena.build(battleMap);
+      } catch (e) {
+        console.warn('[Hito 35] No se pudo construir el escenario del mapa', battleMap.id, e);
+      }
+      this.sceneManager.setArena(arena);
+      this.sceneManager.applyBiome(arena ? arena.theme.biome : (BIOMES[config.biome] || BIOMES.lunacia_plains));
+    } else {
+      this.sceneManager.setArena(null);
+      const biome = BIOMES[config.biome] || BIOMES.lunacia_plains;
+      this.sceneManager.applyBiome(biome);
+      this.gridManager.setupBiome(config.biome, config.obstacles);
+    }
 
     // Reset camera to default tactical framing at the start of each combat
     this.sceneManager.resetCamera();
@@ -847,6 +969,14 @@ class AxieTacticsGame {
     const sapStats = this.equipmentManager ? this.equipmentManager.getCalculatedStats('sapidae') : null;
     const sapProg = this.equipmentManager ? this.equipmentManager.getProgression('sapidae') : null;
 
+    // Vida persistente (18-oct): los héroes entran con la vida del mundo abierto (salvo tutorial y arena de pruebas)
+    const usePersistentHP = !config.isTutorial && !config.isTestArena;
+    this._battleUsesPersistentHP = usePersistentHP;
+    this._battleStartHP = usePersistentHP && this.equipmentManager
+      ? Object.fromEntries(['sapidae', ...(config.heroPositions || []).map((h) => h.id)].map((id) => [id, this.equipmentManager.getCurrentHP(id)]))
+      : null;
+    const startHP = (heroId) => (this._battleStartHP ? this._battleStartHP[heroId] : undefined);
+
     // Primary player position on grid
     const primaryHeroPos = config.sapidaePosition || (config.heroPositions && config.heroPositions[0]) || { x: 3, z: 2 };
 
@@ -860,6 +990,7 @@ class AxieTacticsGame {
       x: primaryHeroPos.x,
       z: primaryHeroPos.z,
       maxHP: sapStats ? sapStats.maxHP : sapidaeClassDef.maxHP,
+      currentHP: startHP('sapidae'),
       maxPA: sapStats ? sapStats.maxPA : sapidaeClassDef.maxPA,
       maxPM: sapStats ? sapStats.maxPM : sapidaeClassDef.maxPM,
       initiative: sapStats ? sapStats.initiative : (sapidaeClassDef.initiative || 90),
@@ -869,12 +1000,13 @@ class AxieTacticsGame {
       bonusMagicDamage: sapStats ? (sapStats.bonusMagicDamage || 0) : 0,
       collisionBonus: sapStats ? (sapStats.collisionBonus || 0) : 0,
       initialShield: sapStats ? sapStats.initialShield : 0,
-      critRate: sapStats ? Math.max(15, sapStats.critRate || 0) : 15,
-      supportPower: sapStats ? Math.max(25, sapStats.supportPower || 0) : 25,
+      critRate: sapStats ? (sapStats.critRate || 20) : 20,
+      supportPower: sapStats ? (sapStats.supportPower ?? 25) : 25,
       skillLevels: sapProg ? (sapProg.skillLevels || {}) : {},
       spellIds: sapidaeClassDef.spells,
       scale: 1.05,
       isSapidae: true,
+      ...(primaryHeroPos.facing !== undefined ? { initialFacing: primaryHeroPos.facing } : {}),
       customization: sapidaeCustomization,
       equipped: this.equipmentManager ? (this.equipmentManager.equipped.sapidae || this.equipmentManager.equipped.kotaro || {}) : {},
       sapidaeClass: sapidaeClassKey
@@ -932,6 +1064,7 @@ class AxieTacticsGame {
         x: spawnX,
         z: spawnZ,
         maxHP: stats.maxHP,
+        currentHP: startHP(heroId),
         maxPA: stats.maxPA,
         maxPM: stats.maxPM,
         // Iniciativa real (clase + nivel + equipo). En el tutorial se fija a 85 para que el Axie actúe justo tras el Sapidae.
@@ -946,12 +1079,14 @@ class AxieTacticsGame {
         critRate: stats.critRate || 0,
         supportPower: stats.supportPower || 0,
         skillLevels: prog ? prog.skillLevels : {},
-        // Cartas de partes reales (Fase 4) salvo en el tutorial, que enseña con los hechizos de siempre
-        spellIds: (isAxie && !config.isTutorial && this.partsResolver?.idsFor(baseInfo)) || (heroId === 'kotaro' ? (baseInfo.spellIds || getHeroSpells(baseInfo.heroKey || baseInfo.axieId)) : HERO_SPELLS[heroId]) || ['kotaro_slash'],
-        scale: isAxie ? 0.88 : heroMeta.scale
+        // Cartas de partes reales (Fase 4). En el tutorial también, con un ataque cuerpo a cuerpo en la ranura [1]
+        // (el paso 6 pide la [1]); si el Axie no tiene ninguno, usa los hechizos de siempre.
+        spellIds: (isAxie && (config.isTutorial ? tutorialCardOrder(this.partsResolver?.idsFor(baseInfo)) : this.partsResolver?.idsFor(baseInfo))) || (heroId === 'kotaro' ? (baseInfo.spellIds || getHeroSpells(baseInfo.heroKey || baseInfo.axieId)) : HERO_SPELLS[heroId]) || ['kotaro_slash'],
+        scale: isAxie ? 0.88 : heroMeta.scale,
+        ...(hp.facing !== undefined ? { initialFacing: hp.facing } : {})
       }, this.gridManager, this.sceneManager, this.audio));
       // Partes de colección especial del Axie → VFX propio al lanzar esas cartas (combat/CollectionVFX.js)
-      if (isAxie && !config.isTutorial && this.partsResolver) this.units[this.units.length - 1].partCollections = this.partsResolver.collectionsFor(baseInfo);
+      if (isAxie && this.partsResolver) this.units[this.units.length - 1].partCollections = this.partsResolver.collectionsFor(baseInfo);
     });
 
     // Setup Enemies
@@ -972,8 +1107,16 @@ class AxieTacticsGame {
         scale: e.scale,
         tintColor: e.tintColor || null,
         axieClass: e.axieClass || null, // clase elemental opcional del enemigo (triángulo ±15 %)
-        spellIds: e.spellIds
+        spellIds: e.spellIds,
+        ...(e.facing !== undefined ? { initialFacing: e.facing } : {})
       }, this.gridManager, this.sceneManager, this.audio));
+    });
+
+    // Runas y charms de los Axies (RuneCharmEffects): vida, iniciativa, PM, escudo inicial y cartas modificadas.
+    // Antes de fijar el orden de turnos (la iniciativa cuenta). El tutorial no las aplica: su guion es fijo.
+    this.spellManager.runeCharms.setupCombat(this.units, {
+      loadoutOf: (heroId) => RuneCharmService.get(heroId),
+      enabled: !config.isTutorial,
     });
 
     await Promise.all(this.units.map(u => u.loadModel()));
@@ -986,6 +1129,8 @@ class AxieTacticsGame {
       }
     });
 
+    // Turnos alternados jugador/enemigo según la iniciativa; el tutorial mantiene el orden de siempre (Sapidae y luego Axie)
+    this.turnManager.alternateTeams = !config.isTutorial;
     this.turnManager.setUnits(this.units);
 
     // Duo Ultimate: la decide la clase del Axie principal (squad[1]); exige vínculo al 100 % al entrar
@@ -1035,6 +1180,8 @@ class AxieTacticsGame {
     };
 
     this.turnManager.onVictory = async () => {
+      this._writeBackSquadHP();
+      this._cleanCombatUIForEnd();
       // 1. Brief pause for last enemy's finisher impact sound and camera shake
       await new Promise(r => setTimeout(r, 450));
 
@@ -1150,6 +1297,8 @@ class AxieTacticsGame {
     };
 
     this.turnManager.onDefeat = async () => {
+      this._writeBackSquadHP();
+      this._cleanCombatUIForEnd();
       this.sceneManager.shake(0.5);
       await new Promise(r => setTimeout(r, 800));
 
@@ -1196,11 +1345,8 @@ class AxieTacticsGame {
         const h = this.equipmentManager.heroesBase[u.id];
         const prog = this.equipmentManager.getProgression(u.id);
         const name = h ? h.name : u.id;
-        if (prog.unspentStatPoints > 0 || prog.unspentSkillPoints > 0) {
-          const parts = [];
-          if (prog.unspentStatPoints > 0) parts.push(`${prog.unspentStatPoints} ${prog.unspentStatPoints === 1 ? 'punto' : 'puntos'} de estadística`);
-          if (prog.unspentSkillPoints > 0) parts.push(`${prog.unspentSkillPoints} de habilidad`);
-          hints.push({ icon: 'upgrade', html: `<b>${name} tiene ${parts.join(' y ')} sin asignar.</b> Repártelos en la Mochila <b>I</b> antes de volver.` });
+        if (prog.unspentStatPoints > 0) {
+          hints.push({ icon: 'upgrade', html: `<b>${name} tiene ${prog.unspentStatPoints} ${prog.unspentStatPoints === 1 ? 'punto' : 'puntos'} de estadística sin asignar.</b> Repártelos en la Mochila <b>I</b> antes de volver.` });
         }
       });
       allies.forEach(u => {
@@ -1233,6 +1379,42 @@ class AxieTacticsGame {
 
       this.lastBattleOutcome = 'DEFEAT';
     };
+  }
+
+  /**
+   * Fin del combate (18-oct): antes del cartel de VICTORIA / DERROTA se retira toda la UI del combate
+   * (cabecera, barra de hechizos y turnos, Ultimate, registro, previsión, tooltips, marcas del tablero,
+   * barras de vida sobre las unidades y textos flotantes). Reintentar o el siguiente nivel la vuelven a mostrar.
+   */
+  _cleanCombatUIForEnd() {
+    try {
+      this._clearSpellSelection?.();
+      this._hideForecast?.();
+      this.gridManager.clearHighlights();
+      this.hoverCell = null;
+      this.combatText?.clear?.();
+      document.getElementById('turn-banner')?.classList.add('hidden');
+      (this.units || []).forEach((u) => { if (u.hudSprite) u.hudSprite.visible = false; });
+      this._showBattleHUD(false);
+      // Se mantiene el modo combate (el HUD del mundo abierto sigue oculto) y se ocultan el registro y el aviso de turno
+      document.body.classList.add('state-combat', 'state-combat-ended');
+      ['lk-cb-log', 'lk-cb-enemy'].forEach((id) => { const el = document.getElementById(id); if (el) el.style.display = 'none'; });
+    } catch (e) { console.warn('[Lunakai] Limpiar UI de combate', e); }
+  }
+
+  /**
+   * Vida persistente (18-oct): al terminar el combate se guarda la vida que le queda a cada héroe.
+   * Quien cayó vuelve al mundo abierto con 1 de vida (tras una derrota, el escuadrón despierta en el dojo).
+   */
+  _writeBackSquadHP() {
+    if (!this._battleUsesPersistentHP || !this.equipmentManager) return;
+    this.units.filter((u) => u.team === 'player').forEach((u) => {
+      const heroId = u.id === 'sapidae_hero' ? 'sapidae' : u.id;
+      // La vida extra de runas y charms solo existe en combate: se descuenta al volver al mundo abierto
+      const hp = (u.isDead || !(u.currentHP > 0)) ? 1 : Math.max(1, u.currentHP - (u._rcHpDelta || 0));
+      this.equipmentManager.setCurrentHP(heroId, hp, { silent: true });
+    });
+    this._battleUsesPersistentHP = false;
   }
 
   /** Clave de clase del héroe para el color del retrato (beast, plant, bird…). */
@@ -1623,14 +1805,14 @@ class AxieTacticsGame {
       const slot = document.getElementById('spell-slot-' + i);
       const spellId = unit.spellIds[i];
       if (spellId) {
-        const spell = this.spellManager.getSpell(spellId);
+        const spell = this.spellManager.getSpell(spellId, unit);
         if (!spell) {
           console.warn(`[AxieTacticsGame] Spell '${spellId}' not found for unit '${unit.name}', skipping slot ${i}`);
           slot.style.display = 'none';
           continue;
         }
         slot.style.display = 'flex';
-        slot.querySelector('.pa-cost-badge').textContent = (spell.paCost ?? 0) + ' AP';
+        slot.querySelector('.pa-cost-badge').textContent = this.spellManager.getSpellCost(unit, spell) + ' AP';
         const iconEl = slot.querySelector('.spell-icon');
         if (spell.icon && (spell.icon.includes('/') || spell.icon.endsWith('.png') || spell.icon.endsWith('.webp'))) {
           iconEl.innerHTML = `<img src="${spell.icon}" alt="${spell.name || 'Habilidad'}" class="spell-img-icon">`;
@@ -1639,7 +1821,7 @@ class AxieTacticsGame {
         }
         slot.querySelector('.range-badge').textContent = (spell.minRange === spell.maxRange ? spell.minRange : spell.minRange + '-' + spell.maxRange) + ' RNG';
 
-        if (unit.currentPA < (spell.paCost ?? 0) || unit.team !== 'player' || this.activeUnit !== unit) {
+        if (unit.currentPA < this.spellManager.getSpellCost(unit, spell) || unit.team !== 'player' || this.activeUnit !== unit) {
           slot.classList.add('disabled');
         } else {
           slot.classList.remove('disabled');
@@ -1740,8 +1922,8 @@ class AxieTacticsGame {
     const spellId = this.activeUnit.spellIds[index];
     if (!spellId) return;
 
-    const spell = this.spellManager.getSpell(spellId);
-    if (!spell || this.activeUnit.currentPA < spell.paCost || this.spellManager.castLimitReached(this.activeUnit, spell)) return;
+    const spell = this.spellManager.getSpell(spellId, this.activeUnit);
+    if (!spell || !this.spellManager._canPay(this.activeUnit, spell)) return; // PA (con descuentos de charms) y usos por turno
 
     if (this.selectedSpellIndex === index) {
       this._clearSpellSelection();
@@ -1801,6 +1983,7 @@ class AxieTacticsGame {
   }
 
   _handleHover() {
+    if (this.turnManager?.isCombatOver) { this.hoverCell = null; return; } // fin del combate: el tablero ya no responde
     if (!this.activeUnit || this.activeUnit.isMoving) {
       this._hideForecast();
       return;
@@ -1998,12 +2181,12 @@ class AxieTacticsGame {
     if (!this.activeUnit) return;
     const spellId = this.activeUnit.spellIds[index];
     if (!spellId) return;
-    const spell = this.spellManager.getSpell(spellId);
+    const spell = this.spellManager.getSpell(spellId, this.activeUnit);
     if (!spell) return;
 
     const tt = document.getElementById('spell-tooltip');
     document.getElementById('tt-title').textContent = spell.name;
-    document.getElementById('tt-pa').textContent = spell.paCost + ' AP';
+    document.getElementById('tt-pa').textContent = this.spellManager.getSpellCost(this.activeUnit, spell) + ' AP';
     document.getElementById('tt-range').textContent = '🎯 Range: ' + spell.minRange + '-' + spell.maxRange;
     document.getElementById('tt-los').textContent = '👁️ Line of Sight: ' + (spell.requiresLoS ? 'Yes' : 'No');
     document.getElementById('tt-area').textContent = '📐 Area: ' + (spell.areaType === 'cross1' ? 'Cross (1 tile)' : 'Single Tile');
@@ -2018,6 +2201,26 @@ class AxieTacticsGame {
     document.getElementById('spell-tooltip').classList.add('hidden');
   }
 
+  /** Vida persistente (18-oct): en el mundo abierto, +10 de vida cada 5 s a quien le falte. */
+  _tickOverworldRegen(dt) {
+    const om = this.overworldManager;
+    const em = this.equipmentManager;
+    if (!om || !em || typeof em.regenPartyHP !== 'function' || om.state !== 'EXPLORING') return;
+    this._regenTimer = (this._regenTimer || 0) + dt;
+    if (this._regenTimer < OVERWORLD_HP_REGEN.everySec) return;
+    this._regenTimer = 0;
+    const healed = em.regenPartyHP(OVERWORLD_HP_REGEN.amount);
+    if (healed && om.squadHUD && typeof om.squadHUD.render === 'function') om.squadHUD.render();
+    // Guardar la vida regenerada sin guardar cada 5 s: como mucho cada 30 s y al terminar de curarse
+    this._regenSaveTimer = (this._regenSaveTimer || 0) + OVERWORLD_HP_REGEN.everySec;
+    if (healed) this._regenDirty = true;
+    if (this._regenDirty && (!healed || this._regenSaveTimer >= 30)) {
+      this._regenDirty = false;
+      this._regenSaveTimer = 0;
+      this._saveCurrentProgress();
+    }
+  }
+
   _animate() {
     requestAnimationFrame(() => this._animate());
 
@@ -2027,6 +2230,7 @@ class AxieTacticsGame {
     if (this.gameState === 'INTRO' || this.gameState === 'OVERWORLD' || (this.gameState === 'LOADING' && this.overworldManager && this.overworldManager.isReadyToRender)) {
       this.overworldManager.update(dt, time);
       this.overworldManager.render(time, dt);
+      if (this.gameState === 'OVERWORLD') this._tickOverworldRegen(dt);
     } else if (this.gameState === 'BATTLE') {
       this.units.forEach(u => u.update(dt, time));
       this.combatText.update(dt);

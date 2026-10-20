@@ -1,0 +1,348 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<title>Laboratorio VFX · Lunakai</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;600&family=Figtree:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: banco de pruebas de habilidades. Pestañas de habilidad arriba, escena a la izquierda con su línea de tiempo debajo; panel de ajustes a la derecha. Una sola apariencia oscura, deliberada: los efectos aditivos solo se leen sobre fondo oscuro. */
+:root{
+  color-scheme:dark;
+  --bg:#10111a; --panel:#181a27; --line:#2a2d40; --fg:#e7e5f2; --muted:#908da8;
+  --fx:#6fd8ff; --fx2:#8a5bff;
+  --display:"Chakra Petch","Trebuchet MS",sans-serif;
+  --body:"Figtree",system-ui,sans-serif;
+  --mono:"IBM Plex Mono",ui-monospace,Menlo,monospace;
+}
+html,body{height:100%}
+body{background:var(--bg);color:var(--fg);font-family:var(--body);font-size:14px;line-height:1.45}
+.app{display:grid;grid-template-columns:minmax(0,1fr) 300px;height:100%}
+.main{display:flex;flex-direction:column;min-width:0;min-height:0}
+.tabs{display:flex;gap:6px;flex-wrap:wrap;padding:10px 16px;border-bottom:1px solid var(--line);background:var(--panel)}
+.tabs{align-items:center}
+.tabs-list{display:flex;gap:6px;flex-wrap:wrap;min-width:0}
+.tabs button{font-size:14px}
+.modsel{display:flex;align-items:center;gap:8px;margin-right:6px}
+.modsel span{font:600 11px var(--display);letter-spacing:.14em;text-transform:uppercase;color:var(--muted)}
+.modsel select{font:600 13px var(--display);letter-spacing:.04em;color:var(--fg);background:var(--bg);border:1px solid var(--line);border-radius:3px;padding:6px 8px;cursor:pointer;max-width:220px}
+.modsel select:focus-visible{outline:2px solid var(--fx);outline-offset:2px}
+.tabs button[aria-pressed=true]{border-color:var(--fx);color:var(--fx)}
+.subtabs{display:flex;gap:6px;align-items:center;flex-wrap:wrap;padding:8px 16px;border-bottom:1px solid var(--line);background:#141622}
+.subtabs span{font:600 11px var(--display);letter-spacing:.14em;text-transform:uppercase;color:var(--muted);margin-right:4px}
+.subtabs button{padding:5px 11px;font-size:12px}
+.subtabs button[aria-pressed=true]{border-color:var(--fx);color:var(--fx)}
+.stage{position:relative;flex:1;min-height:0;background:#0b0c13}
+.stage canvas{display:block;width:100%;height:100%;touch-action:none}
+.hud{position:absolute;left:16px;top:12px;pointer-events:none;margin:0;color:var(--muted);font-size:12px}
+.stats{position:absolute;right:16px;top:12px;font-family:var(--mono);font-size:11px;color:var(--muted);text-align:right;font-variant-numeric:tabular-nums;pointer-events:none}
+.stats b{color:var(--fg);font-weight:500}
+.transport{display:flex;flex-direction:column;gap:10px;padding:12px 16px 14px;border-top:1px solid var(--line);background:var(--panel)}
+.row{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+button{font:600 13px var(--display);letter-spacing:.04em;color:var(--fg);background:transparent;border:1px solid var(--line);padding:7px 14px;border-radius:3px;cursor:pointer}
+button:hover{border-color:var(--muted)}
+button.primary{background:var(--fx);border-color:var(--fx);color:#0b0c13}
+button:focus-visible,input:focus-visible{outline:2px solid var(--fx);outline-offset:2px}
+.clock{font-family:var(--mono);font-size:12px;font-variant-numeric:tabular-nums;color:var(--muted);margin-left:auto}
+.clock b{color:var(--fx);font-weight:500}
+label.chk{display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer}
+input[type=checkbox]{accent-color:var(--fx);width:15px;height:15px;margin:0}
+.timeline{position:relative;height:34px}
+.phases{display:flex;height:100%;gap:2px}
+.phases span{min-width:0;overflow:hidden;white-space:nowrap;font:500 11px var(--display);letter-spacing:.06em;text-transform:uppercase;color:var(--muted);background:#20233450;border-bottom:2px solid var(--line);padding:9px 6px 0}
+.phases span.on{color:var(--fg);border-bottom-color:var(--fx);background:#202334}
+.phases span.tight{font-size:0;padding:0}
+.timeline input{position:absolute;inset:0;width:100%;height:100%;margin:0;background:transparent;-webkit-appearance:none;appearance:none;cursor:ew-resize}
+.timeline input::-webkit-slider-runnable-track{background:transparent;height:100%}
+.timeline input::-moz-range-track{background:transparent;height:100%}
+.timeline input::-webkit-slider-thumb{-webkit-appearance:none;width:3px;height:34px;background:var(--fg);border-radius:0;box-shadow:0 0 8px var(--fx)}
+.timeline input::-moz-range-thumb{width:3px;height:34px;background:var(--fg);border:0;border-radius:0;box-shadow:0 0 8px var(--fx)}
+.side{border-left:1px solid var(--line);background:var(--panel);overflow-y:auto;padding:16px;display:flex;flex-direction:column;gap:22px}
+.side h2{font:600 11px var(--display);letter-spacing:.14em;text-transform:uppercase;color:var(--muted);margin:0 0 10px}
+.group{display:flex;flex-direction:column;gap:10px}
+.sl{display:grid;grid-template-columns:1fr auto;gap:2px 8px;font-size:13px}
+.sl output{font-family:var(--mono);font-size:12px;color:var(--fx);font-variant-numeric:tabular-nums}
+.sl input{grid-column:1/-1;width:100%;margin:0;accent-color:var(--fx)}
+.pal{display:flex;gap:8px;flex-wrap:wrap}
+.pal button{display:flex;align-items:center;gap:7px;padding:6px 10px;font-family:var(--body);font-weight:500;letter-spacing:0}
+.pal button[aria-pressed=true]{border-color:var(--fx)}
+.pal i{width:14px;height:14px;border-radius:50%}
+.note{color:var(--muted);font-size:12px;margin:0}
+.hud-pa{position:absolute;left:16px;bottom:14px;display:flex;gap:7px;align-items:center;pointer-events:none;padding:6px 10px;border:1px solid var(--line);border-radius:20px;background:#10111acc}
+.hud-pa b{font:600 10px var(--display);letter-spacing:.14em;color:var(--muted);margin-right:3px}
+.hud-pa i{--f:0;width:16px;height:16px;border-radius:50%;border:1px solid #5a5d78;background:conic-gradient(var(--fx) calc(var(--f)*360deg),#20233a 0)}
+.hud-pa i.full{--f:1;box-shadow:0 0 6px var(--fx)}
+.hud-pa i.flash{box-shadow:0 0 16px 4px var(--fx);border-color:#fff}
+@media (max-width:820px){
+  html,body{height:auto}
+  .app{grid-template-columns:minmax(0,1fr);height:auto}
+  .stage{flex:none;aspect-ratio:4/3;max-width:100%}
+  .side{border-left:0;border-top:1px solid var(--line);overflow:visible}
+  .hud{display:none}
+}
+</style>
+
+<div class="app">
+  <div class="main">
+    <div class="tabs" id="tabs">
+      <label class="modsel"><span>Módulo</span><select id="mod"></select></label>
+      <div class="tabs-list" id="tabs-list" aria-label="Habilidad"></div>
+    </div>
+    <div class="subtabs" id="variants" aria-label="Estado alterado" hidden><span>Estado</span></div>
+    <div class="stage" id="stage">
+      <canvas id="cv"></canvas>
+      <p class="hud">Arrastra para orbitar la cámara</p>
+      <div class="stats" id="stats"></div>
+      <div class="hud-pa" id="hudpa" hidden><b>PA</b><i></i><i></i><i></i><i></i><i></i></div>
+    </div>
+    <div class="transport">
+      <div class="row">
+        <button class="primary" id="cast">Lanzar</button>
+        <button id="pause">Pausar</button>
+        <label class="chk"><input type="checkbox" id="loop" checked> Repetir</label>
+        <span class="clock"><b id="phase"></b> · <span id="ms">0</span> ms</span>
+      </div>
+      <div class="timeline">
+        <div class="phases" id="phases"></div>
+        <input type="range" id="scrub" min="0" max="2.7" step="0.005" value="0" aria-label="Posición en la línea de tiempo">
+      </div>
+    </div>
+  </div>
+  <aside class="side">
+    <section>
+      <h2>Paleta</h2>
+      <div class="pal" id="pal"></div>
+    </section>
+    <section>
+      <h2>Impacto percibido</h2>
+      <div class="group">
+        <label class="sl">Bloom <output id="o-bloom"></output><input type="range" id="bloom" min="0" max="2.5" step="0.05" value="0.9"></label>
+        <label class="sl">Distorsión de pantalla <output id="o-dist"></output><input type="range" id="dist" min="0" max="2" step="0.05" value="1"></label>
+        <label class="sl">Temblor de cámara <output id="o-shake"></output><input type="range" id="shake" min="0" max="2" step="0.05" value="1"></label>
+        <label class="sl">Hit-stop <output id="o-hs"></output><input type="range" id="hs" min="0" max="200" step="5" value="70"></label>
+        <label class="sl">Velocidad <output id="o-speed"></output><input type="range" id="speed" min="0.1" max="1.5" step="0.05" value="1"></label>
+      </div>
+    </section>
+    <section>
+      <h2>Capas</h2>
+      <div class="group">
+        <label class="chk"><input type="checkbox" id="l-mesh" checked> Mallas con shader</label>
+        <label class="chk"><input type="checkbox" id="l-part" checked> Partículas GPU</label>
+        <label class="chk"><input type="checkbox" id="l-trail" checked> Estelas y haces</label>
+        <label class="chk"><input type="checkbox" id="l-decal" checked> Decal y luz dinámica</label>
+        <label class="chk"><input type="checkbox" id="l-post" checked> Post-proceso</label>
+      </div>
+    </section>
+    <p class="note">Cada habilidad es una función del tiempo: no guarda estado, así que puedes arrastrar la línea de tiempo a cualquier fotograma. Apaga capas para ver qué aporta cada una. En Auras de estado puedes cambiar de estado sin reiniciar para comparar el mismo fotograma; al elegir una aura o la curación se aplica su paleta sugerida.</p>
+  </aside>
+</div>
+
+<script type="importmap">
+{ "imports": { "three": "../../vendor/three.module.js", "three/addons/": "../../vendor/" } }
+</script>
+<script type="module">
+// Laboratorio de VFX de Lunakai — misma interfaz que vfx/index.html, ahora sobre el núcleo compartido del juego
+// (src/vfx/vfx-core.js) y el three.module.js r160 del proyecto. Los módulos se cargan desde src/vfx/modules/.
+import * as THREE from 'three';
+import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
+import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
+import { Orbit } from './orbit.js';
+import { createVfxCore } from '../../src/vfx/vfx-core.js';
+import { loadVfxModules } from '../../src/vfx/vfx-modules.js';
+
+// Mismo color que el laboratorio original (three r147): sin conversión sRGB ↔ lineal y luces "legacy".
+THREE.ColorManagement.enabled = false;
+
+const $=id=>document.getElementById(id);
+const stage=$("stage"), canvas=$("cv");
+let renderer;
+try{renderer=new THREE.WebGLRenderer({canvas,antialias:true,powerPreference:"high-performance"});}
+catch(e){stage.insertAdjacentHTML("beforeend",'<p style="position:absolute;inset:0;display:grid;place-items:center;margin:0;padding:16px;text-align:center;color:var(--muted)">Este navegador no tiene WebGL activo, así que la escena no puede dibujarse.</p>');throw e;}
+renderer.outputColorSpace=THREE.LinearSRGBColorSpace; renderer.useLegacyLights=true;
+renderer.setPixelRatio(Math.min(devicePixelRatio||1,2)); renderer.info.autoReset=false;
+const scene=new THREE.Scene(); scene.background=new THREE.Color(0x0b0c13); scene.fog=new THREE.Fog(0x0b0c13,14,30);
+const camera=new THREE.PerspectiveCamera(40,1,0.1,100); camera.position.set(0,2.8,9.5);
+const controls=new Orbit(THREE,camera,canvas);
+controls.target.set(0,1.1,0); controls.enableDamping=true; controls.enablePan=false; controls.minDistance=4; controls.maxDistance=22; controls.maxPolarAngle=Math.PI*0.49;
+
+const hemi=new THREE.HemisphereLight(0x8088b0,0x101018,0.55); scene.add(hemi);
+const sun=new THREE.DirectionalLight(0xbfc4ff,0.5); sun.position.set(-3,6,4); scene.add(sun);
+scene.add(new THREE.Mesh(new THREE.PlaneGeometry(60,60).rotateX(-Math.PI/2),new THREE.MeshStandardMaterial({color:0x1b1d2b,roughness:0.82,metalness:0.1})));
+const grid=new THREE.GridHelper(60,60,0x2c3048,0x222538); grid.position.y=0.002; scene.add(grid);
+
+// ---------- núcleo compartido ----------
+const core=createVfxCore(THREE,{scene,camera,showDummies:true});
+const {cl,U,O,TIER,glow,light,caster,target,horns,allies,enemies,ABS,MODS,PALETTES,LK,ensureBuilt,palOf,evaluate}=core;
+const tierOf=core.tierOfAbility, lanza=core.base.lanza;
+const tmp=new THREE.Vector3(), shakeOff=new THREE.Vector3();
+
+let cur=lanza;
+
+// ---------- post-proceso ----------
+const composer=new EffectComposer(renderer);
+composer.addPass(new RenderPass(scene,camera));
+const bloom=new UnrealBloomPass(new THREE.Vector2(256,256),0.9,0.65,0.62); composer.addPass(bloom);
+const post=new ShaderPass({
+  uniforms:{tDiffuse:{value:null},uC:{value:new THREE.Vector2(.5,.5)},uW:{value:0},uS:{value:0},uCA:{value:0},uAspect:{value:1},uBW:{value:0},uBA:{value:0},uWH:{value:0}},
+  vertexShader:`varying vec2 vUv;void main(){vUv=uv;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);}`,
+  fragmentShader:`uniform sampler2D tDiffuse;uniform vec2 uC;uniform float uW,uS,uCA,uAspect,uBW,uBA,uWH;varying vec2 vUv;
+  void main(){vec2 d=vUv-uC;d.x*=uAspect;float l=length(d);vec2 dir=d/(l+1e-5);dir.x/=uAspect;
+   float bd=smoothstep(.13,0.,abs(l-uW*.9));
+   float amt=bd*uS*(1.-uW)*.05;
+   vec2 uv=vUv-dir*amt;vec2 ca=dir*(amt*.6+uCA*l*.012);
+   vec3 c=vec3(texture2D(tDiffuse,uv+ca).r,texture2D(tDiffuse,uv).g,texture2D(tDiffuse,uv-ca).b);
+   c=1.-exp(-c*1.2);
+   if(uBW>0.){vec2 q=vUv-uC;q.x*=uAspect;float sd=dot(q,vec2(-sin(uBA),cos(uBA)));
+    float g=dot(c,vec3(.299,.587,.114));float bw=sd>0.?smoothstep(.12,.55,g):1.-smoothstep(.12,.55,g);
+    float line=smoothstep(.006,0.,abs(sd));c=mix(c,vec3(bw),uBW)+line*uBW;}
+   vec2 q=vUv-.5;c*=1.-dot(q,q)*.7;
+   c=mix(c,vec3(1.,.985,.96),clamp(uWH,0.,1.));
+   gl_FragColor=vec4(c,1.);}`});
+composer.addPass(post);
+
+// ---------- estado y controles ----------
+const S={te:0,hold:0,gap:0,playing:true,loop:true,speed:1,bloom:0.9,dist:1,shake:1,hs:0.07,post:true};
+const LV={mesh:true,part:true,trail:true,decal:true};
+const fmt={bloom:v=>v.toFixed(2),dist:v=>v.toFixed(2),shake:v=>v.toFixed(2),hs:v=>v+" ms",speed:v=>v.toFixed(2)+"×"};
+const still=()=>{if(!S.playing)draw();};
+for(const k of Object.keys(fmt)){
+  const el=$(k), out=$("o-"+k);
+  const apply=()=>{const v=parseFloat(el.value);out.textContent=fmt[k](v);S[k]=k==="hs"?v/1000:v;still();};
+  el.addEventListener("input",apply); apply();
+}
+function applyVis(){
+  for(const ab of Object.values(ABS)){ab.root.visible=ab===cur;for(const k of LK)ab.L[k].visible=LV[k];}
+  horns.visible=!!cur.horns;
+  const na=typeof cur.allies==="function"?cur.allies():(cur.allies||0); allies.forEach((d,i)=>d.visible=i<na);
+  const ne=typeof cur.enemies==="function"?cur.enemies():(cur.enemies||0); enemies.forEach((d,i)=>d.visible=i<ne);
+  glow.visible=LV.mesh; light.visible=LV.decal;
+}
+for(const k of LK){const el=$("l-"+k);LV[k]=el.checked;el.addEventListener("change",e=>{LV[k]=e.target.checked;applyVis();still();});}
+S.post=$("l-post").checked; $("l-post").addEventListener("change",e=>{S.post=e.target.checked;still();});
+S.loop=$("loop").checked; $("loop").addEventListener("change",e=>S.loop=e.target.checked);
+function setPlaying(p){S.playing=p;$("pause").textContent=p?"Pausar":"Continuar";}
+function restart(){S.te=0;S.hold=0;S.gap=0;setPlaying(true);}
+$("cast").addEventListener("click",restart);
+$("pause").addEventListener("click",()=>{if(!S.playing&&S.te>=cur.dur)S.te=0;setPlaying(!S.playing);});
+$("scrub").addEventListener("input",e=>{setPlaying(false);S.te=parseFloat(e.target.value);S.hold=0;draw();});
+
+let phaseEls=[], lastUi=-1;
+function fitPhases(){phaseEls.forEach(el=>{el.classList.remove("tight");if(el.scrollWidth>el.clientWidth+1)el.classList.add("tight");});}
+function setAbility(key,play,user){
+  cur=ABS[key]||lanza; ensureBuilt(cur);
+  if($("mod").value!==cur.mod)buildTabs(cur.mod);
+  [...$("tabs-list").children].forEach(b=>b.setAttribute("aria-pressed",b.dataset.k===cur.key));
+  buildVariants(); applyVis();
+  if(user&&cur.pal)setPalette(palOf(cur));
+  $("scrub").max=cur.dur; $("phases").textContent="";
+  phaseEls=cur.phases.map(([name,start],i)=>{const s=document.createElement("span");s.textContent=name;s.title=name;s.style.flex=((cur.phases[i+1]?cur.phases[i+1][1]:cur.dur)-start)+" 0 0";$("phases").appendChild(s);return s;});
+  fitPhases(); lastUi=-1;
+  if(play)restart(); else{S.te=Math.min(S.te,cur.dur);}
+}
+function buildTabs(mod){
+  const m=MODS.find(x=>x.name===mod)||MODS[0]; $("mod").value=m.name; $("tabs-list").textContent="";
+  for(const ab of m.list){
+    const b=document.createElement("button"); b.dataset.k=ab.key; b.id="tab-"+ab.key; b.textContent=ab.name;
+    b.setAttribute("aria-pressed",ab===cur); b.addEventListener("click",()=>setAbility(ab.key,true,true)); $("tabs-list").appendChild(b);
+  }
+}
+function buildVariants(){
+  const box=$("variants"); box.hidden=!cur.variants; if(!cur.variants)return;
+  box.textContent=""; const lb=document.createElement("span"); lb.textContent=cur.vlabel||"Variante"; box.appendChild(lb);
+  for(const [v,name] of cur.variants){
+    const b=document.createElement("button"); b.dataset.v=v; b.id="var-"+v; b.textContent=name; b.setAttribute("aria-pressed",v===cur.v);
+    // cambiar de variante no reinicia: el mismo fotograma con otra variante
+    b.addEventListener("click",()=>{setVariant(v);if(cur.pal)setPalette(palOf(cur));applyVis();still();}); box.appendChild(b);
+  }
+}
+function setVariant(v){
+  if(!cur.setVariant)return; cur.setVariant(v);
+  [...$("variants").querySelectorAll("button")].forEach(b=>b.setAttribute("aria-pressed",b.dataset.v===cur.v));
+}
+function setPalette(name){
+  const [c1,c2]=PALETTES[name]; U.uC1.value.set(c1); U.uC2.value.set(c2); light.color.set(c1);
+  document.documentElement.style.setProperty("--fx",c1); document.documentElement.style.setProperty("--fx2",c2);
+  [...$("pal").children].forEach(b=>b.setAttribute("aria-pressed",b.dataset.n===name));
+  try{localStorage.setItem("lanza-paleta",name);}catch(e){}
+}
+
+// ---------- dibujar un fotograma: pose de la habilidad activa + piezas comunes ----------
+let fps=60;
+function draw(){
+  controls.update();
+  caster.visible=true; target.visible=true;
+  const te=S.te, TT=evaluate(cur,te);
+  const ia=O.ia, on=S.post?1:0;
+  bloom.strength=S.bloom*on*TT.bloom;
+  post.uniforms.uBW.value=O.bw*on; post.uniforms.uBA.value=O.bwAng; post.uniforms.uWH.value=O.white*on;
+  {const k=1-Math.min(Math.max(O.dark,0),0.95); hemi.intensity=0.55*k; sun.intensity=0.5*k; scene.background.setRGB(0.043*k,0.047*k,0.075*k); scene.fog.color.copy(scene.background);}
+  const hp=$("hudpa"); hp.hidden=!O.pa;
+  if(O.pa){[...hp.querySelectorAll("i")].forEach((el,i)=>{el.hidden=i>=O.pa.max;el.classList.toggle("full",i<O.pa.have);
+    el.style.setProperty("--f",i===O.pa.have?O.pa.fill:(i<O.pa.have?1:0));el.classList.toggle("flash",i===O.pa.have&&O.pa.flash>0.5);});}
+  post.uniforms.uW.value=cl(ia/0.5); post.uniforms.uS.value=ia>=0?S.dist*O.dist*TT.dist*on:0; post.uniforms.uCA.value=ia>=0?Math.exp(-ia*8)*S.dist*O.dist*TT.dist*on:0;
+  tmp.copy(O.c).project(camera); post.uniforms.uC.value.set(tmp.x*0.5+0.5,tmp.y*0.5+0.5);
+  const amp=ia>=0?S.shake*O.shake*TT.shake*0.22*Math.exp(-ia*7):0;
+  shakeOff.set(Math.sin(te*91),Math.sin(te*113+1),Math.sin(te*77+2)).multiplyScalar(amp);
+  camera.position.add(shakeOff); camera.updateMatrixWorld();
+  renderer.info.reset(); composer.render();
+  camera.position.sub(shakeOff);
+  const ms=Math.round(te*1000);
+  if(ms!==lastUi){
+    lastUi=ms; $("ms").textContent=String(ms).padStart(4,"0"); $("scrub").value=te;
+    let pi=0; cur.phases.forEach((ph,i)=>{if(te>=ph[1])pi=i;}); $("phase").textContent=cur.phases[pi][0];
+    phaseEls.forEach((el,i)=>el.classList.toggle("on",i===pi));
+  }
+  $("stats").innerHTML=`<b>${Math.round(fps)}</b> fps<br><b>${renderer.info.render.calls}</b> draw calls<br><b>${cur.count}</b> partículas${tierOf(cur)?`<br>nivel <b>${tierOf(cur)}</b>`:""}`;
+}
+function resize(){
+  const w=stage.clientWidth,h=stage.clientHeight; if(!w||!h)return;
+  renderer.setSize(w,h,false); composer.setSize(w,h);
+  camera.aspect=w/h; camera.updateProjectionMatrix();
+  const need=4.9/(Math.tan(THREE.MathUtils.degToRad(20))*camera.aspect), d=camera.position.distanceTo(controls.target);
+  if(d<need) camera.position.sub(controls.target).setLength(Math.min(need,controls.maxDistance)).add(controls.target);
+  U.uPx.value=renderer.domElement.height/(2*Math.tan(THREE.MathUtils.degToRad(20)));
+  post.uniforms.uAspect.value=w/h; fitPhases();
+  still();
+}
+let last=performance.now();
+function tick(now){
+  const real=Math.min((now-last)/1000,0.05); last=now; fps+=(1/Math.max(real,0.001)-fps)*0.05;
+  if(S.playing){
+    if(S.gap>0){S.gap-=real;if(S.gap<=0)S.te=0;}
+    else if(S.hold>0){S.hold-=real;}
+    else{
+      const next=S.te+real*S.speed, ti=cur.ti;
+      if(S.te<ti&&next>=ti&&S.hs>0){S.te=ti+0.012;S.hold=S.hs*TIER[tierOf(cur)].hs;}   // hit-stop: congela el fotograma del golpe
+      else S.te=next;
+      if(S.te>=cur.dur){S.te=cur.dur;if(S.loop)S.gap=0.45;else setPlaying(false);}
+    }
+  }
+  draw(); requestAnimationFrame(tick);
+}
+
+// ---------- API pública para módulos (archivos mod-*.js) y arranque ----------
+core.hudOrbNDC=(i,out)=>{const st=stage.getBoundingClientRect(),el=$("hudpa").querySelectorAll("i")[i];if(!el)return out.set(-0.8,-0.85);
+  const r=el.getBoundingClientRect();return out.set(((r.left+r.width/2-st.left)/st.width)*2-1,-(((r.top+r.height/2-st.top)/st.height)*2-1));};
+core.boot=()=>{
+  for(const n of Object.keys(PALETTES)){
+    const b=document.createElement("button"); b.dataset.n=n; b.id="pal-"+n;
+    b.innerHTML=`<i style="background:linear-gradient(135deg,${PALETTES[n][0]},${PALETTES[n][1]})"></i>${n}`;
+    b.addEventListener("click",()=>{setPalette(n);still();}); $("pal").appendChild(b);
+  }
+  let saved="Arcano"; try{const v=localStorage.getItem("lanza-paleta");if(PALETTES[v])saved=v;}catch(e){}
+  setPalette(saved);
+  for(const m of MODS){const o=document.createElement("option");o.value=o.textContent=m.name;$("mod").appendChild(o);}
+  $("mod").addEventListener("change",e=>{const m=MODS.find(x=>x.name===e.target.value);buildTabs(m.name);setAbility(m.list[0].key,true,true);});
+  // #clave o #clave-variante (p. ej. #aura-quemadura, #imp-furia)
+  const [hk,hv]=(location.hash||"").slice(1).split("-");
+  buildTabs((ABS[hk]||lanza).mod); setAbility(hk,false); if(hv){setVariant(hv);applyVis();}
+  new ResizeObserver(resize).observe(stage); resize();
+  if(matchMedia("(prefers-reduced-motion: reduce)").matches){setPlaying(false);S.te=cur.ti+0.09;}
+  requestAnimationFrame(tick);
+};
+window.VFX=core;
+window.__fx={seek(t,k,v){if(k)setAbility(k,false);if(v){setVariant(v);applyVis();}setPlaying(false);S.te=t;draw();}};
+
+await loadVfxModules(new URL('../../src/vfx/', import.meta.url).href);
+core.boot();
+</script>
+
+</body></html>

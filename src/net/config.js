@@ -7,17 +7,26 @@ export const NET_CONFIG = {
   supabaseUrl: 'https://umujjnazgvxsxfbdjeyb.supabase.co',
   supabaseAnonKey: 'sb_publishable_bkEqHc25JqBEsljHuMyFpg_c4B0iENX', // clave publishable (pública)
 
-  // Ronin Developer Console → tu app → Ronin Account
+  // Ronin Developer Console → tu app → Sign in with Sky Mavis (OIDC). Ronin Waypoint se apaga el 31-oct-2026:
+  // se usa el inicio de sesión estándar OIDC de la cuenta de Sky Mavis (Authorization Code + PKCE).
+  // El client secret NUNCA va aquí: lo usa solo la función de servidor `skymavis-auth`.
   skymavis: {
-    clientId: '',           // Client ID de la app
+    clientId: '34362128-ba5a-4d5e-afc0-ebf4fb6028f0', // Client ID de la app (público)
     authorizeUrl: 'https://api-gateway.skymavis.com/oauth2/auth',
     scope: 'openid',
-    // Si el endpoint de autorización exige la API key como parámetro, ponla aquí
-    // (es la misma clave pública de API Gateway; déjala vacía si no hace falta).
+    // Si el endpoint de autorización exige la API key como parámetro, ponla aquí (déjala vacía si no hace falta).
     authorizeApiKey: '',
-    // Debe coincidir EXACTAMENTE con una "Sign-in URI" registrada en el console
-    // y con ALLOWED_REDIRECT_URIS de la Edge Function. Por defecto: la raíz del juego.
+    // Debe coincidir EXACTAMENTE con una URI registrada en la consola y con ALLOWED_REDIRECT_URIS de la función.
+    // Por defecto: la raíz del sitio donde corre el juego (con barra final). También es la vuelta tras cerrar sesión.
     redirectUri: null,
+    // «Cerrar sesión» cierra también la sesión de Sky Mavis (pasa por la función, que añade la API key).
+    logoutAtSkyMavis: true,
+  },
+
+  // Funciones de servidor (Supabase Edge Functions)
+  functions: {
+    auth: '/functions/v1/skymavis-auth',
+    axieData: '/functions/v1/axie-data', // consultas al marketplace de Sky Mavis (la API key vive en el servidor)
   },
 
   // Guardado en la nube

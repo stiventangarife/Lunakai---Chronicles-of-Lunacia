@@ -60,23 +60,23 @@
 .lk-acct-dialog .lk-acts{flex-wrap:wrap;justify-content:center}
 
 /* ---- Indicador de guardado en la nube ---- */
-.lk-save-chip{position:fixed;left:16px;bottom:16px;z-index:60;display:flex;align-items:center;gap:8px;
+body > .lk-save-chip{position:fixed;left:16px;bottom:16px;z-index:60;display:flex;align-items:center;gap:8px;
   padding:7px 12px;border-radius:var(--lk-r-pill,999px);background:rgba(11,15,28,.78);backdrop-filter:blur(6px);
   box-shadow:inset 0 0 0 1px rgba(211,174,108,.28);font:800 .74rem var(--lk-font-ui,system-ui);color:var(--lk-ivory-50,#F6EFE0);
   transition:opacity .6s ease;pointer-events:auto}
-.lk-save-chip[hidden]{display:none}
-.lk-save-chip.lk-is-quiet{opacity:.35}
-.lk-save-chip.lk-is-quiet:hover{opacity:1}
+body > .lk-save-chip[hidden]{display:none}
+body > .lk-save-chip.lk-is-quiet{opacity:.35}
+body > .lk-save-chip.lk-is-quiet:hover{opacity:1}
 .lk-save-chip__dot{width:8px;height:8px;border-radius:50%;background:#8CF09B;box-shadow:0 0 6px #8CF09B}
-.lk-save-chip[data-state="saving"] .lk-save-chip__dot{background:#F2C46B;box-shadow:0 0 6px #F2C46B;animation:lk-savePulse 1s ease-in-out infinite}
-.lk-save-chip[data-state="offline"] .lk-save-chip__dot{background:#F2C46B;box-shadow:none}
-.lk-save-chip[data-state="error"] .lk-save-chip__dot{background:#E0605A;box-shadow:0 0 6px #E0605A}
-.lk-save-chip[data-state="error"]{box-shadow:inset 0 0 0 1px rgba(224,96,90,.6)}
+body > .lk-save-chip[data-state="saving"] .lk-save-chip__dot{background:#F2C46B;box-shadow:0 0 6px #F2C46B;animation:lk-savePulse 1s ease-in-out infinite}
+body > .lk-save-chip[data-state="offline"] .lk-save-chip__dot{background:#F2C46B;box-shadow:none}
+body > .lk-save-chip[data-state="error"] .lk-save-chip__dot{background:#E0605A;box-shadow:0 0 6px #E0605A}
+body > .lk-save-chip[data-state="error"]{box-shadow:inset 0 0 0 1px rgba(224,96,90,.6)}
 .lk-save-chip__retry{border:0;border-radius:999px;padding:3px 10px;cursor:pointer;font:800 .7rem var(--lk-font-ui,system-ui);
   color:#4A3714;background:linear-gradient(180deg,var(--lk-gilt-100,#F4E2B8),var(--lk-gilt-500,#D3AE6C))}
 .lk-save-chip__retry[hidden]{display:none}
 @keyframes lk-savePulse{50%{opacity:.35}}
-@media (prefers-reduced-motion: reduce){.lk-save-chip[data-state="saving"] .lk-save-chip__dot{animation:none}}
+@media (prefers-reduced-motion: reduce){body > .lk-save-chip[data-state="saving"] .lk-save-chip__dot{animation:none}}
 
 /* ---- Build de prueba (GUEST_ONLY en StartScreenUI.js): solo la opción de invitado ---- */
 .lk-guest-only [data-act="sso"],

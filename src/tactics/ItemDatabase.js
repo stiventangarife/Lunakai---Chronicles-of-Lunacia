@@ -1,4 +1,5 @@
 // ItemDatabase.js - Catalog of Equipable Items, Stats, Rarities and Drop Tables
+import { TIER0_ITEMS } from './data/EconomyCatalog.js';
 export const ITEMS_DB = {
   // ==========================================
   // --- 1. WEAPONS (Armas: Espadas, Arcos, Varas, Báculos, Orbes) ---
@@ -597,8 +598,8 @@ export const ITEMS_DB = {
     rarity: 'common',
     tier: 1,
     stats: {},
-    effect: { bond: 10 },
-    description: 'Mandarina dulce que brilla bajo la luna de Lunacia. A tu Axie le encanta: +10 % de vínculo.'
+    effect: { bond: 3 },
+    description: 'Mandarina dulce que brilla bajo la luna de Lunacia. A tu Axie le encanta: +3 % de vínculo.'
   },
   food_rice_cake: {
     id: 'food_rice_cake',
@@ -609,8 +610,8 @@ export const ITEMS_DB = {
     rarity: 'uncommon',
     tier: 2,
     stats: {},
-    effect: { bond: 15 },
-    description: 'Receta casera del Valle del Dojo, todavía tibia. +15 % de vínculo con tu Axie.'
+    effect: { bond: 5 },
+    description: 'Receta casera del Valle del Dojo, todavía tibia. +5 % de vínculo con tu Axie.'
   },
   food_feast: {
     id: 'food_feast',
@@ -621,8 +622,8 @@ export const ITEMS_DB = {
     rarity: 'rare',
     tier: 3,
     stats: {},
-    effect: { bond: 25 },
-    description: 'Banquete de frutas, néctar y arroz dorado para ocasiones especiales. +25 % de vínculo con tu Axie.'
+    effect: { bond: 8 },
+    description: 'Banquete de frutas, néctar y arroz dorado para ocasiones especiales. +8 % de vínculo con tu Axie.'
   },
 
   // ==========================================
@@ -758,6 +759,23 @@ export const ITEMS_DB = {
     description: 'Key forged in elemental magma. Unlocks the arcane seal of the final Crypt Catacombs.'
   }
 };
+
+// Objetos Tier 0 que fabrica la Forja (EconomyCatalog.TIER0_ITEMS). Usan el dibujo del Tier 1 de su línea
+// hasta que tengan arte propio; `isT0` permite mostrarlos en tono sepia.
+Object.values(TIER0_ITEMS).forEach((t) => {
+  if (!ITEMS_DB[t.id]) ITEMS_DB[t.id] = { ...t, icon: ITEMS_DB[t.art]?.icon || '🔨', isT0: true };
+});
+
+// El equipo tiene 4 niveles y la rareza va ligada al nivel: Tier 0 Común · Tier 1 Raro · Tier 2 Épico · Tier 3 Místico.
+// Las piezas que en el catálogo figuran como T4 o T5 cuentan como Tier 3 (Místico).
+export const MAX_TIER = 3;
+export const TIER_RARITY = { 0: 'common', 1: 'rare', 2: 'epic', 3: 'mystic' };
+export const EQUIP_SLOTS = ['weapon', 'hat', 'shield', 'body', 'boots'];
+Object.values(ITEMS_DB).forEach((it) => {
+  if (!EQUIP_SLOTS.includes(it.slot)) return;
+  it.tier = Math.max(0, Math.min(MAX_TIER, it.tier ?? 1));
+  it.rarity = TIER_RARITY[it.tier];
+});
 
 // Loot pools categorized by Difficulty Tier (1 to 5)
 export const TIER_DROPS = {

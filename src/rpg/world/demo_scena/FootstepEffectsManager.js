@@ -131,9 +131,18 @@ function createDustPuffTexture() {
 // 2. GESTOR PRINCIPAL
 // =========================================================================
 
+const _UP = new THREE.Vector3(0, 1, 0);
+
 export class FootstepEffectsManager {
-  constructor(parentGroup, terrain) {
+  /**
+   * @param {THREE.Group} parentGroup
+   * @param {{getHeight, getNormal}} terrain  terreno de la zona
+   * @param {(x:number, z:number) => number} [surfaceHeight]  altura por la que camina el jugador (puentes, hielo…).
+   *        Si queda por encima del terreno, las huellas se estampan sobre esa superficie y no debajo.
+   */
+  constructor(parentGroup, terrain, surfaceHeight = null) {
     this.terrain = terrain;
+    this.surfaceHeight = typeof surfaceHeight === 'function' ? surfaceHeight : null;
 
     this.group = new THREE.Group();
     this.group.name = 'FootstepEffects_Group';
@@ -400,12 +409,21 @@ export class FootstepEffectsManager {
     this.dustScaleAttr.needsUpdate = true;
   }
 
+  /** Suelo bajo el pie: el terreno o, si está más alta, la superficie por la que se camina (puente, hielo). */
+  _groundAt(x, z) {
+    const terrainY = this.terrain ? this.terrain.getHeight(x, z) : 0;
+    if (this.surfaceHeight) {
+      const walkY = this.surfaceHeight(x, z);
+      if (Number.isFinite(walkY) && walkY > terrainY + 0.02) return { groundY: walkY, norm: _UP };
+    }
+    return { groundY: terrainY, norm: this.terrain ? this.terrain.getNormal(x, z) : _UP };
+  }
+
   // -----------------------------------------------------------------------
   // Estampar Huella de Bota (Sapidae)
   // -----------------------------------------------------------------------
   addBootPrint(x, z, yaw, isLeftFoot = false) {
-    const groundY = this.terrain ? this.terrain.getHeight(x, z) : 0;
-    const norm = this.terrain ? this.terrain.getNormal(x, z) : new THREE.Vector3(0, 1, 0);
+    const { groundY, norm } = this._groundAt(x, z);
 
     const idx = this.bootIndex;
     this.bootIndex = (this.bootIndex + 1) % this.maxBootPrints;
@@ -450,8 +468,7 @@ export class FootstepEffectsManager {
   // Estampar Huella de Patita (Axie)
   // -----------------------------------------------------------------------
   addPawPrint(x, z, yaw) {
-    const groundY = this.terrain ? this.terrain.getHeight(x, z) : 0;
-    const norm = this.terrain ? this.terrain.getNormal(x, z) : new THREE.Vector3(0, 1, 0);
+    const { groundY, norm } = this._groundAt(x, z);
 
     const idx = this.pawIndex;
     this.pawIndex = (this.pawIndex + 1) % this.maxPawPrints;

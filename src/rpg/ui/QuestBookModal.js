@@ -11,7 +11,7 @@ import { asset, sprite, bindSwitch } from '../../ui/lk.js';
 const I = (n) => asset(`assets/ui/icons/${n}.png`);
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const isImg = (s) => typeof s === 'string' && (/^(\.\/|\/|assets\/|http|data:image)/.test(s) || /\.(png|jpe?g|webp|svg)$/i.test(s));
-const RAR = { common: 'common', uncommon: 'uncommon', rare: 'rare', epic: 'epic', legendary: 'legendary', mystic: 'mystic' };
+const RAR = { common: 'common', uncommon: 'uncommon', rare: 'rare', epic: 'epic', legendary: 'mystic', mystic: 'mystic' };
 const CATS = [
   ['all', 'Todas las misiones', 'list'],
   ['Principal', 'Historia principal', 'mission'],
@@ -198,7 +198,7 @@ export class QuestBookModal {
     (q.rewards?.items || []).forEach((it) => {
       const db = it.id ? ITEMS_DB[it.id] : null;
       const icon = isImg(it.icon) ? it.icon : db && isImg(db.icon) ? db.icon : null;
-      const r = RAR[it.rarity || db?.rarity] || 'common';
+      const r = RAR[db?.rarity || it.rarity] || 'common';
       const stats = it.stats ? Object.entries(it.stats).map(([k, v]) => `+${v} ${{ hp: 'Vida', shield: 'Escudo', damage: 'Daño', initiative: 'Iniciativa', pa: 'PA', pm: 'PM' }[k] || k}`).join(' · ') : '';
       slots.push(`<div class="lk-slot-item" style="--r:var(--lk-rar-${r})" title="${esc(it.name)}${stats ? ' · ' + esc(stats) : ''}${it.desc ? '\n' + esc(it.desc) : ''}"><span class="lk-art">${icon ? `<img src="${icon}" alt="">` : `<span class="lk-emoji">${esc(it.icon || '🎁')}</span>`}</span><span class="lk-cap">${esc(it.name)}</span></div>`);
     });

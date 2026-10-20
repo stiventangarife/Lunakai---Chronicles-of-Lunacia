@@ -7,6 +7,8 @@
 //   texto         = «Vínculo 68 %», «Ronda 2», «Faltan PA», «Turno Sapidae», «Lista», «Usada»
 // Al pulsarlo (o con la tecla 7) se llama a game._toggleUltimateSelect().
 
+import { formatBond } from '../rpg/BondService.js';
+
 const ICON = './assets/ui/icons/';
 const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 const TRIAD_LABEL = { assault: 'Asalto', bastion: 'Bastión', torrent: 'Torrente' };
@@ -23,7 +25,7 @@ export function ultimateView(game, unit = game?.activeUnit) {
   const caster = unit && unit.team === 'player' ? unit : ult.sapidae;
   const check = ult.check(caster);
   const map = {
-    bond: ['locked', `Vínculo ${ult.bond}%`],
+    bond: ['locked', `Vínculo ${formatBond(ult.bond)}%`],
     used: ['used', 'Usada'],
     axie_down: ['used', 'Axie caído'],
     round: ['wait', 'Ronda 2'],
@@ -68,7 +70,7 @@ export function ultimateTipHTML(game) {
   const range = s.minRange === s.maxRange ? `${s.minRange}` : `${s.minRange}–${s.maxRange}`;
   const round = game.turnManager?.round || 1;
   const req = [
-    [`Vínculo con ${esc(ult.axie?.name || 'tu Axie')} al 100 %`, ult.bond >= 100, `${ult.bond}%`],
+    [`Vínculo con ${esc(ult.axie?.name || 'tu Axie')} al 100 %`, ult.bond >= 100, `${formatBond(ult.bond)}%`],
     ['Desde la ronda 2', round >= 2, `ronda ${round}`],
     ['6 PA del Sapidae', (ult.sapidae?.currentPA || 0) >= 6, `${ult.sapidae?.currentPA ?? 0} PA`],
     ['Un uso por combate', !ult.used, 'usada'],

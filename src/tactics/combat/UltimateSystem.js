@@ -113,7 +113,7 @@ export class UltimateSystem {
     this.sapidae = units.find((u) => u.team === 'player' && u.type === 'sapidae') || null;
     this.axie = (mainHeroId && units.find((u) => u.id === mainHeroId && u.team === 'player'))
       || units.find((u) => u.team === 'player' && u.type !== 'sapidae') || null;
-    this.bond = Math.max(0, Math.min(100, Math.round(bond || 0)));
+    this.bond = Math.max(0, Math.min(100, Math.round((bond || 0) * 10) / 10)); // décimas: 99,5 % no llega al 100 %
     this.spell = this.axie ? ultimateForClass(this.axie.axieClass) : null;
     this.sm.events.emit('ultimate:ready', { spell: this.spell, bond: this.bond, sapidae: this.sapidae, axie: this.axie });
     return this.spell;

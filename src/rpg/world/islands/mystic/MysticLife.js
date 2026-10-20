@@ -276,7 +276,7 @@ export class MysticLife {
     const body = new THREE.IcosahedronGeometry(1, 1);
     body.scale(0.32, 0.12, 0.09);
     const tail = new THREE.ConeGeometry(0.12, 0.22, 4);
-    tail.rotateZ(Math.PI / 2);
+    tail.rotateZ(-Math.PI / 2); // punta hacia el cuerpo, aleta abierta hacia atrás
     tail.scale(1, 1, 0.3);
     tail.translate(-0.4, 0, 0);
     const parts = [body.toNonIndexed(), tail.toNonIndexed()];

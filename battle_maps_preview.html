@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Lunakai — Mapas de combate (Hito 35)</title>
+  <style>
+    html, body { margin: 0; height: 100%; overflow: hidden; background: #0b1020; font-family: system-ui, sans-serif; }
+    #view { position: fixed; inset: 0; }
+    #panel { position: fixed; top: 10px; left: 10px; z-index: 5; background: rgba(20, 16, 10, 0.82); color: #f6e7c8;
+      border: 1px solid #c9a24a; border-radius: 10px; padding: 10px 12px; font-size: 13px; max-width: 320px; }
+    #panel select, #panel button { font: inherit; margin: 4px 4px 0 0; }
+    #info { margin-top: 6px; opacity: 0.85; white-space: pre-line; }
+    body.shot #panel { display: none; }
+  </style>
+  <script type="importmap">
+  { "imports": { "three": "./vendor/three.module.js", "three/addons/": "./vendor/", "three/examples/jsm/": "./vendor/" } }
+  </script>
+</head>
+<body>
+  <div id="view"></div>
+  <div id="panel">
+    <b>Mapas de combate</b><br />
+    <select id="map"></select>
+    <button id="rot">Girar 45°</button>
+    <label><input type="checkbox" id="units" checked /> Unidades</label>
+    <div id="info"></div>
+  </div>
+  <script type="module">
+    // Visor del Hito 35: muestra cada mapa con su escenario de bioma y unidades de referencia en las salidas.
+    // Uso: battle_maps_preview.html?map=savannah_oasis&angle=0&shot=1
+    import * as THREE from 'three';
+    import { SceneManager } from './src/tactics/SceneManager.js';
+    import { GridManager } from './src/tactics/GridManager.js';
+    import { BIOMES } from './src/tactics/Biomes.js';
+    import { BATTLE_MAPS, getBattleMap } from './src/tactics/maps/BattleMaps.js';
+    import { BattleArena } from './src/tactics/arena/BattleArena.js';
+    import { obstacleTypesFor } from './src/tactics/arena/BattleArenaThemes.js';
+    import { OCC_SETTINGS } from './src/tactics/arena/ArenaOcclusionDither.js';
+
+    const qs = new URLSearchParams(location.search);
+    if (qs.get('dither') === '0') OCC_SETTINGS.enabled = false; // ?dither=0 para comparar sin el dither fading
+    if (qs.get('shot')) document.body.classList.add('shot');
+    const sm = new SceneManager(document.getElementById('view'));
+    const gm = new GridManager(sm.scene);
+    const unitGroup = new THREE.Group();
+    sm.scene.add(unitGroup);
+
+    const sel = document.getElementById('map');
+    ['legacy', ...Object.keys(BATTLE_MAPS)].forEach((id) => {
+      const o = document.createElement('option');
+      o.value = id; o.textContent = id === 'legacy' ? 'legacy · 10×10 de siempre' : `${BATTLE_MAPS[id].biome} · ${BATTLE_MAPS[id].nameEs}`;
+      sel.appendChild(o);
+    });
+
+    function dummy(color, pos) {
+      const g = new THREE.Group();
+      const body = new THREE.Mesh(new THREE.CapsuleGeometry(0.34, 0.5, 4, 10), new THREE.MeshToonMaterial({ color }));
+      body.position.y = 0.6;
+      body.castShadow = true;
+      const ring = new THREE.Mesh(new THREE.RingGeometry(0.45, 0.58, 24), new THREE.MeshBasicMaterial({ color, side: THREE.DoubleSide }));
+      ring.rotation.x = -Math.PI / 2; ring.position.y = 0.03;
+      g.add(body, ring);
+      g.position.copy(pos);
+      return g;
+    }
+
+    async function show(id) {
+      while (unitGroup.children.length) {
+        const g = unitGroup.children[0];
+        unitGroup.remove(g);
+        g.traverse((o) => { o.geometry?.dispose(); o.material?.dispose(); });
+      }
+      const t0 = performance.now();
+      if (id === 'legacy') {
+        sm.setArena(null);
+        sm.applyBiome(BIOMES.lunacia_plains);
+        gm.setupBiome('lunacia_plains', null);
+        document.getElementById('info').textContent = '10×10 · islote flotante de siempre';
+      } else {
+        const map = getBattleMap(id);
+        gm.loadLayout(map, obstacleTypesFor(map.biome));
+        const arena = await BattleArena.build(map);
+        sm.setArena(arena);
+        sm.applyBiome(arena.theme.biome);
+        if (document.getElementById('units').checked) {
+          map.spawns.player.forEach((c) => unitGroup.add(dummy(0x38bdf8, gm.gridToWorld(c.x, c.z))));
+          map.spawns.enemy.forEach((c) => unitGroup.add(dummy(0xef4444, gm.gridToWorld(c.x, c.z))));
+        }
+        document.getElementById('info').textContent =
+          `${map.nameEs} (${map.name})${map.boss ? ' 👑 jefes' : ''}\n${map.width}×${map.height} · ${map.walkableCount} casillas · ${map.obstacles.length} obstáculos\n${arena.drawCalls} mallas · ${Math.round(performance.now() - t0)} ms`;
+      }
+      sm.resetCamera();
+      sm.targetAngle += (Number(qs.get('angle') || 0) * Math.PI) / 4;
+      sm.updateCameraPosition(0.016, 1.0);
+      window.__ready = true;
+    }
+
+    sel.onchange = () => { window.__ready = false; show(sel.value); };
+    document.getElementById('rot').onclick = () => sm.rotateLeft();
+    document.getElementById('units').onchange = () => show(sel.value);
+    window.showMap = (id) => { window.__ready = false; sel.value = id; return show(id); };
+    window.sm = sm; window.gm = gm;
+    // Hito 37: las unidades de referencia también activan el dither fading del escenario
+    sm.occlusionProvider = () => unitGroup.children.map((g, i) => ({ key: 'dummy' + i, x: g.position.x, y: 0.7, z: g.position.z, r: 0.95 }));
+
+    let last = performance.now();
+    function loop(now) {
+      const dt = Math.min(0.05, (now - last) / 1000); last = now;
+      sm.render(now / 1000, dt);
+      requestAnimationFrame(loop);
+    }
+    requestAnimationFrame(loop);
+    sel.value = qs.get('map') || 'savannah_oasis';
+    show(sel.value);
+  </script>
+</body>
+</html>

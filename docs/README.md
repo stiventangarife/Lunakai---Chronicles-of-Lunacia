@@ -227,6 +227,74 @@ Bienvenido al repositorio de documentación técnica, arquitectura y especificac
       - tutorial siempre superable.
     - Primera pasada de equilibrio de las cartas y registro de partidas para las siguientes (`lkDebug.balance()`).
 
+33. [**Hito 33: Fase 6 (VFX), etapa 1 — Núcleo compartido**](HITO_33_FASE_6_VFX_ETAPA_1_NUCLEO_COMPARTIDO.md)
+    - El motor de VFX del laboratorio pasa a `src/vfx/` (núcleo sin DOM + 36 módulos con los 235 efectos de las cartas) y el laboratorio a `tools/vfx-lab/`, ambos sobre el three r160 del proyecto.
+    - Tabla carta → efecto para las 235 cartas y comprobación automática en Node (`node tools/vfx-lab/gen-cards.mjs`).
+
+34. [**Hito 34: Fase 6 (VFX), etapa 2 — Los efectos llegan al combate**](HITO_34_FASE_6_VFX_ETAPA_2_PUENTE_EN_COMBATE.md)
+    - `src/vfx/VfxBridge.js` reproduce en combate los efectos del laboratorio de las 24 cartas de los Axies jugables: Shinji, Early Bird, Big Yak, Bing y Pomodoro.
+    - El daño llega en el fotograma del impacto; además hay tablero oscurecido, *hit-stop* y movimiento visual de las unidades, que siempre vuelven a su casilla.
+    - Consola: `lkDebug.vfx()`, `lkDebug.vfxAll(true)`, `lkDebug.vfxPlay(id)`.
+    - **Arena de pruebas** (`src/tactics/combat/TestArena.js`): `lkDebug.arena()` abre un combate contra un muñeco de 25.000 de vida que no ataca ni se mueve; `lkDebug.probar('id', distancia)` lanza cualquier carta contra él. La lista de comandos de las 319 pruebas está en [PRUEBAS_HABILIDADES.md](PRUEBAS_HABILIDADES.md).
+
+35. [**Hito 35: Mapas de combate por bioma**](HITO_35_MAPAS_DE_COMBATE_POR_BIOMA.md)
+    - 15 mapas, 3 por bioma: al empezar un combate del mundo abierto sale uno al azar del bioma, y los jefes usan siempre el suyo.
+    - Tamaños y formas distintos (de 7×12 a 13×12): esquinas recortadas, cruces, anillos, ríos con puentes, grietas e islas flotantes.
+    - El escenario usa el arte de la isla: árboles IslandTrees, rocas con su material, vegetación, partículas, cielo y luz.
+    - La campaña antigua y la arena de pruebas siguen en el 10×10 de siempre (el tutorial pasó al Claro de Arces en el Hito 37).
+    - Validador: `node tools/battle-maps/check-maps.mjs`. Visor: `battle_maps_preview.html`. Consola: `lkDebug.maps()` y `lkDebug.map('id')`.
+    - 18-oct: sin árboles en los tableros de Bosque (salvo el Gran Árbol), Sabana, Ártico y Pantano Luminoso, para ver mejor el combate.
+
+36. [**Hito 36: Fase 6 (VFX) — Sapidae y Ultimates en combate, efectos más grandes**](HITO_36_FASE_6_VFX_SAPIDAE_Y_ULTIMATES.md)
+    - Las 24 habilidades del Sapidae y las 3 Ultimates de dúo usan sus efectos del motor.
+    - Los muñecos del laboratorio ya no aparecen en el tablero.
+    - Efectos un 35 % más grandes (`lkDebug.vfxScale()`); `o.dark` y `o.white` funcionan en el juego.
+
+37. [**Hito 37: Dither fading en los tableros de combate y tutorial en el Claro de Arces**](HITO_37_DITHER_FADING_TABLEROS_DE_COMBATE.md)
+    - Lo que el escenario pone entre la cámara y una unidad (o la casilla bajo el ratón) se disuelve con un tramado de pantalla, desde cualquier ángulo.
+    - Los obstáculos del tablero nunca bajan del 35 % visible; la decoración de alrededor, hasta el 8 %.
+    - El tutorial se juega ahora en el Claro de Arces, con su escenario y su dither.
+    - Consola: `lkDebug.dither(false|true)`, `lkDebug.dither({ radius: 1.1 })`.
+
+38. [**Hito 38: Vida persistente, turnos alternados y correcciones**](HITO_38_CORRECCIONES_VIDA_TURNOS_HUELLAS_BARQUERO.md)
+    - La vida del mundo abierto es la del combate: se entra con ella y se guarda al terminar; quien cae vuelve con 1 de vida. En el mundo abierto se regenera +10 cada 5 s.
+    - Turnos alternados jugador/enemigo según la iniciativa (el tutorial mantiene el orden de siempre).
+    - Huellas sobre puentes y hielo, Espacio desactivado al elegir isla en el barquero y habilidades del Sapidae en la Mochila.
+
+39. [**Hito 39: Vínculo equilibrado, cartas de partes en los menús, pelo blanco, fuego amigo y fin de combate limpio**](HITO_39_VINCULO_CARTAS_PELO_FUEGO_AMIGO_FIN_DE_COMBATE.md)
+    - Vínculo: comida +3/+5/+8 %, paseo +0,5 % cada 500 m, −1 % cada 10 min de juego sin cuidados y −5 % por día sin jugar.
+    - El selector de compañero y la Mochila muestran las 6 cartas de partes del combate.
+    - Pelo con textura blanca para que tome bien el color elegido.
+    - Fuego amigo: los ataques y sus áreas dañan también a los aliados; curas y potenciadores, solo aliados.
+    - Al ganar o perder se retira toda la UI de combate.
+
+40. [**Hito 40: Atributos, estadísticas base por clase y rol, fichas de daño, Axies por ID y cambio de compañero**](HITO_40_ATRIBUTOS_ESTADISTICAS_BASE_AXIES_POR_ID_Y_COMPANERO.md)
+    - Crítico base de verdad al 20 %; el Sapidae usa sus atributos de daño (Esencia en Lunalogista y Astromante); en los Axies la Esencia es solo apoyo.
+    - 6 PA y 3 PM para todos los héroes; vida e iniciativa de los Axies por clase y rol (`AxieBaseStats.js`).
+    - Las cartas muestran el daño con nivel, atributos y estados (Potenciado, Débil) y su desglose.
+    - Comida bloqueada con el vínculo al 100 %; peces con la cola bien; humo al cambiar de Axie principal.
+    - Invitados: «Mis axies» carga cualquier Axie por su ID (colecciones Japan, Xmas…).
+    - Partes 3D que faltaban (Axie #585), cartas del Axie por ID en el tutorial, retratos que persisten y partes Japan de nivel 2 con el modelo correcto.
+41. [**Hito 41: Inicio de sesión con Sky Mavis (OIDC), API key en el servidor y tus Axies**](HITO_41_INICIO_SESION_RONIN_WAYPOINT_Y_TUS_AXIES.md)
+    - Inicio de sesión OIDC con PKCE; el intercambio del código y el cierre de sesión en Sky Mavis pasan por la función `skymavis-auth`.
+    - La API key de Sky Mavis solo vive en el servidor (función `axie-data`); el juego ya no la lleva.
+    - Carga de Axies por ID también con cuenta (aunque no tengas Axies).
+    - Nivel y AXP de Sky Mavis en la ficha (solo informativo); barra de AXP de la victoria ficticia, con tope en 60 y en los topes de evolución.
+42. [**Hito 42: Auditoría del core loop, todos los VFX en combate y sin tirón en el primer lanzamiento**](HITO_42_AUDITORIA_VFX_COMPLETOS_Y_PRECOMPILADO.md)
+    - Auditoría: 328 VFX sin fallos y 10 pruebas del core loop sin errores críticos.
+    - En combate tienen efecto todas las cartas (235 de partes, 30 de colección), Bing y Pomodoro (12/12) y los 61 ataques de enemigos (fábricas `VFX.basic.*` y `mod-enemigos.js`). Lista de trabajo: [`VFX_PENDIENTES_BING_POMODORO_ENEMIGOS.md`](VFX_PENDIENTES_BING_POMODORO_ENEMIGOS.md).
+    - Precompilado de shaders en las condiciones reales del render: el primer lanzamiento ya no se traba.
+    - Retratos del HUD sin errores, Beaked Alpha Chimera como sub-jefe (lobo acuático alfa) y orden de turnos fijo durante el combate.
+    - Se probó un estilo «toon» para los VFX y se descartó.
+43. [**Hito 43: Forja y Tienda del Valle del Dojō**](HITO_43_FORJA_Y_TIENDA.md)
+    - Forja (yunque del patio, tecla E): crear equipo Tier 0 con oro y materiales, y evolucionar piezas por su línea con SLP, materiales, esquirlas y bAXS; 2 yunques, tiempo real y rapidez ×2/×4.
+    - Tienda del Mercader Ochi: compra y venta de materiales, comida, pociones y equipo Tier 0; reposición cada 6 h y recompra.
+    - Revisión y correcciones: la forja aparta la pieza que está en un yunque (ya no se duplica equipo), Tier 0 a 60 de oro, el horno libera su memoria y su luz ya no hace recompilar la escena.
+44. [**Hito 44: Runas y charms en el combate**](HITO_44_RUNAS_Y_CHARMS_EN_COMBATE.md)
+    - Las 63 runas y los 90 charms de la guía tienen efecto en combate: estadísticas del Axie, cartas modificadas por el charm de su parte, % de daño, críticos, esquiva, reacciones, robo de vida, turnos, rondas y golpe letal.
+    - El HUD y la Mochila muestran el coste, el alcance y el daño reales; la ficha del charm enseña el «antes → después» de la carta.
+    - Consola: `lkDebug.runes()`, `lkDebug.rune()`, `lkDebug.charm()`.
+
 ---
 
 ## 🎮 Controles y Atajos de Teclado

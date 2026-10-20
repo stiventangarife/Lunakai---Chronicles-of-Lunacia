@@ -1,4 +1,7 @@
 // StartScreenUI.js - Title & Save Slots Screen with Sapidae Customization & Companion Axie Selection
+import { axieMixerService } from '../AxieMixerService.js';
+import { axieBaseStats } from '../../tactics/data/AxieBaseStats.js';
+import { SPELLS_DB } from '../../tactics/Spells.js';
 import { saveSlotManager, HERO_ROSTER, SAPIDAE_CLASSES } from '../SaveSlotManager.js';
 import { portraitService } from '../../tactics/CharacterPortraitService.js';
 import {
@@ -216,7 +219,7 @@ export const ITEM_ICONS = {
  * BUILD DE PRUEBA: solo se puede jugar como invitado (sin Sky Mavis ni correo).
  * Para volver a activar las cuentas, pon `false` aquí; no hay que tocar nada más.
  */
-export const GUEST_ONLY = true;
+export const GUEST_ONLY = false;
 
 export class StartScreenUI {
   constructor(options = {}) {
@@ -507,6 +510,7 @@ export class StartScreenUI {
     this._linkGuest = false;
 
     this._showSelect(this._getSession(), true);
+    if (view.mode === 'skymavis') this._loadOwnedAxies();
     const syncBanner = this._ref('syncBanner');
     syncBanner.hidden = res.syncOk !== false;
     (res.notices || []).forEach((t) => toast(t));
@@ -709,7 +713,7 @@ export class StartScreenUI {
   }
 
   async _logout({ thenLogin = true } = {}) {
-    const res = await accountManager.signOut();
+    let res = await accountManager.signOut();
     if (res.pending) {
       const choice = await this._ask({
         title: 'Hay progreso sin guardar en la nube',
@@ -717,12 +721,14 @@ export class StartScreenUI {
         actions: [{ id: 'stay', label: 'Seguir conectado', primary: true }, { id: 'force', label: 'Cerrar igualmente', danger: true }],
       });
       if (choice !== 'force') return;
-      await accountManager.signOut({ force: true });
+      res = await accountManager.signOut({ force: true });
     }
+    this.ownedAxies = [];
     this._ref('syncBanner').hidden = true;
     this.container.dataset.view = 'login';
     this._setLoginState('idle');
-    if (thenLogin) toast('Sesión cerrada');
+    // Con Sky Mavis, el navegador va a cerrar también su sesión y vuelve aquí (AuthService.signOut).
+    if (thenLogin) toast(res.redirecting ? 'Cerrando sesión en Sky Mavis…' : 'Sesión cerrada');
   }
 
   _retry() {
@@ -909,7 +915,7 @@ export class StartScreenUI {
           <div class="lk-kmenu" role="menu"><button data-k="play">Jugar</button><button class="lk-del" data-k="del">Eliminar…</button></div></div>
         <div class="lk-slot__art" style="--biome:${this._biomeOf(data.zone)}"><span class="lk-mt"></span>
           <span class="lk-med lk-is-sapi" style="--cc:var(--lk-lumen-500)"><img class="slot-fullbody-img" src="${sapidaePortrait}" alt=""></span>
-          ${axiePortrait ? `<span class="lk-med" style="--cc:var(--lk-class-${axCls})"><img src="${axiePortrait}" alt=""></span>` : ''}
+          ${axiePortrait ? `<span class="lk-med" style="--cc:var(--lk-class-${axCls})"><img src="${axiePortrait}" alt="" onerror="this.style.display='none'"></span>` : ''}
           <span class="lk-loc"><img src="${I('map')}" alt="" style="width:14px;height:14px;vertical-align:-3px;margin-right:4px">${data.zone?.name || 'Valle del Dojo'}</span></div>
         <div class="lk-slot__info"><div class="lk-nm"><b>${data.playerName || 'Sapidae'}</b><span class="lk-lv">XP Nv ${data.level || 1}</span></div>
           <span class="lk-row"><img src="${I('friend')}" alt="">Sapidae · <em>${classDef.name}</em></span>
@@ -1122,12 +1128,13 @@ export class StartScreenUI {
     const custom = this._customCompanion && this._customCompanion.heroKey === this.selectedCompanionKey;
     const mine = custom
       ? `<button type="button" class="lk-is-mine" aria-pressed="true" data-cc="mine"><span class="lk-med" style="--cc:var(--lk-class-${clsKey(comp)})"><img src="${portraitOf(comp)}" alt=""></span><b>${comp.name}</b><small><img src="${getAxieClassIcon(comp.class)}" alt="">${comp.class} · <span class="lk-chg">Cambiar</span></small><span class="lk-mine-tag">Tu axie</span></button>`
-      : `<button type="button" class="lk-pick-mine ${guest ? 'lk-is-locked' : ''}" data-cc="mine"><span class="lk-pm-ico"><img class="lk-ai" src="${CC_ICON(guest ? 'lock' : 'collection')}" alt=""></span><b>Mis axies</b><small>${guest ? 'Inicia sesión con Sky Mavis' : (this.ownedAxies?.length ? `Elige uno de tus ${this.ownedAxies.length}` : 'Tu colección de Sky Mavis')}</small></button>`;
+      : `<button type="button" class="lk-pick-mine" data-cc="mine"><span class="lk-pm-ico"><img class="lk-ai" src="${CC_ICON('collection')}" alt=""></span><b>Mis axies</b><small>${guest || (!this._ownedLoading && !this.ownedAxies?.length) ? 'Cargar un Axie por su ID' : (this.ownedAxies?.length ? `Elige uno de tus ${this.ownedAxies.length} o carga uno por su ID` : 'Tu colección de Sky Mavis')}</small></button>`;
     const parts = (s, idx) => { const k = (s.part || AXIE_BODY_PARTS[idx]?.id || '').toLowerCase(); return AXIE_BODY_PARTS_MAP[k] || null; };
+    const axieSkills = this._ccAxieSkills(comp);
     pane.innerHTML = `<h4>Axie compañero</h4><p class="lk-lead">Será tu axie principal: te sigue por Lunacia y con él desatas el Vínculo Supremo. Elige uno inicial o uno de tus propios axies.</p>
       <div class="lk-ax-pick">${CC_STARTERS.map((k) => HERO_ROSTER.find((h) => h.heroKey === k)).filter(Boolean).map(card).join('')}${mine}</div>
       <div class="lk-cls-info"><span class="lk-role">${String(comp.archetype || '').replace(/^.*\(([^)]+)\).*$/, '$1') || comp.class}</span><p>${comp.description || ''}</p><span class="lk-label">Cartas de sus partes (6)</span>
-        <div class="lk-spells">${(comp.skills || []).map((s, i) => { const p = parts(s, i); return `<button type="button" class="lk-spell" style="--cc:var(--lk-class-${clsKey(comp)})" data-tip="axie" data-i="${i}" aria-label="${s.name}${p ? ` (${p.name})` : ''}"><img src="${s.icon}" alt="" loading="lazy" onerror="this.style.display='none'"><img class="lk-spell-part" src="./assets/parts/${this._ccAxieCls(comp)}-${this._ccPartOf(s, i)}.png" alt=""></button>`; }).join('')}</div>
+        <div class="lk-spells">${axieSkills === 'loading' ? '<span class="lk-tip-hint">Cargando cartas…</span>' : axieSkills.map((s, i) => { const p = parts(s, i); return `<button type="button" class="lk-spell" style="--cc:var(--lk-class-${clsKey(comp)})" data-tip="axie" data-i="${i}" aria-label="${s.name}${p ? ` (${p.name})` : ''}"><img src="${s.icon}" alt="" loading="lazy" onerror="this.style.display='none'"><img class="lk-spell-part" src="./assets/parts/${s.cls || this._ccAxieCls(comp)}-${this._ccPartOf(s, i)}.png" alt=""></button>`; }).join('')}</div>
         <span class="lk-tip-hint">Pasa el ratón o mantén pulsado para ver cada carta</span></div>`;
   }
 
@@ -1166,11 +1173,99 @@ export class StartScreenUI {
     if (this.heroSelectModal && !this.heroSelectModal.classList.contains('hidden')) this._ccRenderAxie();
   }
 
+  /** Textos del panel de «Mis axies» (lista de la cuenta o carga por ID). */
+  _ccPickerTexts(title, lead) {
+    const card = this._ccRef('picker');
+    const h = card?.querySelector('#lk-ax-pick-title');
+    const p = card?.querySelector('.lk-pick-head + p');
+    if (h) h.textContent = title;
+    if (p) p.textContent = lead;
+  }
+
+  /** Invitado: panel con el campo «ID del Axie» (19-oct). */
+  _ccOpenIdPicker() {
+    this._ccPickerTexts('Cargar un Axie por su ID', 'Escribe el número de cualquier Axie de Lunacia (por ejemplo, uno de colección Japan o Xmas). Se carga con su modelo, su clase y las cartas de sus partes.');
+    const grid = this._ccRef('pickGrid');
+    grid.innerHTML = `<div class="lk-ax-id" style="grid-column:1/-1;display:flex;flex-direction:column;gap:10px">
+        <div style="display:flex;gap:8px;align-items:center"><input class="lk-input" id="lk-ax-id-input" type="text" inputmode="numeric" autocomplete="off" placeholder="ID del Axie, p. ej. 11968787" aria-label="ID del Axie" style="flex:1">
+        <button type="button" class="lk-btn lk-btn-primary-gold lk-btn--sm" data-cc="loadAxieId">Cargar</button></div>
+        <p class="lk-ax-id-status" data-ref="pickStatus" aria-live="polite" style="margin:0;min-height:1.4em"></p></div>`;
+    this._ccRef('picker').classList.add('lk-is-on');
+    setTimeout(() => grid.querySelector('#lk-ax-id-input')?.focus(), 30);
+  }
+
+  /** Consulta el Axie en Sky Mavis, calcula sus cartas de partes (con colecciones) y lo pone de compañero. */
+  async _ccLoadAxieById(raw) {
+    const id = String(raw || '').replace(/[^0-9]/g, '');
+    const status = this._ccRef('pickStatus');
+    const say = (t) => { if (status) status.textContent = t; };
+    if (!id) { say('Escribe el número (ID) del Axie.'); return; }
+    if (this._ccLoadingId) return;
+    this._ccLoadingId = id;
+    try {
+      say(`Buscando el Axie #${id}…`);
+      let data = null;
+      try { data = await axieMixerService.fetchAxieData(id); } catch { data = null; }
+      if (!data || !(data.newGenes || data.genes)) { say(`No se encontró el Axie #${id} (o no hay conexión con Sky Mavis).`); return; }
+      await this._ccAdoptAxie(data, say, `Axie #${id} cargado por su ID.`);
+    } finally {
+      this._ccLoadingId = null;
+    }
+  }
+
+  /** Héroe a partir de los datos de Sky Mavis de un Axie (sin cartas todavía). */
+  _ccHeroFromAxieData(data, description) {
+    const id = String(data.id);
+    const cap = (c) => { const t = String(c || 'Beast'); return t.charAt(0).toUpperCase() + t.slice(1).toLowerCase(); };
+    const cls = cap(data.class);
+    return {
+      heroKey: `axie_${id}`, axieId: id, name: data.name || `Axie #${id}`, class: cls,
+      archetype: `${cls} (Axie #${id})`, description: description || `Axie #${id}.`,
+      genes: data.newGenes || data.genes, image: data.image || null, avatar: '🐾', icon: '⭐', skills: [],
+      // Nivel y AXP en Sky Mavis: solo para mostrar (el nivel de Lunakai es independiente)
+      axpInfo: data.axpInfo || null, axpLevel: data.axpInfo?.level ?? null,
+    };
+  }
+
+  /** Calcula sus cartas de partes (con colecciones) y su vida/iniciativa, y lo pone de compañero. */
+  async _ccAdoptAxie(data, say = () => {}, description = null) {
+    const hero = this._ccHeroFromAxieData(data, description);
+    say('Calculando las cartas de sus partes…');
+    const resolver = typeof window !== 'undefined' ? window.lunakaiParts : null;
+    const res = resolver ? await resolver.resolve(hero).catch(() => null) : null;
+    Object.assign(hero, axieBaseStats(hero.class, res?.ids || []));
+    const cols = [...new Set((res?.collections || []).filter(Boolean))];
+    this._customCompanion = hero;
+    this._ccRef('picker').classList.remove('lk-is-on');
+    this._ccSetCompanion(hero);
+    toast(`${hero.name} será tu compañero${cols.length ? ` · partes de colección: ${cols.join(', ')}` : ''}`);
+    return hero;
+  }
+
+  /** Cuenta de Sky Mavis (19-oct): trae TODOS los Axies de sus direcciones Ronin para «Mis axies». */
+  async _loadOwnedAxies() {
+    if (this._ownedLoading) return;
+    this._ownedLoading = true;
+    try {
+      const list = await axieMixerService.fetchOwnedAxies();
+      this.setOwnedAxies(list.map((a) => ({ ...this._ccHeroFromAxieData(a, `Axie #${a.id} de tu cuenta.`), data: a })));
+    } catch (err) {
+      console.warn('[StartScreenUI] No se pudieron cargar tus Axies:', err?.code || err);
+      this._ownedError = err;
+    } finally {
+      this._ownedLoading = false;
+      if (this.heroSelectModal && !this.heroSelectModal.classList.contains('hidden')) this._ccRenderAxie();
+    }
+  }
+
   _ccOpenPicker() {
+    this._ccPickerTexts('Elige uno de tus axies', 'Axies de tu cuenta Sky Mavis. Llegan con su nivel AXP y sus partes; podrás cambiarlo después en el Escuadrón.');
     const list = this.ownedAxies || [];
     const grid = this._ccRef('pickGrid');
     const clsKey = (h) => String(getAxieClassIcon(h.class || h.heroKey)).match(/classes\/(\w+)\.png/)?.[1] || 'beast';
-    grid.innerHTML = list.map((a, i) => `<button type="button" class="lk-ax-card ${a.heroKey === this.selectedCompanionKey ? 'lk-is-sel' : ''}" data-cc="pickAxie" data-i="${i}" style="--cc:var(--lk-class-${clsKey(a)});cursor:pointer"><span class="lk-med" style="--cc:var(--lk-class-${clsKey(a)})"><img src="${portraitService.getPortraitSync(a.axieId) || a.image || ''}" alt=""></span><b>${a.name}</b><small><img src="${getAxieClassIcon(a.class)}" alt="">${a.class}${a.axpLevel ? ` · AXP ${a.axpLevel}` : ''}</small></button>`).join('');
+    grid.innerHTML = list.map((a, i) => `<button type="button" class="lk-ax-card ${a.heroKey === this.selectedCompanionKey ? 'lk-is-sel' : ''}" data-cc="pickAxie" data-i="${i}" style="--cc:var(--lk-class-${clsKey(a)});cursor:pointer"><span class="lk-med" style="--cc:var(--lk-class-${clsKey(a)})"><img src="${portraitService.getPortraitSync(a.axieId) || a.image || ''}" alt=""></span><b>${a.name}</b><small><img src="${getAxieClassIcon(a.class)}" alt="">${a.class}${a.axpLevel ? ` · AXP ${a.axpLevel}` : ''}</small></button>`).join('')
+      // También con cuenta: cargar cualquier Axie por su ID (19-oct)
+      + `<button type="button" class="lk-ax-card" data-cc="pickById" style="--cc:var(--lk-gilt-300);cursor:pointer"><span class="lk-med" style="--cc:var(--lk-gilt-300);display:grid;place-items:center;font-size:22px;font-weight:700">#</span><b>Cargar por ID</b><small>Cualquier Axie de Lunacia</small></button>`;
     this._ccRef('picker').classList.add('lk-is-on');
     this.heroSelectModal.querySelector('[data-cc="pickClose"]')?.focus();
   }
@@ -1200,12 +1295,13 @@ export class StartScreenUI {
     const range = String(s.range || '');
     const type = String(s.type || '');
     const desc = String(s.desc || '');
-    const noLos = /aura|salto|teletransp|^0$/i.test(range) || /aura|salto|movilidad|autopropi|potenciador/i.test(type);
-    let eff = null;
+    const noLos = typeof s.noLos === 'boolean' ? s.noLos : (/aura|salto|teletransp|^0$/i.test(range) || /aura|salto|movilidad|autopropi|potenciador/i.test(type));
+    let eff = s.eff || null;
     const dmg = desc.match(/(\d+(?:\s*[-–]\s*\d+)?)\s*de\s*daño/i);
     const heal = desc.match(/(?:cura|restaura|recupera)[^0-9+]*\+?(\d+(?:\s*[-–]\s*\d+)?)/i) || desc.match(/\+?(\d+(?:\s*[-–]\s*\d+)?)\s*de\s*(?:vida|curación|salud)/i);
     const shield = desc.match(/\+?(\d+(?:\s*[-–]\s*\d+)?)\s*de\s*escudo/i);
-    if (dmg) eff = ['Daño', dmg[1].replace(/\s*[-–]\s*/, '–')];
+    if (eff) { /* cartas de partes: efecto ya calculado */ }
+    else if (dmg) eff = ['Daño', dmg[1].replace(/\s*[-–]\s*/, '–')];
     else if (heal) eff = ['Curación', `+${heal[1].replace(/\s*[-–]\s*/, '–')}`];
     else if (shield) eff = ['Escudo', `+${shield[1].replace(/\s*[-–]\s*/, '–')}`];
     const vision = `<img class="lk-ai" src="${CC_ICON('vision')}" alt="">`;
@@ -1218,6 +1314,37 @@ export class StartScreenUI {
       + `</div><p>${desc}</p></div></div>`;
   }
 
+  /**
+   * Las 6 cartas de partes del Axie (las mismas que usa en combate, AxiePartsResolver), en el formato de la ficha.
+   * 'loading' mientras se consultan; si no se pueden resolver, la lista de siempre del Axie.
+   */
+  _ccAxieSkills(comp) {
+    const resolver = typeof window !== 'undefined' ? window.lunakaiParts : null;
+    if (!comp || !resolver || !(comp.axieId || comp.genes)) return comp?.skills || [];
+    const ids = resolver.idsFor(comp);
+    if (ids) {
+      const TYPE = { enemy: 'Ataque', ally: 'Apoyo', self: 'Sobre sí mismo', empty: 'Casilla vacía', any: 'Cualquier casilla' };
+      return ids.map((id) => SPELLS_DB[id]).filter(Boolean).map((sp) => ({
+        id: sp.id, name: sp.name, part: sp.part, cls: sp.iconClass || sp.class, icon: sp.icon || sp.partIcon,
+        cost: `${sp.paCost} AP`, range: sp.minRange === sp.maxRange ? String(sp.maxRange) : `${sp.minRange}-${sp.maxRange}`,
+        type: `${TYPE[sp.targetType] || 'Carta'}${sp.stage >= 2 ? ' · Nivel 2' : ''}`, desc: sp.description || '', noLos: sp.requiresLoS === false,
+        eff: sp.baseMinDamage ? ['Daño', sp.baseMinDamage === sp.baseMaxDamage ? `${sp.baseMinDamage}` : `${sp.baseMinDamage}–${sp.baseMaxDamage}`]
+          : sp.baseMinHeal ? ['Curación', `+${sp.baseMinHeal}`] : sp.shieldAmount ? ['Escudo', `+${sp.shieldAmount}`] : null,
+      }));
+    }
+    this._ccPartsTried = this._ccPartsTried || {};
+    const key = String(comp.axieId || comp.heroKey);
+    if (this._ccPartsTried[key] === 'failed') return comp.skills || [];
+    if (!this._ccPartsTried[key]) {
+      this._ccPartsTried[key] = 'pending';
+      resolver.resolve(comp).catch(() => null).then((res) => {
+        this._ccPartsTried[key] = res?.ids ? 'done' : 'failed';
+        if (this._ccCompanion() === comp) this._ccRenderAxie();
+      });
+    }
+    return 'loading';
+  }
+
   _ccAxieCls(h) { const c = String(getAxieClassIcon(h.class || h.heroKey)).match(/classes\/(\w+)\.png/)?.[1] || 'beast'; return CC_PART_CLASSES.includes(c) ? c : 'beast'; }
   _ccPartOf(s, i) { return (s.part || AXIE_BODY_PARTS[i]?.id || 'eyes').toLowerCase(); }
 
@@ -1228,9 +1355,9 @@ export class StartScreenUI {
       const c = this._ccClass(), s = (c.spellPreviews || [])[i];
       if (s) tooltip.show(el, this._ccSpellTip(s, CC_COLORS[c.id] || '#C98A3B', `<span class="lk-tt-crest">${this._ccCrest(c, 40)}</span>`, 'Hechizo'));
     } else {
-      const comp = this._ccCompanion(), s = (comp.skills || [])[i];
+      const comp = this._ccCompanion(), list = this._ccAxieSkills(comp), s = Array.isArray(list) ? list[i] : null;
       if (!s) return;
-      const cls = this._ccAxieCls(comp), part = this._ccPartOf(s, i);
+      const cls = s.cls || this._ccAxieCls(comp), part = this._ccPartOf(s, i);
       const PART = { eyes: 'Ojos', ears: 'Orejas', mouth: 'Boca', horn: 'Cuerno', back: 'Espalda', tail: 'Cola' };
       tooltip.show(el, this._ccSpellTip(s, `var(--lk-class-${cls})`, `<img class="lk-part-ico lk-tt-part" src="./assets/parts/${cls}-${part}.png" alt="${PART[part] || part}">`, PART[part] || part));
     }
@@ -1282,17 +1409,27 @@ export class StartScreenUI {
         case 'axie': { const h = HERO_ROSTER.find((x) => x.heroKey === el.dataset.k); if (h) this._ccSetCompanion(h); break; }
         case 'mine': {
           const guest = this._getSession?.()?.mode !== 'skymavis';
-          if (guest) { toast('Inicia sesión con Sky Mavis para usar tus propios axies', true); break; }
-          if (!this.ownedAxies || !this.ownedAxies.length) { toast('Tus axies de Sky Mavis aparecerán aquí al conectar la cuenta'); break; }
+          // Invitado o cuenta por correo (19-oct): se prueba cualquier Axie escribiendo su ID (colecciones Japan, Xmas…)
+          if (guest) { this._ccOpenIdPicker(); break; }
+          if (this._ownedLoading) { toast('Cargando tus Axies de Sky Mavis…'); break; }
+          if (!this.ownedAxies || !this.ownedAxies.length) {
+            // Cuenta sin Axies (o sin poder cargarlos): se puede cargar cualquier Axie por su ID (19-oct)
+            if (this._ownedError) { this._ownedError = null; this._loadOwnedAxies(); }
+            this._ccOpenIdPicker();
+            break;
+          }
           this._ccOpenPicker();
           break;
         }
         case 'pickAxie': {
           const h = (this.ownedAxies || [])[+el.dataset.i];
-          if (h) { this._customCompanion = h; this._ccRef('picker').classList.remove('lk-is-on'); this._ccSetCompanion(h); toast(`${h.name} será tu compañero`); }
+          // Igual que la carga por ID: cartas de partes, colecciones, vida e iniciativa de su clase y rol
+          if (h) this._ccAdoptAxie(h.data || h, () => {}, `Axie #${h.axieId} de tu cuenta.`);
           break;
         }
         case 'pickClose': this._ccRef('picker').classList.remove('lk-is-on'); break;
+        case 'pickById': this._ccOpenIdPicker(); break;
+        case 'loadAxieId': this._ccLoadAxieById(this._ccRef('pickGrid').querySelector('#lk-ax-id-input')?.value); break;
         case 'dice': {
           let n; do { n = RANDOM_NAMES[Math.floor(Math.random() * RANDOM_NAMES.length)]; } while (n === this.playerName && RANDOM_NAMES.length > 1);
           this.playerName = n;
@@ -1333,6 +1470,8 @@ export class StartScreenUI {
         if (picker && picker.classList.contains('lk-is-on')) { picker.classList.remove('lk-is-on'); return; }
         if (['INPUT', 'TEXTAREA'].includes(document.activeElement?.tagName)) document.activeElement.blur();
         else this.closeHeroSelect();
+      } else if (e.key === 'Enter' && e.target.id === 'lk-ax-id-input') {
+        this._ccLoadAxieById(e.target.value);
       } else if (e.key === 'Enter' && e.target.id === 'dofus-char-name') {
         m.querySelector('[data-cc="next"]')?.click();
       }

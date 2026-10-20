@@ -8,8 +8,10 @@ import { SPELLS_DB } from '../../tactics/Spells.js';
 import { STARTER_DECKS } from '../../tactics/data/StarterCards.js';
 import { portraitService } from '../../tactics/CharacterPortraitService.js';
 import { getAxieClassIcon } from './InventoryModal.js';
-import { AxpDemo, BondDemo } from './CombatEndScreen.js';
+import { BondDemo } from './CombatEndScreen.js';
 import { asset, sprite, toast } from '../../ui/lk.js';
+import { canBeMainAxie } from '../../tactics/EquipmentManager.js';
+import { axieMixerService } from '../AxieMixerService.js';
 
 const I = (n) => asset(`assets/ui/icons/${n}.png`);
 const SLOT_LBL = ['Líder', 'Principal', 'Apoyo', 'Apoyo'];
@@ -154,9 +156,27 @@ export class SquadModal {
     const s = this.em.getCalculatedStats(id) || {};
     return { hp: s.maxHP ?? 0, pa: s.maxPA ?? 0, pm: s.maxPM ?? 0, initiative: s.initiative ?? 0, damage: s.bonusDamage ?? 0, shield: s.initialShield ?? 0 };
   }
+  /** Cartas de partes del Axie (las del combate); null mientras se consultan o si no se pueden resolver (19-oct). */
+  _partCardIds(id, base) {
+    const resolver = typeof window !== 'undefined' ? window.lunakaiParts : null;
+    if (!resolver || !base || !(base.modelType === 'axie' || base.axieId)) return null;
+    const ids = resolver.idsFor(base);
+    if (ids) return ids;
+    this._partsTried = this._partsTried || {};
+    const key = String(base.axieId || id);
+    if (!this._partsTried[key]) {
+      this._partsTried[key] = 'pending';
+      resolver.resolve(base).catch(() => null).then((res) => {
+        this._partsTried[key] = res?.ids ? 'done' : 'failed';
+        if (res?.ids && this.isOpen) this._render();
+      });
+    }
+    return null;
+  }
   _parts(id) {
     const base = this._base(id);
-    const ids = (id === 'kotaro' ? (base?.spellIds || getHeroSpells(base?.heroKey || base?.axieId)) : HERO_SPELLS[id]) || [];
+    // Iconos de las partes reales del Axie, cada uno con el color de la clase de su parte (19-oct)
+    const ids = this._partCardIds(id, base) || (id === 'kotaro' ? (base?.spellIds || getHeroSpells(base?.heroKey || base?.axieId)) : HERO_SPELLS[id]) || [];
     const cls = this._cls(id);
     const seen = new Set();
     return ids.map((sid) => SPELLS_DB[sid]).filter((sp) => sp && sp.part && !seen.has(sp.part) && seen.add(sp.part))
@@ -183,7 +203,9 @@ export class SquadModal {
         return `<div class="lk-sq-slot lk-is-empty ${this.pending ? 'lk-is-valid' : ''}" data-i="${i}"><span class="lk-lbl">${SLOT_LBL[i]}</span><span class="lk-ph-d"></span><b>Libre</b><span class="lk-meta">${owned.length > this.slots.filter(Boolean).length - 1 ? 'Arrastra un axie aquí' : 'Consigue más axies en tus misiones'}</span></div>`;
       }
       const c = this._cls(id), t = this._stats(id), p = this._prog(id), sapi = c === 'sapidae';
-      const axl = sapi ? null : AxpDemo.peek(id).level;
+      // Nivel AXP real de Sky Mavis si ya se conoce (lo trae la ficha o la carga del Axie); si no, no se muestra
+      const smBase = sapi ? null : this._base(id);
+      const axl = sapi || !smBase?.axieId ? null : (axieMixerService.axieCache.get(String(smBase.axieId))?.axpInfo || smBase.axpInfo)?.level ?? null;
       const bond = i === 1 ? BondDemo.get(id) : 0;
       return `<button type="button" class="lk-sq-slot ${this.sel === id ? 'lk-is-sel' : ''} ${i === 0 ? 'lk-is-lead' : ''} ${this.pending && i > 0 ? 'lk-is-valid' : ''}" data-i="${i}" data-id="${id}" style="--cc:${this._cc(id)}">
         <span class="lk-lbl">${i === 0 ? `<img src="${I('lock')}" alt="">` : ''}${SLOT_LBL[i]}</span>
@@ -207,6 +229,28 @@ export class SquadModal {
     this._renderDetail();
   }
 
+  /**
+   * Nivel y AXP del Axie en Sky Mavis (19-oct): solo informativo, el nivel de Lunakai es independiente.
+   * Devuelve { info, state: 'ok' | 'loading' | 'none' }. La primera vez lo pide a Sky Mavis (vía axie-data).
+   */
+  _skyMavisAxp(base) {
+    const id = base?.axieId ? String(base.axieId) : null;
+    if (!id) return { info: null, state: 'none' };
+    const cached = axieMixerService.axieCache.get(id);
+    if (cached?.axpInfo) return { info: cached.axpInfo, state: 'ok' };
+    this._axpTried = this._axpTried || {};
+    if (!this._axpTried[id]) {
+      this._axpTried[id] = 'loading';
+      // La caché puede tener datos antiguos sin axpInfo: se piden de nuevo
+      if (cached && !cached.axpInfo) axieMixerService.axieCache.delete(id);
+      axieMixerService.fetchAxieData(id).then((d) => { this._axpTried[id] = d?.axpInfo ? 'ok' : 'none'; })
+        .catch(() => { this._axpTried[id] = 'none'; })
+        .finally(() => { if (this.isOpen) this._renderDetail(); });
+    }
+    if (this._axpTried[id] === 'loading') return { info: base.axpInfo || null, state: base.axpInfo ? 'ok' : 'loading' };
+    return { info: base.axpInfo || null, state: base.axpInfo ? 'ok' : 'none' };
+  }
+
   _renderDetail() {
     const id = this.sel || 'sapidae';
     const base = this._base(id);
@@ -217,18 +261,30 @@ export class SquadModal {
     if (!isAx) acts = '<span class="lk-note">El Sapidae lidera siempre el escuadrón y no se puede retirar.</span>';
     else if (j < 0) acts = this.slots.includes(null) ? btn('add', 'lk-btn-primary-gold', sprite('i-plus'), 'Añadir al escuadrón') : btn('swap', 'lk-btn-primary-gold', sprite('i-rotate'), this.pending === id ? 'Elige una ranura…' : 'Sustituir a…');
     else if (j === 1) acts = '<span class="lk-note">Es tu compañero principal. Para cambiarlo, haz principal a otro axie del escuadrón.</span>';
-    else acts = btn('lead', 'lk-btn-moon', `<img class="lk-ai lk-heart-ico" src="${I('heart')}" alt="">`, 'Hacer principal') + btn('out', 'lk-btn-secondary-wood', sprite('i-close'), 'Retirar');
+    else acts = (canBeMainAxie(id) ? btn('lead', 'lk-btn-moon', `<img class="lk-ai lk-heart-ico" src="${I('heart')}" alt="">`, 'Hacer principal') : '<span class="lk-note">Axie de apoyo: no puede ser el compañero principal.</span>') + btn('out', 'lk-btn-secondary-wood', sprite('i-close'), 'Retirar');
     if (j >= 0 && this.onOpenInventory) acts += btn('gear', 'lk-btn-secondary-wood', `<img class="lk-ai" src="${I('inventory')}" alt="">`, 'Equipar en la mochila');
 
     let axBlock = '';
     if (isAx) {
       const bond = BondDemo.get(id);
-      const axp = AxpDemo.peek(id), axl = axp.level, nextAsc = [10, 20, 30].find((m) => m > axl);
+      const nf = (n) => Number(n || 0).toLocaleString('es-CO');
+      const sm = this._skyMavisAxp(base);
+      let axpRows;
+      if (sm.state === 'ok' && sm.info) {
+        // Datos reales de Sky Mavis, tal como llegan (sin barra: Sky Mavis no documenta cómo se cuenta xpToLevelUp)
+        const a = sm.info, axl = Number(a.level) || 0;
+        axpRows = `<div class="lk-prow lk-axp" title="Nivel y AXP de este Axie en Sky Mavis. No cambian el nivel de Lunakai."><span class="lk-chip">AXP</span><span class="lk-lv">Nv ${axl}</span><span class="lk-gain" style="margin-left:auto">${nf(a.xp)} AXP</span></div>`
+          + `<div class="lk-asc-note"><span>Sky Mavis</span>${a.xpToLevelUp != null ? `<span>Para subir de nivel <b>${nf(a.xpToLevelUp)} AXP</b></span>` : ''}${a.onchainLevel != null && Number(a.onchainLevel) !== axl ? `<span>Nivel registrado <b>Nv ${a.onchainLevel}</b></span>` : ''}${a.shouldAscend ? '<span><b>Lista para ascender</b></span>' : ''}</div>`;
+      } else if (sm.state === 'loading') {
+        axpRows = `<div class="lk-prow lk-axp"><span class="lk-chip">AXP</span><span class="lk-gain" style="margin-left:auto">Consultando Sky Mavis…</span></div>`;
+      } else if (base.axieId) {
+        axpRows = `<div class="lk-prow lk-axp" title="Este Axie no tiene datos de AXP en Sky Mavis (o no hay conexión)."><span class="lk-chip">AXP</span><span class="lk-gain" style="margin-left:auto">Sin datos de Sky Mavis</span></div>`;
+      } else {
+        axpRows = ''; // Bing y Pomodoro no son Axies de Sky Mavis: no tienen AXP
+      }
       axBlock = `<div class="lk-bondrow"><span>Vínculo <span class="lk-demo-tag" title="Demostración: el sistema de vínculo aún no está en el juego">Demo</span></span><div class="lk-bondbar" style="--b:${bond}%"><i></i></div><b>${bond}%</b></div>`
         + `<div class="lk-prow lk-xp"><span class="lk-chip">XP</span><span class="lk-lv">Nv ${p.lv}</span><span class="lk-ds-bar"><i class="lk-base" style="--a:${p.xpp}%"></i></span><span class="lk-gain">${p.xpp}%</span></div>`
-        + `<div class="lk-prow lk-axp"><span class="lk-chip">AXP</span><span class="lk-lv">Nv ${axl}</span><span class="lk-ds-bar"><i class="lk-base" style="--a:${axp.afterPct}%"></i></span><span class="lk-gain">${axp.afterPct}%</span></div>`
-        + `<div class="lk-asc-track" style="--v:${Math.min(100, (axl / 30) * 100)}%"><span class="lk-ln"></span><span class="lk-fl"></span>${[10, 20, 30].map((m) => `<span class="lk-mk ${axl >= m ? 'lk-on' : m === nextAsc ? 'lk-next' : ''}" style="left:${(m / 30) * 100}%"><span>Nv ${m}</span></span>`).join('')}</div>`
-        + `<div class="lk-asc-note"><span>Ascensiones <b>${[10, 20, 30].filter((m) => axl >= m).length}/3</b></span><span>Partes evolucionables <b>${Math.floor(axl / 10)}</b></span>${nextAsc ? `<span>Próxima ascensión: <b>Nv ${nextAsc}</b></span>` : ''}<span class="lk-demo-tag" title="AXP de demostración hasta conectar Sky Mavis">Demo</span></div>`;
+        + axpRows;
     } else {
       axBlock = `<div class="lk-prow lk-xp"><span class="lk-chip">XP</span><span class="lk-lv">Nv ${p.lv}</span><span class="lk-ds-bar"><i class="lk-base" style="--a:${p.xpp}%"></i></span><span class="lk-gain">${p.xpp}%</span></div>`;
     }
@@ -240,7 +296,7 @@ export class SquadModal {
       <div class="lk-sqd-paper">
         ${axBlock}
         <div class="lk-stl">${STAT_ES.map(([k, l]) => `<span>${l}<b>${t[k]}</b></span>`).join('')}</div>
-        ${isAx ? (parts.length ? `<div class="lk-pgrid">${parts.map((pt) => `<span><img src="${pt.icon}" alt="">${PART_ES[pt.part] || pt.part}</span>`).join('')}</div>` : '') + '<span class="lk-pp">Runa y charms · en Habilidades (tecla H)</span>'
+        ${isAx ? (parts.length ? `<div class="lk-pgrid">${parts.map((pt) => `<span><img src="${pt.icon}" alt="">${PART_ES[pt.part] || pt.part}</span>`).join('')}</div>` : '') + '<span class="lk-pp">Runa y charms · en la Mochila (tecla U)</span>'
           : '<p>Lidera la expedición y combate siempre junto a los 3 axies del escuadrón (4 unidades en total). Comparte el Vínculo Supremo con el compañero principal.</p>'}
         <div class="lk-actions">${acts}</div>
       </div>`;
@@ -268,6 +324,13 @@ export class SquadModal {
     if (i <= 0) { toast('El Sapidae líder no se puede sustituir', true); return; }
     const j = this._idx(id), prev = this.slots[i];
     if (j === i) return;
+    // Bing y Pomodoro son solo de apoyo: ni ellos pueden ir a principal ni pueden quedar ahí tras un intercambio
+    const newMain = i === 1 ? id : (j === 1 ? prev : this.slots[1]);
+    if (!canBeMainAxie(newMain)) {
+      const who = this._base(newMain)?.name || 'Este axie';
+      toast(newMain === id || newMain === prev ? `${who} es un axie de apoyo: no puede ser el compañero principal` : 'El compañero principal no puede quedar vacío', true);
+      return;
+    }
     if (j >= 0) this.slots[j] = prev;
     this.slots[i] = id;
     this.sel = id;

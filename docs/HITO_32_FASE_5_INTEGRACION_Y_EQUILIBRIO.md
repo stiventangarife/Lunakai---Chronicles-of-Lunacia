@@ -92,7 +92,7 @@ En las primeras pruebas el nivel 5 parecía más difícil que el 6 y el 7. Era e
 
 ### Primeras partidas reales (17-oct-2026)
 
-Partida del dueño del proyecto: 12 combates, 11 victorias y 1 derrota, con la clase Stargazer. Hallazgos, todavía sin aplicar porque se prioriza una versión de prueba:
+Partida del dueño del proyecto: 12 combates, 11 victorias y 1 derrota, con la clase Stargazer. Hallazgos (las propuestas de dificultad y de Stargazer ya están aplicadas; ver «Segunda pasada» más abajo):
 
 | Hallazgo | Datos | Propuesta pendiente |
 | --- | --- | --- |
@@ -101,6 +101,18 @@ Partida del dueño del proyecto: 12 combates, 11 victorias y 1 derrota, con la c
 | Stargazer se queda corto | Vórtice 19 por PA, Nova 18, Eclipse 31. En 5 de 12 combates no hizo daño. | +20–25 % de daño a Vórtice Gravitacional y Nova Estelar. |
 | Shiba (cola de Bing) es la carta más fuerte | Unos 208 por uso y 69 por PA, pero solo 4 usos. | Vigilarla en las próximas partidas. |
 | Sin datos de las otras clases | Solo se jugó Stargazer. | Jugar con Forjacubiles, Lunalogista y Astromante. |
+
+### Segunda pasada (aplicada el 17-oct-2026)
+
+| Cambio | Antes | Ahora | Archivo |
+| --- | --- | --- | --- |
+| Escala de la isla Mística | vida ×3,0, daño +55, escudo +110 | ×2,6, +45, +95 | `rpg/world/BiomeEnemyCatalog.js` |
+| Escala de Genesis | vida ×4,2, daño +80, escudo +160 | ×3,3, +60, +125 | `rpg/world/BiomeEnemyCatalog.js` |
+| Encuentros fijos de misión de las primeras islas (emboscada de Bing, bandidos del cartero, guardián de Rosalba, Quimera Picuda, combate de Pomodoro, quimera del oráculo) | — | vida ×1,25–1,35, escudo +10, daño +5–6 | `tactics/DynamicCombatFactory.js` |
+| Vórtice Gravitacional (Stargazer) | 40–52 | 49–63 (+22 %) | `tactics/Spells.js`, `rpg/SaveSlotManager.js` |
+| Nova Estelar (Stargazer) | 45–58 | 55–71 (+22 %) | `tactics/Spells.js`, `rpg/SaveSlotManager.js` |
+
+Con la nueva escala, la manada de la osa que acabó con el equipo baja de 4.116 a unos 3.230 de vida total. El escudo de las islas altas también se rebajó en proporción, porque sumaba mucha vida efectiva. Pruebas: fases 2 y 5 en verde. La regresión solo cambia en los hechizos ajustados.
 
 El registro contaba el daño sobrante del golpe que remata (la osa aparecía con 2.045 de daño recibido sobre 1.680 de vida). Ya está corregido: el golpe final solo cuenta la vida que le quedaba al objetivo.
 

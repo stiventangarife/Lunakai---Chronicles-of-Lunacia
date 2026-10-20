@@ -92,7 +92,7 @@ export class SavannaZone {
     this.particleManager = new SavannaParticles(this.group, this.terrain);
 
     // 8b. Huellas y polvo al caminar sobre la arena y tierra de la meseta
-    this.footstepManager = new FootstepEffectsManager(this.group, this.terrain);
+    this.footstepManager = new FootstepEffectsManager(this.group, this.terrain, (x, z) => this.getHeight(x, z)); // huellas sobre puentes y hielo
 
     // 9. Iluminación y Atmósfera Solar de Sabana
     this.lightingManager = new LightingManager(this.scene);

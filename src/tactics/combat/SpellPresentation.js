@@ -23,8 +23,8 @@ export class SpellPresentation {
     const on = (evt, fn) => this._offs.push(events.on(evt, fn));
 
     // --- Lanzamiento: texto de coste, orientación del lanzador y sonido
-    on('spell:cast', ({ caster, spell, casterPos, targetPos }) => {
-      this.combatText.spawn(casterPos, '-' + spell.paCost + ' PA', 'pa');
+    on('spell:cast', ({ caster, spell, casterPos, targetPos, spent }) => {
+      this.combatText.spawn(casterPos, '-' + (spent ?? spell.paCost) + ' PA', 'pa'); // lo realmente pagado (descuentos de charms)
       const dirX = targetPos.x - casterPos.x;
       const dirZ = targetPos.z - casterPos.z;
       if (caster.mesh && (dirX !== 0 || dirZ !== 0)) {
@@ -69,7 +69,8 @@ export class SpellPresentation {
     on('spell:projectile', ({ spell, casterPos, targetPos }) => this.spawnProjectile(casterPos, targetPos, spell));
 
     // --- Impacto: anillo + chispas + decal, y el efecto propio de la habilidad
-    on('spell:impact', ({ spell, casterPos, targetPos, affectedCells }) => {
+    on('spell:impact', ({ spell, casterPos, targetPos, affectedCells, vfx }) => {
+      if (vfx) return; // Fase 6: el motor de VFX ya dibuja el impacto de esta carta
       this.spawnImpactVFX(targetPos, spell);
       this.playSkillVFX(spell, casterPos, targetPos, affectedCells);
     });
@@ -120,7 +121,7 @@ export class SpellPresentation {
       }
       const p = this._posOf(unit);
       this.spawnImpactVFX(p, { id: 'collision' });
-      this.combatText.spawn(p, '💥 COLLISION! -' + damage, 'collision');
+      this.combatText.spawn(p, damage > 0 ? '💥 COLLISION! -' + damage : '💥 COLLISION! 🛡️', 'collision'); // 0 = inmune (Sturdy Fighter)
     });
 
     // --- Fase 1: triángulo elemental, estados y objetos del tablero
@@ -161,6 +162,13 @@ export class SpellPresentation {
     on('ultimate:used', ({ caster, spell }) => {
       this.combatText.spawn(this._posOf(caster), `✦ ${String(spell.name).toUpperCase()} ✦`, 'crit');
       this.sceneManager.shake(0.42);
+    });
+    // --- Runas y charms (RuneCharmEffects)
+    on('unit:evaded', ({ unit }) => {
+      this.combatText.spawn(this._posOf(unit), '💨 ¡ESQUIVA!', 'buff');
+    });
+    on('runeCharm:proc', ({ unit, label }) => {
+      if (unit && label) this.combatText.spawn(this._posOf(unit), `✦ ${label}`, 'buff');
     });
     on('field:zonePlaced', ({ positions }) => {
       if (positions[0]) this.combatText.spawn(positions[0], '🌀 ZONA', 'buff');

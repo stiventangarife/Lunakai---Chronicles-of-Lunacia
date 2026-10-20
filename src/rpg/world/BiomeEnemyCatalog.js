@@ -28,17 +28,17 @@ export const BIOME_TIER_CONFIG = {
   mystic: {
     tier: 4,
     name: 'Mystic',
-    hpMultiplier: 3.0,
-    damageBonus: 55,
-    shieldBonus: 110,
+    hpMultiplier: 2.6,   // Fase 5 (equilibrio): antes 3.0 / +55 / +110
+    damageBonus: 45,
+    shieldBonus: 95,
     expMultiplier: 3.3
   },
   dungeon: {
     tier: 5,
     name: 'Genesis',
-    hpMultiplier: 4.2,
-    damageBonus: 80,
-    shieldBonus: 160,
+    hpMultiplier: 3.3,   // Fase 5 (equilibrio): antes 4.2 / +80 / +160 (salto de ×5 desde el Ártico)
+    damageBonus: 60,
+    shieldBonus: 125,
     expMultiplier: 4.5
   }
 };

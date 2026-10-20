@@ -105,7 +105,7 @@ export class GrandIslandZone {
     this.terrain = new IslandHeightTerrain(this.group, this.def.height, { name: `${this.id}_Terrain` });
     this.lightingManager = new LightingManager(this.scene);
     this.lightingManager.setVisible(false);
-    this.footstepManager = new FootstepEffectsManager(this.group, this.terrain);
+    this.footstepManager = new FootstepEffectsManager(this.group, this.terrain, (x, z) => this.getHeight(x, z)); // huellas sobre puentes y hielo
 
     // Set pieces & props first (trees / crystals may depend on them), then the art layer
     if (typeof this.def.build === 'function') await this.def.build(this);

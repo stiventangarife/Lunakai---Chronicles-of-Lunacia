@@ -36,6 +36,32 @@ function classKey(unit) {
   const k = String(unit?.axieClass || unit?.config?.axieClass || '').toLowerCase();
   return AXIE_CLASSES.includes(k) ? k : null;
 }
+// Clase de la carta (no la del Axie que la lanza): Gero es acuática aunque la lance Shinji (bestia).
+// Las cartas α de clase Mech de Pomodoro (Lost Dream, Village Hero) muestran el icono Mech.
+function spellClassKey(spell, unit) {
+  for (const c of [spell?.class, spell?.iconClass]) {
+    const k = String(c || '').toLowerCase();
+    if (AXIE_CLASSES.includes(k)) return k;
+  }
+  return classKey(unit);
+}
+// Los iconos de Mech, Dawn y Dusk están en mayúscula en assets/classes (el hosting distingue mayúsculas).
+const CLASS_ICON_FILE = { mech: 'Mech', dawn: 'Dawn', dusk: 'Dusk' };
+const classIcon = (k) => `./assets/classes/${CLASS_ICON_FILE[k] || k}.png`;
+// Icono de la carta: la parte del cuerpo (assets/parts/<clase>-<parte>.png, ya pintada con el color de su clase).
+// Mech, Dawn y Dusk no tienen iconos de partes: usan la parte de su iconClass y un filtro con el color de su clase.
+// Hechizos sin parte (Sapidae, enemigos): el icono de la clase, como antes.
+const PART_LABEL = { eyes: 'Ojos', ears: 'Orejas', mouth: 'Boca', horn: 'Cuerno', back: 'Espalda', tail: 'Cola' };
+const CLASS_LABEL = { beast: 'Bestia', plant: 'Planta', aquatic: 'Acuático', bird: 'Pájaro', bug: 'Bicho', reptile: 'Reptil', mech: 'Mech', dawn: 'Dawn', dusk: 'Dusk' };
+function spellIconHtml(spell, unit) {
+  const ck = spellClassKey(spell, unit);
+  if (spell?.part && PART_LABEL[spell.part]) {
+    const src = spell.partIcon || `./assets/parts/${spell.iconClass || spell.class}-${spell.part}.png`;
+    const alt = `${PART_LABEL[spell.part]} · ${CLASS_LABEL[ck] || ck || ''}`;
+    return { html: `<img class="lk-part-ico lk-part-ico--${ck || 'none'}" src="${src}" alt="${alt}">`, title: `Carta de ${alt}` };
+  }
+  return ck ? { html: `<img src="${classIcon(ck)}" alt="${ck}">`, title: `Carta de clase ${CLASS_LABEL[ck] || ck}` } : null;
+}
 function tintOf(unit) {
   if (!unit) return 'var(--lk-gilt-300)';
   if (unit.team !== 'player') return 'var(--lk-enemy-red)';
@@ -44,12 +70,48 @@ function tintOf(unit) {
 }
 const rangeTxt = (s) => (s.minRange === s.maxRange ? `${s.minRange}` : `${s.minRange}–${s.maxRange}`);
 
-function spellEffect(s) {
-  if (s.baseMinDamage) return { kind: 'Ataque', cls: '', val: s.baseMinDamage === s.baseMaxDamage ? `${s.baseMinDamage}` : `${s.baseMinDamage}–${s.baseMaxDamage}`, label: 'Daño' };
-  if (s.baseMinHeal) return { kind: 'Apoyo', cls: 'lk-heal', val: `+${s.baseMinHeal}${s.baseMaxHeal && s.baseMaxHeal !== s.baseMinHeal ? '–' + s.baseMaxHeal : ''}`, label: 'Curación' };
-  if (s.shieldAmount) return { kind: 'Escudo', cls: 'lk-shield', val: `+${s.shieldAmount}`, label: 'Escudo' };
-  return { kind: 'Habilidad', cls: '', val: '', label: '' };
+/**
+ * Valores de la carta para el lanzador (19-oct): nivel de habilidad, bonus del atributo y estados del momento
+ * (Potenciado, Débil…). Curas y escudos con el poder de apoyo. Sin juego (sm) se muestran los valores base.
+ * Devuelve también `parts` (desglose para la ficha) y `boosted` (si difiere del valor base).
+ */
+export function spellNumbers(s, unit, sm) {
+  const pctTxt = (v) => `${v > 0 ? '+' : '−'}${Math.abs(Math.round(v))} %`;
+  const mult = sm && unit && typeof sm._getSpellMultiplier === 'function' ? sm._getSpellMultiplier(unit, s) : 1;
+  const parts = [];
+  if (mult !== 1) parts.push(`Nv ${unit.getSkillLevel?.(s.id) || 1} ×${String(mult).replace('.', ',')}`);
+  const b0 = s.rcBase || s; // carta sin charms: el valor «de la carta» del desglose
+  if (s.rcBase) parts.push('con charms');
+  if (s.baseMinDamage) {
+    const e = (s.effects || []).find((x) => x.type === 'damage');
+    const hits = e && typeof e.hits === 'number' ? e.hits : 1;
+    const min0 = e ? e.min : s.baseMinDamage / hits, max0 = e ? e.max : s.baseMaxDamage / hits;
+    const flat = sm && unit && typeof sm._flatDamageBonus === 'function' ? sm._flatDamageBonus(unit, s, s.maxRange <= 1 ? 1 : 2) : 0;
+    const pctSt = sm?.statuses && unit?.statuses?.length ? sm.statuses.mod(unit, 'damageDealtPct') : 0;
+    // Runas del lanzador que no dependen del objetivo (Pure Power, Heart of Ocean…)
+    const pctRc = sm?.runeCharms && unit?.rc ? sm.runeCharms.damagePct(unit, null, s.maxRange <= 1 ? 1 : 2, { spell: s }) : 0;
+    const pct = pctSt + pctRc;
+    if (flat) parts.push(`+${flat} atributos`);
+    if (pctSt) parts.push(`${pctSt > 0 ? 'Potenciado' : 'Débil'} ${pctTxt(pctSt)}`);
+    if (pctRc) parts.push(`Runa ${pctTxt(pctRc)}`);
+    const f = (v) => Math.max(0, Math.round((Math.floor(v * mult) + flat) * (1 + pct / 100)) * hits);
+    const lo = f(min0), hi = f(max0);
+    return { kind: 'Ataque', cls: '', val: lo === hi ? `${lo}` : `${lo}–${hi}`, label: 'Daño', parts, boosted: lo !== b0.baseMinDamage || hi !== b0.baseMaxDamage, down: hi < b0.baseMaxDamage, base: b0.baseMinDamage === b0.baseMaxDamage ? `${b0.baseMinDamage}` : `${b0.baseMinDamage}–${b0.baseMaxDamage}` };
+  }
+  const sup = unit?.supportPower || 0;
+  if (sup) parts.push(`Apoyo +${Math.round(sup)} %`);
+  const g = (v) => Math.round(Math.floor(v * mult) * (1 + sup / 100));
+  if (s.baseMinHeal) {
+    const lo = g(s.baseMinHeal), hi = g(s.baseMaxHeal || s.baseMinHeal);
+    return { kind: 'Apoyo', cls: 'lk-heal', val: `+${lo}${hi !== lo ? '–' + hi : ''}`, label: 'Curación', parts, boosted: lo !== b0.baseMinHeal, base: `+${b0.baseMinHeal}` };
+  }
+  if (s.shieldAmount) {
+    const v = Math.round(Math.round(s.shieldAmount * mult) * (1 + sup / 100));
+    return { kind: 'Escudo', cls: 'lk-shield', val: `+${v}`, label: 'Escudo', parts, boosted: v !== b0.shieldAmount, base: `+${b0.shieldAmount}` };
+  }
+  return { kind: 'Habilidad', cls: '', val: '', label: '', parts: [] };
 }
+function spellEffect(s, unit = null, sm = null) { return spellNumbers(s, unit, sm); }
 const AREA = { single: 'Una casilla', cross1: 'Cruz (1)', cross2: 'Cruz (2)', line: 'Línea', circle1: 'Círculo (1)', square1: 'Cuadrado 3×3' };
 
 /* ───────────────────────────── 1. Marcado ───────────────────────────── */
@@ -168,6 +230,13 @@ export function attachCombatHUD(game) {
   if (!game || game.__lkCombatHUD) return;
   game.__lkCombatHUD = true;
   const $ = (id) => document.getElementById(id);
+  // Valor de carta modificado por nivel, atributos o estados: en verde; desglose en la ficha (19-oct)
+  if (!document.getElementById('lk-cb-boost-style')) {
+    const st = document.createElement('style');
+    st.id = 'lk-cb-boost-style';
+    st.textContent = '.lk-card-dmg.lk-is-boosted{color:#7ee08a}.lk-card-dmg.lk-is-reduced{color:#ff8a7a}.lk-cb-tip-calc{margin:6px 0 0;font-size:11px;opacity:.8}';
+    document.head.appendChild(st);
+  }
   const bar = $('lk-combat-bar');
   const q = (sel) => bar?.querySelector(sel);
   const tip = $('lk-cb-tip');
@@ -187,8 +256,14 @@ export function attachCombatHUD(game) {
 
   const spellAt = (unit, i) => {
     const id = unit?.spellIds?.[i];
-    return id ? game.spellManager?.getSpell?.(id) : null;
+    return id ? game.spellManager?.getSpell?.(id, unit) : null; // con los charms de la unidad
   };
+  // Coste real de la carta para la unidad (descuentos de charms y runas)
+  const costOf = (unit, s) => {
+    const c = game.spellManager?.getSpellCost ? game.spellManager.getSpellCost(unit, s) : s?.paCost;
+    return c === 'X' ? 'X' : (c ?? 0);
+  };
+  const costNum = (unit, s) => { const c = costOf(unit, s); return c === 'X' ? 1 : c; };
 
   const pips = (el, cur, max) => {
     if (!el) return;
@@ -208,7 +283,7 @@ export function attachCombatHUD(game) {
     const cls = q('[data-ref="sheetCls"]');
     if (cls) {
       cls.hidden = !k;
-      if (k) cls.innerHTML = `<img src="./assets/classes/${k}.png" alt="${k}">`;
+      if (k) cls.innerHTML = `<img src="${classIcon(k)}" alt="${k}">`;
     }
     q('.lk-portrait')?.style.setProperty('--c', tintOf(unit));
 
@@ -259,32 +334,37 @@ export function attachCombatHUD(game) {
           if (s.icon && /[/.]/.test(s.icon)) iconEl.innerHTML = `<img src="${s.icon}" alt="${esc(s.name)}" class="spell-img-icon">`;
           else iconEl.textContent = s.icon || '⚔️';
         }
-        slot.classList.toggle('disabled', unit.currentPA < (s.paCost ?? 0) || unit.team !== 'player' || game.activeUnit !== unit);
+        slot.classList.toggle('disabled', unit.currentPA < costNum(unit, s) || unit.team !== 'player' || game.activeUnit !== unit);
       }
       slot.style.removeProperty('display');
       slot.hidden = false;
       slot.style.setProperty('--c', tintOf(unit));
       const cost = slot.querySelector('.pa-cost-badge');
-      if (cost) cost.textContent = s.paCost ?? 0;
+      if (cost) {
+        cost.textContent = costOf(unit, s);
+        cost.classList.toggle('lk-is-boosted', typeof s.paCost === 'number' && costNum(unit, s) < (s.rcBase?.paCost ?? s.paCost));
+      }
       const rng = slot.querySelector('.range-badge');
       if (rng) rng.textContent = `AL ${rangeTxt(s)}${s.isLinear ? ' ↔' : ''}`;
       const los = slot.querySelector('[data-ref="los"]');
       if (los) { los.classList.toggle('lk-nolos', !s.requiresLoS); los.title = s.requiresLoS ? 'Requiere línea de visión' : 'No requiere línea de visión'; }
       const nm = slot.querySelector('[data-ref="name"]');
       if (nm) nm.textContent = s.name || '';
-      const eff = spellEffect(s);
+      const eff = spellEffect(s, unit, game.spellManager);
       const val = slot.querySelector('[data-ref="val"]');
-      if (val) { val.textContent = eff.val; val.className = `lk-card-dmg ${eff.cls}`; }
+      if (val) { val.textContent = eff.val; val.className = `lk-card-dmg ${eff.cls}${eff.boosted ? (eff.down ? ' lk-is-reduced' : ' lk-is-boosted') : ''}`; }
       const badge = slot.querySelector('[data-ref="cls"]');
       if (badge) {
-        const ck = classKey(unit);
-        badge.innerHTML = ck ? `<img src="./assets/classes/${ck}.png" alt="">` : '';
-        badge.hidden = !ck;
+        const ico = spellIconHtml(s, unit);
+        badge.innerHTML = ico ? ico.html : '';
+        badge.title = ico ? ico.title : '';
+        badge.classList.toggle('lk-has-part', Boolean(s?.part));
+        badge.hidden = !ico;
       }
-      const afford = unit.currentPA >= (s.paCost ?? 0);
+      const afford = unit.currentPA >= costNum(unit, s);
       slot.classList.toggle('lk-is-unaffordable', mine && !afford);
       slot.classList.toggle('lk-is-idle', !mine);
-      slot.setAttribute('aria-label', `${s.name} · ${s.paCost} PA · alcance ${rangeTxt(s)}`);
+      slot.setAttribute('aria-label', `${s.name} · ${costOf(unit, s)} PA · alcance ${rangeTxt(s)}`);
     }
     decorateUltimate(unit);
   }
@@ -346,22 +426,26 @@ export function attachCombatHUD(game) {
 
   // ── Tooltip marfil del hechizo
   function tipHTML(unit, s) {
-    const eff = spellEffect(s);
-    const k = classKey(unit);
+    const eff = spellEffect(s, unit, game.spellManager);
+    const k = spellClassKey(s, unit);
+    const tipIco = spellIconHtml(s, unit);
     const art = s.icon && /[/.]/.test(s.icon) ? s.icon : '';
     const stats = [
-      `<span class="lk-tt-stat"><i class="lk-tl"><img class="lk-ai" src="${ICON}pa.png" alt="">Coste</i><b>${s.paCost} PA</b></span>`,
+      `<span class="lk-tt-stat"><i class="lk-tl"><img class="lk-ai" src="${ICON}pa.png" alt="">Coste</i><b>${costOf(unit, s)} PA</b></span>`,
       `<span class="lk-tt-stat"><i class="lk-tl"><img class="lk-ai" src="${ICON}range.png" alt="">Alcance</i><b>AL ${rangeTxt(s)}</b></span>`,
       `<span class="lk-tt-stat"><i class="lk-tl"><img class="lk-ai" src="${ICON}vision.png" alt="">Visión</i><b>${s.requiresLoS ? 'Requiere' : 'No requiere'}</b></span>`,
       `<span class="lk-tt-stat">Área<b>${AREA[s.areaType] || 'Una casilla'}</b></span>`
     ];
     if (s.isLinear) stats.push(`<span class="lk-tt-stat">Lanzamiento<b>En línea</b></span>`);
     if (eff.label) stats.push(`<span class="lk-tt-stat">${eff.label}<b>${eff.val}</b></span>`);
+    // Desglose: de dónde sale la diferencia con el valor de la carta (nivel, atributos, estados)
+    const breakdown = eff.boosted && eff.parts?.length ? `<p class="lk-cb-tip-calc">Carta ${eff.base} · ${eff.parts.join(' · ')}</p>` : '';
     if (s.pushDistance) stats.push(`<span class="lk-tt-stat">Empuje<b>${s.pushDistance} casilla${s.pushDistance === 1 ? '' : 's'}</b></span>`);
     return `<div class="lk-tooltip-tactical" style="--c:${tintOf(unit)}${art ? `;--art:url('${art}')` : ''}">
-      <header class="${art ? 'lk-has-art' : ''}">${k ? `<span class="lk-cb-tip-cls"><img src="./assets/classes/${k}.png" alt=""></span>` : ''}<div><small>${esc(unit.name)} · ${eff.kind}</small><b>${esc(s.name)}</b></div></header>
-      <div class="lk-tt-body"><div class="lk-tt-stats">${stats.join('')}</div><p>${esc(s.description || '')}</p>
-      ${unit.team === 'player' && unit.currentPA < s.paCost ? `<p class="lk-cb-tip-warn">Te faltan ${s.paCost - unit.currentPA} PA para lanzarlo.</p>` : ''}</div></div>`;
+      <header class="${art ? 'lk-has-art' : ''}">${tipIco ? `<span class="lk-cb-tip-cls${s?.part ? ' lk-has-part' : ''}" title="${tipIco.title}">${tipIco.html}</span>` : ''}<div><small>${esc(unit.name)} · ${eff.kind}${s.stage >= 2 ? ' · Parte de nivel 2' : ''}${s.collection ? ` · ${esc(String(s.collection).charAt(0).toUpperCase() + String(s.collection).slice(1))}` : ''}</small><b>${esc(s.name)}</b></div></header>
+      <div class="lk-tt-body"><div class="lk-tt-stats">${stats.join('')}</div>${breakdown}<p>${esc(s.description || '')}</p>
+      ${s.rcNotes?.length ? `<p class="lk-cb-tip-calc">Charms y runa: ${s.rcNotes.map(esc).join(' · ')}</p>` : ''}
+      ${unit.team === 'player' && unit.currentPA < costNum(unit, s) ? `<p class="lk-cb-tip-warn">Te faltan ${costNum(unit, s) - unit.currentPA} PA para lanzarlo.</p>` : ''}</div></div>`;
   }
   function showTip(index) {
     const unit = game.activeUnit;
@@ -421,7 +505,7 @@ export function attachCombatHUD(game) {
   // PA que no alcanzan: destello rojo en el contador (antes de que main.js lo ignore)
   wrap('_toggleSpellSelect', null, function (index) {
     const u = game.activeUnit, s = spellAt(u, index);
-    if (u && s && u.team === 'player' && u.currentPA < (s.paCost ?? 0)) {
+    if (u && s && u.team === 'player' && u.currentPA < costNum(u, s)) {
       const m = q('[data-ref="mPA"]');
       if (m) { m.classList.remove('lk-is-flash'); void m.offsetWidth; m.classList.add('lk-is-flash'); }
     }

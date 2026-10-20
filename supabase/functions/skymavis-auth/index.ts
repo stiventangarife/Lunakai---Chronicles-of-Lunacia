@@ -1,5 +1,10 @@
 // Supabase Edge Function: skymavis-auth
 // Canjea el código OAuth de Sky Mavis (Authorization Code + PKCE) por una sesión de Supabase.
+// (19-oct) Se usa el OIDC estándar de la cuenta de Sky Mavis: Ronin Waypoint se apaga el 31-oct-2026.
+//   · Guarda las direcciones Ronin del id_token (roninAddress) para cargar los Axies del jugador.
+//   · Devuelve el id_token al navegador solo como `id_token_hint` para cerrar la sesión de Sky Mavis.
+//   · GET ?logout=1&id_token_hint=…&post_logout_redirect_uri=…&state=… → redirige al logout de Sky Mavis
+//     añadiendo la API key (que así no tiene que estar en el código del juego).
 //
 // Flujo:
 //   navegador  ── code + code_verifier + redirect_uri + nonce ──►  esta función
@@ -23,6 +28,7 @@ const DISCOVERY_URL = 'https://api-gateway.skymavis.com/account/.well-known/open
 const FALLBACK = {
   issuer: 'https://athena.skymavis.com/',
   token_endpoint: 'https://api-gateway.skymavis.com/account/oauth2/token',
+  end_session_endpoint: 'https://api-gateway.skymavis.com/account/oauth2/sessions/logout',
   jwks_uri: 'https://api-gateway.skymavis.com/account/.well-known/jwks.json',
 };
 
@@ -44,7 +50,7 @@ const SYNTHETIC_EMAIL_DOMAIN = 'skymavis.lunakai.invalid';
 const CORS = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-  'Access-Control-Allow-Methods': 'POST, OPTIONS',
+  'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
 };
 
 class AuthError extends Error {
@@ -73,6 +79,7 @@ async function getDiscovery(): Promise<Discovery> {
       issuer: d.issuer || FALLBACK.issuer,
       token_endpoint: d.token_endpoint || FALLBACK.token_endpoint,
       jwks_uri: d.jwks_uri || FALLBACK.jwks_uri,
+      end_session_endpoint: d.end_session_endpoint || FALLBACK.end_session_endpoint,
     };
     discoveryCache = { at: Date.now(), value };
     return value;
@@ -190,13 +197,21 @@ async function mintSession(email: string) {
   throw new AuthError('session_failed', 'No se pudo abrir la sesión.', 500);
 }
 
+const ADDRESS_RE = /^(0x|ronin:)[0-9a-fA-F]{40}$/;
+const cleanAddress = (v: unknown) => (typeof v === 'string' && ADDRESS_RE.test(v.trim()) ? v.trim().toLowerCase().replace(/^ronin:/, '0x') : null);
+
 async function upsertProfile(userId: string, claims: Record<string, unknown>, email: string | null) {
-  const ronin = (claims.roninAddress ?? claims.ronin_address ?? null) as string | null;
-  const name = (claims.name as string) || (email ? email.split('@')[0] : null) || (ronin ? `${ronin.slice(0, 6)}…${ronin.slice(-4)}` : 'Lunacian');
+  const wallet = (claims.wallet && typeof claims.wallet === 'object') ? claims.wallet as Record<string, unknown> : {};
+  const ronin = cleanAddress(claims.roninAddress ?? claims.ronin_address ?? wallet.identity);
+  const secondary = cleanAddress(claims.secondaryAddress ?? claims.secondary_address ?? wallet.secondary);
+  const shown = ronin || secondary;
+  const name = (claims.name as string) || (email ? email.split('@')[0] : null) || (shown ? `${shown.slice(0, 6)}…${shown.slice(-4)}` : 'Lunacian');
   const row = {
     user_id: userId,
     mavis_id: claims.sub,
     ronin_address: ronin,
+    ronin_secondary_address: secondary,
+    addresses_verified: Boolean(ronin || secondary), // vienen del id_token firmado
     email,
     auth_provider: 'skymavis',
     display_name: name,
@@ -211,10 +226,31 @@ async function upsertProfile(userId: string, claims: Record<string, unknown>, em
   return Array.isArray(r.data) ? r.data[0] : r.data;
 }
 
+/** Cerrar sesión en Sky Mavis: redirige a su endpoint de logout con la API key (solo a URIs del juego permitidas). */
+async function logoutRedirect(url: URL) {
+  const back = url.searchParams.get('post_logout_redirect_uri') || '';
+  if (!ALLOWED_REDIRECTS.includes(back)) return json({ error: 'redirect_not_allowed', message: 'Dirección de vuelta no autorizada.' }, 403);
+  const disc = await getDiscovery();
+  const q = new URLSearchParams({ post_logout_redirect_uri: back });
+  const hint = url.searchParams.get('id_token_hint');
+  const state = url.searchParams.get('state');
+  if (hint && hint.length < 8192) q.set('id_token_hint', hint);
+  if (state && state.length < 200) q.set('state', state);
+  if (API_KEY) q.set('apikey', API_KEY);
+  return new Response(null, { status: 302, headers: { ...CORS, Location: `${disc.end_session_endpoint}?${q.toString()}`, 'Cache-Control': 'no-store' } });
+}
+
 // ---------------------------------------------------------------- handler
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: CORS });
+  if (req.method === 'GET') {
+    const url = new URL(req.url);
+    if (url.searchParams.get('logout') === '1') {
+      try { return await logoutRedirect(url); } catch { return json({ error: 'internal_error' }, 500); }
+    }
+    return json({ error: 'method_not_allowed' }, 405);
+  }
   if (req.method !== 'POST') return json({ error: 'method_not_allowed' }, 405);
 
   try {
@@ -238,7 +274,8 @@ Deno.serve(async (req) => {
     const tokens = await exchangeCode(disc, code, code_verifier, redirect_uri);
     const claims = await verifyIdToken(disc, tokens.id_token, nonce);
 
-    const realEmail = typeof claims.email === 'string' && claims.email.includes('@') ? claims.email.toLowerCase() : null;
+    // Solo se usa el correo para vincular cuentas si Sky Mavis no lo marca como no verificado.
+    const realEmail = typeof claims.email === 'string' && claims.email.includes('@') && claims.email_verified !== false ? claims.email.toLowerCase() : null;
     const meta = { auth_provider: 'skymavis', display_name: (claims.name as string) || undefined };
 
     // 1) ¿Ya vinculó Sky Mavis antes? → misma cuenta.
@@ -264,6 +301,7 @@ Deno.serve(async (req) => {
     const profile = await upsertProfile(userId!, claims, realEmail);
 
     return json({
+      id_token: tokens.id_token, // solo como id_token_hint para cerrar la sesión de Sky Mavis
       session: {
         access_token: session.access_token,
         refresh_token: session.refresh_token,

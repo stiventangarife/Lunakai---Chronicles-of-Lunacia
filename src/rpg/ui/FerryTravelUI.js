@@ -16,7 +16,15 @@ export class FerryTravelUI {
     this.isOpen = false;
     this.isTraveling = false;
     this.el = null;
+    // Espacio desactivado en el selector de islas: si se venía pulsando para pasar el saludo,
+    // no debe elegir la primera isla por accidente (se elige con clic o con las teclas 1-5).
+    this._onSpace = (e) => {
+      if (!this.isOpen || e.code !== 'Space' || !this.om?.dialogSystem?.choicesOpen) return;
+      e.preventDefault();
+      e.stopPropagation();
+    };
     this._onKey = (e) => {
+      if (e.code === 'Space') { this._onSpace(e); return; }
       if (!this.isOpen || e.code !== 'Escape') return;
       if (document.querySelector('#settings-modal.lk-is-open')) return;
       e.preventDefault();
@@ -57,6 +65,7 @@ export class FerryTravelUI {
     this._selected = null;
     this.isOpen = true;
     window.addEventListener('keydown', this._onKey, true);
+    window.addEventListener('keyup', this._onSpace, true);
     ds.startDialogue([{ ...FERRY_SPEAKER, text: '¿Hacia dónde ponemos rumbo?', choices: this._choices() }], () => {
       const target = this._selected;
       this._release();
@@ -67,6 +76,7 @@ export class FerryTravelUI {
   _release() {
     this.isOpen = false;
     window.removeEventListener('keydown', this._onKey, true);
+    window.removeEventListener('keyup', this._onSpace, true);
   }
 
   close() {

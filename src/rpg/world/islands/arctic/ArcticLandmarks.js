@@ -71,7 +71,7 @@ function fishParts(len = 0.5, body = C.fish, back = C.fishBack) {
   parts.push([ball(1, 0.02 * len, len * 0.06, 0, len * 0.4, len * 0.12, len * 0.1, 1), back]);
   parts.push([ball(1, 0, -len * 0.07, 0, len * 0.36, len * 0.1, len * 0.1, 1), C.fishBelly]);
   const tail = new THREE.ConeGeometry(len * 0.17, len * 0.3, 4);
-  tail.rotateZ(Math.PI / 2);
+  tail.rotateZ(-Math.PI / 2); // punta hacia el cuerpo, aleta abierta hacia atrás
   tail.scale(1, 1, 0.35);
   tail.translate(-len * 0.58, 0, 0);
   parts.push([tail, back]);

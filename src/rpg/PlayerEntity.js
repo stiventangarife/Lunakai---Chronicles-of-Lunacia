@@ -4,6 +4,7 @@ import { GLTFLoader } from '../../vendor/GLTFLoader.js';
 import { applyToonOutline } from './stylized/ToonOutline.js';
 import { axieMixerService } from './AxieMixerService.js';
 import { sapidaeModularController } from './SapidaeModularController.js';
+import { spawnPuff } from './PuffEffect.js';
 
 export class PlayerEntity {
   constructor(config = {}) {
@@ -173,6 +174,7 @@ export class PlayerEntity {
   }
 
   async loadModel(renderer = null) {
+    if (renderer) this._renderer = renderer;
     // 1. Load the Sapidae humanoid 3D model
     const loader = new GLTFLoader();
     const sapidaeFile = this.sapidaeModel.endsWith('.glb') ? this.sapidaeModel : `${this.sapidaeModel}.glb`;
@@ -344,13 +346,16 @@ export class PlayerEntity {
   async _loadCompanionAxie(renderer = null) {
     const axieId = this.companionAxieId || '10455';
     try {
-      const companionRes = await axieMixerService.loadAxieHero({
-        axieId: axieId,
-        genes: this.companionGenes,
-        renderer: renderer,
-        scale: 0.95 * this.scale, // increased companion size in open world!
-        heroId: this.heroId || 'kotaro'
-      });
+      // Axies sin ID ni genes (Bing, Pomodoro): su modelo GLB, con un adaptador de la misma interfaz que el Mixer
+      const companionRes = this.companionModelFile
+        ? await this._loadCompanionGLB(this.companionModelFile, 0.95 * this.scale * (this.companionModelScale || 1))
+        : await axieMixerService.loadAxieHero({
+          axieId: axieId,
+          genes: this.companionGenes,
+          renderer: renderer || this._renderer,
+          scale: 0.95 * this.scale, // increased companion size in open world!
+          heroId: this.heroId || 'kotaro'
+        });
 
       this.companionAxie = companionRes.axie;
       this.companionMesh = companionRes.wrapper;
@@ -392,6 +397,76 @@ export class PlayerEntity {
       console.log(`[PlayerEntity] Loaded Companion Axie #${axieId} (${this.companionName}) following Sapidae`);
     } catch (err) {
       console.warn('[PlayerEntity] Failed to load 3D companion Axie:', err);
+    }
+  }
+
+  /** Compañero desde un GLB (Bing, Pomodoro…) con playAnimation('Default.Idle' | 'Default.Run') y update(dt). */
+  async _loadCompanionGLB(file, scale) {
+    const gltf = await new GLTFLoader().loadAsync(`./assets/models/${file}.glb`);
+    const wrapper = new THREE.Group();
+    wrapper.add(gltf.scene);
+    wrapper.scale.setScalar(scale);
+    const mixer = gltf.animations?.length ? new THREE.AnimationMixer(gltf.scene) : null;
+    const find = (re) => gltf.animations.find((c) => re.test(c.name.toLowerCase()));
+    const clips = mixer ? { idle: find(/idle|survey/) || gltf.animations[0], run: find(/run|walk/) || null } : {};
+    let current = null;
+    const axie = {
+      playAnimation(name) {
+        if (!mixer) return;
+        const clip = /run/i.test(name) && clips.run ? clips.run : clips.idle;
+        const action = mixer.clipAction(clip);
+        if (current === action) return;
+        if (current) current.fadeOut(0.2);
+        action.reset().fadeIn(0.2).play();
+        current = action;
+      },
+      update(dt) { if (mixer) mixer.update(dt); },
+    };
+    return { axie, wrapper };
+  }
+
+  /**
+   * Cambia el Axie compañero (19-oct): el que estaba desaparece en una nubecita de humo y aparece el nuevo
+   * con otra nubecita y un pequeño salto. hero = { axieId, genes, name, modelFile, modelScale }.
+   * Con animate = false el cambio es instantáneo (al cargar la partida).
+   */
+  async swapCompanion(hero = {}, { animate = true } = {}) {
+    if (this._swappingCompanion) { this._pendingCompanion = [hero, { animate }]; return; }
+    this._swappingCompanion = true;
+    const tween = (ms, fn) => new Promise((res) => {
+      const t0 = performance.now();
+      const step = () => { const k = Math.min(1, (performance.now() - t0) / ms); fn(k); if (k < 1) requestAnimationFrame(step); else res(); };
+      requestAnimationFrame(step);
+    });
+    try {
+      const parent = this.companionGroup?.parent || this.group?.parent;
+      const pos = this.companionGroup ? this.companionGroup.position.clone() : null;
+      const show = animate && parent && pos && this.companionGroup?.visible;
+      if (show) {
+        spawnPuff(parent, pos);
+        await tween(220, (k) => { this.companionSpawnScale = 1 - k; });
+      }
+      this.companionAxieId = hero.axieId ? String(hero.axieId) : null;
+      this.companionGenes = hero.genes || null;
+      this.companionName = hero.name || this.companionName;
+      this.companionModelFile = hero.axieId || hero.genes ? null : (hero.modelFile || null);
+      this.companionModelScale = hero.modelScale || 1;
+      if (this.companionAxieId) { this.axieId = this.companionAxieId; this.genes = this.companionGenes; }
+      this.archetype = `Sapidae Explorer (Companion: ${this.companionName})`;
+      this.companionSpawnScale = show ? 0 : 1;
+      await this._loadCompanionAxie(this._renderer);
+      if (pos && this.companionGroup) this.companionGroup.position.copy(pos);
+      if (show) {
+        spawnPuff(parent, pos);
+        // Aparece con un saltito: crece pasándose un poco y vuelve a su tamaño
+        await tween(340, (k) => { const c = 1.70158; const x = k - 1; this.companionSpawnScale = 1 + (c + 1) * x * x * x + c * x * x; });
+      }
+    } catch (err) {
+      console.warn('[PlayerEntity] No se pudo cambiar el compañero:', err);
+    } finally {
+      this.companionSpawnScale = 1;
+      this._swappingCompanion = false;
+      if (this._pendingCompanion) { const [h, o] = this._pendingCompanion; this._pendingCompanion = null; this.swapCompanion(h, o); }
     }
   }
 
@@ -686,7 +761,7 @@ export class PlayerEntity {
         this.companionYaw = (this.companionYaw || 0) + cDiff * Math.min(1.0, turnSlerpSpeed * dt);
 
         // 6. Game Feel for Axie Companion: bouncy hop gait, squash & stretch, banking into turns
-        const curBaseScale = this.companionBaseScale || (0.95 * this.scale);
+        const curBaseScale = (this.companionBaseScale || (0.95 * this.scale)) * (this.companionSpawnScale ?? 1); // ×0–1 al cambiar de compañero
         if (currentSpeed > 0.20) {
           this.companionWalkCycle = (this.companionWalkCycle || 0) + dt * (currentSpeed * 2.3);
           const hopBounce = Math.abs(Math.sin(this.companionWalkCycle)) * (this.companionState === 'run' ? 0.14 : 0.07);

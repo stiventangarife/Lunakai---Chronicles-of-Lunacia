@@ -12,6 +12,7 @@ import { NET_CONFIG, getRedirectUri, isCloudConfigured, isSkyMavisConfigured } f
 const STORAGE_KEY = 'lunakai_auth_v1';
 const PKCE_KEY = 'lunakai_pkce_v1';
 const LINK_GUEST_KEY = 'lunakai_link_guest_v1';
+const LOGOUT_KEY = 'lunakai_sm_logout_v1'; // vuelta de cerrar sesión en Sky Mavis (sessionStorage)
 const REFRESH_MARGIN_S = 90;
 
 export class AuthError extends Error {
@@ -133,6 +134,13 @@ class AuthService {
     }
 
     const params = new URLSearchParams(window.location.search);
+    // Vuelta de cerrar sesión en Sky Mavis (?state=…): solo se limpia la URL.
+    const out = store.get(LOGOUT_KEY, sessionStorage);
+    if (out && params.get('state') === out.state && !params.has('code')) {
+      store.set(LOGOUT_KEY, null, sessionStorage);
+      this._cleanUrl();
+      return { status: 'signed_out', error: null };
+    }
     if (params.has('code') || params.has('error')) {
       try {
         await this._handleSkyMavisCallback(params);
@@ -197,11 +205,13 @@ class AuthService {
       throw new AuthError('state_mismatch', 'state inválido');
     }
 
-    const res = await supabaseFetch('/functions/v1/skymavis-auth', {
+    const res = await supabaseFetch(NET_CONFIG.functions.auth, {
       method: 'POST',
       body: { code: params.get('code'), code_verifier: pkce.verifier, redirect_uri: pkce.redirectUri, nonce: pkce.nonce },
     });
     this._setSession(res.session, 'skymavis');
+    // id_token de Sky Mavis: solo se guarda para poder cerrar también su sesión (id_token_hint).
+    if (res.id_token) this.session.sm_id_token = res.id_token;
     this.profile = res.profile || null;
     this._persist();
     this._emit('signed_in');
@@ -281,6 +291,7 @@ class AuthService {
       expires_at: s.expires_at || nowS() + (s.expires_in || 3600),
       user: s.user ? { id: s.user.id, email: s.user.email } : this.session?.user,
       provider: provider || this.session?.provider || 'email',
+      sm_id_token: this.session?.sm_id_token || undefined,
     };
     this._scheduleRefresh();
   }
@@ -368,11 +379,22 @@ class AuthService {
 
   async signOut() {
     const token = this.session?.access_token;
+    const smIdToken = this.getProvider() === 'skymavis' ? this.session?.sm_id_token : null;
     this._clear();
     this._emit('signed_out');
     if (token) {
       try { await supabaseFetch('/auth/v1/logout', { method: 'POST', token }); } catch { /* la sesión local ya se borró */ }
     }
+    // Cierra también la sesión de Sky Mavis: la función redirige a su endpoint de logout (añade la API key)
+    // y Sky Mavis devuelve al jugador al juego (post_logout_redirect_uri, registrada en la consola).
+    if (smIdToken && NET_CONFIG.skymavis.logoutAtSkyMavis && isCloudConfigured()) {
+      const state = randomString(24);
+      store.set(LOGOUT_KEY, { state, at: Date.now() }, sessionStorage);
+      const q = new URLSearchParams({ logout: '1', id_token_hint: smIdToken, post_logout_redirect_uri: getRedirectUri(), state });
+      window.location.assign(`${NET_CONFIG.supabaseUrl}${NET_CONFIG.functions.auth}?${q.toString()}`);
+      return { redirecting: true };
+    }
+    return { redirecting: false };
   }
 
   _clear() {

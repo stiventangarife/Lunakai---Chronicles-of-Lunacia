@@ -3,6 +3,11 @@ import { ITEMS_DB } from './ItemDatabase.js';
 import { getHeroSpells, SAPIDAE_CLASSES } from '../rpg/SaveSlotManager.js';
 import { portraitService } from './CharacterPortraitService.js';
 import { STARTER_DECKS } from './data/StarterCards.js';
+import { axieBaseStats, BASE_PA, BASE_PM } from './data/AxieBaseStats.js';
+
+/** Axies iniciales de apoyo (19-oct): Bing y Pomodoro no pueden ser el compañero principal. */
+export const SUPPORT_ONLY_AXIES = ['bing', 'pomodoro'];
+export const canBeMainAxie = (id) => Boolean(id) && !SUPPORT_ONLY_AXIES.includes(id);
 
 export class EquipmentManager {
   constructor() {
@@ -195,20 +200,53 @@ export class EquipmentManager {
     });
   }
 
+  /**
+   * Vida persistente (18-oct): la vida del mundo abierto es la misma que la del combate.
+   * Si la vida máxima sube (nivel, atributos, equipo), la actual sube lo mismo; si baja, se recorta.
+   */
+  _syncHPToMax(heroId, stats) {
+    if (!this._lastMaxHP) this._lastMaxHP = {};
+    const prevMax = this._lastMaxHP[heroId];
+    this._lastMaxHP[heroId] = stats.maxHP;
+    if (this.heroesCurrentHP[heroId] === undefined) return;
+    if (prevMax !== undefined && stats.maxHP > prevMax) this.heroesCurrentHP[heroId] += stats.maxHP - prevMax;
+    this.heroesCurrentHP[heroId] = Math.max(0, Math.min(stats.maxHP, this.heroesCurrentHP[heroId]));
+  }
+
   getCurrentHP(heroId) {
     const stats = this.getCalculatedStats(heroId);
     if (!stats) return 0;
+    this._syncHPToMax(heroId, stats);
     if (this.heroesCurrentHP[heroId] !== undefined) {
       return Math.max(0, Math.min(stats.maxHP, this.heroesCurrentHP[heroId]));
     }
     return stats.maxHP;
   }
 
-  setCurrentHP(heroId, hp) {
+  setCurrentHP(heroId, hp, { silent = false } = {}) {
     const stats = this.getCalculatedStats(heroId);
     if (!stats) return;
-    this.heroesCurrentHP[heroId] = Math.max(0, Math.min(stats.maxHP, hp));
-    this._notifyChange();
+    this._syncHPToMax(heroId, stats);
+    this.heroesCurrentHP[heroId] = Math.max(0, Math.min(stats.maxHP, Math.round(hp)));
+    if (!silent) this._notifyChange();
+  }
+
+  /**
+   * Regeneración del mundo abierto: +amount de vida a cada héroe al que le falte.
+   * No avisa a los listeners (evita guardar la partida cada pocos segundos). Devuelve true si curó a alguien.
+   */
+  regenPartyHP(amount = 10) {
+    let changed = false;
+    (this.unlockedHeroes || []).forEach((id) => {
+      const stats = this.getCalculatedStats(id);
+      if (!stats) return;
+      const cur = this.getCurrentHP(id);
+      if (cur < stats.maxHP) {
+        this.heroesCurrentHP[id] = Math.min(stats.maxHP, cur + amount);
+        changed = true;
+      }
+    });
+    return changed;
   }
 
   setHeroAxie(heroId = 'kotaro', { axieId, genes, name, archetype } = {}) {
@@ -342,6 +380,14 @@ export class EquipmentManager {
     }
 
     this.restoreAllPartyHP();
+    // Vida persistente: la vida guardada en la partida (las partidas antiguas sin este dato empiezan con la vida completa)
+    if (slotData.currentHP && typeof slotData.currentHP === 'object') {
+      Object.entries(slotData.currentHP).forEach(([id, hp]) => {
+        const stats = this.getCalculatedStats(id);
+        if (!stats || typeof hp !== 'number' || isNaN(hp)) return;
+        this.heroesCurrentHP[id] = Math.max(1, Math.min(stats.maxHP, Math.round(hp)));
+      });
+    }
     this._notifyChange();
     this._updateSapidaePortrait();
 
@@ -387,7 +433,9 @@ export class EquipmentManager {
       equipped: JSON.parse(JSON.stringify(this.equipped)),
       unlockedHeroes: Array.from(new Set(this.unlockedHeroes || ['kotaro'])),
       squad: Array.isArray(this.squad) ? [...this.squad] : null,
-      progression: JSON.parse(JSON.stringify(this.heroProgression))
+      progression: JSON.parse(JSON.stringify(this.heroProgression)),
+      // Vida persistente: la vida actual de cada héroe se guarda en la partida
+      currentHP: Object.fromEntries((this.unlockedHeroes || []).map((id) => [id, this.getCurrentHP(id)]))
     };
   }
 
@@ -396,6 +444,8 @@ export class EquipmentManager {
       const stats = this.getCalculatedStats(id);
       if (stats) {
         this.heroesCurrentHP[id] = stats.maxHP;
+        if (!this._lastMaxHP) this._lastMaxHP = {};
+        this._lastMaxHP[id] = stats.maxHP;
       }
     });
     this._notifyChange();
@@ -416,6 +466,20 @@ export class EquipmentManager {
     if (!axies[0]) {
       const k = axies.findIndex(Boolean);
       if (k > 0) { axies[0] = axies[k]; axies[k] = null; } else if (owned.length) axies[0] = owned.find((id) => !axies.includes(id)) || owned[0];
+    }
+    // Bing y Pomodoro solo de apoyo: si ocupan el puesto principal, pasa a principal otro Axie del escuadrón
+    // (o de la colección) y el de apoyo baja a un puesto de apoyo
+    if (axies[0] && !canBeMainAxie(axies[0])) {
+      const k = axies.findIndex((id, i) => i > 0 && canBeMainAxie(id));
+      if (k > 0) { [axies[0], axies[k]] = [axies[k], axies[0]]; }
+      else {
+        const other = owned.find((id) => canBeMainAxie(id) && !axies.includes(id));
+        if (other) {
+          const free = axies.indexOf(null, 1);
+          if (free > 0) axies[free] = axies[0];
+          axies[0] = other;
+        }
+      }
     }
     return ['sapidae', ...axies];
   }
@@ -578,18 +642,32 @@ export class EquipmentManager {
     // 2. Ferocity: +1.5 Melee damage per point & +1.0 Collision damage
     const allocMeleeDamage = Math.round(((alloc.ferocity || 0) * 1.5) * 10) / 10;
     const collisionBonus = (alloc.ferocity || 0) * 1.0;
-    // 3. Agility: +1.2 Ranged damage per point & +0.5% Crit Rate
+    // 3. Agility: +1.2 Ranged damage per point & +0.5% Crit Rate (sin redondear: 1 punto = +0,5 %)
     const allocRangedDamage = Math.round(((alloc.agility || 0) * 1.2) * 10) / 10;
-    const critBonus = Math.floor((alloc.agility || 0) * 0.5);
-    // 4. Essence: +1.2 Nature/Magic damage per point & +2% Support/Heal Power
-    const allocMagicDamage = Math.round(((alloc.essence || 0) * 1.2) * 10) / 10;
-    const supportBonus = (alloc.essence || 0) * 2;
+    const critBonus = Math.round((alloc.agility || 0) * 0.5 * 10) / 10;
+    // 4. Essence: +2% Support/Heal Power. Solo el Sapidae Lunalogista y Astromante la usan además como daño
+    //    de sus hechizos (+1.2 por punto); en los Axies y en el resto de Sapidaes es solo apoyo (19-oct).
+    const isSapidae = heroId === 'sapidae';
+    const essenceDamage = isSapidae && ['lunalogist', 'stargazer'].includes(base.sapidaeClassKey);
+    const allocMagicDamage = essenceDamage ? Math.round(((alloc.essence || 0) * 1.2) * 10) / 10 : 0;
+    // El Sapidae parte de un 25 % de apoyo (antes era un mínimo que tapaba la Esencia hasta los 13 puntos)
+    const supportBonus = (isSapidae ? 25 : 0) + (alloc.essence || 0) * 2;
+
+    // Estadísticas base (19-oct): 6 PA y 3 PM para todos; los Axies, vida e iniciativa por clase y rol
+    // (el rol sale de sus cartas de partes, o de sus hechizos mientras no se conocen). El Sapidae, por su clase.
+    let baseHP = base.baseHP, baseInitiative = base.baseInitiative, role = null;
+    if (!isSapidae) {
+      const ids = (typeof window !== 'undefined' && window.lunakaiParts?.idsFor?.(base)) || base.spellIds || [];
+      const b = axieBaseStats(base.class, ids);
+      baseHP = b.baseHP; baseInitiative = b.baseInitiative; role = b.roleLabel;
+    }
 
     const stats = {
-      maxHP: base.baseHP + levelBonusHP + allocHP,
-      maxPA: base.basePA,
-      maxPM: base.basePM,
-      initiative: base.baseInitiative + levelBonusInit,
+      maxHP: baseHP + levelBonusHP + allocHP,
+      maxPA: BASE_PA,
+      maxPM: BASE_PM,
+      initiative: baseInitiative + levelBonusInit,
+      role,
       bonusDamage: base.baseDamage || 0,
       bonusMeleeDamage: allocMeleeDamage + (base.baseDamage || 0),
       bonusRangedDamage: allocRangedDamage + (base.baseDamage || 0),

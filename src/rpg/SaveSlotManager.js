@@ -33,10 +33,10 @@ export const HERO_ROSTER = [
     archetype: 'Bird Lunakai (Swift Marksman)',
     avatar: '🦅',
     icon: '🏹',
-    description: 'Agile and swift like the wind. Masters rapid movement with 4 MP and 115 initiative, striking with accurate Cupid arrows.',
+    description: 'Agile and swift like the wind. Masters rapid movement with 115 initiative, striking with accurate Cupid arrows.',
     baseHP: 290,
     basePA: 6,
-    basePM: 4,
+    basePM: 3,
     baseInitiative: 115,
     genes: '0x10000000000001000241c0e0820800000001000020408202000100082820820a000100081040800a000100142040400400010008106183040001000818418204',
     image: './assets/portraits/bird-early.png',
@@ -110,7 +110,7 @@ export const SAPIDAE_CLASSES = {
         cost: '3 AP',
         range: '1-2',
         type: 'Ataque / Empuje',
-        icon: './assets/skills/heroes/crafter/1.png',
+        icon: './assets/skills/heroes/crafter/1.webp',
         desc: 'Golpe contundente con yunque ancestral. Inflige 45-60 de daño físico y empuja 1 casilla provocando colisión.'
       },
       {
@@ -119,7 +119,7 @@ export const SAPIDAE_CLASSES = {
         cost: '2 AP',
         range: '1-3',
         type: 'Soporte / Escudo',
-        icon: './assets/skills/heroes/crafter/2.png',
+        icon: './assets/skills/heroes/crafter/2.webp',
         desc: 'Erige un tótem protector ancestral que otorga +50 de Escudo y +1 PM al objetivo durante 1 turno.'
       },
       {
@@ -128,7 +128,7 @@ export const SAPIDAE_CLASSES = {
         cost: '2 AP',
         range: '1-3',
         type: 'Estructura / Cobertura',
-        icon: './assets/skills/heroes/crafter/3.png',
+        icon: './assets/skills/heroes/crafter/3.webp',
         desc: 'Despliega una barricada de madera en casilla vacía para bloquear paso y visión, ganando +30 de Escudo.'
       },
       {
@@ -137,7 +137,7 @@ export const SAPIDAE_CLASSES = {
         cost: '3 AP',
         range: '1-2',
         type: 'Área / Control',
-        icon: './assets/skills/heroes/crafter/4.png',
+        icon: './assets/skills/heroes/crafter/4.webp',
         desc: 'Martillazo telúrico que causa 40-52 de daño en cruz y reduce -1 PM a todos los enemigos impactados.'
       },
       {
@@ -146,7 +146,7 @@ export const SAPIDAE_CLASSES = {
         cost: '2 AP',
         range: '1-3',
         type: 'Soporte / Blindaje',
-        icon: './assets/skills/heroes/crafter/5.png',
+        icon: './assets/skills/heroes/crafter/5.webp',
         desc: 'Refuerza la armadura del Sapidae o de su Axie con metal lunar: +70 de Escudo y disipa reducciones de PM.'
       },
       {
@@ -155,7 +155,7 @@ export const SAPIDAE_CLASSES = {
         cost: '4 AP',
         range: '1-4',
         type: 'Invocación Ofensiva',
-        icon: './assets/skills/heroes/crafter/6.png',
+        icon: './assets/skills/heroes/crafter/6.webp',
         desc: 'Despliega una balista mecánica de artesanía Sapidae que dispara a los enemigos cercanos al final de cada turno.'
       }
     ]
@@ -181,7 +181,7 @@ export const SAPIDAE_CLASSES = {
         cost: '3 AP',
         range: '1-3',
         type: 'Magia Estelar',
-        icon: './assets/skills/heroes/shepard/1.png',
+        icon: './assets/skills/heroes/shepard/1.webp',
         desc: 'Canaliza energía astral pura de Lunacia infligiendo 48-62 de daño mágico a distancia.'
       },
       {
@@ -190,7 +190,7 @@ export const SAPIDAE_CLASSES = {
         cost: '2 AP',
         range: '1-3',
         type: 'Sanación / Escudo',
-        icon: './assets/skills/heroes/shepard/2.png',
+        icon: './assets/skills/heroes/shepard/2.webp',
         desc: 'Sana 30-42 HP y envuelve al compañero Axie en +40 de Escudo protector estelar.'
       },
       {
@@ -199,7 +199,7 @@ export const SAPIDAE_CLASSES = {
         cost: '2 AP',
         range: '1-4',
         type: 'Potenciador de Axie',
-        icon: './assets/skills/heroes/shepard/3.png',
+        icon: './assets/skills/heroes/shepard/3.webp',
         desc: 'Despierta la resonancia genética del Axie: restaura 50-65 HP y concede +1 PA extra para el turno.'
       },
       {
@@ -208,7 +208,7 @@ export const SAPIDAE_CLASSES = {
         cost: '2 AP',
         range: 'Aura (2)',
         type: 'Aura / Búfer',
-        icon: './assets/skills/heroes/shepard/4.png',
+        icon: './assets/skills/heroes/shepard/4.webp',
         desc: 'Aullido que resuena con los Axies aliados en un radio de 2 casillas, otorgando +1 PM y +1 PA.'
       },
       {
@@ -217,7 +217,7 @@ export const SAPIDAE_CLASSES = {
         cost: '3 AP',
         range: '1-4',
         type: 'Vínculo Vital',
-        icon: './assets/skills/heroes/shepard/5.png',
+        icon: './assets/skills/heroes/shepard/5.webp',
         desc: 'Enlaza las almas del Sapidae y su Axie: redistribuye el daño recibido y regenera 25 HP por turno.'
       },
       {
@@ -226,7 +226,7 @@ export const SAPIDAE_CLASSES = {
         cost: '4 AP',
         range: '1-3',
         type: 'Ascensión Épica',
-        icon: './assets/skills/heroes/shepard/6.png',
+        icon: './assets/skills/heroes/shepard/6.webp',
         desc: 'Desata el verdadero potencial genético del Axie: +20% Daño crítico, +2 PM y +60 de Escudo inmediato.'
       }
     ]
@@ -252,7 +252,7 @@ export const SAPIDAE_CLASSES = {
         cost: '3 AP',
         range: '1-3',
         type: 'Control / Drenaje',
-        icon: './assets/skills/heroes/lunalogist/1.png',
+        icon: './assets/skills/heroes/lunalogist/1.webp',
         desc: 'Zarzas botánicas que inmovilizan al enemigo: causan 38-48 de daño de naturaleza y drenan 1 PM y 1 PA.'
       },
       {
@@ -261,7 +261,7 @@ export const SAPIDAE_CLASSES = {
         cost: '3 AP',
         range: '1-3',
         type: 'Área / Drenaje',
-        icon: './assets/skills/heroes/lunalogist/2.png',
+        icon: './assets/skills/heroes/lunalogist/2.webp',
         desc: 'Nube de esporas en cruz que daña enemigos por 30-40 y restaura 25 HP al Sapidae y aliados cercanos.'
       },
       {
@@ -270,7 +270,7 @@ export const SAPIDAE_CLASSES = {
         cost: '2 AP',
         range: '1-3',
         type: 'Soporte / PM',
-        icon: './assets/skills/heroes/lunalogist/3.png',
+        icon: './assets/skills/heroes/lunalogist/3.webp',
         desc: 'Alimenta al compañero con una baya de rocío lunar: otorga +40 de Escudo y +1 PM inmediato.'
       },
       {
@@ -279,7 +279,7 @@ export const SAPIDAE_CLASSES = {
         cost: '3 AP',
         range: '1-3',
         type: 'Drenaje Vital',
-        icon: './assets/skills/heroes/lunalogist/4.png',
+        icon: './assets/skills/heroes/lunalogist/4.webp',
         desc: 'Implanta una semilla botánica que inflige 35-45 de daño y sana al Sapidae el 60% del daño infligido.'
       },
       {
@@ -288,7 +288,7 @@ export const SAPIDAE_CLASSES = {
         cost: '2 AP',
         range: 'Auto',
         type: 'Defensa Natural',
-        icon: './assets/skills/heroes/lunalogist/5.png',
+        icon: './assets/skills/heroes/lunalogist/5.webp',
         desc: 'Se envuelve en hojas densas de Lunacia: +55 de Escudo y reduce un 30% el daño recibido a distancia.'
       },
       {
@@ -297,7 +297,7 @@ export const SAPIDAE_CLASSES = {
         cost: '4 AP',
         range: '1-3',
         type: 'Control Masivo (3x3)',
-        icon: './assets/skills/heroes/lunalogist/6.png',
+        icon: './assets/skills/heroes/lunalogist/6.webp',
         desc: 'Eclosión botánica masiva: inflige 45-60 de daño en área 3x3 e inmoviliza a todos los enemigos (-2 PM).'
       }
     ]
@@ -313,7 +313,7 @@ export const SAPIDAE_CLASSES = {
     emoji: '🔮',
     maxHP: 210,
     maxPA: 6,
-    maxPM: 4,
+    maxPM: 3, // 6 PA y 3 PM para todos (19-oct)
     initiative: 92,
     spells: ['stargazer_vortex', 'stargazer_transpose', 'stargazer_jump', 'stargazer_nova', 'stargazer_gravity_well', 'stargazer_eclipse'],
     spellPreviews: [
@@ -323,8 +323,8 @@ export const SAPIDAE_CLASSES = {
         cost: '3 AP',
         range: '1-3',
         type: 'Gravedad / Colisión',
-        icon: './assets/skills/heroes/stargazer/1.png',
-        desc: 'Onda cósmica que inflige 40-52 de daño y empuja al enemigo 2 casillas con daño masivo de colisión.'
+        icon: './assets/skills/heroes/stargazer/1.webp',
+        desc: 'Onda cósmica que inflige 49-63 de daño y empuja al enemigo 2 casillas con daño masivo de colisión.'
       },
       {
         id: 'stargazer_transpose',
@@ -332,7 +332,7 @@ export const SAPIDAE_CLASSES = {
         cost: '2 AP',
         range: '1-4',
         type: 'Movilidad Dimensional',
-        icon: './assets/skills/heroes/stargazer/2.png',
+        icon: './assets/skills/heroes/stargazer/2.webp',
         desc: 'Curvatura espacial: intercambia instantáneamente de posición con el Axie compañero, otorgando +25 de Escudo a ambos.'
       },
       {
@@ -341,7 +341,7 @@ export const SAPIDAE_CLASSES = {
         cost: '2 AP',
         range: '2-4',
         type: 'Teletransporte',
-        icon: './assets/skills/heroes/stargazer/3.png',
+        icon: './assets/skills/heroes/stargazer/3.webp',
         desc: 'Fase dimensional a casilla vacía (2-4 rango): gana +35 de Escudo y ralentiza (-1 PM) a los enemigos adyacentes.'
       },
       {
@@ -350,8 +350,8 @@ export const SAPIDAE_CLASSES = {
         cost: '3 AP',
         range: '1-3',
         type: 'Área Cósmica',
-        icon: './assets/skills/heroes/stargazer/4.png',
-        desc: 'Detona una estrella comprimida: 45-58 de daño en cruz y ciega a los enemigos reduciendo su alcance en -1.'
+        icon: './assets/skills/heroes/stargazer/4.webp',
+        desc: 'Detona una estrella comprimida: 55-71 de daño en cruz y ciega a los enemigos reduciendo su alcance en -1.'
       },
       {
         id: 'stargazer_gravity_well',
@@ -359,7 +359,7 @@ export const SAPIDAE_CLASSES = {
         cost: '2 AP',
         range: '1-4',
         type: 'Alteración Espacial',
-        icon: './assets/skills/heroes/stargazer/5.png',
+        icon: './assets/skills/heroes/stargazer/5.webp',
         desc: 'Crea una zona de baja gravedad: aliados que la crucen ganan +2 PM y los enemigos pierden -1 PM.'
       },
       {
@@ -368,7 +368,7 @@ export const SAPIDAE_CLASSES = {
         cost: '4 AP',
         range: '1-4',
         type: 'Supremo Gravitatorio',
-        icon: './assets/skills/heroes/stargazer/6.png',
+        icon: './assets/skills/heroes/stargazer/6.webp',
         desc: 'Invoca un eclipse total: desata 60-78 de daño masivo en área y atrae a todos los enemigos hacia el epicentro.'
       }
     ]
@@ -659,6 +659,7 @@ export class SaveSlotManager {
         baseInitiative: heroTemplate.baseInitiative,
         genes: heroTemplate.genes,
         image: heroTemplate.image,
+        axpInfo: heroTemplate.axpInfo || null, // nivel y AXP de Sky Mavis (solo se muestran)
         spellIds: heroTemplate.spellIds || getHeroSpells(heroTemplate.heroKey),
         modelType: 'axie',
         scale: 0.88,
@@ -716,6 +717,7 @@ export class SaveSlotManager {
     if (progressData.inventory) slot.inventory = progressData.inventory;
     if (progressData.equipped) slot.equipped = progressData.equipped;
     if (progressData.progression) slot.progression = progressData.progression;
+    if (progressData.currentHP) slot.currentHP = progressData.currentHP; // vida persistente de cada héroe
     if (progressData.sapidaeModel) slot.sapidaeModel = progressData.sapidaeModel;
     if (progressData.sapidaePortrait) slot.sapidaePortrait = progressData.sapidaePortrait;
     if (progressData.playerName) slot.playerName = progressData.playerName;

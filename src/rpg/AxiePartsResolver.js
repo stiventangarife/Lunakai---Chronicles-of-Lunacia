@@ -13,6 +13,31 @@
 import { findPartCard, PART_CARDS } from '../tactics/data/PartCards.js';
 import { PART_VARIANTS } from '../tactics/data/PartVariants.js';
 import { collectionOf, collectionCardFor, COLLECTION_CARDS } from '../tactics/data/CollectionCards.js';
+import { registerVariantCard, variantId, partStage, VARIANT_CARDS, anyPartCard } from '../tactics/data/VariantCards.js';
+
+/** Versión de las variantes (nombre de colección y nivel 2): las cachés anteriores se actualizan al haber conexión. */
+const VARIANT_VERSION = 1;
+
+/**
+ * Variantes de las 6 cartas a partir de las partes de Sky Mavis (19-oct): nombre de la parte de colección
+ * («Deadly Pogona», «Dark Kiss») y partes de nivel 2 (id terminado en «-2»). Devuelve { ids, variants }.
+ */
+export function applyVariants(ids, collections = [], apiParts = []) {
+  const out = [...ids];
+  const variants = [];
+  PART_ORDER.forEach((type, i) => {
+    const base = anyPartCard(out[i]);
+    if (!base) return;
+    const p = (apiParts || []).find((x) => TYPE_KEY[lc(x.type)] === type) || null;
+    const stage = partStage(p);
+    const name = p?.name || base.name;
+    const renamed = lc(name) !== lc(base.name);
+    if (stage < 2 && !renamed) return;
+    const def = { id: variantId(base.id, name, stage), baseId: base.id, name, collection: collections[i] || base.collection || null, stage };
+    if (registerVariantCard(def)) { out[i] = def.id; variants.push(def); }
+  });
+  return { ids: out, variants };
+}
 
 export const PART_ORDER = ['eyes', 'ears', 'mouth', 'horn', 'back', 'tail'];
 const TYPE_KEY = { eyes: 'eyes', eye: 'eyes', ears: 'ears', ear: 'ears', mouth: 'mouth', horn: 'horn', back: 'back', tail: 'tail' };
@@ -122,7 +147,8 @@ export class AxiePartsResolver {
   /** Resultado guardado para un Axie (o null). */
   cached(axieId) {
     const c = axieId ? this._cache()[String(axieId)] : null;
-    return c && c.v === CACHE_VERSION && Array.isArray(c.ids) && c.ids.every((id) => PART_CARDS[id] || COLLECTION_CARDS[id]) ? c : null;
+    if (c && Array.isArray(c.variants)) c.variants.forEach((d) => registerVariantCard(d)); // recrea sus cartas variantes
+    return c && c.v === CACHE_VERSION && Array.isArray(c.ids) && c.ids.every((id) => PART_CARDS[id] || COLLECTION_CARDS[id] || VARIANT_CARDS[id]) ? c : null;
   }
 
   _store(axieId, res) {
@@ -158,10 +184,13 @@ export class AxiePartsResolver {
   async resolve(hero, { force = false } = {}) {
     const axieId = hero?.axieId ? String(hero.axieId) : null;
     if (!axieId && !hero?.genes) return null;
+    let stale = null;
     if (!force && axieId) {
       const c = this.cached(axieId);
-      if (c) return { ...c, source: 'cache' };
+      if (c && (c.vv === VARIANT_VERSION || !this.fetchAxie)) return { ...c, source: 'cache' };
+      stale = c; // caché sin variantes: se intenta actualizar; si no hay conexión, se usa tal cual
     }
+    let apiParts = null;
     // 2. API
     let genes = hero?.genes || null;
     if (axieId && this.fetchAxie) {
@@ -171,10 +200,12 @@ export class AxiePartsResolver {
           new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), API_TIMEOUT_MS)),
         ]);
         if (data?.parts?.length) {
+          apiParts = data.parts.map((p) => ({ id: p.id, name: p.name, class: p.class, type: p.type, stage: p.stage }));
           const r = cardsFromApiParts(data.parts);
           if (r.complete) {
             const col = await this._collections(r.ids, data.newGenes || hero?.genes);
-            const res = { ids: col.ids, collections: col.collections, from: 'api', parts: data.parts.map((p) => ({ id: p.id, name: p.name, class: p.class, type: p.type })), at: Date.now() };
+            const vr = applyVariants(col.ids, col.collections, apiParts);
+            const res = { ids: vr.ids, variants: vr.variants, vv: VARIANT_VERSION, collections: col.collections, from: 'api', parts: apiParts, at: Date.now() };
             this._store(axieId, res);
             return { ...res, source: 'api', missing: [] };
           }
@@ -194,7 +225,9 @@ export class AxiePartsResolver {
         const r = cardsFromDecoded(decoded);
         if (r.complete) {
           const col = applyCollections(r.ids, decoded);
-          const res = { ids: col.ids, collections: col.collections, from: 'genes', at: Date.now() };
+          // Nombres de colección y nivel 2: de las partes de la API si llegaron (aunque no casaran por nombre)
+          const vr = applyVariants(col.ids, col.collections, apiParts || []);
+          const res = { ids: vr.ids, variants: vr.variants, vv: VARIANT_VERSION, collections: col.collections, from: 'genes', parts: apiParts || undefined, at: Date.now() };
           if (axieId) this._store(axieId, res);
           return { ...res, source: 'genes', missing: [] };
         }
@@ -203,7 +236,7 @@ export class AxiePartsResolver {
         console.warn('[AxiePartsResolver] No se pudieron decodificar los genes:', err.message || err);
       }
     }
-    return null;
+    return stale ? { ...stale, source: 'cache' } : null;
   }
 
   /** Informe de cobertura para la consola (lkDebug.auditParts). */
@@ -214,7 +247,7 @@ export class AxiePartsResolver {
       rows.push({
         axie: h.name || h.axieId, id: h.axieId,
         fuente: r?.source || '—',
-        cartas: r ? r.ids.map((id, i) => (PART_CARDS[id] || COLLECTION_CARDS[id])?.name + (r.collections?.[i] ? ` [${r.collections[i]}]` : '')).join(' · ') : 'sin resolver (usa sus hechizos de siempre)',
+        cartas: r ? r.ids.map((id, i) => anyPartCard(id)?.name + (r.collections?.[i] ? ` [${r.collections[i]}]` : '')).join(' · ') : 'sin resolver (usa sus hechizos de siempre)',
       });
     }
     return rows;

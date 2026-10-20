@@ -38,6 +38,13 @@ export class SceneManager {
 
     this.floatingClouds = [];
     this.floatingRocks = [];
+    // Hito 35: límites de desplazamiento de la cámara y encuadre por defecto (los del 10×10 de siempre)
+    this.panBounds = { minX: -7.0, maxX: 10.0, minZ: -7.0, maxZ: 10.0 };
+    this.defaultDistance = 21.0;
+    this.defaultElevation = 14.5;
+    this.arena = null;
+    // Hito 37: puntos que el escenario no debe tapar (unidades, casilla bajo el ratón); lo rellena main.js
+    this.occlusionProvider = null;
 
     this._initPostProcessing();
     this._initAtmosphere();
@@ -71,6 +78,7 @@ export class SceneManager {
       0.86
     );
     this.composer.addPass(bloomPass);
+    this.bloomPass = bloomPass; // Fase 6: el puente de VFX lo refuerza mientras dura un efecto
 
     const outputPass = new OutputPass();
     this.composer.addPass(outputPass);
@@ -314,8 +322,75 @@ export class SceneManager {
     }
   }
 
+  /**
+   * Hito 35 — Coloca el escenario de bioma de un mapa (BattleArena) o vuelve al islote de siempre (null).
+   * Ajusta la cámara (límites y distancia), las sombras y la atmósfera al tamaño del tablero.
+   */
+  setArena(arena) {
+    if (this.arena === arena) return;
+    if (this.arena) {
+      this.scene.remove(this.arena.group);
+      this.arena.dispose();
+      this.arena = null;
+    }
+    const sun = this.sunLight;
+    if (!arena) {
+      this.legacyIslandGroup.visible = true;
+      if (this.dustParticles) this.dustParticles.visible = true;
+      this.panBounds = { minX: -7.0, maxX: 10.0, minZ: -7.0, maxZ: 10.0 };
+      this.defaultDistance = 21.0;
+      this.defaultElevation = 14.5;
+      this._setShadowExtent(14);
+      sun.position.set(16, 28, 14);
+      this._tintClouds(null);
+      return;
+    }
+    this.arena = arena;
+    this.scene.add(arena.group);
+    if (arena.onActivate) arena.onActivate(); // Hito 37: máscara del tablero para el dither fading
+    this.legacyIslandGroup.visible = false;
+    if (this.dustParticles) this.dustParticles.visible = false;
+    const { halfW, halfD } = arena.extents;
+    const margin = 2.4;
+    this.panBounds = { minX: -halfW - margin, maxX: halfW + margin, minZ: -halfD - margin, maxZ: halfD + margin };
+    // El 10×10 (16 m) se encuadra a 21 m; los tableros grandes se alejan en proporción
+    const span = Math.max(halfW, halfD) * 2;
+    this.defaultDistance = THREE.MathUtils.clamp(21.0 * (span / 16), 19.0, 28.0);
+    this.defaultElevation = THREE.MathUtils.clamp(14.5 * (this.defaultDistance / 21.0), 13.5, 19.0);
+    this._setShadowExtent(Math.max(14, Math.hypot(halfW, halfD) + 6));
+    if (arena.theme.sunPosition) sun.position.copy(arena.theme.sunPosition);
+    this._tintClouds(arena.theme.cloudColor ?? null);
+  }
+
+  _setShadowExtent(d) {
+    const cam = this.sunLight.shadow.camera;
+    cam.left = -d; cam.right = d; cam.top = d; cam.bottom = -d;
+    cam.far = Math.max(70, d * 4);
+    cam.updateProjectionMatrix();
+  }
+
+  _tintClouds(hex) {
+    const mat = this.floatingClouds[0]?.children[0]?.material;
+    if (!mat) return;
+    if (!this._cloudBase) this._cloudBase = { color: mat.color.getHex(), emissive: mat.emissive.getHex(), ei: mat.emissiveIntensity };
+    if (hex === null) {
+      mat.color.setHex(this._cloudBase.color);
+      mat.emissive.setHex(this._cloudBase.emissive);
+      mat.emissiveIntensity = this._cloudBase.ei;
+    } else {
+      mat.color.setHex(hex);
+      mat.emissive.setHex(hex);
+      mat.emissiveIntensity = 0.18;
+    }
+  }
+
   _createFloatingIsland() {
     this.floatingRocks = [];
+
+    // Hito 35: el islote flotante del 10×10 de siempre; se oculta mientras hay un escenario de bioma
+    this.legacyIslandGroup = new THREE.Group();
+    this.legacyIslandGroup.name = 'LegacyFloatingIsland';
+    this.scene.add(this.legacyIslandGroup);
 
     const islandGroup = new THREE.Group();
     const rockGeo = new THREE.ConeGeometry(9.5, 9.0, 7);
@@ -341,7 +416,7 @@ export class SceneManager {
     rim.receiveShadow = true;
     islandGroup.add(rim);
 
-    this.scene.add(islandGroup);
+    this.legacyIslandGroup.add(islandGroup);
 
     // Glowing amethyst crystal shards around the island
     const shardMat = new THREE.MeshStandardMaterial({
@@ -368,7 +443,7 @@ export class SceneManager {
         speed: 1.2 + Math.random() * 0.8,
         phase: Math.random() * Math.PI * 2
       };
-      this.scene.add(shard);
+      this.legacyIslandGroup.add(shard);
       this.floatingRocks.push(shard);
     }
   }
@@ -446,8 +521,8 @@ export class SceneManager {
         const panScale = this.currentDistance * 0.0018;
         this.targetLookAt.x -= (rightX * deltaX - forwardX * deltaY) * panScale;
         this.targetLookAt.z -= (rightZ * deltaX - forwardZ * deltaY) * panScale;
-        this.targetLookAt.x = THREE.MathUtils.clamp(this.targetLookAt.x, -7.0, 10.0);
-        this.targetLookAt.z = THREE.MathUtils.clamp(this.targetLookAt.z, -7.0, 10.0);
+        this.targetLookAt.x = THREE.MathUtils.clamp(this.targetLookAt.x, this.panBounds.minX, this.panBounds.maxX);
+        this.targetLookAt.z = THREE.MathUtils.clamp(this.targetLookAt.z, this.panBounds.minZ, this.panBounds.maxZ);
       }
     });
 
@@ -520,8 +595,8 @@ export class SceneManager {
 
   resetCamera(focusTarget = null) {
     this.targetAngle = (3 * Math.PI) / 4;
-    this.cameraDistance = 21.0;
-    this.cameraElevation = 14.5;
+    this.cameraDistance = this.defaultDistance;
+    this.cameraElevation = this.defaultElevation;
     if (focusTarget) {
       this.targetLookAt.set(focusTarget.x, 0, focusTarget.z);
     } else {
@@ -540,8 +615,8 @@ export class SceneManager {
   }
 
   restoreCamera() {
-    this.cameraDistance = 21.0;
-    this.cameraElevation = 14.5;
+    this.cameraDistance = this.defaultDistance;
+    this.cameraElevation = this.defaultElevation;
     this.targetLookAt.set(0, 0, 0);
     this.targetAngle = (3 * Math.PI) / 4;
   }
@@ -574,8 +649,8 @@ export class SceneManager {
       const speed = this.panSpeed * dt;
       this.targetLookAt.x += (moveX / len) * speed;
       this.targetLookAt.z += (moveZ / len) * speed;
-      this.targetLookAt.x = THREE.MathUtils.clamp(this.targetLookAt.x, -7.0, 10.0);
-      this.targetLookAt.z = THREE.MathUtils.clamp(this.targetLookAt.z, -7.0, 10.0);
+      this.targetLookAt.x = THREE.MathUtils.clamp(this.targetLookAt.x, this.panBounds.minX, this.panBounds.maxX);
+      this.targetLookAt.z = THREE.MathUtils.clamp(this.targetLookAt.z, this.panBounds.minZ, this.panBounds.maxZ);
     }
 
     // 2. Smooth frame-rate independent interpolation
@@ -608,6 +683,8 @@ export class SceneManager {
 
   render(time, dt = 0.016) {
     this.updateCameraPosition(dt);
+    if (this.arena) this.arena.update(dt, time, this.camera, this.currentLookAt, this.occlusionProvider ? this.occlusionProvider() : null); // Hito 35: viento de los árboles, agua y partículas del bioma
+    if (this.onBeforeRender) this.onBeforeRender(dt); // Fase 6: VFX (cámara ya colocada, antes de renderizar)
 
     if (this.skyDome) {
       this.skyDome.position.copy(this.camera.position);

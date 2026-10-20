@@ -330,6 +330,8 @@ export class CharacterPortraitService {
   getPortraitSync(id) {
     if (!id) return null;
     if (this.cache.has(id)) return this.cache.get(id);
+    const stored = this._storedAxiePortrait(id);
+    if (stored) { this.cache.set(id, stored); return stored; }
     const resolved = this._resolvePortraitId(id);
     if (this.cache.has(resolved)) {
       const url = this.cache.get(resolved);
@@ -498,13 +500,38 @@ export class CharacterPortraitService {
   }
 
   captureAxieHero(id, model, options = {}) {
-    return this.captureModel(id, model, Object.assign({
+    const url = this.captureModel(id, model, Object.assign({
       isAxie: true,
       zoomFactor: 0.54,
       yaw: -0.22,
       pitch: 0.05,
       yTargetRatio: 0.08
     }, options));
+    this._storeAxiePortrait(id);
+    return url;
+  }
+
+  // Retratos de Axies por su ID (los cargados por ID no tienen archivo en assets/portraits): se guardan en el
+  // navegador en WebP pequeño para tenerlos desde el principio en la selección de partida y sin conexión (19-oct).
+  _axiePortraitKey(id) {
+    const k = String(id || '');
+    return /^\d+$/.test(k) ? `lk.axiePortrait.v1.${k}` : null;
+  }
+
+  _storedAxiePortrait(id) {
+    const key = this._axiePortraitKey(id);
+    if (!key) return null;
+    try { return localStorage.getItem(key) || null; } catch { return null; }
+  }
+
+  _storeAxiePortrait(id) {
+    const key = this._axiePortraitKey(id);
+    if (!key || !this.canvas) return;
+    try {
+      let url = this.canvas.toDataURL('image/webp', 0.85);
+      if (!url.startsWith('data:image/webp')) url = this.canvas.toDataURL('image/png');
+      localStorage.setItem(key, url);
+    } catch { /* sin almacenamiento: queda solo en memoria */ }
   }
 
   _getSapidaeCacheKey(modelId = 'sapidae-f-a', customization = null, equipped = null, fullBody = true) {

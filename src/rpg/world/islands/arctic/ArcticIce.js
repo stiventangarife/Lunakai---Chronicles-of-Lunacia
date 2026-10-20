@@ -194,7 +194,7 @@ export class ArcticIce {
       parts.push([ball(1, 0, 0, 0, len * 0.5, len * 0.2, len * 0.13), body]);
       parts.push([ball(1, 0.02 * len, len * 0.07, 0, len * 0.4, len * 0.11, len * 0.1), back]);
       const tail = new THREE.ConeGeometry(len * 0.18, len * 0.3, 4);
-      tail.rotateZ(Math.PI / 2); tail.scale(1, 1, 0.35); tail.translate(-len * 0.6, 0, 0);
+      tail.rotateZ(-Math.PI / 2); tail.scale(1, 1, 0.35); tail.translate(-len * 0.6, 0, 0); // punta hacia el cuerpo, aleta abierta hacia atrás
       parts.push([tail, back]);
       const fin = new THREE.ConeGeometry(len * 0.08, len * 0.18, 3);
       fin.translate(0, len * 0.2, 0);

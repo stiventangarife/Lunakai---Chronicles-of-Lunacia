@@ -127,10 +127,10 @@ class AccountManager {
     this.cloud.disable();
     if (this.mode === 'account') saveSlotManager.clearAccountCache();
     else saveSlotManager.setOwner({ mode: 'guest' });
-    await this.auth.signOut();
     this.mode = 'none';
     try { localStorage.removeItem(GUEST_FLAG); } catch { /* nada */ }
-    return { pending: false };
+    const out = await this.auth.signOut();
+    return { pending: false, redirecting: Boolean(out?.redirecting) };
   }
 
   /** Marca en el perfil que el jugador ya completó la introducción (para no repetirla). */

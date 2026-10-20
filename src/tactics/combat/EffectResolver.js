@@ -31,6 +31,16 @@
 import { STATUS_DEFS } from './StatusSystem.js';
 import { elementalMultiplier } from './Elements.js';
 
+
+/** Efectos que perjudican a quien los recibe (fuego amigo): daño, empuje, atracción, quitar buffs, estados negativos, robo de PA/PM. */
+function isHarmful(e) {
+  if (!e) return false;
+  if (['damage', 'push', 'pull', 'dispel'].includes(e.type)) return true;
+  if (e.type === 'status') return STATUS_DEFS[e.status]?.kind === 'debuff';
+  if (e.type === 'resource') return (e.pa || 0) < 0 || (e.pm || 0) < 0;
+  return false;
+}
+
 export class EffectResolver {
   constructor(spellManager) {
     this.sm = spellManager;
@@ -58,10 +68,14 @@ export class EffectResolver {
       .filter((u) => u && !u.isDead);
     const sel = effect.target || 'area';
 
+    // Fuego amigo (18-oct): lo dañino de un ataque alcanza a cualquier unidad del área, aliada o enemiga
+    // (nunca al propio lanzador). Curas, escudos y potenciadores siguen siendo solo para aliados.
+    const othersInArea = () => inArea().filter((u) => u !== caster);
+
     switch (sel) {
       case 'self': return [caster];
       case 'cell': return [];
-      case 'enemiesInArea': return inArea().filter((u) => u.team !== caster.team);
+      case 'enemiesInArea': return isHarmful(effect) ? othersInArea() : inArea().filter((u) => u.team !== caster.team);
       case 'alliesInArea': return inArea().filter((u) => u.team === caster.team);
       case 'allEnemies': return all.filter((u) => u.team !== caster.team);
       case 'allAllies': return all.filter((u) => u.team === caster.team);
@@ -70,7 +84,7 @@ export class EffectResolver {
       case 'area':
       default: {
         const units = inArea();
-        if (spell.targetType === 'enemy') return units.filter((u) => u.team !== caster.team);
+        if (spell.targetType === 'enemy') return isHarmful(effect) ? units.filter((u) => u !== caster) : units.filter((u) => u.team !== caster.team);
         if (spell.targetType === 'ally') return units.filter((u) => u.team === caster.team);
         if (spell.targetType === 'self') return [caster];
         return units;
@@ -98,6 +112,7 @@ export class EffectResolver {
     if (cond.targetHpAtMost != null && !(target && target.currentHP <= cond.targetHpAtMost)) return false;
     if (cond.targetHasShield && !(target && target.shield > 0)) return false;
     if (cond.distAtLeast != null && !(target && Math.abs(target.gridX - caster.gridX) + Math.abs(target.gridZ - caster.gridZ) >= cond.distAtLeast)) return false;
+    if (cond.distAtMost != null && !(target && Math.abs(target.gridX - caster.gridX) + Math.abs(target.gridZ - caster.gridZ) <= cond.distAtMost)) return false;
     if (cond.hitCrit && !ctx.lastHit?.isCrit) return false;
     if (cond.hitDamaged && !(ctx.lastHit?.actual > 0)) return false;
     const alive = (this.sm.game?.units || []).filter((u) => !u.isDead);
@@ -139,6 +154,8 @@ export class EffectResolver {
           if (!this.check(e.if, ctx, t)) continue;
           let amt = Math.round((e.amount || 0) * this.sm._getSpellMultiplier(caster, spell));
           if (caster.supportPower) amt = Math.round(amt * (1 + caster.supportPower / 100));
+          const rcPct = this.sm.runeCharms?.shieldPct(caster, spell) || 0; // Way of Plant / Way of Bug
+          if (rcPct) amt = Math.round(amt * (1 + rcPct / 100));
           this.sm._grantShield(t, amt);
           t.updateHUD?.();
           this.events.emit('unit:shielded', { unit: t, source: caster, spell, amount: amt });
@@ -288,6 +305,11 @@ export class EffectResolver {
   dealDamage(ctx, target, e) {
     const { caster, spell } = ctx;
     const dist = Math.abs(target.gridX - caster.gridX) + Math.abs(target.gridZ - caster.gridZ);
+    // Esquiva de runas (Pure Luck, Gates of Unity): el golpe a distancia no llega
+    if (target !== caster && this.sm.runeCharms?.evade(ctx, target, dist)) {
+      ctx.lastHit = { target, actual: 0, isCrit: false, evaded: true };
+      return 0;
+    }
     let dmg = Math.floor(this.roll(e) * this.sm._getSpellMultiplier(caster, spell));
 
     // Bonus plano del lanzador (misma regla que los hechizos antiguos; ver SpellManager._flatDamageBonus)
@@ -308,11 +330,12 @@ export class EffectResolver {
 
     // Crítico
     const critAllowed = this.sm.hooks.critAllowed.every((fn) => fn(ctx, target) !== false);
-    const critChance = 0.20 + ((caster.critRate || 0) + this.statuses.mod(caster, 'critPct') + (e.critBonus || 0)) / 100;
+    // critRate ya incluye el 20 % base (los héroes: 20 + Agilidad); las unidades sin dato usan el 20 % base
+    const critChance = ((caster.critRate > 0 ? caster.critRate : 20) + this.statuses.mod(caster, 'critPct') + (e.critBonus || 0)) / 100;
     const isCrit = critAllowed && (this.sm.rng() < critChance);
-    if (isCrit) dmg = Math.round(dmg * 1.5);
+    if (isCrit) dmg = Math.round(dmg * (this.sm.runeCharms ? this.sm.runeCharms.critMultiplier(caster, target, e) : 1.5));
 
-    const { amount, elemental } = this.sm._applyDamageModifiers(caster, target, dmg, dist);
+    const { amount, elemental } = this.sm._applyDamageModifiers(caster, target, dmg, dist, ctx);
     dmg = amount;
     for (const fn of this.sm.hooks.adjustDamage) dmg = fn(ctx, target, dmg, isCrit);
 

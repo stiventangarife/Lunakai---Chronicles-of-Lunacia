@@ -501,6 +501,9 @@ export class NPCManager {
         if (def.type === 'ferry') {
           return this._handleFerryInteraction(npcObj);
         }
+        if (def.type === 'merchant') {
+          return this._handleMerchantInteraction(npcObj, def.shopId);
+        }
         if (def.id === 'sentinel') {
           return this._handleSentinelInteraction(npcObj);
         }
@@ -547,6 +550,24 @@ export class NPCManager {
       this.hideAllOverlays();
       if (!this.ferryTravelUI) this.ferryTravelUI = new FerryTravelUI(om);
       this.ferryTravelUI.open();
+    });
+  }
+
+  /** Mercader: un saludo y se abre la Tienda (ui/ShopPanel.js la registra en overworldManager.shopModal). */
+  _handleMerchantInteraction(npc, shopId = 'dojo_valley') {
+    if (this.dialogSystem.isActive) return;
+    if (this.audio && typeof this.audio.playHover === 'function') {
+      this.audio.playHover();
+    }
+    const shop = this.overworldManager?.shopModal;
+    this.dialogSystem.startDialogue([{
+      speaker: npc.name,
+      title: npc.title,
+      avatar: npc.avatar,
+      text: '¡Bienvenido a mi puesto! Tengo materiales para la forja, comida para tu axie, pociones y algo de equipo. Y si te sobra algo, te lo compro.'
+    }], () => {
+      this.hideAllOverlays();
+      shop?.open(shopId);
     });
   }
 

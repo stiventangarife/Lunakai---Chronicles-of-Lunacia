@@ -173,7 +173,7 @@ export class TacticalAI {
   async _trySupport(enemyUnit, allies) {
     const sm = this.spellManager;
     const spells = enemyUnit.spellIds.map(id => sm.getSpell(id))
-      .filter(s => s && !sm.isDamageSpell(s) && !s.baseMinHeal && (s.shieldAmount || (s.effects || []).some(e => e.type === 'shield' || e.type === 'status')) && enemyUnit.currentPA >= s.paCost);
+      .filter(s => s && s.targetType !== 'enemy' && !sm.isDamageSpell(s) && !s.baseMinHeal && (s.shieldAmount || (s.effects || []).some(e => e.type === 'shield' || e.type === 'status')) && enemyUnit.currentPA >= s.paCost);
     for (const spell of spells) {
       const cells = sm.getValidTargetCells(enemyUnit, spell);
       const who = [enemyUnit, ...allies]
@@ -206,11 +206,21 @@ export class TacticalAI {
     if (reachable.length === 0) return;
 
     // Evaluate which reachable cell gets closest to the hero or in attack range
+    // Hito 35: en los mapas con forma (ríos, grietas, vacío) se mide la distancia caminando, no en línea
+    // recta: si no, el enemigo se queda quieto cuando rodear obliga a alejarse primero.
+    const walk = this.gridManager.layout ? this._walkDistances(targetHero, enemyUnit) : null;
+    const distTo = (x, z) => {
+      if (walk) {
+        const w = walk.get(x + ',' + z);
+        if (w !== undefined) return w;
+      }
+      return this.gridManager.getDistance({ x, z }, { x: targetHero.gridX, z: targetHero.gridZ }) + (walk ? 1000 : 0);
+    };
     let bestCell = null;
-    let bestDist = currentDist;
+    let bestDist = distTo(enemyUnit.gridX, enemyUnit.gridZ);
 
     for (const r of reachable) {
-      const d = this.gridManager.getDistance({ x: r.x, z: r.z }, { x: targetHero.gridX, z: targetHero.gridZ });
+      const d = distTo(r.x, r.z);
       if (d < bestDist) {
         bestDist = d;
         bestCell = r;
@@ -225,6 +235,26 @@ export class TacticalAI {
       // Now try attacking after moving!
       await this._tryAttack(enemyUnit, heroes);
     }
+  }
+
+  /** Hito 35: pasos caminando desde cada casilla hasta el héroe objetivo (BFS por donde puede pasar la unidad). */
+  _walkDistances(targetHero, unit) {
+    const gm = this.gridManager;
+    const dist = new Map([[targetHero.gridX + ',' + targetHero.gridZ, 0]]);
+    const queue = [{ x: targetHero.gridX, z: targetHero.gridZ, d: 0 }];
+    const dirs = [[1, 0], [-1, 0], [0, 1], [0, -1]];
+    while (queue.length) {
+      const c = queue.shift();
+      for (const [dx, dz] of dirs) {
+        const x = c.x + dx, z = c.z + dz;
+        const k = x + ',' + z;
+        if (dist.has(k)) continue;
+        if (!gm.isCellTraversable(x, z, unit)) continue;
+        dist.set(k, c.d + 1);
+        queue.push({ x, z, d: c.d + 1 });
+      }
+    }
+    return dist;
   }
 
   async _retreatStep(enemyUnit, heroes) {

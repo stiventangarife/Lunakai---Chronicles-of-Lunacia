@@ -1,12 +1,14 @@
 // AxieCarePanel.js — Panel flotante de Axie Care en el mundo abierto.
 //
 // · Clic (sin arrastrar la cámara) sobre el Axie compañero → panel anclado sobre él: vínculo, estado de ánimo,
-//   Acariciar (+5 %, con recarga), comida del inventario (+10/+15/+25 %) y progreso del paseo (+2 % cada 500 m).
+//   Acariciar (+5 %, con recarga), comida del inventario (+3/+5/+8 %) y progreso del paseo (+0,5 % cada 500 m).
+// · Cuenta el tiempo de juego para la bajada del vínculo sin cuidados (AxieCareService.tickPlay).
 // · Al pasar el ratón por encima del compañero el cursor cambia a una mano.
 // · Corazones flotantes y un saltito del Axie al acariciarlo o darle de comer.
 // · Cuenta los metros caminados juntos mientras se explora (sin teletransportes ni transiciones).
 // La lógica (y el guardado) está en rpg/AxieCareService.js; este módulo solo lee la escena y pinta.
 
+import { formatBond } from '../rpg/BondService.js';
 import * as THREE from 'three';
 import { AxieCareService, PET_BOND, PET_COOLDOWN_MS, WALK_STEP_METERS, WALK_BOND } from '../rpg/AxieCareService.js';
 import { portraitService } from '../tactics/CharacterPortraitService.js';
@@ -103,7 +105,7 @@ export function attachAxieCare(game) {
     const id = service.companionId();
     const base = game.equipmentManager?.heroesBase?.[id];
     const key = base?.axieId || player()?.axieId || id;
-    try { return portraitService.getPortraitSync(key) || portraitService.getPortraitSync(id) || null; } catch { return null; }
+    try { return portraitService.getPortraitSync(key) || (base?.axieId ? null : portraitService.getPortraitSync(id)) || null; } catch { return null; }
   }
 
   /** Luna del vínculo: el líquido sube con el porcentaje. */
@@ -134,7 +136,7 @@ export function attachAxieCare(game) {
     const foods = s.foods.length
       ? s.foods.map((f) => `<button type="button" class="lk-care__food" data-food="${esc(f.id)}" ${s.max ? 'disabled' : ''} title="${s.max ? 'El vínculo ya está al 100 %: guarda la comida para más adelante' : esc(f.item.description || f.item.name)}">
             <span class="lk-care__food-ico">${foodIco(f.item.icon)}<em>×${f.count}</em></span>
-            <span class="lk-care__food-txt"><b>${esc(f.item.name)}</b><small>+${f.bond} % vínculo</small></span>
+            <span class="lk-care__food-txt"><b>${esc(f.item.name)}</b><small>+${formatBond(f.bond)} % vínculo</small></span>
             <span class="lk-care__food-go">${s.max ? 'Lleno' : 'Dar'}</span>
           </button>`).join('')
       : `<p class="lk-care__empty">No llevas comida. Cada victoria en combate te da una mandarina lunar.</p>`;
@@ -147,8 +149,8 @@ export function attachAxieCare(game) {
         <div><span class="lk-care__kick">Tu compañero</span><b>${esc(name)}</b></div>
       </header>
 
-      <section class="lk-care__bond" aria-label="Vínculo ${s.bond} %">
-        <div class="lk-care__moon ${s.max ? 'lk-is-full' : ''}">${moonSVG(s.bond)}<span>${s.bond}%</span></div>
+      <section class="lk-care__bond" aria-label="Vínculo ${formatBond(s.bond)} %">
+        <div class="lk-care__moon ${s.max ? 'lk-is-full' : ''}">${moonSVG(s.bond)}<span>${formatBond(s.bond)}%</span></div>
         <div class="lk-care__state">
           <span class="lk-care__kick">Vínculo</span>
           <b>${esc(st.t)}</b>
@@ -156,7 +158,7 @@ export function attachAxieCare(game) {
         </div>
       </section>
       <div class="lk-care__rail" aria-hidden="true">${STATES.map((x, i) => `<span class="${i === si ? 'lk-is-on' : i < si ? 'lk-is-past' : ''}" style="--c:${x.c}"><i></i>${x.t}</span>`).join('')}</div>
-      <div class="lk-care__duo ${s.max ? 'lk-is-ready' : ''}">${ICO_STAR}<span>${s.max ? '<b>Duo Ultimate lista.</b> Úsala en combate con el medallón dorado.' : `Al 100 % se desbloquea la <b>Duo Ultimate</b>. Te falta un ${100 - s.bond} %.`}</span></div>
+      <div class="lk-care__duo ${s.max ? 'lk-is-ready' : ''}">${ICO_STAR}<span>${s.max ? '<b>Duo Ultimate lista.</b> Úsala en combate con el medallón dorado.' : `Al 100 % se desbloquea la <b>Duo Ultimate</b>. Te falta un ${formatBond(100 - s.bond)} %.`}</span></div>
 
       <div class="lk-care__sec">
         <span class="lk-care__label">Cuidar</span>
@@ -174,7 +176,7 @@ export function attachAxieCare(game) {
 
       <div class="lk-care__sec lk-care__walk">
         <div class="lk-care__walk-row"><span class="lk-care__walk-ico">${ICO_WALK}</span>
-          <span class="lk-care__walk-txt"><b>Paseo juntos</b><small>${Math.max(0, WALK_STEP_METERS - walked)} m más para +${WALK_BOND} %</small></span>
+          <span class="lk-care__walk-txt"><b>Paseo juntos</b><small>${Math.max(0, WALK_STEP_METERS - walked)} m más para +${formatBond(WALK_BOND)} %</small></span>
           <span class="lk-care__walk-num">${walked}<i>/${WALK_STEP_METERS} m</i></span></div>
         <div class="lk-bar lk-bar--xp lk-care__walk-bar" style="--v:${walkPct.toFixed(1)}%"><i></i></div>
       </div>`;
@@ -286,8 +288,14 @@ export function attachAxieCare(game) {
   window.addEventListener('keydown', (e) => { if (open && e.code === 'Escape') hide(); });
 
   // ------------------------------------------------------------------ bucle: anclaje, cierre y paseo
+  let lastT = performance.now();
   function loop() {
     requestAnimationFrame(loop);
+    // Tiempo de juego para la bajada del vínculo (solo con una partida en marcha; como mucho 1 s por fotograma)
+    const t = performance.now();
+    const dt = Math.min(1000, t - lastT);
+    lastT = t;
+    if (['OVERWORLD', 'BATTLE', 'CAMP'].includes(game.gameState) && service.tickPlay(dt) > 0 && open) render();
     const pl = player();
     const pos = pl?.position || pl?.group?.position; // player.position es la fuente (el grupo la copia)
     const canWalk = ow.state === 'EXPLORING' && companion()?.visible && !ow.isLoadingZone;
@@ -311,6 +319,10 @@ export function attachAxieCare(game) {
     if (tickTimer % 30 === 0 && !service.status().petReady) render();
   }
   requestAnimationFrame(loop);
+  // «Última vez jugado» (bajada sin jugar): se guarda al cerrar u ocultar la pestaña
+  const saveSeen = () => { if (['OVERWORLD', 'BATTLE', 'CAMP'].includes(game.gameState)) { service.tickPlay(1); try { game._saveCurrentProgress?.(); } catch { /* nada */ } service._persist?.(); } };
+  window.addEventListener('pagehide', saveSeen);
+  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') saveSeen(); });
 
   return { service, show, hide, panel };
 }

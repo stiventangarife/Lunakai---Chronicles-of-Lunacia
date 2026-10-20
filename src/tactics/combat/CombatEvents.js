@@ -22,6 +22,8 @@
 //   unit:resourceLost   { unit, source, spell, pa?, pm? }
 //   unit:pushStart    { unit, source, spell }
 //   unit:collision    { unit, source, damage, first }
+//   unit:evaded       { unit, source, spell }                               esquiva de runas (Pure Luck, Gates of Unity)
+//   runeCharm:proc    { unit, label }                                       se activa una runa o un charm (RuneCharmEffects)
 
 export class CombatEvents {
   constructor() {
