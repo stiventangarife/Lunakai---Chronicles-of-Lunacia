@@ -133,10 +133,8 @@ export class QuestInteractablesManager {
     bulb.position.y = 1.25;
     group.add(bulb);
 
-    // Ambient PointLight
-    const pLight = new THREE.PointLight(0x34d399, 2.0, 6.0);
-    pLight.position.y = 1.3;
-    group.add(pLight);
+    // Sin PointLight: al mostrarse/ocultarse o crearse en mitad del juego cambia el número de luces
+    // y three.js recompila TODOS los shaders iluminados (tirón). El brillo lo dan el material emisivo y el bloom.
 
     // Nameplate Sprite
     const sprite = this._createLabelSprite('🌿 Luminous Moss Sprout', '#34d399');
@@ -283,10 +281,8 @@ export class QuestInteractablesManager {
     crystal.position.y = 0.85;
     group.add(crystal);
 
-    // Purple Astral PointLight
-    const pLight = new THREE.PointLight(0xc084fc, 2.2, 5.5);
-    pLight.position.y = 0.9;
-    group.add(pLight);
+    // Sin PointLight: al mostrarse/ocultarse o crearse en mitad del juego cambia el número de luces
+    // y three.js recompila TODOS los shaders iluminados (tirón). El brillo lo dan el material emisivo y el bloom.
 
     // Label Sprite
     const currentCount = this.gatheredCounts.fallen_stardust.size;

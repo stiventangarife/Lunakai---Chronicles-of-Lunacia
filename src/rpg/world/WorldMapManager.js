@@ -1,5 +1,6 @@
 // WorldMapManager.js - Master coordinator for 5x5 World Grid, 5 Biomes, Dofus Portals & World Map UI
 import { GRAND_ISLAND_ZONES, GRAND_ISLAND_TRAVEL } from './islands/GrandIslands.js';
+import { warmupRender } from '../../render/RenderWarmup.js';
 import { canonicalZoneId, mergedZonesOf, FERRY_DOCKS } from './islands/IslandWorldLayout.js';
 import * as THREE from 'three';
 import { MAP_REGISTRY, getZoneByCoord, ISLANDS_REGISTRY } from './MapRegistry.js';
@@ -1003,19 +1004,45 @@ export class WorldMapManager {
     }
   }
 
+  /**
+   * Precalentado de shaders y texturas (detrás de la pantalla de carga).
+   *
+   * Para que lo compilado aquí sirva de verdad, la clave de cada programa debe coincidir con la
+   * del render real:
+   *   - el mundo se dibuja dentro del EffectComposer (render target → sin tone mapping y espacio
+   *     lineal en el programa), así que compilamos con ese mismo render target activo;
+   *   - el estilo anime de los personajes cambia su shader: se aplica ANTES de compilar;
+   *   - `compile()` recorre también los objetos ocultos, así que las islas, LOD y flechas que
+   *     aparezcan después ya tienen su programa listo.
+   * Además sube a la GPU todas las texturas ya cargadas (initTexture), que si no se suben la
+   * primera vez que entran en pantalla.
+   */
   async _warmupShaders(renderer, scene, camera) {
     if (!renderer || !scene || !camera) return;
+    const om = this.om;
+    // Durante el arranque loadMap() llega antes de que exista el EnvironmentSystem (composer y
+    // luces finales): compilar aquí produciría programas que no se usan. OverworldManager.init()
+    // vuelve a llamar a este método al final de la carga.
+    if (!om.environmentSystem) return;
+    const t0 = performance.now();
     try {
-      // 1. Asynchronously compile all scene shaders via KHR_parallel_shader_compile.
-      // This delegates shader compilation to GPU driver worker threads without blocking the CPU event loop.
-      if (typeof renderer.compileAsync === 'function') {
-        await renderer.compileAsync(scene, camera);
-      } else if (typeof renderer.compile === 'function') {
-        renderer.compile(scene, camera);
-      }
-      console.log('[WorldMapManager] 🚀 Non-blocking Shader compilation complete (0ms CPU stall)');
+      // 1. Estilo de personajes antes de compilar (si no, recompilan a los pocos segundos de juego)
+      try {
+        const ga = om.demoScenaZone && om.demoScenaZone.genshinArt;
+        if (ga && ga.enabled !== false && om.demoScenaZone.isActive && typeof ga._styleCharacters === 'function') {
+          ga._styleCharacters();
+        }
+      } catch (_) { /* opcional */ }
+
+      // 2. Compilar con el mismo destino que usa el render real (el composer si existe) y subir texturas
+      const env = om.environmentSystem;
+      const composer = env && env.isPostProcessingActive !== false && env.composer;
+      const target = composer ? (composer.readBuffer || null) : null;
+      const res = await warmupRender(renderer, scene, camera, { target });
+      console.log(`[WorldMapManager] Precalentado: ${res.programs} programas nuevos (${res.total} en total), ${res.textures} texturas, ${Math.round(performance.now() - t0)} ms`);
     } catch (e) {
       console.warn('[WorldMapManager] Shader warmup error (safely skipped):', e);
     }
   }
+
 }

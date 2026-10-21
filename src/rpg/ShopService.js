@@ -15,7 +15,7 @@ export const EQ_SLOTS = ['weapon', 'hat', 'shield', 'body', 'boots'];
 const HOUR_MS = 3600 * 1000;
 
 /** Ficha unificada: entrada de ITEMS_DB o material (con `mat: true`). */
-export const itemOf = (id) => (MATERIALS[id] ? { ...MATERIALS[id], mat: true, rarity: 'common' } : ITEMS_DB[id] || null);
+export const itemOf = (id) => (MATERIALS[id] ? { ...MATERIALS[id], mat: true, matRarity: MATERIALS[id].rarity, rarity: 'common' } : ITEMS_DB[id] || null);
 /** Tipo para las pestañas: res · gear · food · potion · other. */
 export const kindOf = (it) => (it.mat ? 'res' : EQ_SLOTS.includes(it.slot) ? 'gear' : it.category === 'food' ? 'food'
   : (it.slot === 'consumable' || it.category === 'consumable') ? 'potion' : 'other');

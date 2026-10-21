@@ -1,0 +1,86 @@
+/* lunakai-tutorial.css — Hito 48: cinemática del prólogo y tutorial nuevo (TutorialDirector).
+   Mismo lenguaje que el resto de la Crónica Celeste: franjas oscuras con filo dorado, rombos y marfil. */
+
+/* ══ Cinemática ═══════════════════════════════════════════════════════════════════════════════════════ */
+.lk-cine { position: fixed; inset: 0; z-index: 2147482000; pointer-events: none; --bar: clamp(48px, 8vh, 84px); opacity: 0; transition: opacity .6s ease; }
+.lk-cine.lk-is-on { opacity: 1; }
+.lk-cine__bar { position: absolute; left: 0; right: 0; height: var(--bar); background: #030202; display: flex; align-items: center; justify-content: space-between; padding: 0 clamp(16px, 3vw, 40px); }
+.lk-cine__bar::after { content: ""; position: absolute; left: 0; right: 0; height: 1px; background: linear-gradient(90deg, transparent, rgba(211, 174, 108, .4) 20%, #EED39A 50%, rgba(211, 174, 108, .4) 80%, transparent); opacity: .7; }
+.lk-cine__bar--top { top: 0; } .lk-cine__bar--top::after { bottom: 0; }
+.lk-cine__bar--bot { bottom: 0; justify-content: center; } .lk-cine__bar--bot::after { top: 0; }
+.lk-cine.lk-is-on .lk-cine__bar--top { animation: lkCineTop .9s cubic-bezier(.2, .8, .2, 1) both; }
+.lk-cine.lk-is-on .lk-cine__bar--bot { animation: lkCineBot .9s cubic-bezier(.2, .8, .2, 1) both; }
+@keyframes lkCineTop { from { transform: translateY(-100%); } to { transform: none; } }
+@keyframes lkCineBot { from { transform: translateY(100%); } to { transform: none; } }
+.lk-cine__kicker { display: flex; align-items: center; gap: 12px; font: 800 .7rem/1 var(--lk-font-ui, 'Nunito Sans', sans-serif); letter-spacing: .26em; text-transform: uppercase; color: #C9A867; }
+.lk-cine__kicker i { width: 7px; height: 7px; transform: rotate(45deg); background: #EED39A; box-shadow: 0 0 8px rgba(238, 211, 154, .6); }
+.lk-cine__skip { pointer-events: auto; display: flex; align-items: center; gap: 10px; padding: 7px 14px 7px 18px; border: 0; border-radius: 999px; cursor: pointer; font: 800 .8rem/1 var(--lk-font-ui, 'Nunito Sans', sans-serif); color: #F4EEDF; background: rgba(239, 232, 218, .06); box-shadow: inset 0 0 0 1px rgba(211, 174, 108, .35); transition: background .18s, box-shadow .18s; }
+.lk-cine__skip svg { width: 16px; height: 16px; color: #EED39A; }
+.lk-cine__skip kbd { font: 800 .62rem var(--lk-font-ui, sans-serif); padding: 3px 6px; border-radius: 5px; background: rgba(0, 0, 0, .4); color: #EED39A; }
+.lk-cine__skip:hover, .lk-cine__skip:focus-visible { outline: none; background: rgba(211, 174, 108, .16); box-shadow: inset 0 0 0 1px #EED39A, 0 0 18px rgba(238, 211, 154, .25); }
+.lk-cine__sub { position: absolute; left: 50%; bottom: calc(var(--bar) + clamp(18px, 4vh, 40px)); width: min(900px, calc(100% - 48px)); transform: translate(-50%, 8px); display: grid; justify-items: center; gap: 6px; text-align: center; opacity: 0; transition: opacity .5s ease, transform .5s ease; }
+.lk-cine__sub.lk-is-on { opacity: 1; transform: translate(-50%, 0); }
+.lk-cine__sub small { font: 800 .64rem/1 var(--lk-font-ui, sans-serif); letter-spacing: .24em; text-transform: uppercase; color: #D9B46A; text-shadow: 0 1px 6px rgba(0, 0, 0, .9); }
+.lk-cine__sub small:empty { display: none; }
+.lk-cine__sub p { margin: 0; font: 400 clamp(1.15rem, 2.2vw, 1.7rem)/1.45 var(--lk-font-display, 'Marcellus', serif); color: #FBF6EA; text-wrap: balance; text-shadow: 0 2px 16px rgba(0, 0, 0, .95), 0 0 3px rgba(0, 0, 0, .8); }
+.lk-cine__sub.lk-is-big p { font: 700 clamp(1.8rem, 4vw, 3rem)/1.1 'Cinzel', var(--lk-font-display, serif); letter-spacing: .08em; color: #FFE7A8; text-shadow: 0 0 24px rgba(255, 200, 90, .8), 0 2px 10px rgba(0, 0, 0, .9); }
+.lk-cine__prog { position: relative; width: min(320px, 40vw); height: 2px; border-radius: 2px; background: rgba(239, 232, 218, .1); overflow: hidden; }
+.lk-cine__prog i { position: absolute; left: 0; top: 0; bottom: 0; width: 0; background: linear-gradient(90deg, #C9A867, #FFF1C9); box-shadow: 0 0 8px rgba(238, 211, 154, .7); }
+
+/* Velo negro mientras se pasa de la cinemática al Dojo */
+.lk-cine-veil { position: fixed; inset: 0; z-index: 2147481999; background: #000; opacity: 1; transition: opacity .9s ease; pointer-events: none; }
+.lk-cine-veil.lk-is-off { opacity: 0; }
+
+/* ══ Franja del tutorial: botón «Saltar tutorial» ════════════════════════════════════════════════════ */
+.lk-tut__skip { pointer-events: auto; position: absolute; right: 10px; top: 50%; transform: translateY(-50%); display: inline-flex; align-items: center; gap: 6px; padding: 5px 10px; border: 0; border-radius: 999px; cursor: pointer;
+  font: 800 .62rem/1 var(--lk-font-ui); letter-spacing: .06em; text-transform: uppercase; color: rgba(239, 232, 218, .7); background: rgba(239, 232, 218, .06); box-shadow: inset 0 0 0 1px rgba(211, 174, 108, .25); transition: color .15s, background .15s; }
+.lk-tut__skip:hover, .lk-tut__skip:focus-visible { outline: none; color: var(--lk-ivory-50); background: rgba(211, 174, 108, .18); }
+.lk-tut { padding-right: 130px !important; }
+.lk-tut__confirm { pointer-events: auto; margin-top: 8px; display: flex; align-items: center; justify-content: center; gap: 8px; flex-wrap: wrap; font: 700 .76rem/1.3 var(--lk-font-ui); color: #E7DCC4; }
+.lk-tut__confirm button { border: 0; border-radius: 999px; padding: 5px 12px; cursor: pointer; font: 800 .7rem/1 var(--lk-font-ui); }
+.lk-tut__confirm .lk-yes { background: linear-gradient(180deg, #EED39A, #C9A867); color: #2a1d08; }
+.lk-tut__confirm .lk-no { background: rgba(239, 232, 218, .1); color: #EFE8DA; box-shadow: inset 0 0 0 1px rgba(211, 174, 108, .3); }
+.lk-tut__confirm[hidden] { display: none; }
+
+/* ══ Tarjeta de recompensa ══════════════════════════════════════════════════════════════════════════ */
+.lk-reward { position: fixed; left: 50%; top: 42%; z-index: 10050; transform: translate(-50%, -50%) scale(.92); opacity: 0; pointer-events: auto; cursor: pointer;
+  width: min(440px, calc(100vw - 32px)); padding: 22px 26px 18px; text-align: center; border-radius: 18px;
+  background: radial-gradient(120% 120% at 50% 0%, rgba(54, 42, 24, .97), rgba(14, 17, 30, .97) 70%);
+  box-shadow: 0 0 0 1px rgba(238, 211, 154, .55), 0 0 0 5px rgba(11, 15, 28, .8), 0 0 0 6px rgba(211, 174, 108, .35), 0 24px 60px rgba(0, 0, 0, .6), 0 0 80px rgba(238, 211, 154, .18);
+  transition: opacity .35s ease, transform .45s cubic-bezier(.2, 1.4, .4, 1); }
+.lk-reward.lk-is-on { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+.lk-reward__kicker { display: inline-flex; align-items: center; gap: 10px; font: 800 .66rem/1 var(--lk-font-ui); letter-spacing: .26em; text-transform: uppercase; color: #D9B46A; }
+.lk-reward__kicker::before, .lk-reward__kicker::after { content: ""; width: 7px; height: 7px; transform: rotate(45deg); background: #EED39A; box-shadow: 0 0 8px rgba(238, 211, 154, .7); }
+.lk-reward__title { margin: 8px 0 14px; font: 400 1.4rem/1.2 var(--lk-font-display); color: #FBF6EA; }
+.lk-reward__items { display: flex; flex-wrap: wrap; justify-content: center; gap: 12px; }
+.lk-reward__it { width: 96px; display: grid; justify-items: center; gap: 6px; animation: lkRewIt .5s cubic-bezier(.2, 1.4, .4, 1) both; }
+.lk-reward__it:nth-child(2) { animation-delay: .08s; } .lk-reward__it:nth-child(3) { animation-delay: .16s; } .lk-reward__it:nth-child(4) { animation-delay: .24s; }
+.lk-reward__ico { position: relative; width: 64px; height: 64px; border-radius: 14px; display: grid; place-items: center; background: radial-gradient(circle at 50% 35%, var(--rc, #3a4a6e), #121726); box-shadow: 0 0 0 2px rgba(11, 15, 28, .9), 0 0 0 3px var(--rb, rgba(211, 174, 108, .6)), 0 0 18px var(--rg, rgba(238, 211, 154, .25)); }
+.lk-reward__ico img { width: 52px; height: 52px; object-fit: contain; }
+.lk-reward__ico span { font: 800 1.4rem/1 var(--lk-font-ui); color: #EED39A; }
+.lk-reward__ico em { position: absolute; right: -6px; bottom: -6px; font: 800 .7rem/1 var(--lk-font-ui); font-style: normal; padding: 3px 6px; border-radius: 999px; background: #EED39A; color: #2a1d08; }
+.lk-reward__it b { font: 800 .72rem/1.2 var(--lk-font-ui); color: #EFE8DA; }
+.lk-reward__note { margin: 14px 0 0; font: 700 .76rem/1.4 var(--lk-font-ui); color: #BFC6D6; }
+.lk-reward__hint { margin-top: 10px; font: 800 .6rem/1 var(--lk-font-ui); letter-spacing: .18em; text-transform: uppercase; color: rgba(239, 232, 218, .45); }
+@keyframes lkRewIt { from { opacity: 0; transform: translateY(10px) scale(.8); } to { opacity: 1; transform: none; } }
+
+/* ══ Consejo del maestro en combate (duelo y prueba de la Ultimate) ═══════════════════════════════ */
+#lk-tut-coach { position: fixed; top: 88px; left: 50%; transform: translateX(-50%); z-index: 60; width: min(560px, calc(100vw - 32px)); pointer-events: none; }
+#lk-tut-coach.hidden { display: none !important; }
+#lk-tut-coach .lk-ctut__card { grid-template-columns: auto minmax(0, 1fr); }
+#lk-tut-coach .lk-ctut__coach { width: 52px; height: 52px; }
+#ui-overlay .tut-highlight, .lk-cb-ult-wrap .tut-highlight { box-shadow: 0 0 0 3px #EED39A, 0 0 26px rgba(238, 211, 154, .85) !important; animation: lkTutTarget 1.4s ease-in-out infinite !important; border-radius: 50%; }
+
+/* Barra de vida del duelo: marca del 30 % */
+.lk-duel-mark { position: fixed; z-index: 61; left: 50%; top: 150px; transform: translateX(-50%); padding: 4px 12px; border-radius: 999px; font: 800 .66rem/1 var(--lk-font-ui); letter-spacing: .14em; text-transform: uppercase; color: #2a1d08; background: linear-gradient(180deg, #EED39A, #C9A867); box-shadow: 0 4px 12px rgba(0, 0, 0, .4); }
+.lk-duel-mark.hidden { display: none; }
+
+/* Franja del tutorial al pie de la pantalla (pasos dentro de la Forja y de la Mochila) */
+.lk-tut.lk-tut--low { top: auto; bottom: 18px; }
+.lk-tut__skip[hidden] { display: none; }
+.lk-tut.is-completed { padding-right: 56px !important; }
+
+/* Carga de la cinemática sobre el velo negro */
+.lk-cine-veil__load { position: absolute; left: 50%; bottom: 14vh; transform: translateX(-50%); display: grid; justify-items: center; gap: 10px; font: 800 .72rem/1 var(--lk-font-ui, sans-serif); letter-spacing: .24em; text-transform: uppercase; color: #C9A867; }
+.lk-cine-veil__load i { display: block; width: 200px; height: 2px; border-radius: 2px; background: rgba(239, 232, 218, .12); overflow: hidden; }
+.lk-cine-veil__load b { display: block; height: 100%; width: 0; background: linear-gradient(90deg, #C9A867, #FFF1C9); transition: width .2s; }

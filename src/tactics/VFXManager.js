@@ -330,8 +330,8 @@ export class VFXManager {
     group.add(shellMesh);
 
     // Point Light flash
-    const fireLight = new THREE.PointLight(0xff5500, 3.5, 6.0);
-    group.add(fireLight);
+    // Luz prestada del conjunto fijo del combate (se devuelve sola al quitar el grupo de la escena)
+    const fireLight = this.scene.userData.lightPool?.acquire({ color: 0xff5500, intensity: 3.5, distance: 6.0, decay: 2, follow: group, maxLife: 1.5 }) || { intensity: 0 };
 
     this.scene.add(group);
 
@@ -428,9 +428,8 @@ export class VFXManager {
     this.scene.add(group);
 
     // 1. High-intensity point light burst
-    const burstLight = new THREE.PointLight(0xfffbeb, 8.0, 15);
-    burstLight.position.set(0, 1.2, 0);
-    group.add(burstLight);
+    // Luz prestada del conjunto fijo del combate (se devuelve sola al quitar el grupo de la escena)
+    const burstLight = this.scene.userData.lightPool?.acquire({ color: 0xfffbeb, intensity: 8.0, distance: 15, decay: 2, follow: group, offset: { x: 0, y: 1.2, z: 0 }, maxLife: 4 }) || { intensity: 0 };
 
     // 2. Ascending celestial pillar of light
     const pillarGeo = new THREE.CylinderGeometry(0.5, 0.9, 14, 16, 1, true);

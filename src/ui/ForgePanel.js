@@ -10,6 +10,10 @@ import { ForgeService, EQ_SLOTS, MATERIALS, FORGE_ANVILS } from '../rpg/ForgeSer
 import { ITEMS_DB } from '../tactics/ItemDatabase.js';
 import { asset, esc, toast, sprite } from './lk.js';
 import { ForgeStation } from '../rpg/world/ForgeStation.js';
+import { matSvg, matIcon } from './MaterialIcons.js';
+import { MATERIAL_RARITY_NAME, CRAFT_RECIPES, EVOLUTION_COST } from '../tactics/data/EconomyCatalog.js';
+
+export { matSvg };
 
 const I = (n) => asset(`assets/ui/icons/${n}.png`);
 const CUR = { gold: ['Oro', I('resource'), '#B8892E'], slp: ['SLP', asset('assets/currency/slp.png'), '#E58BB8'], baxs: ['bAXS', asset('assets/currency/baxs.png'), '#C24FD0'] };
@@ -18,19 +22,6 @@ const SLOT1 = { weapon: 'Arma', hat: 'Sombrero', shield: 'Escudo', body: 'Armadu
 const RAR_NAME = { legendary: 'Legendario', epic: 'Épico', rare: 'Raro', uncommon: 'Poco común', common: 'Común', mystic: 'Místico' };
 const FTABS = [['all', 'Todo'], ['weapon', 'Armas'], ['hat', 'Sombreros'], ['shield', 'Escudos'], ['body', 'Armaduras'], ['boots', 'Botas']];
 export const BIOME = { forest: ['Bosque', '#4E9A6B'], savannah: ['Sabana', '#C9973A'], arctic: ['Ártico', '#4C9CC4'], mystic: ['Mística', '#C2608F'], dungeon: ['Génesis', '#6366F1'], any: ['Todas las islas', '#B8892E'] };
-const GLYPH = {
-  bamboo: '<path d="M8 3v18M15 3v18"/><path d="M6.5 8h3M6.5 14h3M13.5 6h3M13.5 12h3M13.5 18h3"/><path d="M15 9c2-1 4-1 5 0M8 11c-2-1-4-1-5 0"/>',
-  fiber: '<path d="M5 3c4 3-2 6 2 9s-2 6 2 9"/><path d="M11 3c4 3-2 6 2 9s-2 6 2 9"/><path d="M17 3c4 3-2 6 2 9"/>',
-  resin: '<path d="M12 3c3 5 6 8 6 12a6 6 0 0 1-12 0c0-4 3-7 6-12z"/><path d="M9.5 15a2.5 2.5 0 0 0 2.5 2.5"/>',
-  hide: '<path d="M7 4c1 1 2 1 5 1s4 0 5-1l2 3-1 3 1 4-2 3 1 3H6l1-3-2-3 1-4-1-3z"/>',
-  ingot: '<path d="M3 16l3-7h12l3 7z"/><path d="M6 9l2-3h8l2 3"/><path d="M3 16h18v3H3z"/>',
-  crystal: '<path d="M12 2l5 6-5 14-5-14z"/><path d="M7 8h10M12 2v20"/>',
-  dust: '<path d="M12 4l1.5 3.5L17 9l-3.5 1.5L12 14l-1.5-3.5L7 9l3.5-1.5z"/><circle cx="6" cy="17" r="1.3"/><circle cx="17" cy="17" r="1.8"/><circle cx="11" cy="20" r="1"/>',
-  spool: '<path d="M7 4h10M7 20h10"/><path d="M8 4v16M16 4v16"/><path d="M8 8l8 3M8 12l8 3M8 16l8 2"/>',
-  gem: '<path d="M6 4h12l4 6-10 11L2 10z"/><path d="M2 10h20M9 4l3 6 3-6M12 10v11"/>',
-  flame: '<path d="M12 3c1 4 5 5 5 10a5 5 0 0 1-10 0c0-3 2-4 2-7 2 1 3 3 3 5"/>',
-  shard: '<path d="M14 3a8 8 0 1 0 7 11A7 7 0 0 1 14 3z"/><path d="M9 9l3 3-2 4"/>',
-};
 const ANVIL_SVG = '<svg class="lk-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 8h13a5 5 0 0 1-5 5H9v3h6v3H6v-3h3v-3H7A4 4 0 0 1 3 9z"/><path d="M16 8h5"/><path d="M18 4l-2 2M21 5l-2 1"/></svg>';
 const ARROW = '<svg viewBox="0 0 36 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12h30M24 4l8 8-8 8"/></svg>';
 const SPARKS = `<svg class="lk-anvil__fx" viewBox="0 0 400 260" aria-hidden="true"><g stroke="#FFD27A" stroke-width="3" stroke-linecap="round">${Array.from({ length: 14 }, (_, i) => { const a = (i / 14) * Math.PI * 2, r2 = 110 + (i % 3) * 18; return `<line x1="${(200 + Math.cos(a) * 60).toFixed(1)}" y1="${(130 + Math.sin(a) * 60).toFixed(1)}" x2="${(200 + Math.cos(a) * r2).toFixed(1)}" y2="${(130 + Math.sin(a) * r2).toFixed(1)}"/>`; }).join('')}</g></svg>`;
@@ -42,13 +33,12 @@ const fmtH = (h) => {
   if (h > 0 && m < 1) return 'menos de 1 min';
   return m >= 60 ? `${Math.floor(m / 60)} h${m % 60 ? ` ${m % 60} min` : ''}` : `${m} min`;
 };
-export const matSvg = (g, cls = 'lk-mat-ico') => `<svg class="${cls}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${GLYPH[g] || GLYPH.gem}</svg>`;
 const isImg = (s) => typeof s === 'string' && (/^(\.\/|\/|assets\/|http|data:image)/.test(s) || /\.(png|jpe?g|webp|svg)$/i.test(s));
 const rarVar = (r) => `var(--lk-rar-${['rare', 'epic', 'mystic', 'legendary', 'uncommon'].includes(r) ? r : 'common'})`;
-const bg = (it) => (it.biome ? BIOME[it.biome]?.[1] || '#B8892E' : rarVar(it.rarity));
+const bg = (it) => rarVar(it.rarity); // fondo = color de la rareza (también en materiales)
 function art(it) {
   if (!it) return '';
-  if (it.glyph) return matSvg(it.glyph);
+  if (it.glyph && !it.icon) return matSvg(it.glyph);
   if (isImg(it.icon)) return `<img class="${it.isT0 ? 'lk-is-t0' : ''}" src="${it.icon}" alt="" draggable="false">`;
   return `<span class="lk-emoji">${esc(it.icon || '📦')}</span>`;
 }
@@ -93,7 +83,7 @@ export function attachForge(game) {
         <div class="lk-forge-stage" data-ref="stage"></div>
       </div>
       <div class="lk-forge-jobs" data-ref="jobs" hidden></div>
-      <div class="lk-forge-pouch"><span class="lk-label">Bolsa de materiales</span><div class="lk-forge-mats" data-ref="pouch"></div></div>
+      <div class="lk-forge-pouch"><div class="lk-forge-pouch__head"><span class="lk-label">Bolsa de materiales</span><small data-ref="pouchCount"></small><span class="lk-forge-pouch__hint">Pasa el ratón por un material para ver de dónde sale</span></div><div class="lk-forge-mats" data-ref="pouch" role="list"></div></div>
     </div>`;
   document.body.appendChild(modal);
   const $ = (r) => modal.querySelector(`[data-ref="${r}"]`);
@@ -139,10 +129,17 @@ export function attachForge(game) {
   }
 
   const curChip = (k, need, have, extra = '') => `<div class="lk-cost ${need > have + 1e-9 ? 'lk-is-short' : ''}"><span class="lk-ci lk-cur" style="--r:${CUR[k][2]}"><img src="${CUR[k][1]}" alt=""></span><span class="lk-cn"><b>${CUR[k][0]}</b><small>${k === 'baxs' ? fmtB(need) : fmt(need)}${need > have + 1e-9 ? ` · tienes ${k === 'baxs' ? fmtB(have) : fmt(have)}` : ''}</small>${extra}</span></div>`;
+  /** Casilla de material (como las de la Mochila): dibujo sobre el color de su rareza y «tienes/necesitas» en la esquina. */
+  const matTile = (m, have, need) => {
+    const short = have < need;
+    return `<span class="lk-fneed ${short ? 'lk-is-short' : 'lk-is-ok'}" data-id="${m.id}" style="--r:${bg(m)}" tabindex="0" aria-label="${esc(m.name)}: tienes ${have} de ${need}">${matIcon(m)}<em>${have}/${need}</em></span>`;
+  };
   function costHTML(c, baxsNote = '', { onlyMats = false } = {}) {
     const w = ForgeService.wallet();
     if (onlyMats) c = { ...c, gold: 0, slp: 0, baxs: 0 };
-    return `<div class="lk-cost-list">${c.gold ? curChip('gold', c.gold, w.gold) : ''}${c.slp ? curChip('slp', c.slp, w.slp) : ''}${c.rows.map((r) => { const m = MATERIALS[r.id]; return `<div class="lk-cost ${r.have < r.need ? 'lk-is-short' : ''}"><span class="lk-ci" style="--r:${bg(m)}">${matSvg(m.glyph, '')}</span><span class="lk-cn"><b>${esc(m.name)}</b><small>${r.have} / ${r.need}</small>${r.have < r.need ? `<span class="lk-src">${esc(m.source)}</span>` : ''}</span></div>`; }).join('')}${c.baxs ? curChip('baxs', c.baxs, w.baxs, baxsNote ? `<span class="lk-src">${baxsNote}</span>` : '') : ''}</div>`;
+    const mats = c.rows.length ? `<div class="lk-forge-need">${c.rows.map((r) => matTile(MATERIALS[r.id], r.have, r.need)).join('')}</div>` : '';
+    const cur = (c.gold || c.slp || c.baxs) ? `<div class="lk-cost-list">${c.gold ? curChip('gold', c.gold, w.gold) : ''}${c.slp ? curChip('slp', c.slp, w.slp) : ''}${c.baxs ? curChip('baxs', c.baxs, w.baxs, baxsNote ? `<span class="lk-src">${baxsNote}</span>` : '') : ''}</div>` : '';
+    return `${cur}${mats}`;
   }
   function whyShort(c) {
     const w = ForgeService.wallet();
@@ -159,7 +156,7 @@ export function attachForge(game) {
     if (e.job) {
       const j = e.job, to = ITEMS_DB[j.to];
       st.innerHTML = `<div class="lk-anvil" data-ref="anvil"><div class="lk-anvil__pair">${fcard(e.it, 'lk-is-ghost', '', null, e.who)}<span class="lk-anvil__arrow">${ARROW}${j.ready ? 'Lista' : 'Forjándose'}</span>${fcard(to, 'lk-is-next', '', e.it, e.who)}</div>${SPARKS}</div>
-        <div class="lk-forge-cost lk-is-job"><div><div class="lk-job-big" data-jobbig="${j.uid}"></div>${j.ready ? '' : speedUpHTML(j)}</div><div class="lk-forge-go"><button type="button" class="lk-btn lk-btn-primary-gold" data-act="go" ${j.ready ? '' : 'disabled'}><span class="lk-b-ico"><img class="lk-ai" src="${I('tick')}" alt=""></span>${j.ready ? 'Recoger' : 'En la forja…'}</button><span class="lk-keep">${j.hero ? `Mientras tanto ${esc(e.who)} sigue usando la versión actual.` : 'Al recogerla vuelve a tu Mochila.'}</span></div></div>`;
+        <div class="lk-forge-cost lk-is-job"><div><div class="lk-job-big" data-jobbig="${j.uid}"></div>${j.ready ? '' : speedUpHTML(j)}</div><div class="lk-forge-go"><button type="button" class="lk-btn lk-btn-primary-gold" data-act="go" ${j.ready ? '' : 'disabled'}><span class="lk-b-ico"><img class="lk-ai" src="${I('tick')}" alt=""></span>${j.ready ? 'Recoger' : 'En la forja…'}</button><span class="lk-keep">${j.hero ? `${esc(e.who)} no la lleva mientras se forja; al recogerla vuelve a equipársela (si el hueco sigue libre).` : 'Al recogerla vuelve a tu Mochila.'}</span></div></div>`;
       st.querySelector('[data-act="go"]').addEventListener('click', () => collect(j.uid));
       st.querySelectorAll('.lk-speed__opts button[data-x]').forEach((b) => b.addEventListener('click', () => speedUp(j.uid, +b.dataset.x)));
       tick(); renderPouch(); return;
@@ -178,12 +175,12 @@ export function attachForge(game) {
       cost = e.q.cost; label = `Evolucionar · ${fmt(cost.slp)} SLP`; btnIco = CUR.slp[1];
       const feeShort = cost.baxs > w.baxs + 1e-9;
       fee = `<span class="lk-forge-fee ${feeShort ? 'lk-is-short' : ''}"><img src="${CUR.baxs[1]}" alt="">Comisión <b>${fmtB(cost.baxs)} bAXS</b>${feeShort ? ` · tienes ${fmtB(w.baxs)}` : ''}</span>`;
-      keep = `Lista en <b>${fmtH(h)}</b>${e.gear.hero ? ` · mientras tanto ${esc(e.who)} sigue usando la versión actual` : ''}. Podrás acelerarla con bAXS cuando empiece.`;
+      keep = `Lista en <b>${fmtH(h)}</b>${e.gear.hero ? ` · ${esc(e.who)} no la llevará hasta recogerla` : ''}. Podrás acelerarla con bAXS cuando empiece.`;
       if (ForgeService.anvilsFree() <= 0) why = `Los ${FORGE_ANVILS} yunques están ocupados: recoge o espera una pieza.`;
     }
     if (!why && !cost.ok) why = whyShort(cost);
     st.innerHTML = `<div class="lk-anvil" data-ref="anvil"><div class="lk-anvil__pair">${pair}</div>${SPARKS}</div>
-      <div class="lk-forge-cost"><div><span class="lk-label">${FG.mode === 'craft' ? 'Coste' : 'Materiales'}</span>${costHTML(cost, '', { onlyMats: FG.mode === 'evolve' })}</div>
+      <div class="lk-forge-cost"><div class="lk-forge-matbox"><span class="lk-label">Materiales</span>${costHTML(cost, '', { onlyMats: true })}</div>
         <div class="lk-forge-go"><button type="button" class="lk-btn lk-btn-primary-gold" data-act="go" ${cost.ok && !why ? '' : 'disabled'}><span class="lk-b-ico"><img class="${FG.mode === 'evolve' ? 'lk-cur-ico' : 'lk-ai'}" src="${btnIco}" alt=""></span>${label}</button>${fee}<span class="lk-why">${esc(why)}</span><span class="lk-keep">${keep}</span></div></div>`;
     st.querySelector('[data-act="go"]').addEventListener('click', () => doForge(e));
     renderPouch(cost);
@@ -191,7 +188,10 @@ export function attachForge(game) {
 
   function renderPouch(cost = null) {
     const need = new Set((cost?.rows || []).map((r) => r.id)), mats = ForgeService.mats();
-    $('pouch').innerHTML = Object.values(MATERIALS).map((m) => { const n = mats[m.id] || 0; return `<span class="lk-fm ${n ? '' : 'lk-is-zero'} ${need.has(m.id) ? 'lk-is-need' : ''}" data-id="${m.id}" style="--r:${bg(m)}" tabindex="0" aria-label="${esc(m.name)}: ${n}">${matSvg(m.glyph, '')}<em>${n}</em></span>`; }).join('');
+    const list = Object.values(MATERIALS);
+    const kinds = list.filter((m) => (mats[m.id] || 0) > 0).length, total = list.reduce((a, m) => a + (mats[m.id] || 0), 0);
+    $('pouchCount').textContent = `${kinds} de ${list.length} · ${total} en total`;
+    $('pouch').innerHTML = list.map((m) => { const n = mats[m.id] || 0; return `<span class="lk-fm ${n ? '' : 'lk-is-zero'} ${need.has(m.id) ? 'lk-is-need' : ''}" data-id="${m.id}" style="--r:${bg(m)}" tabindex="0" role="listitem" aria-label="${esc(m.name)}: ${n}">${matIcon(m)}<em>${n}</em></span>`; }).join('');
   }
 
   function strike() {
@@ -268,13 +268,37 @@ export function attachForge(game) {
   modal.querySelector('[data-act="close"]').addEventListener('click', close);
   modal.addEventListener('pointerdown', (ev) => { if (ev.target === modal) close(); });
   modal.addEventListener('wheel', (ev) => ev.stopPropagation(), { passive: true });
+  /** «Se usa en»: recetas de Crear y tiers de evolución que piden este material. */
+  const matUses = (id) => {
+    const rec = CRAFT_RECIPES.filter((r) => r.mats?.[id]).map((r) => ITEMS_DB[r.result]?.name).filter(Boolean);
+    const evo = Object.entries(EVOLUTION_COST).filter(([, c]) => c.mats?.[id] || (id === 'mat_lunar_shard' && c.shards)).map(([t]) => `T${t}`);
+    return [rec.length ? `Crear ${rec.slice(0, 3).join(', ')}${rec.length > 3 ? '…' : ''}` : '', evo.length ? `Evolucionar a ${evo.join(', ')}` : ''].filter(Boolean);
+  };
   const showTip = (el) => {
     const m = MATERIALS[el.dataset.id]; if (!m) return;
-    mtip.innerHTML = `<div class="lk-tooltip-tactical" style="width:230px"><header><div><small>${m.tier ? `Tier ${m.tier} · ${BIOME[m.biome]?.[0] || ''}` : 'Catalizador'}</small><b>${esc(m.name)}</b></div></header><div class="lk-tt-body"><p style="margin:0">${esc(m.description)}</p><p style="margin:6px 0 0;font-weight:800;color:#9D7A42">${esc(m.source)}</p></div></div>`;
-    const r = el.getBoundingClientRect();
-    mtip.style.left = `${Math.min(innerWidth - 240, Math.max(8, r.left + r.width / 2 - 115))}px`; mtip.style.top = `${r.top - 8}px`; mtip.style.transform = 'translateY(-100%)';
+    const have = ForgeService.mats()[m.id] || 0, uses = matUses(m.id);
+    const kind = m.tier ? `Material · ${BIOME[m.biome]?.[0] || 'Lunacia'}` : 'Catalizador';
+    mtip.innerHTML = `<div class="lk-tooltip-tactical lk-mat-tt" style="--c:${bg(m)}">
+      <header><span class="lk-mat-tt__art" style="--r:${bg(m)}">${matIcon(m)}</span><div><small>${esc(kind)}</small><b>${esc(m.name)}</b><span class="lk-rar-chip" data-r="${m.rarity || 'common'}">${MATERIAL_RARITY_NAME[m.rarity] || 'Común'}</span></div></header>
+      <div class="lk-tt-body">
+        <p class="lk-mat-tt__desc">${esc(m.description || '')}</p>
+        <div class="lk-mat-tt__row"><img class="lk-ai" src="${I('map')}" alt=""><span><b>Dónde conseguirlo</b>${esc(m.source || '—')}</span></div>
+        ${uses.length ? `<div class="lk-mat-tt__row"><img class="lk-ai" src="${I('build')}" alt=""><span><b>Se usa para</b>${uses.map(esc).join(' · ')}</span></div>` : ''}
+        <div class="lk-mat-tt__have"><span>En tu bolsa</span><b>${have}</b></div>
+      </div></div>`;
     mtip.classList.add('lk-is-on');
+    const r = el.getBoundingClientRect(), tw = mtip.offsetWidth || 260, th = mtip.offsetHeight || 200;
+    const above = r.top - th - 10 > 8;
+    mtip.style.left = `${Math.min(innerWidth - tw - 8, Math.max(8, r.left + r.width / 2 - tw / 2))}px`;
+    mtip.style.top = `${above ? r.top - 10 : r.bottom + 10}px`;
+    mtip.style.transform = above ? 'translateY(-100%)' : 'none';
   };
+  const hideTip = () => mtip.classList.remove('lk-is-on');
+  // Tooltip también en los materiales del coste
+  $('stage').addEventListener('mouseover', (ev) => { const f = ev.target.closest('.lk-fneed'); if (f) showTip(f); });
+  $('stage').addEventListener('focusin', (ev) => { const f = ev.target.closest('.lk-fneed'); if (f) showTip(f); });
+  $('stage').addEventListener('mouseout', (ev) => { if (ev.target.closest('.lk-fneed')) hideTip(); });
+  $('stage').addEventListener('focusout', hideTip);
   const pouch = $('pouch');
   pouch.addEventListener('mouseover', (ev) => { const f = ev.target.closest('.lk-fm'); if (f) showTip(f); });
   pouch.addEventListener('focusin', (ev) => { const f = ev.target.closest('.lk-fm'); if (f) showTip(f); });
@@ -296,6 +320,8 @@ export function attachForge(game) {
 
   function open() {
     if (api.isOpen) return;
+    const lock = ow.tutorialManager?.lockMessage?.('forge'); // Hito 48: la Forja llega en su fase del tutorial
+    if (lock) { ow._showFeatureLockedFeedback?.(lock); return; }
     if (document.body.classList.contains('state-combat') || window.__AXIE_TACTICS_APP__?.gameState === 'BATTLE') return;
     api.isOpen = true;
     station.hidePrompt();
@@ -314,6 +340,7 @@ export function attachForge(game) {
   // ------------------------------------------------------------------ yunque en el mundo
   const station = new ForgeStation(ow, { onUse: open });
   ow.forgeModal = api;
+  api.setMode = (m) => { if (m !== 'craft' && m !== 'evolve') return; FG.mode = m; FG.sel = null; if (api.isOpen) render(); }; // Hito 48 (tutorial)
   window.lunakaiForge = { open, close, service: ForgeService, station, finishAll: () => { ForgeService.finishAll(); render(); } };
   return api;
 }

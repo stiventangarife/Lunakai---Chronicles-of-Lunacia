@@ -107,9 +107,10 @@ export class UltimateSystem {
    * Prepara el combate. units: unidades del combate; mainHeroId: id del Axie principal (squad[1]);
    * bond: vínculo con él al entrar (0–100).
    */
-  setupCombat({ units = [], mainHeroId = null, bond = 0, isTutorial = false } = {}) {
+  setupCombat({ units = [], mainHeroId = null, bond = 0, isTutorial = false, minRound = null } = {}) {
     this.reset();
     this.isTutorial = Boolean(isTutorial);
+    this.minRound = minRound ?? ULTIMATE_MIN_ROUND; // Hito 48: la prueba del tutorial la deja desde la ronda 1
     this.sapidae = units.find((u) => u.team === 'player' && u.type === 'sapidae') || null;
     this.axie = (mainHeroId && units.find((u) => u.id === mainHeroId && u.team === 'player'))
       || units.find((u) => u.team === 'player' && u.type !== 'sapidae') || null;
@@ -135,7 +136,7 @@ export class UltimateSystem {
     if (!caster || caster !== this.sapidae) return r('not_sapidae');
     const active = this.sm._activeUnit?.();
     if (active && active !== caster) return r('not_turn');
-    if (this.round() < ULTIMATE_MIN_ROUND) return r('round');
+    if (this.round() < (this.minRound ?? ULTIMATE_MIN_ROUND)) return r('round');
     if ((caster.currentPA || 0) < this.spell.paCost) return r('pa');
     return r('ok');
   }

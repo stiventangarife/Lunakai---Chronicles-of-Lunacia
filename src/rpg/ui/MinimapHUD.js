@@ -127,16 +127,26 @@ export class MinimapHUD {
 
     this.pulseTime += dt * 3.0;
 
+    // Rendimiento: el radar se redibuja a ~30 Hz (no en cada fotograma) y los textos solo se
+    // escriben en el DOM cuando cambian (cada escritura obliga a recalcular estilos).
+    this._redrawAcc = (this._redrawAcc || 0) + dt;
+    if (this._redrawAcc < 1 / 30) return;
+    this._redrawAcc = Math.min(this._redrawAcc - 1 / 30, 1 / 30); // conserva el sobrante: 30 Hz estables
+
     // Update live coordinates text & zone title
     const isSavannah = Boolean(ISLANDS_REGISTRY.island_savannah?.isCurrent);
-    const titleEl = document.getElementById('minimap-zone-title');
-    if (titleEl) {
-      titleEl.textContent = isSavannah ? 'Isla de la Sabana' : 'Isla del Bosque';
+    if (!this._titleEl || !this._titleEl.isConnected) { this._titleEl = document.getElementById('minimap-zone-title'); this._titleTxt = null; }
+    const titleTxt = isSavannah ? 'Isla de la Sabana' : 'Isla del Bosque';
+    if (this._titleEl && this._titleTxt !== titleTxt) {
+      this._titleEl.textContent = titleTxt;
+      this._titleTxt = titleTxt;
     }
 
-    const coordsEl = document.getElementById('minimap-coords-text');
-    if (coordsEl) {
-      coordsEl.textContent = `X ${playerPos.x.toFixed(1)} · Z ${playerPos.z.toFixed(1)}`;
+    if (!this._coordsEl || !this._coordsEl.isConnected) { this._coordsEl = document.getElementById('minimap-coords-text'); this._coordsTxt = null; }
+    const coordsTxt = `X ${playerPos.x.toFixed(1)} · Z ${playerPos.z.toFixed(1)}`;
+    if (this._coordsEl && this._coordsTxt !== coordsTxt) {
+      this._coordsEl.textContent = coordsTxt;
+      this._coordsTxt = coordsTxt;
     }
 
     const ctx = this.ctx;

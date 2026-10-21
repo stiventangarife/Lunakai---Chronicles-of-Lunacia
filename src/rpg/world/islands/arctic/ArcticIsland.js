@@ -254,7 +254,18 @@ function arcticProfile(zone) {
     // Fade LOD for the trees: full tree near the camera, dithered cross-fade to a low-poly proxy
     build: (layer) => {
       if (!layer.trees) return;
-      const lod = new ArcticTreeLOD(layer.trees, { camera: () => zone.om && zone.om.camera, snow: 0.5 });
+      const lod = new ArcticTreeLOD(layer.trees, {
+        camera: () => zone.om && zone.om.camera,
+        // referencia = jugador; si la cámara está lejos de él (recorridos, cinemáticas), la cámara
+        focus: () => {
+          const p = zone.om && zone.om.player && zone.om.player.position;
+          const c = zone.om && zone.om.camera && zone.om.camera.position;
+          if (!p) return null;
+          if (c && Math.hypot(c.x - p.x, c.z - p.z) > 25) return c;
+          return p;
+        },
+        snow: 0.5,
+      });
       zone.treeLOD = lod;
       lod.update(true);
       layer.updatables.push(() => lod.update());

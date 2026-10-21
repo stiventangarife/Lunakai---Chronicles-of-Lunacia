@@ -2,7 +2,7 @@
 
 Bienvenido al repositorio de documentación técnica, arquitectura y especificaciones de **Lunakai: Chronicles of Lunacia** (anteriormente *Axie Tactics*), un RPG táctico 3D con exploración de mundo abierto (*Overworld*) estilizado y combates estratégicos por turnos basado en la propiedad intelectual de Axie Infinity.
 
-> **Estado actual (17-oct-2026) — versión de prueba:** el mundo jugable son las **5 grandes islas** con dirección de arte Genshin: Bosque, Sabana, Ártico, Mística y **Genesis** (la antigua Mazmorra, rediseñada en el Hito 24).
+> **Estado actual (21-oct-2026) — versión de prueba:** el mundo jugable son las **5 grandes islas** con dirección de arte Genshin: Bosque, Sabana, Ártico, Mística y **Genesis** (la antigua Mazmorra, rediseñada en el Hito 24).
 > - **Viaje entre islas:** se habla con el barquero **Pomodoro** en la playa de cada isla; los portales cardinales están retirados.
 > - **Cuentas y nube (Hito 25):** inicio de sesión con Sky Mavis o correo y guardado en Supabase; falta la configuración del servidor.
 > - **Motor de combate nuevo (Hitos 26–32):**
@@ -13,8 +13,12 @@ Bienvenido al repositorio de documentación técnica, arquitectura y especificac
 >   - las 235 cartas de partes con las cartas reales de cada Axie;
 >   - pronóstico de daño, enemigos con estados y primera pasada de equilibrio.
 > - **Pruebas de equilibrio:** cada combate queda registrado en el navegador. En la consola (F12), `lkDebug.balanceExport()` descarga el registro (Hito 32).
+> - **VFX y tableros (Hitos 33–37, 42):** efectos del motor propio para todas las cartas, Sapidae, Ultimates y enemigos; 15 mapas de combate por bioma y *dither fading*.
+> - **Economía (Hitos 43–46):** Forja (crear y evolucionar), Tienda del Mercader Ochi, runas y charms con efecto en combate, recolección (pesca, tala, minería y flores) y la lista de ítems del Excel.
+> - **Personaje (Hito 47):** el jugador es **Ema** o **Kai**, con peinado, ojos, boca y colores.
+> - **Inicio de partida (Hito 48):** cinemática del prólogo con final épico y tutorial en 7 fases con el Maestro Paladill (se puede saltar).
 >
-> Los hitos 2, 3, 6, 9, 10, 11 y 21 describen sistemas históricos y llevan una nota de estado al principio. Donde aparece "Mazmorra", hoy es Genesis.
+> Los hitos 2, 3, 6, 9, 10, 11 y 21 describen sistemas históricos y llevan una nota de estado al principio. Los hitos 4, 12, 14, 15, 29, 30, 43, 44 y 45 llevan una nota de actualización con lo que cambió después. Donde aparece "Mazmorra", hoy es Genesis.
 
 ---
 
@@ -294,6 +298,23 @@ Bienvenido al repositorio de documentación técnica, arquitectura y especificac
     - Las 63 runas y los 90 charms de la guía tienen efecto en combate: estadísticas del Axie, cartas modificadas por el charm de su parte, % de daño, críticos, esquiva, reacciones, robo de vida, turnos, rondas y golpe letal.
     - El HUD y la Mochila muestran el coste, el alcance y el daño reales; la ficha del charm enseña el «antes → después» de la carta.
     - Consola: `lkDebug.runes()`, `lkDebug.rune()`, `lkDebug.charm()`.
+45. [**Hito 45: Recolección de recursos**](HITO_45_RECOLECCION.md)
+    - Pesca en el río del Bosque y tala (el Axie, con la caña y el hacha del Mixer); minería en la Sabana y flores en Mística (el Sapidae). Tala de abetos en el Ártico y un árbol junto a la Forja.
+    - 3 puntos por isla, 6 s sin poder moverse: 1–3 unidades y un 10 % de raro, a la bolsa de la Forja (pestaña «Materiales» de la Mochila); el punto vuelve a los 8 min reales. Iconos en el minimapa y en el mapa del mundo.
+    - Consola: `lunakaiGathering.status()`, `.check()`, `.reset()`.
+46. [**Hito 46: Lista de ítems de la demo**](HITO_46_LISTA_DE_ITEMS.md)
+    - Solo los ítems del Excel: 7 líneas de equipo × 4 rarezas (Común se crea; Raro, Épico y Místico solo evolucionando en 1, 2 y 3 min), 14 materiales con rareza, comida nueva (fruta, pescado y koi) y 3 pociones.
+    - Recetas, botín por isla, recompensas de misión, Tienda y lote inicial de la Forja rehechos con los materiales nuevos; las partidas viejas se limpian al cargar.
+    - Iconos en WEBP (equipo, consumibles, materiales y objetos de misión) con el fondo del color de su rareza.
+    - La Forja se queda la pieza mientras evoluciona y la devuelve equipada; pantalla de arranque que avisa si un archivo falla; la tecla H ya no abre el panel de evaluación.
+47. [**Hito 47: Sapidae Ema y Kai**](HITO_47_SAPIDAE_EMA_KAI.md)
+    - Modelos nuevos del jugador con piezas A–E: Kai (5 peinados, 5 ojos, 3 bocas, camisa D) y Ema (5 peinados con Rizos por defecto, 5 ojos, 5 bocas, camisa B).
+    - Color de pelo y cabeza a la vez, color de ojos, de cuernos y de camisa; cada opción con su imagen en el creador.
+    - En combate la cara cambia al atacar y al recibir daño; las partidas existentes pasan a Ema / Kai al cargarse.
+48. [**Hito 48: Cinemática del prólogo y tutorial nuevo**](HITO_48_CINEMATICA_Y_TUTORIAL.md)
+    - Cinemática de 73 s en papel y teatro de sombras con final épico (el Señor de las Quimeras, tu Sapidae y tu Axie, el logo LUNAKAI).
+    - Tutorial en 7 fases con diálogos cortos: defensa del Dojo, Mochila, duelo con Paladill, Forja, vínculo y Ultimate, runas y graduación. Botón «Saltar tutorial».
+    - Funciones bloqueadas hasta su fase, tarjetas de recompensa y guardado por paso. Corregido el 21-oct: la cinemática se veía en negro por el velo de carga.
 
 ---
 
@@ -305,14 +326,16 @@ Bienvenido al repositorio de documentación técnica, arquitectura y especificac
 | **`[E]`** | Interactuar con NPCs y cofres (con el barquero Pomodoro: elegir isla de destino). | — |
 | **`[Espacio]`** | Avanzar líneas de diálogo. | Pasar turno / Confirmar acción. |
 | **`[I]`** | Abrir / Cerrar Inventario y Habilidades. | — |
+| **`[U]`** | Mochila › Runas y charms. | — |
+| **`[K]`** | Abrir / Cerrar Escuadrón. | — |
 | **`[L]` o `[J]`** | Abrir / Cerrar Diario de Aventuras. | — |
 | **`[M]`** | Abrir / Cerrar Mapa del Mundo e Isla. | — |
-| **`[ESC]`** | Abrir / Cerrar Menú de Opciones. | Deseleccionar acción. |
+| **`[ESC]`** | Abrir / Cerrar Menú de Opciones (en la cinemática del prólogo: saltarla). | Deseleccionar acción. |
 | **`[1]`–`[6]`** | — | Seleccionar las 6 habilidades de la unidad activa. |
-| **`[7]`** | — | Duo Ultimate (Sapidae, vínculo al 100 %, desde la ronda 2). |
+| **`[7]`** | — | Duo Ultimate (Sapidae, vínculo al 100 %, desde la ronda 2; ronda 1 en la prueba del tutorial). |
 | **Botón ⓘ del HUD** | — | Ayuda de combate: controles, estados, triángulo de clases y pronóstico. |
 | **Clic en el Axie compañero** | Panel Axie Care (acariciar, comida, paseo). | — |
-| **`F12` → `lkDebug.help()`** | — | Consola de pruebas; `lkDebug.balance()` / `balanceExport()` para el equilibrio. |
+| **`F12` → `lkDebug.help()`** | `lunakaiTutorial.state()` / `.goto(paso)` / `.skip()` para el tutorial. | Consola de pruebas; `lkDebug.balance()` / `balanceExport()` para el equilibrio. |
 
 ---
 

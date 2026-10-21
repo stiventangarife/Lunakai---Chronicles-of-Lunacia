@@ -33,6 +33,10 @@
   transform: translateY(10px) scale(.985); transition: transform .3s var(--lk-ease);
 }
 .lk-backdrop.lk-is-open > .lk-panel-modal-window { transform: none; }
+/* Rendimiento: dentro de la capa modal el fondo ya está oscurecido. El desenfoque (backdrop-filter)
+   se recalculaba en cada fotograma sobre toda la ventana porque el mundo 3D sigue dibujándose
+   detrás: era la causa principal del tirón al abrir Mochila, Forja y Tienda. Mismo tono, opaco. */
+.lk-backdrop > .lk-panel-modal-window { backdrop-filter: none; -webkit-backdrop-filter: none; background: rgba(20, 27, 45, .94); }
 
 /* Diálogo con NPC (etapa 2): el escenario del sistema de diseño es la propia escena 3D.
    La capa no bloquea el mundo; solo la caja, las respuestas y el registro reciben clics. */
@@ -803,7 +807,7 @@ img.lk-part-ico--dusk { --lk-ico-tint: grayscale(1) sepia(1) hue-rotate(130deg) 
 .lk-cb-ut .lk-cb-ut-st.lk-is-bad b { background: #B3423C; }
 
 /* ══ Mapa de Lunacia (WorldMapModal.js) · Crónica Celeste ═══════════════════════════════════════════════════════ */
-#world-map-modal.lk-wmap-layer { position: fixed; inset: 0; z-index: 1500; display: grid; place-items: center; padding: 20px; background: rgba(5, 8, 18, .62); -webkit-backdrop-filter: blur(4px); backdrop-filter: blur(4px); }
+#world-map-modal.lk-wmap-layer { position: fixed; inset: 0; z-index: 1500; display: grid; place-items: center; padding: 20px; background: rgba(5, 8, 18, .74); /* sin backdrop-filter: el mundo se sigue dibujando detrás (coste por fotograma) */ }
 #world-map-modal.lk-wmap-layer.hidden { display: none !important; }
 #world-map-modal .world-map-backdrop { position: absolute; inset: 0; background: none; }
 #world-map-modal .lk-wmap { position: relative; display: flex; flex-direction: column; width: min(1120px, 100%); height: min(720px, calc(100vh - 40px)); max-width: none; max-height: none; padding: 0; border: 0; overflow: hidden; }
@@ -1272,3 +1276,223 @@ select.lk-select option:checked { background: #22304F; color: var(--lk-lumen-300
 .lk-wallet { display: flex; gap: 6px; flex-wrap: nowrap; }
 .lk-wallet .lk-res-pill { min-width: 82px; }
 @media (max-width: 900px) { .lk-wallet .lk-res-pill.lk-cur { display: none; } }
+
+/* ── Recolección (GatheringHUD): barra de progreso donde sale «E · …» y tarjeta con el botín ── */
+.lk-gather { position: fixed; left: 50%; bottom: 104px; z-index: 120; transform: translateX(-50%); display: flex; flex-direction: column; align-items: center; gap: 10px; pointer-events: none; }
+body.state-combat .lk-gather { display: none; }
+.lk-gather__bar { --g: #D3AE6C; display: grid; grid-template-columns: auto 1fr; grid-template-rows: auto auto; column-gap: 10px; row-gap: 6px; align-items: center; min-width: 220px; padding: 8px 14px 9px 10px; border-radius: 14px; background: rgba(18, 24, 41, .9); box-shadow: inset 0 0 0 1px rgba(211, 174, 108, .35), 0 8px 20px rgba(0, 0, 0, .35); color: var(--lk-ivory-50); font-family: var(--lk-font-ui); }
+.lk-gather__bar[hidden] { display: none; }
+.lk-gather__ico { grid-row: 1 / 3; width: 34px; height: 34px; border-radius: 50%; display: grid; place-items: center; color: #121829; background: var(--g); box-shadow: 0 0 0 2px rgba(11, 15, 28, .8); }
+.lk-gather__ico svg { width: 20px; height: 20px; }
+.lk-gather__txt { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+.lk-gather__txt b { font: 800 .86rem/1.1 var(--lk-font-ui); }
+.lk-gather__txt small { font: 700 .66rem/1 var(--lk-font-ui); color: #8D97AF; white-space: nowrap; }
+.lk-gather__track { height: 6px; border-radius: 99px; overflow: hidden; background: rgba(255, 255, 255, .1); }
+.lk-gather__track > i { display: block; height: 100%; border-radius: inherit; background: var(--g); transform-origin: left center; transform: scaleX(0); }
+.lk-gather__loot { order: -1; opacity: 0; transform: translateY(8px) scale(.96); transition: opacity .25s var(--lk-ease, ease), transform .35s var(--lk-ease, ease); }
+.lk-gather__loot.lk-is-on { opacity: 1; transform: none; }
+.lk-gather__card { --g: #D3AE6C; min-width: 200px; padding: 8px 14px 10px; border-radius: 14px; background: rgba(18, 24, 41, .92); box-shadow: inset 0 0 0 1px var(--g), 0 10px 24px rgba(0, 0, 0, .4); font-family: var(--lk-font-ui); color: var(--lk-ivory-50); }
+.lk-gather__card > small { display: block; margin-bottom: 4px; font: 900 .6rem/1.2 var(--lk-font-ui); letter-spacing: .1em; text-transform: uppercase; color: #8D97AF; }
+.lk-gather__row { display: flex; align-items: center; gap: 8px; padding: 2px 0; font: 700 .86rem/1.2 var(--lk-font-ui); }
+.lk-gather__row b { font-weight: 900; color: #B9F5C3; min-width: 24px; }
+.lk-gather__mi { width: 22px; height: 22px; display: grid; place-items: center; color: var(--g); }
+.lk-gather__mi svg { width: 18px; height: 18px; }
+.lk-gather__row.lk-is-rare b, .lk-gather__row.lk-is-rare .lk-gather__mi { color: var(--lk-gilt-300, #EED39A); }
+.lk-gather__row em { margin-left: auto; padding: 1px 7px; border-radius: 99px; font: 900 .58rem/1.4 var(--lk-font-ui); font-style: normal; letter-spacing: .08em; text-transform: uppercase; color: #3D2C0E; background: var(--lk-gilt-300, #EED39A); }
+@media (prefers-reduced-motion: reduce) { .lk-gather__loot { transition: none; } }
+#world-map-modal .lk-wmap__gather .landmark-icon svg { width: 20px; height: 20px; }
+/* Materiales en la mochila (bolsa de la Forja) */
+.lk-bag .lk-it .lk-mat-art, .lk-tt-art .lk-mat-art { display: grid; place-items: center; width: 100%; height: 100%; }
+.lk-bag .lk-it .lk-mat-art svg { width: 30px; height: 30px; }
+.lk-tt-art .lk-mat-art svg { width: 26px; height: 26px; }
+
+/* ══ Forja · materiales: casillas compactas (dibujo + «tienes/necesitas» en la esquina), bolsa amplia y ficha completa ══ */
+.lk-forge-need { display: flex; flex-wrap: wrap; gap: 10px; padding: 2px 4px 6px; }
+.lk-fneed { position: relative; flex: none; width: 56px; height: 56px; display: grid; place-items: center; border-radius: 12px; background: radial-gradient(circle at 50% 30%, color-mix(in srgb, var(--r) 70%, #fff 10%), var(--r) 75%); box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .22), 0 4px 10px rgba(0, 0, 0, .3); cursor: help; transition: transform .2s var(--lk-ease), box-shadow .25s var(--lk-ease); }
+.lk-fneed > img, .lk-fneed > svg { width: 40px !important; height: 40px !important; color: #fff; filter: drop-shadow(0 2px 3px rgba(0, 0, 0, .35)); }
+.lk-fneed em { position: absolute; right: -6px; bottom: -6px; min-width: 30px; padding: 2px 6px; border-radius: 9px; font: 900 .66rem/1.2 var(--lk-font-ui); font-style: normal; text-align: center; font-variant-numeric: tabular-nums; color: #0E2A16; background: #8CF09B; box-shadow: 0 0 0 2px #121829; }
+.lk-fneed.lk-is-short { box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .22), 0 0 0 2px var(--lk-danger-crimson), 0 4px 10px rgba(0, 0, 0, .3); }
+.lk-fneed.lk-is-short > img, .lk-fneed.lk-is-short > svg { opacity: .55; }
+.lk-fneed.lk-is-short em { color: #fff; background: var(--lk-danger-crimson); }
+.lk-fneed:hover, .lk-fneed:focus-visible { outline: none; transform: translateY(-2px); }
+.lk-forge-cost .lk-cost-list + .lk-forge-need { margin-top: 10px; }
+
+/* Bolsa: título arriba y casillas a todo el ancho (sin barra de desplazamiento) */
+.lk-forge-layer .lk-forge-pouch { display: grid; gap: 10px; padding: 12px 22px 16px; }
+.lk-forge-pouch__head { display: flex; align-items: baseline; gap: 12px; }
+.lk-forge-pouch__head small { font-size: .72rem; font-weight: 800; color: #8D97AF; font-variant-numeric: tabular-nums; }
+.lk-forge-pouch__hint { margin-left: auto; font-size: .7rem; font-weight: 700; color: #6E7894; }
+.lk-forge-layer .lk-forge-mats { display: grid; grid-template-columns: repeat(auto-fill, minmax(52px, 1fr)); gap: 10px 8px; overflow: visible; padding: 4px 6px 6px 2px; }
+.lk-forge-layer .lk-fm { width: 52px; height: 52px; border-radius: 12px; justify-self: start; cursor: help; background: radial-gradient(circle at 50% 30%, color-mix(in srgb, var(--r) 70%, #fff 10%), var(--r) 75%); transition: transform .2s var(--lk-ease), box-shadow .25s var(--lk-ease), filter .2s; }
+.lk-forge-layer .lk-fm > img, .lk-forge-layer .lk-fm > svg { width: 38px !important; height: 38px !important; filter: drop-shadow(0 2px 3px rgba(0, 0, 0, .35)); }
+.lk-forge-layer .lk-fm em { right: -6px; bottom: -6px; min-width: 22px; height: 18px; font-size: .64rem; box-shadow: 0 0 0 2px #121829; }
+.lk-forge-layer .lk-fm.lk-is-zero { filter: grayscale(1) brightness(.5); }
+.lk-forge-layer .lk-fm.lk-is-zero em { opacity: .7; }
+.lk-forge-layer .lk-fm:hover, .lk-forge-layer .lk-fm:focus-visible { outline: none; transform: translateY(-2px); filter: none; box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .25), 0 0 0 2px var(--lk-ivory-100); }
+.lk-forge-layer .lk-fm.lk-is-need { box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .2), 0 0 0 2px var(--lk-lumen-300); }
+
+/* Ficha del material (papel marfil del sistema) */
+.lk-mat-tip { width: 270px; }
+.lk-mat-tt { width: 270px; }
+.lk-mat-tt header { align-items: center; }
+.lk-mat-tt__art { flex: none; width: 46px; height: 46px; display: grid; place-items: center; border-radius: 11px; background: radial-gradient(circle at 50% 30%, color-mix(in srgb, var(--r) 70%, #fff 10%), var(--r) 75%); box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .25); }
+.lk-mat-tt__art > img, .lk-mat-tt__art > svg { width: 34px !important; height: 34px !important; color: #fff; }
+.lk-mat-tt header .lk-rar-chip { margin-top: 4px; }
+.lk-mat-tt .lk-tt-body { display: grid; gap: 8px; }
+.lk-mat-tt__desc { margin: 0; font-size: .76rem; line-height: 1.4; }
+.lk-mat-tt__row { display: flex; gap: 8px; align-items: flex-start; font-size: .72rem; line-height: 1.35; color: var(--lk-ink-700, #3A4157); }
+.lk-mat-tt__row .lk-ai { flex: none; width: 18px; height: 18px; margin-top: 1px; }
+.lk-mat-tt__row b { display: block; font: 900 .6rem var(--lk-font-ui); letter-spacing: .12em; text-transform: uppercase; color: #9D7A42; }
+.lk-mat-tt__have { display: flex; justify-content: space-between; align-items: baseline; padding-top: 8px; border-top: 1px dashed rgba(157, 122, 66, .4); font-size: .72rem; font-weight: 800; color: var(--lk-ink-600); }
+.lk-mat-tt__have b { font: 400 1.1rem var(--lk-font-display); color: var(--lk-ink-900); font-variant-numeric: tabular-nums; }
+@media (prefers-reduced-motion: reduce) { .lk-fneed, .lk-forge-layer .lk-fm { transition: none; } .lk-fneed:hover, .lk-forge-layer .lk-fm:hover { transform: none; } }
+/* Materiales del coste centrados en su columna (el oro y el SLP ya van en el botón) */
+.lk-forge-cost .lk-forge-matbox { align-self: stretch; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; }
+.lk-forge-cost .lk-forge-matbox .lk-label { margin: 0 !important; }
+.lk-forge-cost .lk-forge-matbox .lk-forge-need { justify-content: center; padding: 2px 6px 8px; }
+/* Recomprar: la fila nunca ensancha la columna (antes empujaba la cuadrícula bajo la ficha) */
+.lk-shop-layer .lk-shop-main > * { min-width: 0; }
+.lk-shop-layer .lk-shop-buyback { min-width: 0; overflow: hidden; }
+.lk-shop-layer .lk-shop-buyback .lk-bb-list { flex: 1; min-width: 0; overflow-x: auto; overflow-y: hidden; padding-bottom: 2px; scroll-snap-type: x proximity; }
+.lk-shop-layer .lk-shop-buyback .lk-bb { flex: none; scroll-snap-align: start; }
+.lk-shop-layer .lk-shop-buyback .lk-bb .lk-bn { max-width: 130px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.lk-shop-layer .lk-shop-buyback .lk-bb .lk-bp { display: inline-flex; align-items: center; gap: 4px; padding-left: 6px; border-left: 1px solid rgba(211, 174, 108, .25); font-variant-numeric: tabular-nums; }
+
+/* ══ Creación · «Cargar un Axie por su ID» (StartScreenUI · panel de Mis axies) ═══════════ */
+.lk-ax-id { display: grid; gap: 10px; text-align: left; }
+.lk-ax-id__form { display: flex; gap: 10px; align-items: stretch; margin: 0; }
+.lk-ax-id__field { flex: 1; min-width: 0; display: flex; align-items: center; gap: 6px; height: 52px; padding: 0 14px; border-radius: var(--lk-r-md); background: rgba(11, 15, 28, .6); box-shadow: inset 0 0 0 1px rgba(211, 174, 108, .35); cursor: text; transition: box-shadow .25s var(--lk-ease); }
+.lk-ax-id__field:hover { box-shadow: inset 0 0 0 1px var(--lk-gilt-300); }
+.lk-ax-id__field:focus-within { box-shadow: inset 0 0 0 1px var(--lk-lumen-300), 0 0 0 3px rgba(111, 164, 242, .3); }
+.lk-ax-id__field.lk-is-bad { box-shadow: inset 0 0 0 1px var(--lk-danger-crimson), 0 0 0 3px rgba(224, 96, 90, .2); }
+.lk-ax-id__hash { font: 400 1.5rem/1 var(--lk-font-display); color: var(--lk-gilt-300); }
+.lk-ax-id__field input { flex: 1; min-width: 0; height: 100%; border: 0; outline: 0; background: none; font: 800 1.15rem/1 var(--lk-font-ui); letter-spacing: .04em; font-variant-numeric: tabular-nums; color: var(--lk-ivory-50); }
+.lk-ax-id__field input::placeholder { color: #5E6884; font-weight: 700; }
+.lk-ax-id__field input:read-only { opacity: .7; }
+.lk-ax-id__form .lk-btn { min-height: 52px; width: 156px; flex: none; justify-content: center; } /* ancho fijo: «Buscando…» no mueve el campo */
+.lk-ax-id__form .lk-btn:disabled { opacity: .5; cursor: not-allowed; }
+.lk-ax-id__help { margin: 0; font-size: .74rem; font-weight: 700; color: #8D97AF; }
+.lk-ax-id__help code { font: 700 .72rem var(--lk-font-ui); color: #AEB6CB; background: rgba(11, 15, 28, .5); padding: 1px 6px; border-radius: 6px; }
+.lk-ax-id__help code b { color: var(--lk-gilt-300); }
+/* Zona de resultado con alto mínimo: los estados no mueven el panel */
+.lk-ax-id__out { min-height: 22px; display: flex; align-items: center; gap: 8px; font-size: .8rem; font-weight: 800; color: #C8CFDF; }
+.lk-ax-id__out.lk-is-err { color: #FF9C95; }
+.lk-ax-id__ico { width: 20px; height: 20px; flex: none; display: grid; place-items: center; border-radius: 50%; font: 900 .72rem var(--lk-font-ui); color: #fff; background: var(--lk-danger-crimson); }
+.lk-ax-id__spin { width: 16px; height: 16px; flex: none; border-radius: 50%; border: 2px solid rgba(211, 174, 108, .3); border-top-color: var(--lk-gilt-300); animation: lk-ax-spin .8s linear infinite; }
+@keyframes lk-ax-spin { to { transform: rotate(360deg); } }
+.lk-ax-id__out.lk-is-found { display: block; }
+.lk-ax-id__card { display: grid; grid-template-columns: 96px minmax(0, 1fr) auto; align-items: center; gap: 14px; padding: 12px 14px; border-radius: var(--lk-r-md); background: linear-gradient(90deg, color-mix(in srgb, var(--cc) 16%, transparent), rgba(26, 34, 54, .85) 55%); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--cc) 55%, transparent); animation: lk-ax-in .3s var(--lk-ease) both; }
+@keyframes lk-ax-in { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+.lk-ax-id__art { width: 96px; height: 76px; display: grid; place-items: center; overflow: visible; } /* sin marco: el Axie solo, como en las cartas */
+.lk-ax-id__art img { width: 112px; height: 92px; object-fit: contain; filter: drop-shadow(0 6px 8px rgba(0, 0, 0, .45)); }
+.lk-ax-id__info { display: grid; gap: 3px; min-width: 0; }
+.lk-ax-id__info small { font: 900 .62rem var(--lk-font-ui); letter-spacing: .12em; text-transform: uppercase; color: var(--lk-gilt-300); }
+.lk-ax-id__info b { font: 400 1.25rem/1.15 var(--lk-font-display); color: var(--lk-ivory-50); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.lk-ax-id__cls { display: inline-flex; align-items: center; gap: 5px; font-size: .74rem; font-weight: 800; color: color-mix(in srgb, var(--cc) 70%, #fff); }
+.lk-ax-id__cls img { width: 16px; height: 16px; }
+.lk-ax-id__acts { display: grid; gap: 6px; justify-items: center; }
+.lk-ax-id__again, .lk-ax-id__back { border: 0; background: none; cursor: pointer; padding: 2px 4px; font: 800 .74rem var(--lk-font-ui); color: #AEB6CB; text-decoration: underline; text-underline-offset: 3px; }
+.lk-ax-id__again:hover, .lk-ax-id__back:hover { color: var(--lk-ivory-50); }
+.lk-ax-id__back { justify-self: start; text-decoration: none; }
+@media (max-width: 560px) { .lk-ax-id__card { grid-template-columns: 72px minmax(0, 1fr); } .lk-ax-id__art { width: 72px; height: 64px; } .lk-ax-id__art img { width: 84px; height: 72px; } .lk-ax-id__acts { grid-column: 1 / -1; justify-items: stretch; } }
+@media (prefers-reduced-motion: reduce) { .lk-ax-id__spin { animation-duration: 2.4s; } .lk-ax-id__card { animation: none; } }
+
+/* ══ Tutorial del tablero (TutorialManager · #tutorial-overlay) ═══════════
+   Mismo lenguaje que la franja de guía del mundo abierto: vidrio, filo dorado de 1 px y progreso en fases lunares.
+   · Presentación y cierre: tarjeta con el Maestro Paladill, conceptos PM/PA y un solo botón dorado (Intro).
+   · Pasos de acción: franja compacta sin botón (se avanza haciendo lo que pide); el objetivo lo marca la flecha. */
+#tutorial-overlay.lk-ctut { position: fixed; top: 88px; left: 50%; transform: translateX(-50%); z-index: 60; width: min(640px, calc(100vw - 32px)); pointer-events: none; }
+#tutorial-overlay.lk-ctut.hidden { display: none !important; }
+.lk-ctut__card { position: relative; display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 16px; padding: 14px 18px 14px 14px; border-radius: var(--lk-r-lg); pointer-events: auto;
+  background: linear-gradient(180deg, rgba(30, 39, 64, .94), rgba(18, 24, 41, .94)); backdrop-filter: blur(10px);
+  box-shadow: inset 0 0 0 1px rgba(211, 174, 108, .45), 0 14px 34px rgba(0, 0, 0, .5); }
+.lk-ctut__card::before, .lk-ctut__card::after { content: ""; position: absolute; left: 18%; right: 18%; height: 1px; background: linear-gradient(90deg, transparent, rgba(238, 211, 154, .8), transparent); }
+.lk-ctut__card::before { top: 0; } .lk-ctut__card::after { bottom: 0; }
+.lk-ctut__coach { width: 64px; height: 64px; border-radius: 50%; overflow: hidden; flex: none; background: radial-gradient(circle at 50% 30%, #3A2A1A, #171B2A); box-shadow: 0 0 0 2px var(--lk-gilt-300), 0 0 0 4px rgba(11, 15, 28, .9), 0 6px 14px rgba(0, 0, 0, .45); }
+.lk-ctut__coach img { width: 100%; height: 100%; object-fit: cover; object-position: 50% 20%; }
+.lk-ctut__body { min-width: 0; display: grid; gap: 4px; }
+.lk-ctut__head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.lk-ctut__phases { display: inline-flex; gap: 5px; }
+.lk-ctut__phases:empty { display: none; }
+.lk-ctut__phases i { width: 8px; height: 8px; transform: rotate(45deg); box-shadow: inset 0 0 0 1px var(--lk-lumen-300); }
+.lk-ctut__phases i.lk-is-full { background: var(--lk-lumen-300); }
+.lk-ctut__phases i.lk-is-half { background: linear-gradient(135deg, var(--lk-gilt-300) 50%, transparent 50%); box-shadow: inset 0 0 0 1px var(--lk-gilt-300), 0 0 8px rgba(238, 211, 154, .7); }
+.lk-ctut__badge { font: 800 .64rem/1 var(--lk-font-ui); letter-spacing: .18em; text-transform: uppercase; color: var(--lk-gilt-500); }
+.lk-ctut__title { margin: 0; font: 400 1.18rem/1.2 var(--lk-font-display); color: var(--lk-ivory-50); text-shadow: 0 1px 6px rgba(0, 0, 0, .5); }
+.lk-ctut__text { margin: 0; font-size: .82rem; line-height: 1.5; font-weight: 700; color: #C8CFDF; text-wrap: pretty; }
+.lk-ctut__text b { color: var(--lk-gilt-300); font-weight: 800; }
+.lk-ctut__text kbd { height: 20px; min-width: 22px; margin: 0 2px; vertical-align: 1px; }
+.lk-ctut__concepts { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px; }
+.lk-ctut__concepts:empty { display: none; }
+.lk-ctut__concept { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px 4px 6px; border-radius: var(--lk-r-pill); font-size: .72rem; font-weight: 700; color: #C8CFDF; background: rgba(11, 15, 28, .55); box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .08); }
+.lk-ctut__concept i { width: 10px; height: 10px; transform: rotate(45deg); border-radius: 2px; }
+.lk-ctut__concept--pm i { background: var(--lk-pm-wind-teal); box-shadow: 0 0 6px var(--lk-pm-wind-teal); }
+.lk-ctut__concept--pa i { background: var(--lk-pa-mana-blue); box-shadow: 0 0 6px var(--lk-pa-mana-blue); }
+.lk-ctut__concept b { font: 900 .7rem var(--lk-font-ui); color: var(--lk-ivory-50); }
+.lk-ctut__go { flex-direction: column; align-items: center; text-align: center; gap: 2px; padding-inline: 20px !important; min-width: 156px; min-height: 54px; justify-content: center; }
+.lk-ctut__go small { font: 800 .56rem var(--lk-font-ui); letter-spacing: .2em; text-transform: uppercase; opacity: .65; }
+.lk-ctut__go.hidden { display: none !important; }
+/* Pasos de acción: franja compacta sin retrato ni botón */
+.lk-ctut--hint .lk-ctut__card { grid-template-columns: minmax(0, 1fr); padding: 10px 22px 12px; text-align: center; border-radius: var(--lk-r-md); }
+.lk-ctut--hint .lk-ctut__coach { display: none; }
+.lk-ctut--hint .lk-ctut__head { justify-content: center; }
+.lk-ctut--hint .lk-ctut__title { font-size: 1.06rem; }
+/* Cierre */
+.lk-ctut--done .lk-ctut__badge { color: #8CF09B; }
+.lk-ctut--done .lk-ctut__phases i { background: #8CF09B; box-shadow: inset 0 0 0 1px #8CF09B; }
+.lk-ctut--in .lk-ctut__card { animation: lkCtutIn .32s var(--lk-ease) both; }
+@keyframes lkCtutIn { from { opacity: 0; translate: 0 -8px; } to { opacity: 1; translate: 0 0; } }
+@media (max-width: 640px) { .lk-ctut__card { grid-template-columns: auto minmax(0, 1fr); } .lk-ctut__go { grid-column: 1 / -1; width: 100%; } }
+@media (prefers-reduced-motion: reduce) { .lk-ctut--in .lk-ctut__card { animation: none; } }
+
+/* ══ Reglas y controles del combate (#help-modal · botón «?» del HUD) ═══════════ */
+.lk-rules-layer { z-index: 2200; }
+.lk-rules-layer.hidden { display: none !important; }
+.lk-rules-layer > .lk-rules { width: min(860px, 100%); max-height: calc(100vh - 40px); }
+.lk-rules__body { flex: 1; min-height: 0; overflow-y: auto; display: grid; gap: 18px; padding: 18px 22px; scrollbar-width: thin; scrollbar-color: rgba(211, 174, 108, .35) transparent; }
+.lk-rules__grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.lk-rules__card { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 12px; align-items: start; padding: 14px; border-radius: var(--lk-r-md); background: rgba(11, 15, 28, .5); box-shadow: inset 0 0 0 1px rgba(211, 174, 108, .16); }
+.lk-rules__ico { width: 38px; height: 38px; display: grid; place-items: center; transform: rotate(45deg); border-radius: 8px; background: radial-gradient(circle at 50% 35%, #2C3A62, #141B2E); box-shadow: inset 0 0 0 1px rgba(211, 174, 108, .5); margin: 6px 4px 0; }
+.lk-rules__ico .lk-ai { width: 22px; height: 22px; transform: rotate(-45deg); }
+.lk-rules__card h4 { margin: 0 0 4px; font: 400 1.02rem/1.25 var(--lk-font-display); color: var(--lk-ivory-50); }
+.lk-rules__card p { margin: 0; font-size: .78rem; line-height: 1.5; font-weight: 600; color: #C8CFDF; text-wrap: pretty; }
+.lk-rules__card b { color: var(--lk-gilt-300); font-weight: 800; }
+.lk-rules__card b.lk-pa { color: var(--lk-pa-mana-blue); }
+.lk-rules__card b.lk-pm { color: var(--lk-pm-wind-teal); }
+/* Triángulo de clases: tres grupos con sus iconos y la flecha de ventaja */
+.lk-rules__tri { display: grid; gap: 10px; padding: 14px; border-radius: var(--lk-r-md); background: rgba(11, 15, 28, .35); box-shadow: inset 0 0 0 1px rgba(211, 174, 108, .16); }
+.lk-rules__cycle { display: flex; align-items: center; justify-content: center; gap: 8px; flex-wrap: wrap; }
+.lk-rules__group { display: flex; gap: 4px; padding: 6px; border-radius: var(--lk-r-pill); background: rgba(26, 34, 54, .9); box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .07); }
+.lk-rules__cls { display: inline-flex; align-items: center; gap: 5px; padding: 3px 9px 3px 4px; border-radius: var(--lk-r-pill); font-size: .72rem; font-weight: 800; color: color-mix(in srgb, var(--c) 65%, #fff); }
+.lk-rules__cls img { width: 18px; height: 18px; }
+.lk-rules__beats { font: 400 1.6rem/1 var(--lk-font-display); color: var(--lk-gilt-300); }
+.lk-rules__loop { font-size: 1.3rem; }
+.lk-rules__note { margin: 0; text-align: center; font-size: .76rem; font-weight: 700; color: #AEB6CB; }
+.lk-rules__note .lk-up { color: #8CF09B; } .lk-rules__note .lk-down { color: #FF9C95; }
+/* Controles: tecla a la izquierda, acción a la derecha */
+.lk-rules__controls { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; }
+.lk-rules__controls ul { list-style: none; margin: 8px 0 0; padding: 0; display: grid; gap: 2px; }
+.lk-rules__controls li { display: grid; grid-template-columns: 132px minmax(0, 1fr); gap: 10px; align-items: center; padding: 6px 4px; border-bottom: 1px solid rgba(211, 174, 108, .1); font-size: .76rem; font-weight: 700; color: #C8CFDF; }
+.lk-rules__controls li:last-child { border-bottom: 0; }
+.lk-rules__keys { display: flex; flex-wrap: wrap; align-items: center; gap: 3px; font-size: .66rem; color: #8D97AF; }
+.lk-rules__keys kbd { min-width: 22px; height: 22px; padding: 0 6px; }
+.lk-rules__foot { display: flex; justify-content: flex-end; padding: 12px 22px 16px; border-top: 1px solid rgba(211, 174, 108, .14); }
+.lk-rules__foot .lk-btn { min-width: 170px; justify-content: center; }
+@media (max-width: 760px) { .lk-rules__grid, .lk-rules__controls { grid-template-columns: minmax(0, 1fr); } .lk-rules__controls li { grid-template-columns: 112px minmax(0, 1fr); } }
+/* Con las reglas abiertas, el cartel «Turno de…» (z-index 10000) no se pinta encima */
+body:has(#help-modal:not(.hidden)) #turn-banner { visibility: hidden; }
+
+/* Menú de opciones dentro del combate (SettingsModal · .lk-in-combat) */
+.lk-pause__cnote { display: none; margin: 0; padding: 10px 12px; border-radius: var(--lk-r-sm); font-size: .72rem; line-height: 1.45; font-weight: 700; color: #C8CFDF; background: rgba(11, 15, 28, .5); box-shadow: inset 0 0 0 1px rgba(211, 174, 108, .2); }
+.lk-pause__cnote b { display: block; margin-bottom: 2px; font: 900 .6rem var(--lk-font-ui); letter-spacing: .14em; text-transform: uppercase; color: var(--lk-gilt-300); }
+.lk-in-combat .lk-pause__cnote { display: block; }
+.lk-in-combat [data-act="save"], .lk-in-combat [data-act="exit"], .lk-in-combat [data-ref="saveChip"] { display: none !important; }
+#ui-overlay .lk-cb-tools #btn-mute[hidden] { display: none !important; }
+
+/* Creador · opciones con imagen de Ema / Kai (21-oct): peinado y atuendo (render del modelo), ojos y boca (atlas de la cara) */
+.lk-opt.lk-opt--img { display: inline-grid; justify-items: center; align-content: start; gap: 4px; padding: 6px 8px 7px; min-width: 78px; }
+.lk-opt--img span { line-height: 1.15; }
+.lk-opt-img { display: block; object-fit: contain; pointer-events: none; }
+.lk-opt-img--look { width: 60px; height: 60px; }
+.lk-opt-img--eyes { width: 68px; height: 34px; }
+.lk-opt-img--mouth { width: 34px; height: 34px; }

@@ -4,6 +4,7 @@ import { EffectComposer } from '../../vendor/postprocessing/EffectComposer.js';
 import { RenderPass } from '../../vendor/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from '../../vendor/postprocessing/UnrealBloomPass.js';
 import { OutputPass } from '../../vendor/postprocessing/OutputPass.js';
+import { TransientLightPool } from './combat/TransientLightPool.js';
 
 export class SceneManager {
   constructor(canvasContainer) {
@@ -29,7 +30,9 @@ export class SceneManager {
     this.renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
     this.renderer.debug.checkShaderErrors = false;
     this.renderer.setSize(window.innerWidth, window.innerHeight);
-    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    // Tope 1,5: en pantallas de alta densidad (DPR 2) dibujar a 2× cuesta 4 veces los píxeles de 1×
+    // con todo el postprocesado (bloom, god rays). A 1,5 apenas se nota y la GPU va mucho más holgada.
+    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.5));
     this.renderer.shadowMap.enabled = true;
     this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
@@ -49,6 +52,9 @@ export class SceneManager {
     this._initPostProcessing();
     this._initAtmosphere();
     this._initLighting();
+    // Luces puntuales fijas para los efectos breves: el número de luces nunca cambia → sin recompilar shaders
+    this.lightPool = new TransientLightPool(this.scene, 2); // 2: cada luz cuesta algo de GPU aunque esté a 0
+    this.scene.userData.lightPool = this.lightPool;
     this._createFloatingIsland();
     this._createAtmosphericDust();
 
@@ -684,6 +690,7 @@ export class SceneManager {
   render(time, dt = 0.016) {
     this.updateCameraPosition(dt);
     if (this.arena) this.arena.update(dt, time, this.camera, this.currentLookAt, this.occlusionProvider ? this.occlusionProvider() : null); // Hito 35: viento de los árboles, agua y partículas del bioma
+    if (this.lightPool) this.lightPool.update();
     if (this.onBeforeRender) this.onBeforeRender(dt); // Fase 6: VFX (cámara ya colocada, antes de renderizar)
 
     if (this.skyDome) {

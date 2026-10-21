@@ -11,8 +11,19 @@ import {
   PUPIL_COLORS,
   HAIR_STYLES,
   HAIR_COLORS,
-  SUIT_COLORS
+  SUIT_COLORS,
+  V2_EYE_EXPRESSIONS,
+  V2_MOUTH_EXPRESSIONS,
+  V2_HAIR_STYLES,
+  V2_OUTFITS,
+  KAI_HAIR_STYLES,
+  KAI_EYE_EXPRESSIONS,
+  KAI_MOUTH_EXPRESSIONS,
+  KAI_SHIRTS,
+  KAI_DEFAULTS,
+  PIECE_SETS
 } from '../SapidaeModularController.js';
+import { SAPIDAE_BASES, DEFAULT_SAPIDAE_MODEL } from '../SapidaeModels.js';
 import { CharacterPreviewDiorama } from './CharacterPreviewDiorama.js';
 import { sprite, toast, tooltip, esc } from '../../ui/lk.js';
 import { accountManager } from '../../net/AccountManager.js';
@@ -235,20 +246,23 @@ export class StartScreenUI {
     // Wizard & Customization state
     this.currentWizardStep = 1;
     this.playerName = 'Ema';
-    this.selectedSapidaeModel = 'sapidae-f-a';
+    this.selectedSapidaeModel = DEFAULT_SAPIDAE_MODEL; // Ema (21-oct)
     this.selectedSapidaeClass = 'crafter';
     this.selectedCompanionKey = 'beast_rage';
     this.customization = {
       useOriginalTextures: true,
       hair: 'original',
-      hairStyle: 'braids',
+      hairStyle: 'b', // Ema: Rizos por defecto
       eyes: 'original',
       eyeShape: 'round',
       suitColor: 'original',
       shirt: 'original',
       pants: 'original',
-      horns: 'base',
+      horns: 'a',
       hornColor: 'original',
+      eyeExpr: 'a',
+      mouthExpr: 'e',
+      outfit: 'b', // Ema: camisa B por defecto
       hasHat: false,
       hatColor: 'original'
     };
@@ -1097,6 +1111,7 @@ export class StartScreenUI {
   _ccRenderLook() {
     const pane = this.heroSelectModal.querySelector('.lk-cc-pane[data-step="2"]');
     if (!pane) return;
+    if (SAPIDAE_BASES[this.selectedSapidaeModel]) { this._ccRenderLookV2(pane); return; }
     const cz = this.customization;
     const named = (list, v) => (list.find((x) => x.id === v || x.hex === v) || {}).name;
     const short = (s) => String(s || '').replace(/^Cuernos /, '').replace(/^Cornamenta de /, '').replace(/^Corte /, '');
@@ -1115,6 +1130,61 @@ export class StartScreenUI {
       <div class="lk-opt-sec"><div class="lk-hd"><span class="lk-label">Ojos</span><em>${named(EYE_SHAPES, cz.eyeShape) || ''} · ${colorName(PUPIL_COLORS, cz.eyes)}</em></div>${opts(EYE_SHAPES, 'eyeShape', ITEM_ICONS.eyes)}${swatches(PUPIL_COLORS, 'eyes', cz.eyes)}</div>
       <div class="lk-opt-sec"><div class="lk-hd"><span class="lk-label">Cuernos</span><em>${short(named(HORN_STYLES, cz.horns))} · ${colorName(HORN_COLORS, cz.hornColor)}</em></div>${opts(HORN_STYLES, 'horns', ITEM_ICONS.horns)}${swatches(HORN_COLORS, 'hornColor', cz.hornColor)}</div>
       <div class="lk-opt-sec"><div class="lk-hd"><span class="lk-label">Color del atuendo</span><em>${colorName(SUIT_COLORS, cz.suitColor)}</em></div>${swatches(SUIT_COLORS, 'suitColor', cz.suitColor)}</div>`;
+  }
+
+  /** Género de la base elegida (f = Ema, m = Kai). */
+  _ccGender() { return SAPIDAE_BASES[this.selectedSapidaeModel]?.gender || 'f'; }
+
+  /** Nombres cortos del aspecto (Ema / Kai) para la cabecera de cada sección y el resumen. */
+  _ccLookV2() {
+    const cz = this.customization, g = this._ccGender();
+    const find = (list, id, def) => list.find((x) => x.id === id) || list.find((x) => x.id === def) || list[0];
+    const P = PIECE_SETS[g];
+    if (P) { // Ema y Kai por piezas (21-oct): 5 peinados, ojos y bocas; camisa fija (Ema B, Kai D) con color libre
+      const D = P.defaults;
+      return {
+        lists: { hair: P.hair, eyes: P.eyes, mouth: P.mouth, outfit: KAI_SHIRTS },
+        hair: find(P.hair, cz.hairStyle, D.hairStyle), outfit: find(KAI_SHIRTS, D.outfit),
+        eyes: find(P.eyes, cz.eyeExpr, D.eyeExpr), mouth: find(P.mouth, cz.mouthExpr, D.mouthExpr),
+      };
+    }
+    return {
+      lists: { hair: V2_HAIR_STYLES.f, eyes: V2_EYE_EXPRESSIONS, mouth: V2_MOUTH_EXPRESSIONS, outfit: V2_OUTFITS.f },
+      hair: find(V2_HAIR_STYLES.f, cz.hairStyle), outfit: find(V2_OUTFITS.f, cz.outfit),
+      eyes: find(V2_EYE_EXPRESSIONS, cz.eyeExpr), mouth: find(V2_MOUTH_EXPRESSIONS, cz.mouthExpr),
+    };
+  }
+
+  /** Apariencia con los modelos Ema / Kai (21-oct): peinado, expresión (ojos y boca), cuernos, atuendo y sombrero. */
+  _ccRenderLookV2(pane) {
+    const cz = this.customization, g = this._ccGender(), L = this._ccLookV2();
+    const named = (list, v) => (list.find((x) => x.hex === v) || {}).name;
+    const colorName = (list, v) => (!v || v === 'original' ? 'Original' : named(list, v) || (String(v).startsWith('#') ? String(v).toUpperCase() : 'Original'));
+    // Muestra de «Original» con el color real de cada base (el pelo de Kai no es carmesí)
+    const HAIR_ORIG = { m: { a: '#f0c24f', b: '#d9822b', c: '#e9e5dc', d: '#4d4038', e: '#8b9cb2' }, f: { a: '#f2b847', b: '#a8641f', c: '#e4e1db', d: '#4f4438', e: '#7e8ea3' } };
+    const ORIG = { f: { hair: HAIR_ORIG.f[L.hair.id] || '#f2b847', eyes: '#7a4a24', hornColor: '#d6904c', suitColor: '#3fc3c7' }, m: { hair: HAIR_ORIG.m[L.hair.id] || '#f0c24f', eyes: '#7a4a24', hornColor: '#d6904c', suitColor: '#d9503a' } }[g];
+    const swatches = (list0, part, cur) => {
+      const list = list0.map((c) => (c.hex === 'original' && ORIG[part] ? { ...c, name: 'Original', sample: ORIG[part] } : c));
+      const curL = String(cur || 'original').toLowerCase();
+      const known = list.some((c) => String(c.hex).toLowerCase() === curL);
+      const free = !known && curL.startsWith('#') ? cur : (list.find((c) => String(c.hex).toLowerCase() === curL)?.sample || list[0]?.sample || '#ffffff');
+      return `<div class="lk-cc-swatches">${list.map((c) => `<button type="button" class="lk-cc-sw" style="--c:${c.sample}" aria-pressed="${String(c.hex).toLowerCase() === curL}" aria-label="${c.name}" title="${c.name}" data-cc="color" data-part="${part}" data-c="${c.hex}"></button>`).join('')}<label class="lk-sw-custom" title="Color libre"><input type="color" value="${free}" data-part="${part}" aria-label="Color libre"></label></div>`;
+    };
+    // Opción con su imagen (assets/ui/creator): peinados y atuendos renderizados del modelo; ojos y boca del atlas de la cara
+    const img = (file, kind) => `<img src="./assets/ui/creator/${file}.webp" alt="" loading="lazy" class="lk-opt-img lk-opt-img--${kind}">`;
+    const opts = (list, cat, cur, kind, fileOf) => `<div class="lk-opts">${list.map((o) => `<button type="button" class="lk-opt lk-opt--img" aria-pressed="${cur === o.id}" data-cc="trait" data-cat="${cat}" data-v="${o.id}" title="${o.desc || o.name}">${img(fileOf(o), kind)}<span>${o.name}</span></button>`).join('')}</div>`;
+    const who = g === 'm' ? 'kai' : 'ema', kai = Boolean(PIECE_SETS[g]); // por piezas: camisa fija (solo color); el color de pelo tiñe también la cabeza
+    const bases = Object.entries(SAPIDAE_BASES).map(([k, b]) => `<button type="button" aria-pressed="${this.selectedSapidaeModel === k}" data-cc="base" data-v="${k}">${b.label} · ${b.name}</button>`).join('');
+    pane.innerHTML = `<div style="display:flex;justify-content:space-between;align-items:center;gap:10px"><h4>Apariencia</h4><button type="button" class="lk-btn lk-btn-secondary-wood lk-btn--sm" data-cc="random"><span class="lk-b-ico"><img class="lk-ai" src="${CC_ICON('rotate')}" alt=""></span>Aleatorio</button></div>
+      <p class="lk-lead">Los cambios se ven al instante en tu Sapidae.</p>
+      <div class="lk-opt-sec lk-base-seg"><div class="lk-hd"><span class="lk-label">Base</span></div><div class="lk-segmented">${bases}</div></div>
+      <div class="lk-opt-sec"><div class="lk-hd"><span class="lk-label">Peinado</span><em>${L.hair.name} · ${colorName(HAIR_COLORS, cz.hair)}</em></div>${opts(L.lists.hair, 'hairStyle', L.hair.id, 'look', (o) => o.img)}${swatches(HAIR_COLORS, 'hair', cz.hair)}</div>
+      <div class="lk-opt-sec"><div class="lk-hd"><span class="lk-label">Expresión</span><em>${L.eyes.name} · ${L.mouth.name}</em></div>
+        <div class="lk-hd" style="margin-top:2px"><small>Ojos</small></div>${opts(L.lists.eyes, 'eyeExpr', L.eyes.id, 'eyes', (o) => o.img || `eyes_${who}_${o.id}`)}
+        <div class="lk-hd"><small>Boca</small></div>${opts(L.lists.mouth, 'mouthExpr', L.mouth.id, 'mouth', (o) => o.img || `mouth_${o.id}`)}</div>
+      <div class="lk-opt-sec"><div class="lk-hd"><span class="lk-label">Color de ojos</span><em>${colorName(PUPIL_COLORS, cz.eyes)}</em></div>${swatches(PUPIL_COLORS, 'eyes', cz.eyes)}</div>
+      <div class="lk-opt-sec"><div class="lk-hd"><span class="lk-label">Color de cuernos</span><em>${colorName(HORN_COLORS, cz.hornColor)}</em></div>${swatches(HORN_COLORS, 'hornColor', cz.hornColor)}</div>
+      <div class="lk-opt-sec"><div class="lk-hd"><span class="lk-label">${kai ? 'Color de camisa' : 'Atuendo'}</span><em>${kai ? '' : `${L.outfit.name} · `}${colorName(SUIT_COLORS, cz.suitColor)}</em></div>${kai ? '' : opts(L.lists.outfit, 'outfit', L.outfit.id, 'look', (o) => o.img)}${swatches(SUIT_COLORS, 'suitColor', cz.suitColor)}</div>`;
   }
 
   _ccRenderAxie() {
@@ -1161,7 +1231,7 @@ export class StartScreenUI {
       </div>
       <div class="lk-summary"><span class="lk-label" style="color:var(--lk-gilt-300)">Resumen</span>
         <div><span>Clase</span><b>${this._ccCrest(c, 20)}${c.name}</b><button type="button" class="lk-edit" data-cc="step" data-s="1">Editar</button></div>
-        <div><span>Aspecto</span><b><i class="lk-dot" style="--c:${sample(HAIR_COLORS, cz.hair)}"></i><i class="lk-dot" style="--c:${sample(PUPIL_COLORS, cz.eyes)}"></i><i class="lk-dot" style="--c:${sample(HORN_COLORS, cz.hornColor)}"></i><i class="lk-dot" style="--c:${sample(SUIT_COLORS, cz.suitColor)}"></i>${short((HAIR_STYLES.find((h) => h.id === cz.hairStyle) || {}).name)} · ${short((HORN_STYLES.find((h) => h.id === cz.horns) || {}).name)}</b><button type="button" class="lk-edit" data-cc="step" data-s="2">Editar</button></div>
+        <div><span>Aspecto</span><b><i class="lk-dot" style="--c:${sample(HAIR_COLORS, cz.hair)}"></i><i class="lk-dot" style="--c:${sample(PUPIL_COLORS, cz.eyes)}"></i><i class="lk-dot" style="--c:${sample(HORN_COLORS, cz.hornColor)}"></i><i class="lk-dot" style="--c:${sample(SUIT_COLORS, cz.suitColor)}"></i>${SAPIDAE_BASES[this.selectedSapidaeModel] ? (({ hair, outfit, eyes }) => `${hair.name} · ${outfit.name} · ${eyes.name}`)(this._ccLookV2()) : `${short((HAIR_STYLES.find((h) => h.id === cz.hairStyle) || {}).name)} · ${short((HORN_STYLES.find((h) => h.id === cz.horns) || {}).name)}`}</b><button type="button" class="lk-edit" data-cc="step" data-s="2">Editar</button></div>
         <div><span>Compañero</span><b><img src="${getAxieClassIcon(comp.class || comp.heroKey)}" alt="">${comp.name}</b><button type="button" class="lk-edit" data-cc="step" data-s="3">Editar</button></div>
       </div>`;
     this._ccRenderSteps();
@@ -1182,34 +1252,102 @@ export class StartScreenUI {
     if (p) p.textContent = lead;
   }
 
-  /** Invitado: panel con el campo «ID del Axie» (19-oct). */
+  /** Panel «Cargar un Axie por su ID» (19-oct; UX 20-oct): campo con «#», admite pegar el enlace del Axie,
+   *  estados claros (buscando · no encontrado · encontrado) y vista previa antes de elegirlo de compañero. */
   _ccOpenIdPicker() {
-    this._ccPickerTexts('Cargar un Axie por su ID', 'Escribe el número de cualquier Axie de Lunacia (por ejemplo, uno de colección Japan o Xmas). Se carga con su modelo, su clase y las cartas de sus partes.');
+    this._ccPickerTexts('Cargar un Axie por su ID', 'Escribe el número de cualquier Axie de Lunacia, o pega su enlace. Llega con su modelo, su clase y las cartas de sus partes.');
+    this._ccFound = null;
+    const back = this.ownedAxies?.length ? '<button type="button" class="lk-ax-id__back" data-cc="pickBackList">← Volver a mis axies</button>' : '';
     const grid = this._ccRef('pickGrid');
-    grid.innerHTML = `<div class="lk-ax-id" style="grid-column:1/-1;display:flex;flex-direction:column;gap:10px">
-        <div style="display:flex;gap:8px;align-items:center"><input class="lk-input" id="lk-ax-id-input" type="text" inputmode="numeric" autocomplete="off" placeholder="ID del Axie, p. ej. 11968787" aria-label="ID del Axie" style="flex:1">
-        <button type="button" class="lk-btn lk-btn-primary-gold lk-btn--sm" data-cc="loadAxieId">Cargar</button></div>
-        <p class="lk-ax-id-status" data-ref="pickStatus" aria-live="polite" style="margin:0;min-height:1.4em"></p></div>`;
+    grid.innerHTML = `<div class="lk-ax-id" style="grid-column:1/-1">
+        <form class="lk-ax-id__form" data-ref="idForm" novalidate>
+          <label class="lk-ax-id__field" for="lk-ax-id-input"><span class="lk-ax-id__hash" aria-hidden="true">#</span><input id="lk-ax-id-input" type="text" inputmode="numeric" autocomplete="off" spellcheck="false" maxlength="120" placeholder="11968787" aria-label="ID del Axie" aria-describedby="lk-ax-id-help"></label>
+          <button type="submit" class="lk-btn lk-btn-primary-gold" data-ref="idGo" disabled><span class="lk-b-ico"><img class="lk-ai" src="${CC_ICON('search')}" alt=""></span><span data-ref="idGoTxt">Buscar</span></button>
+        </form>
+        <p class="lk-ax-id__help" id="lk-ax-id-help">El ID es el número de la dirección del Axie: <code>app.axieinfinity.com/…/axies/<b>11968787</b></code></p>
+        <div class="lk-ax-id__out" data-ref="pickStatus" aria-live="polite"></div>
+        ${back}</div>`;
     this._ccRef('picker').classList.add('lk-is-on');
     setTimeout(() => grid.querySelector('#lk-ax-id-input')?.focus(), 30);
   }
 
-  /** Consulta el Axie en Sky Mavis, calcula sus cartas de partes (con colecciones) y lo pone de compañero. */
+  /** Solo dígitos; si pegan un enlace, el número que va tras «/axies/» (o el más largo). */
+  _ccParseAxieId(raw) {
+    const t = String(raw || '').trim();
+    const m = t.match(/axies?\/(\d+)/i);
+    if (m) return m[1];
+    const runs = t.match(/\d+/g) || [];
+    return runs.sort((a, b) => b.length - a.length)[0] || '';
+  }
+
+  /** Estado del panel de ID: '' (vacío) · loading · error · found · adopting. */
+  _ccIdState(state, { msg = '', data = null } = {}) {
+    const out = this._ccRef('pickStatus'), go = this._ccRef('idGo'), txt = this._ccRef('idGoTxt');
+    const input = this._ccRef('pickGrid')?.querySelector('#lk-ax-id-input');
+    if (!out) return;
+    const busy = state === 'loading' || state === 'adopting';
+    if (input) { input.readOnly = busy; input.closest('.lk-ax-id__field')?.classList.toggle('lk-is-bad', state === 'error'); input.setAttribute('aria-invalid', String(state === 'error')); }
+    if (go) { go.disabled = busy || !this._ccParseAxieId(input?.value); go.classList.toggle('lk-is-busy', state === 'loading'); }
+    if (txt) txt.textContent = state === 'loading' ? 'Buscando…' : 'Buscar';
+    if (state === 'loading' || state === 'adopting') {
+      out.className = 'lk-ax-id__out lk-is-wait';
+      out.innerHTML = `<span class="lk-ax-id__spin" aria-hidden="true"></span><span>${esc(msg)}</span>`;
+    } else if (state === 'error') {
+      out.className = 'lk-ax-id__out lk-is-err';
+      out.innerHTML = `<span class="lk-ax-id__ico" aria-hidden="true">!</span><span>${esc(msg)}</span>`;
+    } else if (state === 'found' && data) {
+      const hero = this._ccHeroFromAxieData(data);
+      const cls = String(hero.class || 'Beast').toLowerCase();
+      const img = portraitService.getPortraitSync?.(hero.axieId) || data.image || '';
+      out.className = 'lk-ax-id__out lk-is-found';
+      out.innerHTML = `<div class="lk-ax-id__card" style="--cc:var(--lk-class-${cls})">
+          <span class="lk-ax-id__art">${img ? `<img src="${esc(img)}" alt="" onerror="this.remove()">` : ''}</span>
+          <div class="lk-ax-id__info"><small>Axie #${esc(hero.axieId)}${hero.axpLevel ? ` · AXP nivel ${hero.axpLevel}` : ''}</small><b>${esc(hero.name)}</b><span class="lk-ax-id__cls"><img src="${getAxieClassIcon(hero.class)}" alt="">${esc(hero.class)}</span></div>
+          <div class="lk-ax-id__acts"><button type="button" class="lk-btn lk-btn-primary-gold lk-btn--sm" data-cc="adoptFound">Elegir de compañero</button><button type="button" class="lk-ax-id__again" data-cc="idAgain">Buscar otro</button></div>
+        </div>`;
+      setTimeout(() => out.querySelector('[data-cc="adoptFound"]')?.focus(), 30);
+    } else {
+      out.className = 'lk-ax-id__out';
+      out.innerHTML = '';
+    }
+  }
+
+  /** Consulta el Axie en Sky Mavis y lo enseña en una tarjeta; se adopta con «Elegir de compañero». */
   async _ccLoadAxieById(raw) {
-    const id = String(raw || '').replace(/[^0-9]/g, '');
-    const status = this._ccRef('pickStatus');
-    const say = (t) => { if (status) status.textContent = t; };
-    if (!id) { say('Escribe el número (ID) del Axie.'); return; }
+    const id = this._ccParseAxieId(raw);
+    const input = this._ccRef('pickGrid')?.querySelector('#lk-ax-id-input');
+    if (input && id && input.value !== id) input.value = id;
+    if (!id) { this._ccIdState('error', { msg: 'Escribe el número (ID) del Axie.' }); input?.focus(); return; }
     if (this._ccLoadingId) return;
     this._ccLoadingId = id;
+    this._ccFound = null;
     try {
-      say(`Buscando el Axie #${id}…`);
+      this._ccIdState('loading', { msg: `Buscando el Axie #${id} en Lunacia…` });
       let data = null;
       try { data = await axieMixerService.fetchAxieData(id); } catch { data = null; }
-      if (!data || !(data.newGenes || data.genes)) { say(`No se encontró el Axie #${id} (o no hay conexión con Sky Mavis).`); return; }
-      await this._ccAdoptAxie(data, say, `Axie #${id} cargado por su ID.`);
+      if (this._ccLoadingId !== id) return;
+      if (!data || !(data.newGenes || data.genes)) {
+        this._ccIdState('error', { msg: navigator.onLine === false ? 'Sin conexión: no se pudo consultar Sky Mavis. Inténtalo de nuevo.' : `No existe ningún Axie con el ID #${id}. Revisa el número.` });
+        input?.focus(); input?.select();
+        return;
+      }
+      this._ccFound = data;
+      this._ccIdState('found', { data });
     } finally {
       this._ccLoadingId = null;
+    }
+  }
+
+  /** Elige el Axie encontrado: calcula sus cartas y lo pone de compañero. */
+  async _ccAdoptFound() {
+    const data = this._ccFound; if (!data || this._ccAdopting) return;
+    this._ccAdopting = true;
+    try {
+      await this._ccAdoptAxie(data, (t) => this._ccIdState('adopting', { msg: t }), `Axie #${data.id} cargado por su ID.`);
+    } catch {
+      this._ccIdState('error', { msg: 'No se pudieron calcular sus cartas. Inténtalo de nuevo.' });
+    } finally {
+      this._ccAdopting = false;
     }
   }
 
@@ -1280,6 +1418,17 @@ export class StartScreenUI {
   _randomizeAllTraits() {
     const pick = (a) => a[Math.floor(Math.random() * a.length)];
     const suit = pick(SUIT_COLORS);
+    if (SAPIDAE_BASES[this.selectedSapidaeModel]) { // Ema / Kai
+      const { lists } = this._ccLookV2(), kai = this._ccGender() === 'm';
+      Object.assign(this.customization, {
+        hair: pick(HAIR_COLORS).hex, hairStyle: pick(lists.hair).id, eyes: pick(PUPIL_COLORS).hex,
+        eyeExpr: pick(lists.eyes).id, mouthExpr: pick(lists.mouth).id, horns: 'a', hasHat: false,
+        hornColor: pick(HORN_COLORS).hex, outfit: (PIECE_SETS[this._ccGender()] || PIECE_SETS.m).defaults.outfit, suitColor: suit.hex, shirt: suit.hex, pants: suit.hex,
+      });
+      this._ccRenderLook();
+      if (this.diorama) this.diorama.applyCustomization(this.customization);
+      return;
+    }
     Object.assign(this.customization, {
       hair: pick(HAIR_COLORS).hex, hairStyle: pick(HAIR_STYLES).id, eyes: pick(PUPIL_COLORS).hex, eyeShape: pick(EYE_SHAPES).id,
       horns: pick(HORN_STYLES).id, hornColor: pick(HORN_COLORS).hex, suitColor: suit.hex, shirt: suit.hex, pants: suit.hex
@@ -1394,12 +1543,15 @@ export class StartScreenUI {
           break;
         case 'base':
           this.selectedSapidaeModel = el.dataset.v;
+          // Cada base con sus piezas por defecto (Kai: peinado A, ojos A, boca A, camisa D)
+          // Cada base con sus piezas por defecto (Kai: A, A, A, camisa D · Ema: A, A, E, camisa B)
+          Object.assign(this.customization, { ...(PIECE_SETS[SAPIDAE_BASES[el.dataset.v]?.gender] || PIECE_SETS.f).defaults, hair: 'original', suitColor: 'original', shirt: 'original', pants: 'original', hasHat: false });
           this._ccRenderLook();
           if (this.diorama) this.diorama.loadSapidae(this.selectedSapidaeModel, this.customization);
           sfx();
           break;
         case 'trait':
-          this.customization[el.dataset.cat] = el.dataset.v;
+          this.customization[el.dataset.cat] = el.dataset.cat === 'hasHat' ? Boolean(el.dataset.v) : el.dataset.v;
           this._ccRenderLook();
           if (this.diorama) this.diorama.applyCustomization(this.customization);
           sfx();
@@ -1430,6 +1582,9 @@ export class StartScreenUI {
         case 'pickClose': this._ccRef('picker').classList.remove('lk-is-on'); break;
         case 'pickById': this._ccOpenIdPicker(); break;
         case 'loadAxieId': this._ccLoadAxieById(this._ccRef('pickGrid').querySelector('#lk-ax-id-input')?.value); break;
+        case 'adoptFound': this._ccAdoptFound(); break;
+        case 'idAgain': { this._ccFound = null; const i = this._ccRef('pickGrid').querySelector('#lk-ax-id-input'); if (i) { i.value = ''; i.focus(); } this._ccIdState(''); break; }
+        case 'pickBackList': this._ccOpenPicker(); break;
         case 'dice': {
           let n; do { n = RANDOM_NAMES[Math.floor(Math.random() * RANDOM_NAMES.length)]; } while (n === this.playerName && RANDOM_NAMES.length > 1);
           this.playerName = n;
@@ -1442,9 +1597,20 @@ export class StartScreenUI {
       }
     });
 
+    // Panel de ID: el botón «Buscar» es el envío del formulario (Intro también lo dispara)
+    m.addEventListener('submit', (e) => {
+      if (!e.target.matches('[data-ref="idForm"]')) return;
+      e.preventDefault();
+      this._ccLoadAxieById(e.target.querySelector('#lk-ax-id-input')?.value);
+    });
     // Color libre y nombre
     m.addEventListener('input', (e) => {
       if (e.target.id === 'dofus-char-name') { this.playerName = e.target.value; this._ccRenderName(); return; }
+      if (e.target.id === 'lk-ax-id-input') { // al escribir se borra el error y se activa «Buscar»
+        if (this._ccFound) this._ccFound = null;
+        this._ccIdState('');
+        return;
+      }
       if (e.target.matches('input[type="color"][data-part]')) {
         setColor(e.target.dataset.part, e.target.value);
         e.target.closest('.lk-opt-sec')?.querySelectorAll('.lk-cc-sw').forEach((b) => b.setAttribute('aria-pressed', 'false'));
@@ -1471,7 +1637,7 @@ export class StartScreenUI {
         if (['INPUT', 'TEXTAREA'].includes(document.activeElement?.tagName)) document.activeElement.blur();
         else this.closeHeroSelect();
       } else if (e.key === 'Enter' && e.target.id === 'lk-ax-id-input') {
-        this._ccLoadAxieById(e.target.value);
+        // lo gestiona el envío del formulario (submit)
       } else if (e.key === 'Enter' && e.target.id === 'dofus-char-name') {
         m.querySelector('[data-cc="next"]')?.click();
       }
@@ -1492,7 +1658,7 @@ export class StartScreenUI {
     }
     this.pendingSlotId = slotId;
     this.selectedSapidaeClass = this.selectedSapidaeClass || 'crafter';
-    this.selectedSapidaeModel = this.selectedSapidaeModel || 'sapidae-f-a';
+    this.selectedSapidaeModel = SAPIDAE_BASES[this.selectedSapidaeModel] ? this.selectedSapidaeModel : DEFAULT_SAPIDAE_MODEL;
     this.selectedCompanionKey = this.selectedCompanionKey || 'beast_rage';
     this.playerName = this.playerName || 'Ema';
 
@@ -1554,7 +1720,7 @@ export class StartScreenUI {
 
     const templateWithSapidae = Object.assign({}, heroTemplate, {
       isSapidae: true,
-      sapidaeModel: this.selectedSapidaeModel || 'sapidae-f-a',
+      sapidaeModel: this.selectedSapidaeModel || DEFAULT_SAPIDAE_MODEL,
       sapidaeClass: this.selectedSapidaeClass || 'crafter',
       customization: { ...this.customization },
       playerName: finalPlayerName,

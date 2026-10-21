@@ -1409,13 +1409,17 @@ export class NPCManager {
       }, 1400);
     }
 
+    // Hito 48: durante el entrenamiento, Paladill habla según el paso del tutorial (TutorialDirector)
+    const tut = this.overworldManager?.tutorialManager;
+    if (tut && typeof tut.handlePaladill === 'function' && tut.handlePaladill()) return;
+
     // Synchronize Paladill quest state with QuestManager if available
     if (this.questManager) {
       const q = this.questManager.getQuest('quest_slime_purification');
       if (q) {
         const isDone = (sId) => Boolean(q.objective?.steps?.find(s => s.id === sId)?.done);
         if (isDone('talk_paladill')) this.questState.talkedToPaladill = true;
-        if (isDone('defeat_slimes')) this.questState.slimeDefeated = true;
+        if (isDone('defeat_slime') || isDone('defeat_slimes')) this.questState.slimeDefeated = true;
         if (isDone('report_victory') || q.rewardClaimed) this.questState.rewardGiven = true;
         if (isDone('open_doors') || q.status === 'completed') this.questState.doorsUnlocked = true;
       }
@@ -1573,16 +1577,16 @@ export class NPCManager {
       // Step 5: Post-graduation ambient advice
       const dialogue = [
         {
-          speaker: 'Master Paladill',
-          title: 'Dojo Mentor',
+          speaker: 'Maestro Paladill',
+          title: 'Mentor del Dojo',
           avatar: './assets/portraits/paladill.png',
-          text: 'May honor guide every move on the board of Lunacia, young {heroName}!'
+          text: '¡Que el honor guíe cada movimiento en el tablero de Lunacia, {heroName}!'
         },
         {
-          speaker: 'Master Paladill',
-          title: 'Dojo Mentor',
+          speaker: 'Maestro Paladill',
+          title: 'Mentor del Dojo',
           avatar: './assets/portraits/paladill.png',
-          text: 'Do not forget to consult your World Map [M] and your Quest Book [J] during your travels across the Savannah, Arctic, Mystic, and Genesis.'
+          text: 'Consulta el mapa [M] y la Crónica [J] en tus viajes por la Sabana, el Ártico, la Isla Mística y Génesis.'
         }
       ];
       this.dialogSystem.startDialogue(dialogue);
@@ -1855,11 +1859,13 @@ export class NPCManager {
           }
         }
 
-        if (speakerEl) speakerEl.textContent = this.nearbyBubbleNPC.name;
+        // (solo se escribe en el DOM lo que cambia: cada escritura por fotograma recalcula estilos y layout)
+        if (speakerEl && speakerEl.textContent !== this.nearbyBubbleNPC.name) speakerEl.textContent = this.nearbyBubbleNPC.name;
         if (textEl) {
           const heroName = this.dialogSystem?.activeHero?.name || 'Hero';
           const quote = (this.nearbyBubbleNPC.bubbleQuote || '').replace(/{heroName}/g, heroName);
-          textEl.textContent = `"${quote}"`;
+          const q = `"${quote}"`;
+          if (textEl.textContent !== q) textEl.textContent = q;
         }
 
         if (badgeEl) {
@@ -1872,8 +1878,9 @@ export class NPCManager {
           }
         }
 
-        bubbleEl.style.left = `${Math.round(screenX)}px`;
-        bubbleEl.style.top = `${Math.round(screenY)}px`;
+        const bx = `${Math.round(screenX)}px`, by = `${Math.round(screenY)}px`;
+        if (bubbleEl.style.left !== bx) bubbleEl.style.left = bx;
+        if (bubbleEl.style.top !== by) bubbleEl.style.top = by;
         bubbleEl.classList.remove('hidden');
       } else {
         this.speechBubbleEl.classList.add('hidden');

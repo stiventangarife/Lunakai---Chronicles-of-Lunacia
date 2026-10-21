@@ -102,7 +102,8 @@ export class AxieCareService {
   // ------------------------------------------------ acariciar
   pet(heroId = this.companionId()) {
     const s = this.status(heroId);
-    if (!s.petReady) return { ok: false, reason: 'cooldown', leftMs: s.petLeftMs };
+    // cooldownFree (Hito 48): en el tutorial se puede acariciar sin esperar
+    if (!s.petReady && !this.cooldownFree) return { ok: false, reason: 'cooldown', leftMs: s.petLeftMs };
     const before = s.bond;
     const after = this.bond.add(heroId, PET_BOND);
     this._state().petAt[heroId] = this.now();

@@ -1,0 +1,540 @@
+// SpellPresentation.js — Presentación por defecto de los hechizos: VFX, sonidos, textos flotantes y sacudidas.
+//
+// Escucha los eventos de CombatEvents y reproduce exactamente los efectos que antes estaban
+// mezclados dentro de SpellManager.castSpell. Para usar otro motor de VFX basta con no instalar
+// esta clase (o desinstalarla con uninstall()) y suscribir el motor nuevo a los mismos eventos.
+
+import * as THREE from 'three';
+
+export class SpellPresentation {
+  constructor({ sceneManager, gridManager, audio, combatText, vfx }) {
+    this.sceneManager = sceneManager;
+    this.gridManager = gridManager;
+    this.audio = audio;
+    this.combatText = combatText;
+    this.vfx = vfx;
+    this._offs = [];
+  }
+
+  _posOf(unit) { return this.gridManager.gridToWorld(unit.gridX, unit.gridZ); }
+
+  /** Registra los oyentes en el bus de eventos. */
+  install(events) {
+    const on = (evt, fn) => this._offs.push(events.on(evt, fn));
+
+    // --- Lanzamiento: texto de coste, orientación del lanzador y sonido
+    on('spell:cast', ({ caster, spell, casterPos, targetPos, spent }) => {
+      this.combatText.spawn(casterPos, '-' + (spent ?? spell.paCost) + ' PA', 'pa'); // lo realmente pagado (descuentos de charms)
+      const dirX = targetPos.x - casterPos.x;
+      const dirZ = targetPos.z - casterPos.z;
+      if (caster.mesh && (dirX !== 0 || dirZ !== 0)) {
+        caster.mesh.rotation.y = Math.atan2(dirX, dirZ);
+      }
+      this.playSpellSound(spell.sound);
+    });
+
+    // --- Mecánicas especiales de Sapidae
+    on('spell:barricade', ({ pos }) => {
+      this.spawnImpactVFX(pos, { id: 'barricade' });
+      this.combatText.spawn(pos, '🧱 BARRICADA', 'shield');
+    });
+    on('spell:transpose', ({ casterPos, targetPos }) => {
+      this.vfx.playHealPillar(casterPos);
+      this.vfx.playHealPillar(targetPos);
+      this.combatText.spawn(casterPos, '🌌 TRANSPOSICIÓN', 'buff');
+      this.combatText.spawn(targetPos, '🌌 TRANSPOSICIÓN', 'buff');
+    });
+    on('spell:aura', ({ casterPos }) => {
+      this.vfx.playSonicBellow(casterPos, casterPos);
+    });
+
+    // --- Salto
+    on('spell:landing', ({ pos }) => { this.spawnImpactVFX(pos, { id: 'jump_landing' }); });
+    on('spell:jumpImpact', () => { this.sceneManager.shake(0.24); });
+
+    // --- Animación de ataque
+    on('spell:windup', ({ caster }) => {
+      if (typeof caster.playAttackAnimation === 'function') {
+        caster.playAttackAnimation();
+      } else if (caster.attackClip) {
+        caster.attackClip.reset().fadeIn(0.08).play();
+        setTimeout(() => {
+          if (caster.idleClip) caster.idleClip.reset().fadeIn(0.15).play();
+          if (caster.attackClip) caster.attackClip.fadeOut(0.15);
+        }, 350);
+      }
+    });
+
+    // --- Proyectil (se espera a que llegue antes de aplicar el daño)
+    on('spell:projectile', ({ spell, casterPos, targetPos }) => this.spawnProjectile(casterPos, targetPos, spell));
+
+    // --- Impacto: anillo + chispas + decal, y el efecto propio de la habilidad
+    on('spell:impact', ({ spell, casterPos, targetPos, affectedCells, vfx }) => {
+      if (vfx) return; // Fase 6: el motor de VFX ya dibuja el impacto de esta carta
+      this.spawnImpactVFX(targetPos, spell);
+      this.playSkillVFX(spell, casterPos, targetPos, affectedCells);
+    });
+
+    // --- Resultados sobre unidades
+    on('unit:healed', ({ unit, amount }) => {
+      this.combatText.spawn(this._posOf(unit), '+' + amount + ' HP', 'heal');
+    });
+    on('unit:shielded', ({ unit, amount, pos, variant }) => {
+      const p = pos || this._posOf(unit);
+      this.combatText.spawn(p, variant === 'jump' ? '+' + amount + ' SHIELD' : '🛡️ +' + amount, 'shield');
+    });
+    on('unit:resourceGained', ({ unit, pa, pm }) => {
+      const p = this._posOf(unit);
+      if (pa && pm) this.combatText.spawn(p, `+${pm} PM  +${pa} PA`, 'buff');
+      else if (pa) this.combatText.spawn(p, '+' + pa + ' PA', 'buff');
+      else if (pm) this.combatText.spawn(p, '+' + pm + ' PM', 'buff');
+    });
+    on('unit:resourceLost', ({ unit, pa, pm }) => {
+      const p = this._posOf(unit);
+      if (pm) this.combatText.spawn(p, '-' + pm + ' PM', 'pm');
+      if (pa) this.combatText.spawn(p, '-' + pa + ' PA', 'pa');
+    });
+    on('unit:damaged', ({ unit, actual, shieldAbsorbed, isCrit, plain }) => {
+      const wPos = this._posOf(unit);
+      if (plain) { this.combatText.spawn(wPos, '-' + actual, 'damage'); return; }
+      if (shieldAbsorbed > 0 && actual === 0) {
+        this.combatText.spawn(wPos, '🛡️ -' + shieldAbsorbed, 'shield');
+        this.sceneManager.shake(0.12);
+      } else if (shieldAbsorbed > 0 && actual > 0) {
+        this.combatText.spawn(wPos, '🛡️ -' + shieldAbsorbed + '  -' + actual, 'damage');
+        this.sceneManager.shake(0.18);
+      } else if (isCrit) {
+        this.combatText.spawn(wPos, 'CRITICAL! -' + actual, 'crit');
+        this.sceneManager.shake(0.32);
+      } else {
+        this.combatText.spawn(wPos, '-' + actual, 'damage');
+        this.sceneManager.shake(0.14);
+      }
+    });
+
+    // --- Empuje y colisión
+    on('unit:pushStart', () => { this.audio.playPushback(); });
+    on('unit:collision', ({ unit, damage, first }) => {
+      if (first) {
+        this.audio.playCollision();
+        this.sceneManager.shake(0.35);
+      }
+      const p = this._posOf(unit);
+      this.spawnImpactVFX(p, { id: 'collision' });
+      this.combatText.spawn(p, damage > 0 ? '💥 COLLISION! -' + damage : '💥 COLLISION! 🛡️', 'collision'); // 0 = inmune (Sturdy Fighter)
+    });
+
+    // --- Fase 1: triángulo elemental, estados y objetos del tablero
+    on('unit:damaged', ({ unit, elemental }) => {
+      if (!elemental || elemental === 1) return;
+      this.combatText.spawn(this._posOf(unit), elemental > 1 ? '▲ EFICAZ' : '▼ RESISTIDO', elemental > 1 ? 'crit' : 'shield');
+    });
+    on('unit:healBlocked', ({ unit }) => {
+      this.combatText.spawn(this._posOf(unit), '🚫 SIN CURACIÓN', 'pm');
+    });
+    on('status:applied', ({ unit, def, duration }) => {
+      this.combatText.spawn(this._posOf(unit), `${def.icon} ${def.label.toUpperCase()} (${duration})`, def.kind === 'buff' ? 'buff' : 'pm');
+    });
+    on('status:resisted', ({ unit }) => {
+      this.combatText.spawn(this._posOf(unit), '🌟 INMUNE', 'buff');
+    });
+    on('status:expired', ({ unit, status, reason }) => {
+      if (reason === 'woke') this.combatText.spawn(this._posOf(unit), '💤 ¡DESPIERTA!', 'buff');
+      else if (reason === 'cleansed') this.combatText.spawn(this._posOf(unit), '✨ PURIFICADO', 'heal');
+    });
+    on('status:tick', ({ unit, damage, heal, def }) => {
+      if (damage > 0) this.combatText.spawn(this._posOf(unit), `${def.icon} -${damage}`, 'damage');
+      if (heal > 0) this.combatText.spawn(this._posOf(unit), `${def.icon} +${heal} HP`, 'heal');
+    });
+    on('unit:damaged', ({ unit, linked }) => {
+      if (linked) this.combatText.spawn(this._posOf(unit), '🔗 LAZO', 'shield');
+    });
+    on('status:skipTurn', ({ unit, def }) => {
+      this.combatText.spawn(this._posOf(unit), `${def.icon} PIERDE EL TURNO`, 'pm');
+    });
+    on('unit:teleported', ({ pos }) => { this.spawnImpactVFX(pos, { id: 'jump_landing' }); });
+    on('field:obstaclePlaced', ({ pos, rounds }) => {
+      this.spawnImpactVFX(pos, { id: 'barricade' });
+    });
+    on('field:obstacleExpired', ({ pos }) => {
+      this.combatText.spawn(pos, '💨', 'buff');
+    });
+    on('ultimate:used', ({ caster, spell }) => {
+      this.combatText.spawn(this._posOf(caster), `✦ ${String(spell.name).toUpperCase()} ✦`, 'crit');
+      this.sceneManager.shake(0.42);
+    });
+    // --- Runas y charms (RuneCharmEffects)
+    on('unit:evaded', ({ unit }) => {
+      this.combatText.spawn(this._posOf(unit), '💨 ¡ESQUIVA!', 'buff');
+    });
+    on('runeCharm:proc', ({ unit, label }) => {
+      if (unit && label) this.combatText.spawn(this._posOf(unit), `✦ ${label}`, 'buff');
+    });
+    on('field:zonePlaced', ({ positions }) => {
+      if (positions[0]) this.combatText.spawn(positions[0], '🌀 ZONA', 'buff');
+    });
+
+    return this;
+  }
+
+  uninstall() {
+    this._offs.forEach((off) => off());
+    this._offs = [];
+  }
+
+  /** Efecto propio de cada habilidad (tajo, ondas, raíces, pilar de cura, explosión, hielo). */
+  playSkillVFX(spell, worldCasterPos, targetWorldPos, affectedCells) {
+    const sid = spell.id;
+    const isMeleeHit = sid === 'kotaro_slash' || sid === 'chimera_bite' || sid === 'plant_cactus' ||
+      spell.sound === 'melee' || sid.includes('bite') || sid.includes('slash') || sid.includes('strike') ||
+      sid.includes('claw') || sid.includes('slam') || sid.includes('punch') || sid.includes('swipe') ||
+      sid.includes('goo') || sid.includes('root') || sid.includes('bash');
+
+    const isBellowHit = sid === 'kotaro_push' || sid === 'chimera_bellow' || sid === 'bird_owl' ||
+      spell.sound === 'push' || sid.includes('bellow') || sid.includes('roar') || sid.includes('dance');
+
+    if (isMeleeHit) {
+      const slashColor = sid === 'plant_cactus' ? 0x22c55e : (sid === 'kotaro_slash' ? 0xfbbf24 : 0xef4444);
+      this.vfx.playMeleeSlash(worldCasterPos, targetWorldPos, slashColor);
+    } else if (isBellowHit) {
+      this.vfx.playSonicBellow(worldCasterPos, targetWorldPos);
+    } else if (sid === 'plant_drain' || sid === 'pomodoro_bramble' || sid.includes('thorn')) {
+      this.vfx.playEarthBramble(targetWorldPos);
+    } else if (sid === 'plant_shield' || sid === 'pomodoro_heal' || sid === 'chimera_heal' || spell.sound === 'heal' || spell.baseMinHeal || spell.shieldAmount) {
+      this.vfx.playHealPillar(targetWorldPos);
+    } else if (sid === 'bing_explosive' || spell.sound === 'explosion' || sid.includes('cataclysm') || sid.includes('burst')) {
+      this.vfx.playFireDetonation(targetWorldPos, affectedCells);
+    } else if (sid === 'bing_slow' || spell.sound === 'ice' || sid.includes('frost') || sid.includes('nova')) {
+      this.vfx.playIceSpikes(targetWorldPos);
+    }
+  }
+
+  spawnProjectile(fromPos, toPos, spell) {
+    return new Promise(resolve => {
+      const scene = this.sceneManager.scene;
+      const group = new THREE.Group();
+
+      let mainColor = 0xffffff;
+      let emissiveColor = 0xffffff;
+      let particleColor = 0xffffff;
+      let lightColor = 0xffffff;
+      let geo;
+
+      if (spell.id === 'bird_cupid') {
+        mainColor = 0xf43f5e;
+        emissiveColor = 0xfb7185;
+        particleColor = 0xfecdd3;
+        lightColor = 0xf43f5e;
+        geo = new THREE.ConeGeometry(0.15, 0.45, 8);
+      } else if (spell.id === 'bird_owl') {
+        mainColor = 0xa855f7;
+        emissiveColor = 0x9333ea;
+        particleColor = 0xd8b4fe;
+        lightColor = 0xc084fc;
+        geo = new THREE.OctahedronGeometry(0.22, 0);
+      } else if (spell.id === 'plant_shield') {
+        mainColor = 0x22c55e;
+        emissiveColor = 0x16a34a;
+        particleColor = 0xbbf7d0;
+        lightColor = 0x4ade80;
+        geo = new THREE.OctahedronGeometry(0.24, 0);
+      } else if (spell.id === 'plant_drain') {
+        mainColor = 0x15803d;
+        emissiveColor = 0x166534;
+        particleColor = 0x4ade80;
+        lightColor = 0x22c55e;
+        geo = new THREE.DodecahedronGeometry(0.22, 0);
+      } else if (spell.id === 'bing_explosive') {
+        mainColor = 0xff4500;
+        emissiveColor = 0xff8800;
+        particleColor = 0xffaa00;
+        lightColor = 0xff5500;
+        geo = new THREE.SphereGeometry(0.25, 16, 16);
+      } else if (spell.id === 'bing_slow') {
+        mainColor = 0x38bdf8;
+        emissiveColor = 0x0284c7;
+        particleColor = 0xbae6fd;
+        lightColor = 0x0ea5e9;
+        geo = new THREE.OctahedronGeometry(0.24, 0);
+      } else if (spell.id === 'chimera_spit') {
+        mainColor = 0x84cc16;
+        emissiveColor = 0x65a30d;
+        particleColor = 0xa3e635;
+        lightColor = 0x84cc16;
+        geo = new THREE.DodecahedronGeometry(0.24, 1);
+      } else if (spell.id === 'pomodoro_heal') {
+        mainColor = 0x22c55e;
+        emissiveColor = 0x16a34a;
+        particleColor = 0x86efac;
+        lightColor = 0x22c55e;
+        geo = new THREE.SphereGeometry(0.22, 16, 16);
+      } else if (spell.id === 'pomodoro_stim') {
+        mainColor = 0xfacc15;
+        emissiveColor = 0xeab308;
+        particleColor = 0xfef08a;
+        lightColor = 0xfacc15;
+        geo = new THREE.OctahedronGeometry(0.22, 0);
+      } else if (spell.id === 'pomodoro_bramble') {
+        mainColor = 0x15803d;
+        emissiveColor = 0x166534;
+        particleColor = 0x4ade80;
+        lightColor = 0x22c55e;
+        geo = new THREE.DodecahedronGeometry(0.22, 0);
+      } else {
+        mainColor = 0xf59e0b;
+        emissiveColor = 0xd97706;
+        particleColor = 0xfde68a;
+        lightColor = 0xf59e0b;
+        geo = new THREE.SphereGeometry(0.22, 16, 16);
+      }
+
+      const mat = new THREE.MeshStandardMaterial({
+        color: mainColor,
+        emissive: emissiveColor,
+        emissiveIntensity: 2.2,
+        roughness: 0.15
+      });
+      const projectileMesh = new THREE.Mesh(geo, mat);
+      group.add(projectileMesh);
+
+      const pLight = new THREE.PointLight(lightColor, 2.2, 4.2);
+      group.add(pLight);
+
+      // Glowing aura shell around projectile
+      const glowGeo = new THREE.SphereGeometry(0.34, 12, 12);
+      const glowMat = new THREE.MeshBasicMaterial({
+        color: emissiveColor,
+        transparent: true,
+        opacity: 0.45,
+        wireframe: true
+      });
+      const glowMesh = new THREE.Mesh(glowGeo, glowMat);
+      group.add(glowMesh);
+
+      const startVec = new THREE.Vector3(fromPos.x, fromPos.y + 0.95, fromPos.z);
+      const endVec = new THREE.Vector3(toPos.x, toPos.y + 0.85, toPos.z);
+      group.position.copy(startVec);
+      scene.add(group);
+
+      const dist = startVec.distanceTo(endVec);
+      const duration = Math.min(360, Math.max(180, dist * 50));
+      const startTime = performance.now();
+      const peakY = Math.min(2.5, 0.65 + dist * 0.22);
+
+      const trails = [];
+
+      const animate = (now) => {
+        const elapsed = now - startTime;
+        const progress = Math.min(1.0, elapsed / duration);
+
+        const currentX = THREE.MathUtils.lerp(startVec.x, endVec.x, progress);
+        const currentZ = THREE.MathUtils.lerp(startVec.z, endVec.z, progress);
+        const arc = Math.sin(progress * Math.PI) * peakY;
+        const currentY = THREE.MathUtils.lerp(startVec.y, endVec.y, progress) + arc;
+
+        group.position.set(currentX, currentY, currentZ);
+        group.rotation.x += 0.25;
+        group.rotation.y += 0.35;
+
+        // Trailing luminous particle
+        if (Math.random() < 0.75 && progress < 0.95) {
+          const trailGeo = new THREE.SphereGeometry(0.08, 6, 6);
+          const trailMat = new THREE.MeshBasicMaterial({
+            color: particleColor,
+            transparent: true,
+            opacity: 0.85
+          });
+          const trailMesh = new THREE.Mesh(trailGeo, trailMat);
+          trailMesh.position.set(
+            currentX + (Math.random() - 0.5) * 0.15,
+            currentY + (Math.random() - 0.5) * 0.15,
+            currentZ + (Math.random() - 0.5) * 0.15
+          );
+          scene.add(trailMesh);
+          trails.push({ mesh: trailMesh, mat: trailMat, born: performance.now(), life: 180 });
+        }
+
+        // Update active trails
+        for (let i = trails.length - 1; i >= 0; i--) {
+          const t = trails[i];
+          const age = now - t.born;
+          if (age >= t.life) {
+            scene.remove(t.mesh);
+            t.mesh.geometry.dispose();
+            t.mat.dispose();
+            trails.splice(i, 1);
+          } else {
+            const factor = 1.0 - age / t.life;
+            t.mat.opacity = factor * 0.85;
+            t.mesh.scale.setScalar(factor);
+          }
+        }
+
+        if (progress < 1.0) {
+          requestAnimationFrame(animate);
+        } else {
+          scene.remove(group);
+          geo.dispose();
+          mat.dispose();
+          glowGeo.dispose();
+          glowMat.dispose();
+
+          trails.forEach(t => {
+            scene.remove(t.mesh);
+            t.mesh.geometry.dispose();
+            t.mat.dispose();
+          });
+
+          resolve();
+        }
+      };
+
+      requestAnimationFrame(animate);
+    });
+  }
+
+  spawnImpactVFX(worldPos, spell) {
+    const scene = this.sceneManager.scene;
+
+    // Determine color palette & decal type
+    let fxColor = 0xff5500;
+    let decalType = 'scorch';
+
+    if (spell.id === 'bird_cupid') {
+      fxColor = 0xf43f5e;
+      decalType = 'arcane';
+    } else if (spell.id === 'bird_owl') {
+      fxColor = 0xa855f7;
+      decalType = 'arcane';
+    } else if (spell.id === 'plant_cactus' || spell.id === 'plant_drain') {
+      fxColor = 0x22c55e;
+      decalType = 'nature';
+    } else if (spell.id === 'plant_shield') {
+      fxColor = 0x4ade80;
+      decalType = 'arcane';
+    } else if (spell.id === 'bing_explosive') {
+      fxColor = 0xff4500;
+      decalType = 'scorch';
+    } else if (spell.id === 'bing_slow') {
+      fxColor = 0x38bdf8;
+      decalType = 'ice';
+    } else if (spell.id === 'chimera_spit') {
+      fxColor = 0x84cc16;
+      decalType = 'poison';
+    } else if (spell.id === 'pomodoro_bramble') {
+      fxColor = 0x22c55e;
+      decalType = 'nature';
+    } else if (spell.id && (spell.id.includes('heal') || spell.id.includes('stim'))) {
+      fxColor = 0x34d399;
+      decalType = 'arcane';
+    } else {
+      fxColor = 0xf59e0b;
+      decalType = 'crater';
+    }
+
+    // 1. Trigger ground decal
+    this.gridManager.spawnImpactDecal(worldPos, decalType);
+
+    // 2. Shockwave expanding ring
+    const ringGeo = new THREE.RingGeometry(0.12, 0.45, 32);
+    const ringMat = new THREE.MeshBasicMaterial({
+      color: fxColor,
+      transparent: true,
+      opacity: 0.95,
+      side: THREE.DoubleSide
+    });
+    const ringMesh = new THREE.Mesh(ringGeo, ringMat);
+    ringMesh.rotation.x = -Math.PI / 2;
+    ringMesh.position.set(worldPos.x, 0.05, worldPos.z);
+    scene.add(ringMesh);
+
+    // 3. 3D Spark Particle Explosion (16 sparks)
+    const sparks = [];
+    const sparkGeo = new THREE.OctahedronGeometry(0.09, 0);
+    const sparkMat = new THREE.MeshBasicMaterial({ color: fxColor, transparent: true, opacity: 1.0 });
+
+    for (let i = 0; i < 16; i++) {
+      const pMesh = new THREE.Mesh(sparkGeo, sparkMat.clone());
+      pMesh.position.set(worldPos.x, 0.65, worldPos.z);
+      scene.add(pMesh);
+
+      const angle = Math.random() * Math.PI * 2;
+      const speedHoriz = 2.0 + Math.random() * 3.8;
+      const speedVert = 3.5 + Math.random() * 4.5;
+
+      sparks.push({
+        mesh: pMesh,
+        mat: pMesh.material,
+        vx: Math.cos(angle) * speedHoriz,
+        vy: speedVert,
+        vz: Math.sin(angle) * speedHoriz
+      });
+    }
+
+    const startTime = performance.now();
+    const duration = 380; // ms
+
+    const animate = (now) => {
+      const elapsed = now - startTime;
+      const progress = Math.min(1.0, elapsed / duration);
+      const dt = 0.016;
+
+      // Expand ring
+      const scale = 0.4 + progress * 2.8;
+      ringMesh.scale.set(scale, scale, 1);
+      ringMat.opacity = Math.max(0, (1.0 - progress) * 0.95);
+
+      // Update sparks with gravity
+      sparks.forEach(s => {
+        s.mesh.position.x += s.vx * dt;
+        s.mesh.position.y += s.vy * dt;
+        s.mesh.position.z += s.vz * dt;
+        s.vy -= 18.0 * dt;
+
+        s.mat.opacity = Math.max(0, 1.0 - progress);
+        s.mesh.scale.setScalar(Math.max(0.1, 1.0 - progress * 0.8));
+      });
+
+      if (progress < 1.0) {
+        requestAnimationFrame(animate);
+      } else {
+        scene.remove(ringMesh);
+        ringGeo.dispose();
+        ringMat.dispose();
+
+        sparks.forEach(s => {
+          scene.remove(s.mesh);
+          s.mat.dispose();
+        });
+        sparkGeo.dispose();
+      }
+    };
+
+    requestAnimationFrame(animate);
+  }
+
+  playSpellSound(soundType) {
+    switch (soundType) {
+      case 'melee':
+        this.audio.playAttackMelee();
+        break;
+      case 'push':
+        this.audio.playShootBow();
+        break;
+      case 'bow':
+        this.audio.playShootBow();
+        break;
+      case 'explosion':
+        this.audio.playExplosion();
+        break;
+      case 'heal':
+        this.audio.playHeal();
+        break;
+      case 'buff':
+        this.audio.playBuff();
+        break;
+      default:
+        this.audio.playAttackMelee();
+    }
+  }
+}

@@ -2,6 +2,8 @@
 
 > **Estado:** implementadas por el equipo (pantallas 24 y 25 del sistema de diseño). Revisadas el 20-oct-2026: este documento las describe y recoge lo encontrado en la revisión (sección 5). Se corrigieron los errores 1, 2, 4 y 5 (sección 5.3); el 3 queda a la espera de los objetos nuevos.
 
+> **Actualización (21-oct-2026):** al evolucionar, la Forja se queda la pieza hasta recogerla y vuelve equipada en su ranura (Hito 46, punto 9). En el tutorial (Hito 48) la Forja se abre en su fase, el acelerado ×4 sale gratis (`ForgeService.grant`) y la vista pasa sola a «Evolucionar» (`forgeModal.setMode`). La Tienda abre al terminar el tutorial.
+
 ## 1. Dónde están
 
 Las dos están en el patio del Dojō (zona `2_2`):

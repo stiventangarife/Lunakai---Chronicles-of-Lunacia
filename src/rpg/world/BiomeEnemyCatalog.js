@@ -43,6 +43,9 @@ export const BIOME_TIER_CONFIG = {
   }
 };
 
+// possibleDrops (20-oct): materiales y comida que suelta cada monstruo (ids de MATERIALS van a la bolsa de la Forja).
+// Slimes: baba y frutas · lobos acuáticos: cola de quimera y diente · lobos grises y alfa: lana · treant: madera ·
+// dríadas: rama, bastón y flor de druida · osos, slimes de Génesis y su jefe: ámbar de Atia.
 export const ENEMY_ARCHETYPES = {
   // --- 1. BOSQUE (Forest - Tier 1) ---
   // Modelos: slime, slime-attack, slime-defese, slime-support
@@ -56,7 +59,7 @@ export const ENEMY_ARCHETYPES = {
     baseStats: { maxHP: 130, maxPA: 5, maxPM: 3, initiative: 50, initialShield: 15, bonusDamage: 0 },
     spellIds: ['slime_strike', 'slime_barrier'],
     expValue: 60,
-    possibleDrops: ['wood_sword', 'leather_boots']
+    possibleDrops: ['mat_slime_goo', 'food_fruit']
   },
   slime_attack: {
     id: 'slime_attack',
@@ -68,7 +71,7 @@ export const ENEMY_ARCHETYPES = {
     baseStats: { maxHP: 120, maxPA: 6, maxPM: 3, initiative: 65, initialShield: 10, bonusDamage: 5 },
     spellIds: ['slime_attack_spit', 'slime_attack_goo'],
     expValue: 65,
-    possibleDrops: ['wooden_bow', 'leather_boots']
+    possibleDrops: ['mat_slime_goo', 'food_fruit']
   },
   slime_defese: {
     id: 'slime_defese',
@@ -80,7 +83,7 @@ export const ENEMY_ARCHETYPES = {
     baseStats: { maxHP: 165, maxPA: 5, maxPM: 2, initiative: 45, initialShield: 35, bonusDamage: 0 },
     spellIds: ['slime_defense_slam', 'slime_defense_barrier'],
     expValue: 70,
-    possibleDrops: ['wood_shield', 'reinforced_leather_shield']
+    possibleDrops: ['mat_slime_goo', 'food_fruit']
   },
   slime_support: {
     id: 'slime_support',
@@ -92,7 +95,7 @@ export const ENEMY_ARCHETYPES = {
     baseStats: { maxHP: 115, maxPA: 6, maxPM: 3, initiative: 55, initialShield: 20, bonusDamage: 0 },
     spellIds: ['slime_support_pinch', 'slime_support_heal'],
     expValue: 65,
-    possibleDrops: ['apprentice_hat', 'dew_flask']
+    possibleDrops: ['mat_slime_goo', 'food_fruit']
   },
 
   // --- 2. SABANA (Savannah - Tier 2) ---
@@ -107,7 +110,7 @@ export const ENEMY_ARCHETYPES = {
     baseStats: { maxHP: 170, maxPA: 5, maxPM: 4, initiative: 65, initialShield: 20, bonusDamage: 0 },
     spellIds: ['slime_forest_a_swipe', 'slime_forest_a_spit', 'slime_forest_a_thorn'],
     expValue: 90,
-    possibleDrops: ['swift_boots', 'feather_dagger']
+    possibleDrops: ['mat_slime_goo', 'food_fruit']
   },
   wolf_aquatic: {
     id: 'wolf_aquatic',
@@ -119,7 +122,7 @@ export const ENEMY_ARCHETYPES = {
     baseStats: { maxHP: 195, maxPA: 5, maxPM: 4, initiative: 75, initialShield: 25, bonusDamage: 5 },
     spellIds: ['wolf_aquatic_bite'],
     expValue: 100,
-    possibleDrops: ['iron_sword', 'nomad_turban']
+    possibleDrops: ['mat_chimera_tail', 'mat_wolf_tooth']
   },
   wolf_aquatic_alpha: {
     id: 'wolf_aquatic_alpha',
@@ -131,7 +134,7 @@ export const ENEMY_ARCHETYPES = {
     baseStats: { maxHP: 240, maxPA: 6, maxPM: 4, initiative: 80, initialShield: 40, bonusDamage: 10 },
     spellIds: ['wolf_aquatic_alpha_splash', 'wolf_aquatic_alpha_roar'],
     expValue: 125,
-    possibleDrops: ['iron_shield', 'fury_ring']
+    possibleDrops: ['mat_chimera_tail', 'mat_wolf_tooth']
   },
 
   // --- 3. ÁRTICO (Arctic - Tier 3) ---
@@ -146,7 +149,7 @@ export const ENEMY_ARCHETYPES = {
     baseStats: { maxHP: 210, maxPA: 5, maxPM: 4, initiative: 70, initialShield: 35, bonusDamage: 0 },
     spellIds: ['wolf_gray_bite', 'wolf_gray_slash'],
     expValue: 130,
-    possibleDrops: ['arctic_buckler', 'leather_armor']
+    possibleDrops: ['mat_wool']
   },
   wolf_alpha: {
     id: 'wolf_alpha',
@@ -158,7 +161,7 @@ export const ENEMY_ARCHETYPES = {
     baseStats: { maxHP: 270, maxPA: 6, maxPM: 4, initiative: 85, initialShield: 50, bonusDamage: 10 },
     spellIds: ['wolf_alpha_bite', 'wolf_alpha_roar', 'wolf_alpha_nova'],
     expValue: 160,
-    possibleDrops: ['frost_amulet', 'swift_boots']
+    possibleDrops: ['mat_wool']
   },
   treant_flower: {
     id: 'treant_flower',
@@ -170,7 +173,7 @@ export const ENEMY_ARCHETYPES = {
     baseStats: { maxHP: 310, maxPA: 5, maxPM: 2, initiative: 45, initialShield: 70, bonusDamage: 0 },
     spellIds: ['treant_flower_slam', 'treant_flower_nova'],
     expValue: 165,
-    possibleDrops: ['frost_staff', 'iron_armor']
+    possibleDrops: ['mat_wood']
   },
 
   // --- 4. MÍSTICO (Mystic - Tier 4) ---
@@ -185,7 +188,7 @@ export const ENEMY_ARCHETYPES = {
     baseStats: { maxHP: 250, maxPA: 6, maxPM: 3, initiative: 65, initialShield: 45, bonusDamage: 5 },
     spellIds: ['dryad_fighter_blade', 'dryad_fighter_dance', 'dryad_fighter_slash'],
     expValue: 160,
-    possibleDrops: ['relic_sword', 'sacred_leaf_brooch']
+    possibleDrops: ['mat_druid_branch', 'mat_druid_flower']
   },
   dryad_mage: {
     id: 'dryad_mage',
@@ -197,7 +200,7 @@ export const ENEMY_ARCHETYPES = {
     baseStats: { maxHP: 230, maxPA: 6, maxPM: 3, initiative: 70, initialShield: 40, bonusDamage: 10 },
     spellIds: ['dryad_mage_spark', 'dryad_mage_heal', 'dryad_mage_burst'],
     expValue: 165,
-    possibleDrops: ['astral_robe', 'star_prism']
+    possibleDrops: ['mat_druid_staff', 'mat_druid_flower']
   },
   dryad_range: {
     id: 'dryad_range',
@@ -209,7 +212,7 @@ export const ENEMY_ARCHETYPES = {
     baseStats: { maxHP: 220, maxPA: 6, maxPM: 4, initiative: 75, initialShield: 35, bonusDamage: 10 },
     spellIds: ['dryad_range_arrow', 'dryad_range_snipe', 'dryad_range_root'],
     expValue: 160,
-    possibleDrops: ['precision_scope', 'feather_dagger']
+    possibleDrops: ['mat_druid_branch', 'mat_druid_staff']
   },
 
   // --- 5. MAZMORRA (Dungeon - Tier 5) ---
@@ -225,7 +228,7 @@ export const ENEMY_ARCHETYPES = {
     baseStats: { maxHP: 270, maxPA: 6, maxPM: 3, initiative: 60, initialShield: 45, bonusDamage: 0 },
     spellIds: ['slime_forest_b_slam', 'slime_forest_b_spit', 'slime_forest_b_heavy'],
     expValue: 175,
-    possibleDrops: ['iron_sword', 'obsidian_dagger']
+    possibleDrops: ['mat_amber_atia']
   },
   slime_fusion: {
     id: 'slime_fusion',
@@ -237,7 +240,7 @@ export const ENEMY_ARCHETYPES = {
     baseStats: { maxHP: 310, maxPA: 6, maxPM: 3, initiative: 65, initialShield: 55, bonusDamage: 10 },
     spellIds: ['slime_fusion_burst', 'slime_defense_slam'],
     expValue: 195,
-    possibleDrops: ['obsidian_shield', 'ember_ring']
+    possibleDrops: ['mat_amber_atia']
   },
   werewolf_boss: {
     id: 'werewolf_boss',
@@ -249,7 +252,7 @@ export const ENEMY_ARCHETYPES = {
     baseStats: { maxHP: 450, maxPA: 7, maxPM: 4, initiative: 85, initialShield: 110, bonusDamage: 25 },
     spellIds: ['werewolf_boss_bite', 'werewolf_boss_roar', 'werewolf_boss_cataclysm'],
     expValue: 350,
-    possibleDrops: ['dragon_blade', 'obsidian_shield', 'atia_crown']
+    possibleDrops: ['mat_amber_atia']
   },
   bear_mom: {
     id: 'bear_mom',
@@ -261,7 +264,7 @@ export const ENEMY_ARCHETYPES = {
     baseStats: { maxHP: 400, maxPA: 6, maxPM: 3, initiative: 60, initialShield: 95, bonusDamage: 15 },
     spellIds: ['bear_mom_strike', 'bear_mom_roar', 'bear_mom_slam'],
     expValue: 280,
-    possibleDrops: ['iron_armor', 'champion_crown']
+    possibleDrops: ['mat_amber_atia']
   },
   bear_dad: {
     id: 'bear_dad',
@@ -273,7 +276,7 @@ export const ENEMY_ARCHETYPES = {
     baseStats: { maxHP: 420, maxPA: 6, maxPM: 3, initiative: 65, initialShield: 90, bonusDamage: 20 },
     spellIds: ['bear_dad_claw', 'bear_dad_roar', 'bear_dad_shield'],
     expValue: 290,
-    possibleDrops: ['relic_sword', 'dragon_blade']
+    possibleDrops: ['mat_amber_atia']
   },
 
   // --- Retrocompatibilidad con nombres antiguos ---

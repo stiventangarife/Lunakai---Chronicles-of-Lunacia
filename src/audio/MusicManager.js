@@ -94,7 +94,7 @@ export class MusicManager {
   /**
    * Plays a music track with crossfading and volume management.
    */
-  playTrack(trackKey, { loop = true, fadeDuration = 1000, volumeMultiplier = 1.0 } = {}) {
+  playTrack(trackKey, { loop = true, fadeDuration = 1000, volumeMultiplier = 1.0, startAt = null } = {}) {
     if (!MUSIC_TRACKS[trackKey]) return;
 
     // If already playing this track smoothly, simply update target volume if needed
@@ -122,6 +122,10 @@ export class MusicManager {
     this.currentVolumeMultiplier = volumeMultiplier;
 
     nextAudio.loop = loop;
+    // startAt (Hito 48): empezar la pista en un segundo concreto (el clímax de la cinemática)
+    if (startAt !== null && startAt !== undefined) {
+      try { nextAudio.currentTime = startAt; } catch { /* aún sin metadatos: empieza desde el principio */ }
+    }
     const targetVolume = this.isMuted ? 0 : (this.masterVolume * volumeMultiplier);
 
     // If no fading desired or volume already muted, switch immediately

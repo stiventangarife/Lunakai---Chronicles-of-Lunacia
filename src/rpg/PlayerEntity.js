@@ -5,13 +5,14 @@ import { applyToonOutline } from './stylized/ToonOutline.js';
 import { axieMixerService } from './AxieMixerService.js';
 import { sapidaeModularController } from './SapidaeModularController.js';
 import { spawnPuff } from './PuffEffect.js';
+import { sapidaeModelUrl, playerSapidaeModel } from './SapidaeModels.js';
 
 export class PlayerEntity {
   constructor(config = {}) {
     this.om = config.om || null;
     this.heroId = config.heroId || 'kotaro';
     this.isSapidae = true;
-    this.sapidaeModel = config.sapidaeModel || 'sapidae-m-a';
+    this.sapidaeModel = playerSapidaeModel(config.sapidaeModel || 'sapidae-m-a'); // 21-oct: los antiguos pasan a Ema / Kai
     this.equipped = config.equipped || (config.equippedHeroes ? config.equippedHeroes.kotaro : null) || {};
 
     // Companion Axie identity
@@ -150,10 +151,8 @@ export class PlayerEntity {
     this.navArrowGroup.add(this.navCrystalMesh);
 
 
-    // Warm golden directional point light
-    const navLight = new THREE.PointLight(0xffb700, 1.8, 4.0);
-    navLight.position.set(0, 0, 1.35);
-    this.navArrowGroup.add(navLight);
+    // Sin PointLight: al mostrarse/ocultarse o crearse en mitad del juego cambia el número de luces
+    // y three.js recompila TODOS los shaders iluminados (tirón). El brillo lo dan el material emisivo y el bloom.
 
     this.group.add(this.navArrowGroup);
 
@@ -177,8 +176,7 @@ export class PlayerEntity {
     if (renderer) this._renderer = renderer;
     // 1. Load the Sapidae humanoid 3D model
     const loader = new GLTFLoader();
-    const sapidaeFile = this.sapidaeModel.endsWith('.glb') ? this.sapidaeModel : `${this.sapidaeModel}.glb`;
-    const modelPath = `./assets/models/${sapidaeFile}`;
+    const modelPath = sapidaeModelUrl(this.sapidaeModel);
 
     try {
       const gltf = await loader.loadAsync(modelPath);
@@ -241,7 +239,7 @@ export class PlayerEntity {
           if (origMat) {
             origMat.vertexColors = false;
 
-            if (name.includes('eye') || name.includes('mouth') || name.includes('cheek')) {
+            if (name.includes('eye') || name.includes('mouth') || (name.includes('cheek') || name.includes('blush'))) {
               const decalMat = new THREE.MeshBasicMaterial({
                 map: origMat.map,
                 color: origMat.color,
@@ -284,7 +282,7 @@ export class PlayerEntity {
         mode: 'view',
         filter: (mesh) => {
           const name = (mesh.name || '').toLowerCase();
-          if (name.includes('eye') || name.includes('mouth') || name.includes('cheek') || name.includes('decal')) {
+          if (name.includes('eye') || name.includes('mouth') || (name.includes('cheek') || name.includes('blush')) || name.includes('decal')) {
             return false;
           }
           return true;
@@ -613,6 +611,12 @@ export class PlayerEntity {
       this.auraMesh.material.opacity = pulse;
     }
 
+    // Recolección (GatheringActors): el Axie deja de seguir al Sapidae mientras pesca o tala; quien lo mueve
+    // es la recolección, aquí solo avanzan sus animaciones.
+    if (this.companionHold && this.companionGroup && this.companionMesh) {
+      if (this.group.parent && !this.companionGroup.parent) this.group.parent.add(this.companionGroup);
+      if (typeof this.companionAxie?.update === 'function') this.companionAxie.update(dt);
+    } else
     // Natural Companion Axie Living Follower Physics & Game Feel
     if (this.companionGroup && this.companionMesh) {
       if (this.group.parent && !this.companionGroup.parent) {

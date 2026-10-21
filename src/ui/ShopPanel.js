@@ -10,7 +10,7 @@
 import { ShopService, itemOf, kindOf, EQ_SLOTS } from '../rpg/ShopService.js';
 import { ForgeService } from '../rpg/ForgeService.js';
 import { ITEMS_DB } from '../tactics/ItemDatabase.js';
-import { CRAFT_RECIPES, EVOLUTION_COST, nextEvolution } from '../tactics/data/EconomyCatalog.js';
+import { CRAFT_RECIPES, EVOLUTION_COST, nextEvolution, MATERIAL_RARITY_NAME } from '../tactics/data/EconomyCatalog.js';
 import { asset, esc, toast, sprite } from './lk.js';
 import { BIOME, matSvg } from './ForgePanel.js';
 import { MerchantStall } from '../rpg/world/MerchantStall.js';
@@ -28,11 +28,11 @@ const fmt = (n) => Number(n).toLocaleString('es');
 const fmtH = (h) => { const m = Math.max(1, Math.ceil(h * 60)); return m >= 60 ? `${Math.floor(m / 60)} h${m % 60 ? ` ${m % 60} min` : ''}` : `${m} min`; };
 const isImg = (s) => typeof s === 'string' && (/^(\.\/|\/|assets\/|http|data:image)/.test(s) || /\.(png|jpe?g|webp|svg)$/i.test(s));
 const rarVar = (r) => `var(--lk-rar-${['rare', 'epic', 'mystic', 'uncommon'].includes(r) ? r : r === 'legendary' ? 'mystic' : 'common'})`;
-const bg = (it) => (it.mat ? BIOME[it.biome]?.[1] || '#B8892E' : rarVar(it.rarity));
+const bg = (it) => rarVar(it.mat ? it.matRarity : it.rarity); // fondo = color de la rareza (también en materiales)
 const slotName = (it) => (it.mat ? 'Material' : SLOT1[it.slot] || (it.category === 'food' ? 'Comida' : (it.slot === 'consumable' ? 'Poción' : '')));
-const tierLabel = (it) => (it.mat ? (it.tier ? `Tier ${it.tier} · ${BIOME[it.biome]?.[0] || ''}` : 'Catalizador') : (EQ_SLOTS.includes(it.slot) && it.tier != null ? `Tier ${it.tier}` : ''));
+const tierLabel = (it) => (it.mat ? (it.tier ? `${MATERIAL_RARITY_NAME[it.matRarity] || ''} · ${BIOME[it.biome]?.[0] || ''}` : 'Catalizador') : (EQ_SLOTS.includes(it.slot) && it.tier != null ? `Tier ${it.tier}` : ''));
 function art(it) {
-  if (it.mat) return matSvg(it.glyph);
+  if (it.mat && !it.icon) return matSvg(it.glyph);
   if (isImg(it.icon)) return `<img class="${it.isT0 ? 'lk-is-t0' : ''}" src="${it.icon}" alt="" draggable="false">`;
   return `<span class="lk-emoji">${esc(it.icon || '📦')}</span>`;
 }
@@ -127,7 +127,7 @@ export function attachShop(game) {
     const el = $('buyback'); el.hidden = SH.mode !== 'sell';
     if (el.hidden) return;
     const bb = ShopService.buyback(SH.shop);
-    el.innerHTML = `<span class="lk-label">Recomprar</span>${bb.length ? `<div class="lk-bb-list">${bb.map((b, i) => `<button type="button" class="lk-bb" data-i="${i}" title="Recomprar ${esc(b.it.name)}" style="--r:${bg(b.it)}"><span class="lk-bi">${art(b.it)}</span>${b.qty > 1 ? `×${b.qty} ` : ''}${esc(b.it.name)} · ${COIN}${fmt(b.paid)}</button>`).join('')}</div>` : '<span class="lk-muted">Lo que vendas aparece aquí y puedes recuperarlo al mismo precio.</span>'}`;
+    el.innerHTML = `<span class="lk-label">Recomprar</span>${bb.length ? `<div class="lk-bb-list">${bb.map((b, i) => `<button type="button" class="lk-bb" data-i="${i}" title="Recomprar ${b.qty > 1 ? `${b.qty} × ` : ''}${esc(b.it.name)} por ${fmt(b.paid)} de oro" style="--r:${bg(b.it)}"><span class="lk-bi">${art(b.it)}</span><span class="lk-bn">${b.qty > 1 ? `×${b.qty} ` : ''}${esc(b.it.name)}</span><span class="lk-bp">${COIN}${fmt(b.paid)}</span></button>`).join('')}</div>` : '<span class="lk-muted">Lo que vendas aparece aquí y puedes recuperarlo al mismo precio.</span>'}`;
   }
 
   function renderPage(e) {
@@ -143,24 +143,25 @@ export function attachShop(game) {
     if (buy && e.left === 0) why = 'Agotado: vuelve cuando se renueven las existencias.';
     else if (buy && unit > gold) why = `Te faltan ${fmt(unit - gold)} de oro.`;
     else if (!buy && e.locked) why = e.lockWhy;
-    const valuable = !buy && isGear && (RAR_ORDER[it.rarity] || 0) >= 3;
+    const noSale = !buy && e.locked; // el mercader no lo compra: sin cantidad, sin resumen
+    const valuable = !buy && !noSale && isGear && (RAR_ORDER[it.rarity] || 0) >= 3;
     const compare = isGear ? `<div class="lk-sp-sec"><span class="lk-label">Frente a lo que lleva ${esc(heroName(hid))}</span><div class="lk-sp-stats">${statRows(it, curIt)}</div><small style="font-size:.7rem;font-weight:700;color:var(--lk-ink-600)">${curIt ? `Ahora: ${esc(curIt.name)} (T${curIt.tier})` : `${esc(heroName(hid))} no lleva ${SLOT1[it.slot].toLowerCase()}.`}</small></div>` : '';
     const uses = it.mat ? `<div class="lk-sp-sec"><span class="lk-label">Se usa en</span><div class="lk-sp-note"><img class="lk-ai" src="${I('build')}" alt=""><span>${esc(matUses(it.id))}</span></div><div class="lk-sp-note"><img class="lk-ai" src="${I('map')}" alt=""><span><b>Dónde conseguirlo:</b> ${esc(it.source)}</span></div></div>` : '';
     const eff = !it.mat && !isGear && effectTxt(it) ? `<div class="lk-sp-note"><img class="lk-ai" src="${I('heart')}" alt=""><span>${esc(effectTxt(it))}</span></div>` : '';
     const nx = isGear && nextEvolution(it.id) && ITEMS_DB[nextEvolution(it.id)];
     const evo = nx ? `<div class="lk-sp-note"><img class="lk-ai" src="${I('upgrade')}" alt=""><span>Evoluciona en la forja a <b>${esc(nx.name)}</b> (T${nx.tier}).</span></div>` : '';
     pg.innerHTML = `
-      <div class="lk-sp-head"><span class="lk-sp-art" style="--r:${bg(it)}">${art(it)}</span><div><small>${esc(slotName(it))}${tierLabel(it) ? ` · ${esc(tierLabel(it))}` : ''}</small><b>${esc(it.name)}</b>${it.mat ? '' : `<span class="lk-rar-chip" data-r="${it.rarity === 'legendary' ? 'mystic' : it.rarity || 'common'}">${RAR_NAME[it.rarity] || 'Común'}</span>`}</div></div>
+      <div class="lk-sp-head"><span class="lk-sp-art" style="--r:${bg(it)}">${art(it)}</span><div><small>${esc(slotName(it))}${tierLabel(it) ? ` · ${esc(tierLabel(it))}` : ''}</small><b>${esc(it.name)}</b>${((r) => `<span class="lk-rar-chip" data-r="${r === 'legendary' ? 'mystic' : r}">${RAR_NAME[r] || 'Común'}</span>`)((it.mat ? it.matRarity : it.rarity) || 'common')}</div></div>
       <p class="lk-sp-desc">${esc(it.description || '')}</p>
       ${compare}${uses}${eff}${evo}
       ${!buy && e.locked ? '' : `<div class="lk-sp-qty"><span class="lk-step"><button type="button" data-q="-1" aria-label="Menos" ${SH.qty <= 1 ? 'disabled' : ''}>−</button><output>${SH.qty}</output><button type="button" data-q="1" aria-label="Más" ${SH.qty >= max ? 'disabled' : ''}>+</button></span>${max > 1 ? '<button type="button" class="lk-max" data-q="max">Máx</button>' : ''}<span class="lk-have">${buy ? `Tienes ${ShopService.have(it.id)}${e.left != null ? ` · quedan ${e.left}` : ''}` : `Tienes ${e.qty}`}</span></div>`}
-      <div class="lk-sp-sum">
+      ${noSale ? '' : `<div class="lk-sp-sum">
         <div><span>Precio por unidad</span><b>${COIN}${fmt(unit)}</b></div>
         <div class="lk-total"><span>${buy ? 'Total' : 'Recibes'}</span><b>${COIN}${fmt(total)}</b></div>
         <div><span>${buy ? 'Te quedarán' : 'Tendrás'}</span><b class="${buy && total > gold ? 'lk-neg' : ''}">${COIN}${fmt(buy ? gold - total : gold + total)}</b></div>
-      </div>
+      </div>`}
       <div class="lk-sp-act">
-        <button type="button" class="lk-btn ${buy ? 'lk-btn-primary-gold' : 'lk-btn-secondary-wood'} ${valuable ? 'lk-hold' : ''}" data-act="go" ${why ? 'disabled' : ''}>${valuable ? '<span class="lk-fill"></span>' : ''}<span class="lk-b-ico"><img class="lk-ai" src="${I(buy ? 'add' : 'resource')}" alt=""></span>${buy ? `Comprar ×${SH.qty} · ${fmt(total)}` : valuable ? `Mantén para vender · ${fmt(total)}` : `Vender ×${SH.qty} · ${fmt(total)}`}</button>
+        <button type="button" class="lk-btn ${buy ? 'lk-btn-primary-gold' : 'lk-btn-secondary-wood'} ${valuable ? 'lk-hold' : ''}" data-act="go" ${why ? 'disabled' : ''}>${valuable ? '<span class="lk-fill"></span>' : ''}<span class="lk-b-ico"><img class="lk-ai" src="${I(buy ? 'add' : 'resource')}" alt=""></span>${buy ? `Comprar ×${SH.qty} · ${fmt(total)}` : noSale ? 'No se puede vender aquí' : valuable ? `Mantén para vender · ${fmt(total)}` : `Vender ×${SH.qty} · ${fmt(total)}`}</button>
         <span class="lk-why">${esc(why)}</span>
       </div>`;
     pg.querySelectorAll('[data-q]').forEach((b) => b.addEventListener('click', () => { SH.qty = b.dataset.q === 'max' ? max : SH.qty + Number(b.dataset.q); renderPage(e); }));
@@ -219,6 +220,8 @@ export function attachShop(game) {
   function open(shopId = 'dojo_valley') {
     if (document.body.classList.contains('state-combat') || window.__AXIE_TACTICS_APP__?.gameState === 'BATTLE') return;
     if (!ShopService.def(shopId)) return;
+    const lock = ow.tutorialManager?.lockMessage?.('shop'); // Hito 48
+    if (lock && !api.isOpen) { ow._showFeatureLockedFeedback?.(lock); return; }
     if (SH.shop !== shopId) { SH.shop = shopId; SH.sel = null; }
     SH.mode = 'buy'; SH.tab = 'all'; SH.qty = 1;
     if (!api.isOpen) {

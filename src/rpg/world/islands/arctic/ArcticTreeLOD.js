@@ -188,6 +188,9 @@ export class ArcticTreeLOD {
     this.trees = trees;
     this.cfg = { ...ARCTIC_TREE_LOD, ...(opts.lod || {}) };
     this.getCamera = opts.camera;
+    // Punto de referencia para las distancias (el jugador). Con la cámara, al ORBITAR alrededor del
+    // jugador se reordenaban y subían a la GPU todas las instancias en cada fotograma.
+    this.getFocus = opts.focus || null;
     this.entries = [];     // detail meshes driven by distance
     this.proxies = [];     // proxy meshes (one per foliage bucket)
     this._last = new THREE.Vector2(1e9, 1e9);
@@ -253,9 +256,11 @@ export class ArcticTreeLOD {
   }
 
   update(force = false) {
-    const cam = this.getCamera && this.getCamera();
-    if (!cam) return;
-    const cx = cam.position.x, cz = cam.position.z;
+    const focus = this.getFocus && this.getFocus();
+    const cam = focus ? null : (this.getCamera && this.getCamera());
+    const ref = focus || (cam && cam.position);
+    if (!ref) return;
+    const cx = ref.x, cz = ref.z;
     if (!force && Math.hypot(cx - this._last.x, cz - this._last.y) < this.cfg.recomputeStep) return;
     this._last.set(cx, cz);
     let detail = 0, proxyCount = 0;

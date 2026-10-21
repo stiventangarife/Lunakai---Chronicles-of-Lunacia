@@ -198,6 +198,8 @@ export function attachAxieCare(game) {
 
   function show() {
     if (!exploring() || !companion()) return;
+    const lock = game.overworldManager?.tutorialManager?.lockMessage?.('care'); // Hito 48
+    if (lock) { toast(lock, true); return; }
     placed = null;
     const gift = service.grantStarterFood();
     open = true;

@@ -58,6 +58,7 @@ export class OverworldCamera {
     }
     this.currentLookAt.copy(this.targetLookAt);
     this.currentAngle = this.targetAngle;
+    this._groundFloorY = undefined; // tras un teletransporte, el suelo se toma de golpe
 
     const horizontalDist = this.distance * Math.cos(this.pitchAngle);
     const height = this.distance * Math.sin(this.pitchAngle);
@@ -229,17 +230,19 @@ export class OverworldCamera {
     if (this.followTarget) {
       // Dynamic look target: when pitch is negative (looking up at sky), elevate the lookAt point into the sky
       const skyLookUpOffset = Math.max(0, -this.pitchAngle) * 8.5;
-      this.targetLookAt.copy(this.followTarget.position).add(new THREE.Vector3(0, 1.75 + skyLookUpOffset, 0));
+      this.targetLookAt.copy(this.followTarget.position);
+      this.targetLookAt.y += 1.75 + skyLookUpOffset;
     }
 
-    const t = Math.min(1.0, this.damping * dt);
+    // Suavizado exponencial: igual de suave a 30, 60 o 144 FPS (min(1, k·dt) daba saltos si el dt variaba)
+    const t = 1 - Math.exp(-this.damping * dt);
     this.currentLookAt.lerp(this.targetLookAt, t);
 
     // Smooth angle interpolation
     let angleDiff = this.targetAngle - this.currentAngle;
     while (angleDiff < -Math.PI) angleDiff += Math.PI * 2;
     while (angleDiff > Math.PI) angleDiff -= Math.PI * 2;
-    this.currentAngle += angleDiff * Math.min(1.0, 8.0 * dt);
+    this.currentAngle += angleDiff * (1 - Math.exp(-8.0 * dt));
 
     // Spherical to Cartesian with pitch & distance
     const horizontalDist = this.distance * Math.cos(this.pitchAngle);
@@ -256,8 +259,19 @@ export class OverworldCamera {
     } else if (this.om && this.om.player) {
       minGroundY = (this.om.player.position.y || 0) + 0.5;
     }
-    if (camY < minGroundY) {
-      camY = minGroundY;
+    // El suelo bajo la cámara cambia de golpe en laderas y rocas: antes la cámara copiaba cada
+    // bache al instante (tirón visual). Ahora el "suelo mínimo" se suaviza: sube rápido (para no
+    // atravesar el terreno) y baja despacio.
+    if (this._groundFloorY === undefined || !Number.isFinite(this._groundFloorY)) {
+      this._groundFloorY = minGroundY;
+    } else {
+      const k = minGroundY > this._groundFloorY ? 14.0 : 4.0;
+      this._groundFloorY += (minGroundY - this._groundFloorY) * (1 - Math.exp(-k * dt));
+      // nunca más de 0,45 m por debajo del suelo real
+      if (this._groundFloorY < minGroundY - 0.45) this._groundFloorY = minGroundY - 0.45;
+    }
+    if (camY < this._groundFloorY) {
+      camY = this._groundFloorY;
     }
 
     this.camera.position.set(camX, camY, camZ);

@@ -1,86 +1,82 @@
-// EconomyCatalog.js — PROPUESTA de economía para la Tienda y la Forja (pantallas 24 y 25 del sistema de diseño).
-// Solo datos (los leen ItemDatabase y la Forja · rpg/ForgeService.js). Ajusta números aquí y la interfaz los leerá tal cual.
+// EconomyCatalog.js — Economía de la demo: materiales, Forja (crear y evolucionar) y Tienda. Solo datos.
+// Lo leen ItemDatabase, la Forja (rpg/ForgeService.js), la Tienda, la recolección y el botín de los combates.
 //
-//  · Moneda: el oro que ya existe (EquipmentManager.getGold()).
-//  · Materiales: uno o varios por bioma; el tier del material es el de su isla (Bosque 1 … Génesis 5).
-//  · Forja «Crear»: objetos Tier 0 con materiales del Bosque (el primer equipo que fabrica el jugador).
-//  · Forja «Evolucionar»: cada pieza sube a la siguiente de su línea (EVOLUTION_LINES) pagando SLP,
-//    materiales del tier de destino, esquirlas lunares y 0,5 bAXS de comisión. Tarda unas horas
-//    (acelerables ×2 / ×4 con bAXS). Mientras se forja, el héroe sigue usando la versión actual.
-//  · Tienda: vende recursos, comida, pociones y equipo Tier 0; compra lo mismo (ni equipo Tier 1–3 ni objetos de misión).
+//  · Rareza (la del Excel «Items» del 20-oct): Común · Raro · Épico · Místico. Un material muestra su rareza y su isla;
+//    `tier` solo ordena y pone precio (Común 1 … Místico 4; la esquirla lunar es el catalizador, tier 0).
+//  · Forja «Crear»: las 7 piezas Comunes (una por línea) con materiales Comunes (Bosque y Sabana).
+//  · Forja «Evolucionar»: Común → Raro (1 min) → Épico (2 min) → Místico (3 min). Cada salto se paga con SLP,
+//    materiales de la rareza de destino, esquirlas lunares (solo al Místico) y 0,5 bAXS. Tiempos cortos a propósito:
+//    es una demo y el calificador tiene que poder ver todo el bucle en poco tiempo.
+//  · El equipo Raro, Épico y Místico solo se consigue evolucionando (ni misiones, ni combates, ni Tienda).
+//  · Tienda: pociones, comida, materiales Comunes y equipo Común.
 
 /* ───────────────────────── Materiales ───────────────────────── */
+export const MATERIAL_RARITY_NAME = { common: 'Común', rare: 'Raro', epic: 'Épico', mystic: 'Místico' };
 export const MATERIALS = {
-  // Bosque · Tier 1
-  mat_bamboo:        { id: 'mat_bamboo',        name: 'Caña de bambú',       tier: 1, biome: 'forest',   glyph: 'bamboo',  source: 'Talar bambú en el Valle del Dojō',          description: 'Ligera y flexible. Base de casi todo el equipo inicial.' },
-  mat_fiber:         { id: 'mat_fiber',         name: 'Fibra de liana',      tier: 1, biome: 'forest',   glyph: 'fiber',   source: 'Slimes del Bosque',                         description: 'Se trenza en cuerdas, correas y telas sencillas.' },
-  mat_resin:         { id: 'mat_resin',         name: 'Resina de Atia',      tier: 1, biome: 'forest',   glyph: 'resin',   source: 'Árboles junto al Gran Árbol de Atia',       description: 'Sella y endurece la madera. Brilla un poco de noche.' },
-  // Sabana · Tier 2
-  mat_hide:          { id: 'mat_hide',          name: 'Cuero de la sabana',  tier: 2, biome: 'savannah', glyph: 'hide',    source: 'Quimeras de la Sabana',                     description: 'Curtido al sol del cañón; resistente y flexible.' },
-  mat_copper:        { id: 'mat_copper',        name: 'Cobre del cañón',     tier: 2, biome: 'savannah', glyph: 'ingot',   source: 'Vetas del Cañón Solar',                     description: 'Metal blando que se trabaja en frío.' },
-  // Ártico · Tier 3
-  mat_glacier_iron:  { id: 'mat_glacier_iron',  name: 'Hierro glaciar',      tier: 3, biome: 'arctic',   glyph: 'ingot',   source: 'Minas de los Picos Glaciares',              description: 'Hierro templado en hielo eterno: no se mella.' },
-  mat_frost_crystal: { id: 'mat_frost_crystal', name: 'Cristal de escarcha', tier: 3, biome: 'arctic',   glyph: 'crystal', source: 'Quimeras de hielo',                         description: 'Guarda el frío dentro; refuerza escudos y bastones.' },
-  // Mística · Tier 4
-  mat_astral_dust:   { id: 'mat_astral_dust',   name: 'Polvo astral',        tier: 4, biome: 'mystic',   glyph: 'dust',    source: 'Santuario Cósmico',                         description: 'Restos de estrellas caídas. Despierta la magia del equipo.' },
-  mat_moon_silk:     { id: 'mat_moon_silk',     name: 'Seda lunar',          tier: 4, biome: 'mystic',   glyph: 'spool',   source: 'Tejedoras del Vacío Astral',                description: 'Tela que pesa menos que el aire.' },
-  // Génesis · Tier 5
-  mat_obsidian_core: { id: 'mat_obsidian_core', name: 'Núcleo de obsidiana', tier: 5, biome: 'dungeon',  glyph: 'gem',     source: 'Guardianes de los Jardines del Origen',     description: 'Corazón de roca volcánica, aún caliente.' },
-  mat_origin_essence:{ id: 'mat_origin_essence',name: 'Esencia del origen',  tier: 5, biome: 'dungeon',  glyph: 'flame',   source: 'Jefes de Génesis',                          description: 'La materia de la que nació Lunacia.' },
-  // Catalizador de evolución (todas las islas)
-  mat_lunar_shard:   { id: 'mat_lunar_shard',   name: 'Esquirla lunar',      tier: 0, biome: 'any',      glyph: 'shard',   source: 'Jefes, cofres y la tienda',                 description: 'Fragmento de la luna de Lunacia. Necesario para evolucionar equipo de Tier 2 en adelante.' },
+  // Comunes · Bosque y Sabana
+  mat_copper:        { id: 'mat_copper',        name: 'Cobre del cañón',  rarity: 'common', tier: 1, biome: 'savannah', icon: './assets/materials/ore_copper.webp', glyph: 'ingot',  source: 'Minar las vetas de la Isla de la Sabana',           description: 'Metal blando que se trabaja en frío. La base de casi todo el equipo Común.' },
+  mat_slime_goo:     { id: 'mat_slime_goo',     name: 'Baba de slime',    rarity: 'common', tier: 1, biome: 'forest',   icon: './assets/materials/slime.webp', glyph: 'slime',  source: 'Slimes del Bosque y la Sabana',                     description: 'Pegajosa y elástica: une piezas y sella costuras.' },
+  mat_chimera_tail:  { id: 'mat_chimera_tail',  name: 'Cola de quimera',  rarity: 'common', tier: 1, biome: 'savannah', icon: './assets/materials/tail_chimera.webp', glyph: 'tail',   source: 'Lobos acuáticos de la Sabana',                      description: 'Tira de cuero flexible para correas, cuerdas y empuñaduras.' },
+  // Raros
+  mat_wood:          { id: 'mat_wood',          name: 'Madera',           rarity: 'rare',   tier: 2, biome: 'forest',   icon: './assets/materials/wood.webp', glyph: 'log',    source: 'Talar árboles (Bosque y Ártico) · Treants del Ártico', description: 'Tronco recio y fácil de trabajar. Lo pide cualquier evolución a Raro.' },
+  mat_wolf_tooth:    { id: 'mat_wolf_tooth',    name: 'Diente de lobo',   rarity: 'rare',   tier: 2, biome: 'savannah', icon: './assets/materials/wolf_fang.webp', glyph: 'fang',   source: 'Lobos acuáticos de la Sabana',                      description: 'Afilado como una cuchilla: refuerza filos y puntas.' },
+  mat_wool:          { id: 'mat_wool',          name: 'Lana',             rarity: 'rare',   tier: 2, biome: 'arctic',   icon: './assets/materials/wool_sheep.webp', glyph: 'wool',   source: 'Lobos grises y alfa del Ártico',                    description: 'Abriga y acolcha. Va en armaduras, sombreros y empuñaduras.' },
+  // Épicos · Mística
+  mat_moon_flower:   { id: 'mat_moon_flower',   name: 'Flor lunar',       rarity: 'epic',   tier: 3, biome: 'mystic',   icon: './assets/materials/moon_flower.webp', glyph: 'flower', source: 'Recolectar flores en la Isla Mística',              description: 'Solo abre de noche. Sus pétalos guardan un poco de luz de luna.' },
+  mat_druid_branch:  { id: 'mat_druid_branch',  name: 'Rama de druida',   rarity: 'epic',   tier: 3, biome: 'mystic',   icon: './assets/materials/druid_branch.webp', glyph: 'branch', source: 'Dríadas de la Isla Mística',                        description: 'Rama viva que todavía brota. Da forma a las piezas Épicas.' },
+  mat_druid_staff:   { id: 'mat_druid_staff',   name: 'Bastón de druida', rarity: 'epic',   tier: 3, biome: 'mystic',   icon: './assets/materials/druid_staff.webp', glyph: 'staff',  source: 'Dríadas de la Isla Mística',                        description: 'Bastón tallado por las dríadas; conduce la magia del bosque.' },
+  mat_druid_flower:  { id: 'mat_druid_flower',  name: 'Flor de druida',   rarity: 'epic',   tier: 3, biome: 'mystic',   icon: './assets/materials/druid_flower.webp', glyph: 'flower', source: 'Dríadas de la Isla Mística',                        description: 'Flor encantada que nunca se marchita.' },
+  // Místicos
+  mat_frost_crystal: { id: 'mat_frost_crystal', name: 'Cristal de escarcha', rarity: 'mystic', tier: 4, biome: 'arctic', icon: './assets/materials/crystal_frost.webp', glyph: 'crystal', source: 'Tala en el Ártico (raro)',                         description: 'Guarda el frío dentro. Lo pide la evolución a Místico.' },
+  mat_astral_dust:   { id: 'mat_astral_dust',   name: 'Polvo astral',     rarity: 'mystic', tier: 4, biome: 'mystic',   icon: './assets/materials/astral_dust.webp', glyph: 'dust',   source: 'Recolectar flores en Mística (raro)',               description: 'Restos de estrellas caídas. Despierta la magia del equipo.' },
+  mat_amber_atia:    { id: 'mat_amber_atia',    name: 'Ámbar de Atia',    rarity: 'mystic', tier: 4, biome: 'dungeon',  icon: './assets/materials/atia_amber.webp', glyph: 'resin',  source: 'Osos, slimes de Génesis y su jefe',                 description: 'Savia del Gran Árbol endurecida durante siglos. El corazón de toda pieza Mística.' },
+  // Catalizador de evolución
+  mat_lunar_shard:   { id: 'mat_lunar_shard',   name: 'Esquirla lunar',   rarity: 'mystic', tier: 0, biome: 'any',      icon: './assets/materials/lunar_shard.webp', glyph: 'shard',  source: 'Minería en la Sabana (rara) y la Tienda',           description: 'Fragmento de la luna de Lunacia. Necesario para evolucionar a Místico.' },
 };
 
-/* ───────────────────────── Forja · Crear (Tier 0) ─────────────────────────
-   `art` reutiliza el dibujo del T1 de su línea hasta que haya arte propio. */
+/* ───────────────────────── Forja · Crear (Común) ─────────────────────────
+   Las 7 piezas Comunes, una por línea de evolución. Son las únicas que se pueden crear, comprar o ganar. */
+const EQ = (n) => `./assets/equippable/${n}.webp`;
 export const TIER0_ITEMS = {
-  t0_practice_sword: { id: 't0_practice_sword', name: 'Espada de práctica',  slot: 'weapon', rarity: 'common', tier: 0, stats: { damage: 8, initiative: 2 },  art: 'wood_sword',     description: 'Bambú atado con fibra. Sirve para aprender a pelear.' },
-  t0_reed_bow:       { id: 't0_reed_bow',       name: 'Arco de caña',        slot: 'weapon', rarity: 'common', tier: 0, stats: { damage: 7, initiative: 3 },  art: 'wooden_bow',     description: 'Caña curvada y una cuerda de liana.' },
-  t0_branch_wand:    { id: 't0_branch_wand',    name: 'Varita de rama',      slot: 'weapon', rarity: 'common', tier: 0, stats: { hp: 20, damage: 6 },         art: 'plant_wand',     description: 'Una rama con una gota de resina de Atia en la punta.' },
-  t0_leaf_hat:       { id: 't0_leaf_hat',       name: 'Gorro de hojas',      slot: 'hat',    rarity: 'common', tier: 0, stats: { hp: 15 },                    art: 'straw_hat',      description: 'Hojas cosidas que dan sombra y poco más.' },
-  t0_plank_shield:   { id: 't0_plank_shield',   name: 'Escudo de tablas',    slot: 'shield', rarity: 'common', tier: 0, stats: { hp: 18, shield: 15 },        art: 'wooden_buckler', description: 'Tablas de bambú selladas con resina.' },
-  t0_linen_tunic:    { id: 't0_linen_tunic',    name: 'Túnica de lino',      slot: 'body',   rarity: 'common', tier: 0, stats: { hp: 25 },                    art: 'traveler_cloak', description: 'Tejida con fibra de liana. Cómoda para viajar.' },
-  t0_rope_sandals:   { id: 't0_rope_sandals',   name: 'Sandalias de cuerda', slot: 'boots',  rarity: 'common', tier: 0, stats: { hp: 12, initiative: 2 },     art: 'traveler_boots', description: 'Suela de corteza y cuerdas de liana.' },
+  beast_helmet:   { id: 'beast_helmet',   name: 'Yelmo bestial',    slot: 'hat',    rarity: 'common', tier: 0, stats: { hp: 15 },                icon: EQ('beast_helmet'),   description: 'Casco de cuero y hueso. El primer sombrero de todo aventurero.' },
+  traveler_cloak: { id: 'traveler_cloak', name: 'Capa de viajero',  slot: 'body',   rarity: 'common', tier: 0, stats: { hp: 25 },                icon: EQ('traveler_cloak'), description: 'Capa gruesa y cómoda para los caminos de Lunacia.' },
+  wooden_buckler: { id: 'wooden_buckler', name: 'Rodela de roble',  slot: 'shield', rarity: 'common', tier: 0, stats: { hp: 18, shield: 15 },    icon: EQ('wooden_buckler'), description: 'Escudo pequeño de roble con remaches de cobre.' },
+  heavy_boots:    { id: 'heavy_boots',    name: 'Botas pesadas',    slot: 'boots',  rarity: 'common', tier: 0, stats: { hp: 12, initiative: 2 }, icon: EQ('heavy_boots'),    description: 'Suela gruesa para no resbalar en el barro.' },
+  wood_sword:     { id: 'wood_sword',     name: 'Espada de madera', slot: 'weapon', rarity: 'common', tier: 0, stats: { damage: 8, initiative: 2 }, icon: EQ('wood_sword'),   description: 'La espada de entrenamiento del Maestro Paladill.' },
+  composite_bow:  { id: 'composite_bow',  name: 'Arco compuesto',   slot: 'weapon', rarity: 'common', tier: 0, stats: { damage: 7, initiative: 3 }, icon: EQ('composite_bow'), description: 'Madera y cola de quimera: ligero y preciso.' },
+  mushroom_staff: { id: 'mushroom_staff', name: 'Bastón de hongo',  slot: 'weapon', rarity: 'common', tier: 0, stats: { hp: 20, damage: 6 },     icon: EQ('mushroom_staff'),   description: 'Un bastón coronado por un hongo que brilla un poco.' },
 };
 
-/** Recetas de la forja: materiales + oro → objeto T0. */
+/** Recetas de la forja: materiales Comunes + oro → pieza Común. */
 export const CRAFT_RECIPES = [
-  { id: 'r_practice_sword', result: 't0_practice_sword', gold: 20, mats: { mat_bamboo: 3, mat_fiber: 1 } },
-  { id: 'r_reed_bow',       result: 't0_reed_bow',       gold: 20, mats: { mat_bamboo: 2, mat_fiber: 2 } },
-  { id: 'r_branch_wand',    result: 't0_branch_wand',    gold: 25, mats: { mat_bamboo: 2, mat_resin: 2 } },
-  { id: 'r_leaf_hat',       result: 't0_leaf_hat',       gold: 15, mats: { mat_fiber: 3 } },
-  { id: 'r_plank_shield',   result: 't0_plank_shield',   gold: 20, mats: { mat_bamboo: 3, mat_resin: 1 } },
-  { id: 'r_linen_tunic',    result: 't0_linen_tunic',    gold: 20, mats: { mat_fiber: 4 } },
-  { id: 'r_rope_sandals',   result: 't0_rope_sandals',   gold: 15, mats: { mat_fiber: 2, mat_bamboo: 1 } },
+  { id: 'r_beast_helmet',   result: 'beast_helmet',   gold: 15, mats: { mat_chimera_tail: 2, mat_slime_goo: 1 } },
+  { id: 'r_traveler_cloak', result: 'traveler_cloak', gold: 20, mats: { mat_slime_goo: 3, mat_chimera_tail: 1 } },
+  { id: 'r_wooden_buckler', result: 'wooden_buckler', gold: 20, mats: { mat_copper: 2, mat_slime_goo: 2 } },
+  { id: 'r_heavy_boots',    result: 'heavy_boots',    gold: 15, mats: { mat_chimera_tail: 2, mat_copper: 1 } },
+  { id: 'r_wood_sword',     result: 'wood_sword',     gold: 20, mats: { mat_copper: 3, mat_slime_goo: 1 } },
+  { id: 'r_composite_bow',  result: 'composite_bow',  gold: 20, mats: { mat_slime_goo: 2, mat_chimera_tail: 2 } },
+  { id: 'r_mushroom_staff', result: 'mushroom_staff', gold: 25, mats: { mat_slime_goo: 2, mat_copper: 1, mat_chimera_tail: 1 } },
 ];
 
 /* ───────────────────────── Forja · Evolucionar ─────────────────────────
-   El equipo tiene 4 niveles: Tier 0 Común · Tier 1 Raro · Tier 2 Épico · Tier 3 Místico (ItemDatabase.TIER_RARITY).
-   Cada línea va de menor a mayor tier y termina en Tier 3; una pieza evoluciona a la siguiente de su línea.
-   Si a una línea le falta un tier, el salto es directo (p. ej. T1 → T3). Las piezas T3 que no están en ninguna
-   línea (antiguos T4/T5, p. ej. Dragon Blade) ya están en lo más alto. */
+   4 niveles: Tier 0 Común · Tier 1 Raro · Tier 2 Épico · Tier 3 Místico (ItemDatabase.TIER_RARITY).
+   Cada línea va de Común a Místico; una pieza evoluciona a la siguiente de su línea. */
 export const EVOLUTION_LINES = {
-  sword:      ['t0_practice_sword', 'wood_sword', 'iron_sword', 'frost_blade'],
-  bow:        ['t0_reed_bow', 'wooden_bow', 'bird_longbow'],
-  staff:      ['t0_branch_wand', 'plant_wand', 'frost_staff'],
-  dagger:     ['feather_dagger', 'star_prism'],
-  hood:       ['t0_leaf_hat', 'straw_hat', 'feather_hood', 'mystic_amulet'],
-  arcane_hat: ['apprentice_hat', 'precision_scope', 'ember_ring'],
-  shield:     ['t0_plank_shield', 'wood_shield', 'iron_shield', 'aegis_shield'],
-  buckler:    ['wooden_buckler', 'reinforced_leather_shield', 'arctic_buckler'],
-  armor:      ['t0_linen_tunic', 'leather_armor', 'golden_mail', 'iron_armor'],
-  robe:       ['traveler_cloak', 'sacred_leaf_brooch'],
-  boots:      ['t0_rope_sandals', 'traveler_boots', 'swift_boots', 'wind_boots'],
-  heavy_boots:['leather_boots', 'heavy_boots'],
+  hat:    ['beast_helmet', 'straw_hat', 'arcane_ring', 'crown_of_lunacia'],
+  armor:  ['traveler_cloak', 'chitin_armor', 'bronze_armor', 'obsidian_plate'],
+  shield: ['wooden_buckler', 'reinforced_leather_shield', 'iron_shield', 'steel_shield'],
+  boots:  ['heavy_boots', 'traveler_boots', 'wind_boots', 'dragon_boots'],
+  sword:  ['wood_sword', 'iron_sword', 'fish_sword', 'chimera_sword'],
+  bow:    ['composite_bow', 'bone_bow', 'plant_bow', 'bird_bow'],
+  staff:  ['mushroom_staff', 'plant_staff', 'ice_staff', 'key_staff'],
 };
 
-/** Coste de subir AL tier indicado (el del objeto resultante).
- *  La evolución SIEMPRE se paga con SLP (Smooth Love Potion), la moneda de evolución, más materiales,
- *  esquirlas lunares y una comisión fija en bAXS. `hours` = tiempo hasta que la pieza está lista. */
+/** Coste de subir AL tier indicado (el del objeto resultante): SLP + materiales de esa rareza + esquirlas + 0,5 bAXS.
+ *  `hours` = tiempo hasta que la pieza está lista (1, 2 y 3 minutos en la demo). */
 export const EVOLUTION_COST = {
-  1: { slp: 50,   hours: 1,  mats: { mat_bamboo: 2, mat_resin: 2 },                shards: 0 },
-  2: { slp: 150,  hours: 4,  mats: { mat_hide: 3, mat_copper: 2 },                 shards: 1 },
-  3: { slp: 400,  hours: 8,  mats: { mat_glacier_iron: 3, mat_frost_crystal: 2 },  shards: 2 },
+  1: { slp: 50,  hours: 1 / 60, mats: { mat_wood: 2, mat_wolf_tooth: 1, mat_wool: 1 },                                 shards: 0 },
+  2: { slp: 150, hours: 2 / 60, mats: { mat_moon_flower: 2, mat_druid_branch: 1, mat_druid_staff: 1, mat_druid_flower: 1 }, shards: 0 },
+  3: { slp: 400, hours: 3 / 60, mats: { mat_amber_atia: 2, mat_frost_crystal: 1, mat_astral_dust: 1 },                  shards: 1 },
 };
 /** Comisión en bAXS de cada evolución (fija, en todos los tiers). */
 export const EVOLUTION_FEE_BAXS = 0.5;
@@ -113,10 +109,10 @@ export function nextEvolution(itemId) {
 // comprarlo, y venderlo (18) da menos que crearlo, así que no hay bucle de ganancia.
 export const PRICE_BY_TIER = { 0: 60, 1: 60, 2: 150, 3: 400 }; // equipo (Tier 0–3)
 export const RARITY_MULT = { common: 1, uncommon: 1.2, rare: 1.5, epic: 2, mystic: 3, legendary: 3 };
-export const MATERIAL_PRICE = { 0: 250, 1: 6, 2: 14, 3: 30, 4: 65, 5: 140 }; // tier 0 = esquirla lunar
+export const MATERIAL_PRICE = { 0: 250, 1: 6, 2: 14, 3: 30, 4: 65 }; // por tier: Común 1 … Místico 4 · 0 = esquirla lunar
 export const CONSUMABLE_PRICE = {
-  food_berry: 12, food_rice_cake: 30, food_feast: 75,
-  potion_health_small: 25, potion_shield: 45, potion_energy: 60, potion_health_large: 90, dew_flask: 55,
+  food_berry: 12, food_fruit: 10, food_fish: 15, food_rice_cake: 30, food_feast: 75, food_koi: 120,
+  potion_health_small: 25, dew_flask: 55, potion_health_large: 90,
 };
 export const SELL_RATIO = 0.3;           // el equipo y los consumibles se venden al 30 %
 export const SELL_RATIO_MATERIAL = 0.5;  // los materiales, al 50 %
@@ -141,15 +137,14 @@ export function sellPrice(item) {
 export const SHOPS = {
   dojo_valley: {
     id: 'dojo_valley', name: 'Mercader Ochi', place: 'Valle del Dojō', island: 'island_forest', restockHours: 6,
-    // Solo vende (y solo compra) equipo Tier 0; el equipo Tier 1–3 se consigue en combate y en la forja.
+    // Solo vende (y solo compra) equipo Común; el Raro, Épico y Místico solo se consigue evolucionando en la Forja.
     maxGearTier: 0,
     stock: [
-      { id: 'mat_bamboo', stock: null }, { id: 'mat_fiber', stock: null }, { id: 'mat_resin', stock: 20 },
-      { id: 'mat_hide', stock: 8 }, { id: 'mat_lunar_shard', stock: 1 },
+      { id: 'potion_health_small', stock: null }, { id: 'potion_health_large', stock: 3 },
       { id: 'food_berry', stock: null }, { id: 'food_rice_cake', stock: 10 }, { id: 'food_feast', stock: 2 },
-      { id: 'potion_health_small', stock: null }, { id: 'potion_shield', stock: 5 }, { id: 'potion_energy', stock: 3 },
-      { id: 't0_practice_sword', stock: 2 }, { id: 't0_reed_bow', stock: 2 }, { id: 't0_branch_wand', stock: 2 },
-      { id: 't0_leaf_hat', stock: 2 }, { id: 't0_plank_shield', stock: 2 }, { id: 't0_linen_tunic', stock: 2 }, { id: 't0_rope_sandals', stock: 2 },
+      { id: 'mat_copper', stock: 20 }, { id: 'mat_slime_goo', stock: 20 }, { id: 'mat_chimera_tail', stock: 20 }, { id: 'mat_lunar_shard', stock: 1 },
+      { id: 'wood_sword', stock: 2 }, { id: 'composite_bow', stock: 2 }, { id: 'mushroom_staff', stock: 2 },
+      { id: 'beast_helmet', stock: 2 }, { id: 'wooden_buckler', stock: 2 }, { id: 'traveler_cloak', stock: 2 }, { id: 'heavy_boots', stock: 2 },
     ],
   },
 };

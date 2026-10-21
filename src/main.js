@@ -34,13 +34,17 @@ import { installCombatDebug } from './tactics/combat/CombatDebug.js';
 import { CombatTelemetry } from './tactics/combat/CombatTelemetry.js';
 import { VfxBridge } from './vfx/VfxBridge.js';
 import { installTestArena } from './tactics/combat/TestArena.js';
+import { installPerfProbe } from './debug/PerfProbe.js';
+import { warmupRender } from './render/RenderWarmup.js';
 import { BondService } from './rpg/BondService.js';
 import { RuneCharmService } from './rpg/RuneCharmService.js';
 import { ULTIMATE_SLOT } from './ui/UltimateButton.js';
 import { attachAxieCare } from './ui/AxieCarePanel.js';
 import { attachRunesCharms } from './ui/RunesCharmsPanel.js';
 import { attachForge } from './ui/ForgePanel.js';
+import { attachGathering } from './ui/GatheringHUD.js';
 import { attachShop } from './ui/ShopPanel.js';
+import { rollLoot, grantLoot, lootView, isLootId } from './rpg/LootService.js';
 import { AxiePartsResolver } from './rpg/AxiePartsResolver.js';
 import { STARTER_DECKS } from './tactics/data/StarterCards.js';
 import { CollectionVFX } from './tactics/combat/CollectionVFX.js';
@@ -119,6 +123,7 @@ class AxieTacticsGame {
     this.axieCare = attachAxieCare(this); // Axie Care: clic en el compañero → acariciar / dar de comer; +0,5 % cada 500 m
     this.runesCharms = attachRunesCharms(this); // Tecla U: Mochila › Runas y charms (mejoran las habilidades de cada Axie)
     this.forge = attachForge(this); // Forja del Valle del Dojō: yunque en el patio (E) → crear Tier 0 y evolucionar equipo
+    this.gathering = attachGathering(this); // Recolección: pesca y tala (Axie), minería y plantas (Sapidae); el botín va a la bolsa de la Forja
     this.shop = attachShop(this); // Tienda: el Mercader Ochi (patio del Dojō) la abre al hablar con él
     window.__AXIE_TACTICS_APP__ = this;
 
@@ -204,6 +209,8 @@ class AxieTacticsGame {
     try { this.vfxBridge = new VfxBridge(this).install(this.spellManager.events, this.turnManager); this.vfxBridge.extendDebug(); } catch (e) { console.warn('[vfx]', e); }
     // Arena de pruebas de habilidades: lkDebug.arena(), lkDebug.probar('id', distancia)
     try { installTestArena(this); } catch (e) { console.warn('[pruebas]', e); }
+    // Perfilador de rendimiento: lkDebug.perf.start() / stop() / hud() / scene()
+    try { installPerfProbe(this); } catch (e) { console.warn('[perf]', e); }
     // Hito 35: mapas de combate por bioma — lkDebug.map('savannah_oasis') fuerza un mapa, lkDebug.map(null) vuelve al azar
     try { this._installBattleMapDebug(); } catch (e) { console.warn('[mapas]', e); }
     // Hito 37: dither fading — el escenario se disuelve donde tapa a una unidad o a la casilla bajo el ratón
@@ -269,7 +276,16 @@ class AxieTacticsGame {
 
     const activeSlot = saveSlotManager.getActiveSlot();
     let currentPortrait = activeSlot?.sapidaePortrait || null;
-    if (this.overworldManager?.player?.mesh && portraitService) {
+    // El retrato solo se vuelve a capturar si cambió la apariencia (modelo, personalización o
+    // equipo) o si aún no hay. Capturarlo usa un segundo contexto WebGL y codifica una imagen de
+    // forma síncrona: hacerlo en CADA autoguardado (cada 15 s y con cada misión) daba tirones.
+    let appearanceKey = '';
+    try {
+      appearanceKey = JSON.stringify([p?.sapidaeModel || activeSlot?.sapidaeModel || '', p?.customization || activeSlot?.customization || null, exported.equipped || null, p?.mesh?.uuid || '']);
+    } catch (_) { appearanceKey = String(Math.random()); }
+    const needPortrait = !currentPortrait || appearanceKey !== this._lastPortraitKey;
+    if (needPortrait && this.overworldManager?.player?.mesh && portraitService) {
+      this._lastPortraitKey = appearanceKey;
       try {
         const dynSnap = portraitService.captureModel('active_player_slot', this.overworldManager.player.mesh, {
           fullBody: true,
@@ -401,17 +417,23 @@ class AxieTacticsGame {
       });
     }
 
+    // Reglas y controles (ventana del sistema de diseño): entra con la transición de .lk-backdrop; Esc, ✕, «Entendido» o el fondo la cierran
     const helpModal = document.getElementById('help-modal');
+    const openHelp = () => { helpModal.classList.remove('hidden'); void helpModal.offsetWidth; helpModal.classList.add('lk-is-open'); setTimeout(() => document.getElementById('btn-ok-help')?.focus({ preventScroll: true }), 50); };
+    const closeHelp = () => { helpModal.classList.remove('lk-is-open'); helpModal.classList.add('hidden'); document.getElementById('btn-help')?.focus({ preventScroll: true }); };
     document.getElementById('btn-help').addEventListener('click', () => {
       this.audio.init();
-      helpModal.classList.remove('hidden');
+      openHelp();
     });
-    document.getElementById('btn-close-help').addEventListener('click', () => {
-      helpModal.classList.add('hidden');
-    });
-    document.getElementById('btn-ok-help').addEventListener('click', () => {
-      helpModal.classList.add('hidden');
-    });
+    document.getElementById('btn-close-help').addEventListener('click', closeHelp);
+    // Menú de opciones también en el tablero (botón ⚙ del HUD o Esc sin carta elegida)
+    document.getElementById('btn-options')?.addEventListener('click', () => { this.audio.init(); this.overworldManager?.settingsModal?.open(); });
+    document.getElementById('btn-ok-help').addEventListener('click', closeHelp);
+    helpModal.addEventListener('pointerdown', (e) => { if (e.target === helpModal) closeHelp(); });
+    window.addEventListener('keydown', (e) => {
+      if (e.key !== 'Escape' || helpModal.classList.contains('hidden')) return;
+      e.preventDefault(); e.stopImmediatePropagation(); closeHelp();
+    }, true);
 
     // Victory modal action buttons
     document.getElementById('btn-restart').addEventListener('click', () => {
@@ -533,6 +555,10 @@ class AxieTacticsGame {
 
     window.addEventListener('keydown', (e) => {
       if (this.gameState !== 'BATTLE') return;
+      // Con el menú de opciones o las reglas abiertos, el tablero no recibe teclas (Espacio no pasa el turno)
+      const opts = this.overworldManager?.settingsModal;
+      if (opts?.isOpen || !document.getElementById('help-modal')?.classList.contains('hidden')) return;
+      if (e.defaultPrevented) return; // otra capa ya gestionó la tecla (p. ej. Esc cerró el menú)
       this.audio.init();
       if (e.code === 'Space') {
         e.preventDefault();
@@ -560,7 +586,9 @@ class AxieTacticsGame {
       } else if (e.code === 'Digit3') {
         this._toggleSpellSelect(2);
       } else if (e.code === 'Escape') {
-        this._clearSpellSelection();
+        // Esc: primero cancela la carta elegida; sin carta, abre el menú de opciones
+        if (this.selectedSpell || this.selectedSpellIndex >= 0) this._clearSpellSelection();
+        else if (opts) { e.preventDefault(); opts.open(); }
       }
     });
   }
@@ -730,7 +758,10 @@ class AxieTacticsGame {
       if (dialogOverlay) dialogOverlay.classList.add('hidden');
     }
 
-    if (encounterData && encounterData.isTutorial) {
+    if (encounterData && encounterData.levelConfig) {
+      // Hito 48: combates del tutorial con su propia configuración (TutorialDirector)
+      await this._startBattle(encounterData.levelConfig);
+    } else if (encounterData && encounterData.isTutorial) {
       await this._startBattle(1);
     } else if (encounterData && (encounterData.packData || encounterData.monsterId || encounterData.biome)) {
       const dynamicConfig = DynamicCombatFactory.createEncounter(encounterData, this.equipmentManager, this.questManager);
@@ -970,7 +1001,7 @@ class AxieTacticsGame {
     const sapProg = this.equipmentManager ? this.equipmentManager.getProgression('sapidae') : null;
 
     // Vida persistente (18-oct): los héroes entran con la vida del mundo abierto (salvo tutorial y arena de pruebas)
-    const usePersistentHP = !config.isTutorial && !config.isTestArena;
+    const usePersistentHP = !config.isTutorial && !config.isTestArena && !config.noPersistentHP;
     this._battleUsesPersistentHP = usePersistentHP;
     this._battleStartHP = usePersistentHP && this.equipmentManager
       ? Object.fromEntries(['sapidae', ...(config.heroPositions || []).map((h) => h.id)].map((id) => [id, this.equipmentManager.getCurrentHP(id)]))
@@ -1141,7 +1172,23 @@ class AxieTacticsGame {
       mainHeroId,
       bond: mainHeroId ? BondService.get(mainHeroId) : 0,
       isTutorial: Boolean(config.isTutorial),
+      minRound: config.ultimateMinRound ?? null,
     });
+
+    // Hito 48: duelo de entrenamiento — termina cuando alguien baja al umbral de vida (nadie gana ni pierde)
+    this.lastDuelOutcome = null;
+    this.turnManager.endRule = config.duel ? (units) => {
+      const th = config.duel.threshold ?? 0.3;
+      const low = (u) => u.isDead || (u.currentHP || 0) <= (u.maxHP || 1) * th;
+      if (units.some((u) => u.team === 'enemy' && low(u))) return 'yield';
+      if (units.some((u) => u.team === 'player' && low(u))) return 'stop';
+      return null;
+    } : null;
+
+    // Precalentado del combate ANTES de abrir el velo: efectos de las cartas, shaders de toda la
+    // escena (arena, unidades, VFX) con el render target del composer y texturas en la GPU.
+    // Antes esto ocurría con el velo ya abierto y daba el tirón del primer turno.
+    await this._prewarmBattle();
 
     if (config.isTutorial) {
       this.turnManager.startCombat();
@@ -1149,6 +1196,27 @@ class AxieTacticsGame {
     } else {
       this.tutorialManager.completeTutorial();
       this.turnManager.startCombat();
+    }
+  }
+
+  /**
+   * Deja el combate listo para dibujarse sin compilar nada: prepara los VFX de las cartas de las
+   * unidades (el VfxBridge reutiliza esta preparación al empezar el combate) y compila la escena.
+   * Tiene un tope de tiempo para que un fallo de red o de carga nunca bloquee la entrada.
+   */
+  async _prewarmBattle() {
+    const t0 = performance.now();
+    const cap = (p, ms) => Promise.race([Promise.resolve(p).catch(() => {}), new Promise((r) => setTimeout(r, ms))]);
+    try {
+      if (this.vfxBridge && this.vfxBridge.enabled) {
+        this.vfxBridge._prewarm = this.vfxBridge.prepare(this.units).catch((e) => console.warn('[vfx] prepare', e));
+        await cap(this.vfxBridge._prewarm, 4000);
+      }
+      const sm = this.sceneManager;
+      const res = await cap(warmupRender(sm.renderer, sm.scene, sm.camera, { target: sm.composer ? sm.composer.readBuffer : null }), 3000);
+      if (res) console.log(`[combate] Precalentado: ${res.programs} programas nuevos, ${res.textures} texturas, ${Math.round(performance.now() - t0)} ms`);
+    } catch (e) {
+      console.warn('[combate] precalentado omitido', e);
     }
   }
 
@@ -1186,6 +1254,7 @@ class AxieTacticsGame {
       await new Promise(r => setTimeout(r, 450));
 
       const config = this.activeBattleConfig || LEVELS_CONFIG[this.currentLevel] || LEVELS_CONFIG[1];
+      if (config.duel) this.lastDuelOutcome = this.turnManager.endReason || 'yield';
 
       // Mark level as completed and unlock next level if campaign level
       if (typeof this.currentLevel === 'number') {
@@ -1197,7 +1266,8 @@ class AxieTacticsGame {
       if (this.audio && typeof this.audio.playVictoryMusic === 'function') {
         this.audio.playVictoryMusic();
       }
-      await this.combatBanner.play('victory', { subtitle: [config.title, config.biomeName].filter(Boolean).join(' · ') });
+      const duelSub = config.duel ? (this.lastDuelOutcome === 'yield' ? 'El Maestro Paladill se rinde' : 'Fin del entrenamiento') : null;
+      await this.combatBanner.play('victory', { subtitle: duelSub || [config.title, config.biomeName].filter(Boolean).join(' · ') });
 
       // 3. El título se disuelve mientras la cámara vuelve y entra el panel
       this.sceneManager.restoreCamera();
@@ -1256,15 +1326,16 @@ class AxieTacticsGame {
         };
       });
 
-      // Botín
-      const lootIds = (config.rewardItems || []).filter(id => ITEMS_DB[id]);
+      // Botín: objetos a la mochila y materiales (1–2 por cada uno que cae) a la bolsa de la Forja
+      const lootIds = (config.rewardItems || []).filter(isLootId);
       // Axie Care: cada victoria da comida para el compañero (una baya; a veces un pastelito)
-      if (!config.isTutorial) {
+      if (!config.isTutorial && !config.tutorialKind) {
         if (ITEMS_DB.food_berry) lootIds.push('food_berry');
         if (ITEMS_DB.food_rice_cake && Math.random() < 0.25) lootIds.push('food_rice_cake');
       }
+      const loot = rollLoot(lootIds);
       if (lootIds.length > 0) {
-        this.equipmentManager.addItemsToInventory(lootIds);
+        grantLoot(this.equipmentManager, loot);
       }
 
       // Valoración y resumen con datos reales del combate
@@ -1276,7 +1347,7 @@ class AxieTacticsGame {
       const hpMax = allies.reduce((t, u) => t + (u.maxHP || 0), 0);
 
       this.endScreen.showVictory({
-        subtitle: [config.title, config.biomeName, `${rounds} ${rounds === 1 ? 'ronda' : 'rondas'}`].filter(Boolean).join(' · '),
+        subtitle: [config.duel ? (this.lastDuelOutcome === 'yield' ? 'Paladill se rinde' : 'Entrenamiento terminado') : config.title, config.biomeName, `${rounds} ${rounds === 1 ? 'ronda' : 'rondas'}`].filter(Boolean).join(' · '),
         moons: [
           { label: 'Victoria', on: true },
           { label: 'Ningún aliado K.O.', on: alliesKO === 0 },
@@ -1284,7 +1355,7 @@ class AxieTacticsGame {
         ],
         squad,
         recruits,
-        loot: lootIds.map(id => ITEMS_DB[id]),
+        loot: lootView(loot),
         summary: [
           ['Rondas', String(rounds)],
           ['Enemigos derrotados', String(foes.filter(u => u.isDead).length)],
@@ -1373,7 +1444,7 @@ class AxieTacticsGame {
       this.endScreen.showDefeat({
         subtitle: endSubtitle,
         squad,
-        lostLoot: (config.rewardItems || []).filter(id => ITEMS_DB[id]).map(id => ITEMS_DB[id]),
+        lostLoot: lootView(rollLoot((config.rewardItems || []).filter(isLootId), () => 1)),
         hints: hints.slice(0, 4)
       });
 

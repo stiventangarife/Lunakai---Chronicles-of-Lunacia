@@ -16,7 +16,7 @@ export function createQuestBeaconArrow3D(baseHeight = 2.0) {
   const arrowMat = new THREE.MeshStandardMaterial({
     color: 0xffd700,
     emissive: 0xff9900,
-    emissiveIntensity: 0.95,
+    emissiveIntensity: 1.25,
     roughness: 0.2,
     metalness: 0.6
   });
@@ -36,10 +36,8 @@ export function createQuestBeaconArrow3D(baseHeight = 2.0) {
   stem.castShadow = true;
   arrowGroup.add(stem);
 
-  // Warm golden PointLight
-  const arrowLight = new THREE.PointLight(0xffd700, 2.4, 5.0);
-  arrowLight.position.y = 0.85;
-  arrowGroup.add(arrowLight);
+  // Sin PointLight: al mostrarse/ocultarse o crearse en mitad del juego cambia el número de luces
+  // y three.js recompila TODOS los shaders iluminados (tirón). El brillo lo dan el material emisivo y el bloom.
 
   root.add(arrowGroup);
 

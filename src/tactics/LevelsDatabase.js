@@ -3,9 +3,9 @@
 export const LEVELS_CONFIG = {
   1: {
     id: 1,
-    title: 'Lunacia Dojo',
-    subtitle: 'Combat Tutorial',
-    badgeText: '1 vs 2 Tutorial',
+    title: 'Defensa del Dojo',
+    subtitle: 'Combate guiado',
+    badgeText: 'Tutorial',
     biome: 'training_dojo',
     biomeName: 'Maple Glade',
     biomeIcon: '🥋',
@@ -18,7 +18,7 @@ export const LEVELS_CONFIG = {
     enemies: [
       {
         id: 'quimera_scout',
-        name: 'slime',
+        name: 'Quimera Slime',
         type: 'slime',
         x: 4,
         z: 6,
@@ -31,7 +31,7 @@ export const LEVELS_CONFIG = {
       },
       {
         id: 'quimera_guard',
-        name: 'slime-defese',
+        name: 'Quimera Guardián',
         type: 'slime-defese',
         x: 4,
         z: 7,
@@ -48,9 +48,57 @@ export const LEVELS_CONFIG = {
       { x: 6, z: 6, type: 'wood_post' }
     ],
     rewardRecruits: [],
-    rewardItems: [],
-    rewardGold: 50,
+    rewardItems: ['wood_sword'], // Hito 48: la Espada de madera se gana defendiendo el Dojo
+    rewardExp: 80,
     isTutorial: true
+  },
+
+  // ── Hito 48: combates del tutorial nuevo (TutorialDirector) ──────────────────────────────────────────
+  // Duelo de entrenamiento con el Maestro Paladill: termina cuando alguien baja al 30 % de vida.
+  tut_duel: {
+    id: 'tut_duel',
+    title: 'Duelo con Paladill',
+    subtitle: 'Entrenamiento',
+    badgeText: 'Tutorial',
+    biome: 'training_dojo',
+    biomeName: 'Dojo de Lunacia',
+    battleMapId: 'forest_maple_glade',
+    heroIds: ['kotaro'],
+    sapidaePosition: { x: 4, z: 3 },
+    heroPositions: [{ id: 'kotaro', x: 3, z: 4 }],
+    enemies: [
+      { id: 'paladill_duel', name: 'Maestro Paladill', type: 'paladill', x: 4, z: 7, maxHP: 240, maxPA: 4, maxPM: 3, initiative: 40, scale: 1.25, spellIds: ['chimera_bite', 'chimera_bellow'] },
+    ],
+    obstacles: [],
+    rewardRecruits: [],
+    rewardItems: [],
+    rewardExp: 60,
+    duel: { threshold: 0.3 },
+    noPersistentHP: true,
+  },
+  // Prueba de la Duo Ultimate: vínculo prestado al 100 % y Ultimate desde la ronda 1.
+  tut_ult: {
+    id: 'tut_ult',
+    title: 'Prueba de resonancia',
+    subtitle: 'Duo Ultimate',
+    badgeText: 'Tutorial',
+    biome: 'training_dojo',
+    biomeName: 'Dojo de Lunacia',
+    battleMapId: 'forest_maple_glade',
+    heroIds: ['kotaro'],
+    sapidaePosition: { x: 4, z: 3 },
+    heroPositions: [{ id: 'kotaro', x: 3, z: 4 }],
+    enemies: [
+      { id: 'tut_slime_a', name: 'Quimera Slime', type: 'slime', x: 4, z: 6, maxHP: 70, maxPA: 3, maxPM: 2, initiative: 30, scale: 1.05, spellIds: ['chimera_bite'] },
+      { id: 'tut_slime_b', name: 'Quimera Slime', type: 'slime', x: 5, z: 7, maxHP: 70, maxPA: 3, maxPM: 2, initiative: 28, scale: 1.05, spellIds: ['chimera_bite'] },
+      { id: 'tut_slime_c', name: 'Quimera Guardián', type: 'slime-defese', x: 3, z: 7, maxHP: 90, maxPA: 3, maxPM: 2, initiative: 26, scale: 1.15, spellIds: ['chimera_bite'] },
+    ],
+    obstacles: [],
+    rewardRecruits: [],
+    rewardItems: [],
+    rewardExp: 60,
+    ultimateMinRound: 1,
+    noPersistentHP: true,
   },
 
   2: {
@@ -111,7 +159,7 @@ export const LEVELS_CONFIG = {
       { x: 4, z: 6, type: 'pillar_rock' }
     ],
     rewardRecruits: ['pomodoro'],
-    rewardItems: ['bird_longbow', 'feather_hood', 'aegis_shield'],
+    rewardItems: ['composite_bow', 'mat_slime_goo', 'mat_chimera_tail'],
     isTutorial: false
   },
 
@@ -176,7 +224,7 @@ export const LEVELS_CONFIG = {
       { x: 5, z: 5, type: 'ice_crystal' }
     ],
     rewardRecruits: [],
-    rewardItems: ['plant_wand', 'traveler_cloak'],
+    rewardItems: ['mat_wool', 'mat_wood'],
     isTutorial: false
   },
 
@@ -253,7 +301,7 @@ export const LEVELS_CONFIG = {
       { x: 5, z: 6, type: 'pillar_rock' }
     ],
     rewardRecruits: [],
-    rewardItems: ['heavy_boots', 'golden_mail'],
+    rewardItems: ['heavy_boots', 'mat_chimera_tail'],
     isTutorial: false
   },
 
@@ -318,7 +366,7 @@ export const LEVELS_CONFIG = {
       { x: 5, z: 3, type: 'ice_crystal' }
     ],
     rewardRecruits: [],
-    rewardItems: ['frost_blade', 'titan_mail'],
+    rewardItems: ['mat_wool', 'mat_wool'],
     isTutorial: false
   },
 
@@ -382,7 +430,7 @@ export const LEVELS_CONFIG = {
       { x: 4, z: 6, type: 'wood_post' }
     ],
     rewardRecruits: [],
-    rewardItems: ['mystic_orb', 'feather_hood'],
+    rewardItems: ['mat_druid_branch', 'mat_druid_flower'],
     isTutorial: false
   },
 
@@ -446,7 +494,7 @@ export const LEVELS_CONFIG = {
       { x: 5, z: 5, type: 'pillar_rock' }
     ],
     rewardRecruits: [],
-    rewardItems: ['aegis_shield', 'heavy_boots'],
+    rewardItems: ['wooden_buckler', 'mat_copper'],
     isTutorial: false
   },
 
@@ -525,7 +573,7 @@ export const LEVELS_CONFIG = {
       { x: 6, z: 3, type: 'ice_crystal' }
     ],
     rewardRecruits: [],
-    rewardItems: ['dragon_boots', 'golden_mail'],
+    rewardItems: ['mat_wood', 'mat_wool'],
     isTutorial: false
   },
 
@@ -589,7 +637,7 @@ export const LEVELS_CONFIG = {
       { x: 5, z: 6, type: 'pillar_rock' }
     ],
     rewardRecruits: [],
-    rewardItems: ['traveler_cloak', 'titan_mail'],
+    rewardItems: ['mat_amber_atia', 'mat_amber_atia'],
     isTutorial: false
   },
 
@@ -654,7 +702,7 @@ export const LEVELS_CONFIG = {
       { x: 5, z: 4, type: 'pillar_rock' }
     ],
     rewardRecruits: [],
-    rewardItems: ['crown_of_lunacia'],
+    rewardItems: ['mat_amber_atia', 'mat_lunar_shard'],
     isTutorial: false,
     isFinalBoss: true
   }

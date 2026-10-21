@@ -4,8 +4,8 @@
 // (viaja con la partida como el resto del progreso). Sin ranura activa funciona en memoria.
 //  · Crear: receta (CRAFT_RECIPES) → oro + materiales → objeto Tier 0 a la Mochila al instante.
 //  · Evolucionar: pieza → siguiente de su línea pagando SLP + materiales + esquirlas + bAXS (comisión y rapidez).
-//    Tarda horas reales (EVOLUTION_COST.hours / rapidez). Si la pieza está equipada, el héroe la sigue usando
-//    hasta recogerla; si está en la Mochila, entra en la forja y vuelve evolucionada.
+//    Tarda horas reales (EVOLUTION_COST.hours / rapidez). La pieza sale de donde esté
+//    (ranura o Mochila) y se queda en el yunque; al recogerla vuelve equipada en su ranura si sigue libre, o a la Mochila.
 // El oro y el equipo viven en EquipmentManager; aquí solo SLP, bAXS, materiales y yunques.
 
 import { saveSlotManager } from './SaveSlotManager.js';
@@ -18,7 +18,7 @@ export const EQ_SLOTS = ['weapon', 'hat', 'shield', 'body', 'boots'];
 const HOUR_MS = 3600 * 1000;
 
 /** Para probar la demo: cada partida nueva recibe una vez este lote (aún no hay botín de materiales ni SLP). */
-const STARTER = { slp: 1000, baxs: 100, mats: { mat_bamboo: 8, mat_fiber: 6, mat_resin: 4, mat_lunar_shard: 1 } };
+const STARTER = { slp: 1000, baxs: 100, mats: { mat_copper: 6, mat_slime_goo: 6, mat_chimera_tail: 4, mat_lunar_shard: 1 } };
 /** Partidas que ya recibieron el lote anterior (200 SLP · 3 bAXS): se les completa la diferencia una vez. */
 const STARTER_V1 = { slp: 200, baxs: 3 };
 
@@ -55,6 +55,12 @@ class ForgeServiceImpl {
       f.starterV = 2;
       f.slp = (f.slp || 0) + STARTER.slp - STARTER_V1.slp; f.baxs = +((f.baxs || 0) + STARTER.baxs - STARTER_V1.baxs).toFixed(2);
     }
+    if ((f.starterV || 1) < 3) { // Hito 46: materiales nuevos. Se quitan los que ya no existen y se da el lote nuevo.
+      f.starterV = 3;
+      Object.keys(f.mats).forEach((id) => { if (!MATERIALS[id]) delete f.mats[id]; });
+      Object.entries(STARTER.mats).forEach(([id, n]) => { f.mats[id] = Math.max(f.mats[id] || 0, n); });
+      f.jobs = f.jobs.filter((j) => ITEMS_DB[j.to] && (!j.from || ITEMS_DB[j.from]));
+    }
     return f;
   }
 
@@ -79,7 +85,7 @@ class ForgeServiceImpl {
   }
 
   /**
-   * Dónde está ahora cada pieza equipada que se está forjando (20-oct). El héroe la sigue usando mientras se forja,
+   * Solo para trabajos antiguos (sin `held`), en los que el héroe seguía usando la pieza mientras se forjaba,
    * así que se puede mover: la forja la «aparta» allí donde esté para que no se pueda volver a forjar ni vender
    * (antes se duplicaba equipo así). Orden: su ranura → una copia en la Mochila → la ranura de otro héroe.
    * @returns {Map<number, {type:'e', hero:string, slot:string} | {type:'i', index:number}>} uid → sitio
@@ -88,7 +94,7 @@ class ForgeServiceImpl {
     const em = this.em, claims = new Map();
     if (!em) return claims;
     const usedE = new Set(), usedI = new Set(), inv = em.inventory || [];
-    const jobs = this._store().jobs.filter((j) => j.hero);
+    const jobs = this._store().jobs.filter((j) => j.hero && !j.held); // `held`: la forja ya tiene la pieza (se quitó al evolucionar)
     jobs.forEach((j) => {
       const k = `${j.hero}:${j.slot}`;
       if (em.equipped?.[j.hero]?.[j.slot] === j.from && !usedE.has(k)) { usedE.add(k); claims.set(j.uid, { type: 'e', hero: j.hero, slot: j.slot }); }
@@ -170,6 +176,8 @@ class ForgeServiceImpl {
     if (entry.hero) {
       if (em.equipped?.[entry.hero]?.[entry.slot] !== entry.id) return { ok: false, why: 'La pieza ya no está equipada' };
       if (claimed.e.has(`${entry.hero}:${entry.slot}`)) return { ok: false, why: 'Esa pieza ya está en la forja' };
+      em.equipped[entry.hero][entry.slot] = null; // la pieza se queda en el yunque hasta recoger la nueva
+      if (entry.hero === 'sapidae' || em.heroesBase?.[entry.hero]?.isSapidae) em._updateSapidaePortrait?.();
     } else {
       const i = em.inventory.findIndex((id, n) => id === entry.id && !claimed.i.has(n));
       if (i < 0) return { ok: false, why: 'La pieza ya no está en la Mochila' };
@@ -177,7 +185,7 @@ class ForgeServiceImpl {
     }
     this._pay(q.cost);
     const now = Date.now();
-    f.jobs.push({ uid: ++f.uid, from: entry.id, to: q.to, hero: entry.hero, slot: entry.slot, hours: q.hours, start: now, end: now + q.hours * HOUR_MS, speed });
+    f.jobs.push({ uid: ++f.uid, from: entry.id, to: q.to, hero: entry.hero, slot: entry.slot, held: true, hours: q.hours, start: now, end: now + q.hours * HOUR_MS, speed });
     this._commit();
     return { ok: true, hours: q.hours, to: ITEMS_DB[q.to] };
   }
@@ -185,8 +193,11 @@ class ForgeServiceImpl {
   collect(uid) {
     const f = this._store(), j = f.jobs.find((x) => x.uid === uid);
     if (!j || Date.now() < j.end) return { ok: false };
-    const em = this.em, at = j.hero ? this._claims().get(j.uid) : null;
-    if (at?.type === 'e') {
+    const em = this.em, at = j.hero && !j.held ? this._claims().get(j.uid) : null;
+    if (j.held && j.hero && em.equipped?.[j.hero] && !em.equipped[j.hero][j.slot]) {
+      em.equipped[j.hero][j.slot] = j.to; // vuelve equipada en su sitio, ya evolucionada
+      if (j.hero === 'sapidae' || em.heroesBase?.[j.hero]?.isSapidae) em._updateSapidaePortrait?.();
+    } else if (at?.type === 'e') {
       em.equipped[at.hero][at.slot] = j.to; // se mejora sola donde está (también si se la pasaron a otro héroe)
       if (at.hero === 'sapidae' || em.heroesBase?.[at.hero]?.isSapidae) em._updateSapidaePortrait?.();
     } else if (at?.type === 'i') {
@@ -207,6 +218,14 @@ class ForgeServiceImpl {
     f.mats[id] = (f.mats[id] || 0) + n;
     this._commit(save);
     return true;
+  }
+
+  /** Hito 48: regalos del tutorial (SLP y bAXS). */
+  grant({ slp = 0, baxs = 0 } = {}) {
+    const f = this._store();
+    f.slp = (f.slp || 0) + slp;
+    f.baxs = +((f.baxs || 0) + baxs).toFixed(2);
+    this._commit();
   }
 
   /** Opciones para acelerar una pieza en curso: multiplicadores mayores que el actual, con su coste (la diferencia) en bAXS. */

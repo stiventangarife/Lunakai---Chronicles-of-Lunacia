@@ -509,7 +509,7 @@ export class DemoScenaDebugUI {
         }
       </style>
 
-      <button class="hud-fab-toggle" id="btn-fab-open" title="🌿 Evaluador & Comparador [+] (Tecla H)" style="display: none !important;">
+      <button class="hud-fab-toggle" id="btn-fab-open" title="🌿 Evaluador & Comparador [+]" style="display: none !important;">
         <span class="hud-fab-icon">🌿</span>
         <span class="hud-fab-plus">+</span>
       </button>
@@ -1021,9 +1021,8 @@ export class DemoScenaDebugUI {
       if (e.target && (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA')) {
         return;
       }
-      if (e.code === 'KeyH') {
-        this.toggleCollapse();
-      }
+      // [H] desactivado (20-oct): el panel «Evaluador & Comparador» es una herramienta de desarrollo.
+      // Para abrirlo desde la consola: window.game?.overworldManager?.demoScenaDebugUI?.toggleCollapse()
       if (e.code === 'KeyC') {
         if (this.cameraController && typeof this.cameraController.toggleMode === 'function') {
           this.cameraController.toggleMode();

@@ -4,6 +4,7 @@ import { GLTFLoader } from 'three/addons/GLTFLoader.js';
 import { SapidaeModularController } from '../SapidaeModularController.js';
 import { axieMixerService } from '../AxieMixerService.js';
 import { applyToonOutline } from '../stylized/ToonOutline.js';
+import { sapidaeModelUrl } from '../SapidaeModels.js';
 
 export class CharacterPreviewDiorama {
   constructor(containerEl) {
@@ -74,7 +75,8 @@ export class CharacterPreviewDiorama {
       powerPreference: 'high-performance'
     });
     this.renderer.setSize(width, height);
-    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+    // Mismo tope que el juego (1,5): cuesta mucho menos que 2 mientras el mundo sigue dibujándose
+    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.5));
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
     this.renderer.toneMappingExposure = 1.15;
@@ -199,7 +201,7 @@ export class CharacterPreviewDiorama {
     }
 
     try {
-      const gltf = await this.loader.loadAsync(`./assets/models/${modelName}.glb`);
+      const gltf = await this.loader.loadAsync(sapidaeModelUrl(modelName));
       const model = gltf.scene;
 
       // 1. Create a discrete cartoon ramp gradient map for MeshToonMaterial (3-step cel-shading matching Axie)
@@ -241,7 +243,7 @@ export class CharacterPreviewDiorama {
           if (origMat) {
             origMat.vertexColors = false;
 
-            if (name.includes('eye') || name.includes('mouth') || name.includes('cheek')) {
+            if (name.includes('eye') || name.includes('mouth') || (name.includes('cheek') || name.includes('blush'))) {
               // 2D anime facial decals (eyes, mouth, blush) -> crisp unlit decal with depth offset
               const decalMat = new THREE.MeshBasicMaterial({
                 map: origMat.map,
@@ -305,7 +307,7 @@ export class CharacterPreviewDiorama {
         mode: 'view',
         filter: (mesh) => {
           const name = (mesh.name || '').toLowerCase();
-          if (name.includes('eye') || name.includes('mouth') || name.includes('cheek') || name.includes('decal')) {
+          if (name.includes('eye') || name.includes('mouth') || (name.includes('cheek') || name.includes('blush')) || name.includes('decal')) {
             return false;
           }
           return true;
@@ -401,6 +403,9 @@ export class CharacterPreviewDiorama {
     if (!this.container || !this.renderer || !this.camera) return;
     const width = this.container.clientWidth || 450;
     const height = this.container.clientHeight || 550;
+    // setSize() reserva de nuevo el búfer del canvas aunque el tamaño sea el mismo: solo si cambia
+    if (width === this._lastW && height === this._lastH) return;
+    this._lastW = width; this._lastH = height;
     this.camera.aspect = width / height;
     this.camera.updateProjectionMatrix();
     this.renderer.setSize(width, height);

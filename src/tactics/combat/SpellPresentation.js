@@ -297,8 +297,8 @@ export class SpellPresentation {
       const projectileMesh = new THREE.Mesh(geo, mat);
       group.add(projectileMesh);
 
-      const pLight = new THREE.PointLight(lightColor, 2.2, 4.2);
-      group.add(pLight);
+      // Luz prestada del conjunto fijo (crear una PointLight nueva recompilaría todos los shaders)
+      this.sceneManager.lightPool?.acquire({ color: lightColor, intensity: 2.2, distance: 4.2, decay: 2, follow: group, maxLife: 2 });
 
       // Glowing aura shell around projectile
       const glowGeo = new THREE.SphereGeometry(0.34, 12, 12);

@@ -230,7 +230,12 @@ export class VfxBridge {
     this._offs.push(events.on('ultimate:ready', ({ spell } = {}) => { if (spell) this.prepare([{ spellIds: [] }]).catch(() => {}); }));
     if (turnManager) {
       const orig = turnManager.onCombatStart;
-      turnManager.onCombatStart = (...a) => { this.prepare(turnManager.units || this.game.units || []).catch((e) => console.warn('[vfx] prepare', e)); return orig?.apply(turnManager, a); };
+      turnManager.onCombatStart = (...a) => {
+        // Si main._prewarmBattle() ya lo preparó detrás del velo, no se repite (evita otra ronda de compilación)
+        if (this._prewarm) this._prewarm = null;
+        else this.prepare(turnManager.units || this.game.units || []).catch((e) => console.warn('[vfx] prepare', e));
+        return orig?.apply(turnManager, a);
+      };
     }
     // actualización por fotograma, después de mover la cámara y antes de renderizar
     const prev = this.sm.onBeforeRender;

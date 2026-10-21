@@ -1,5 +1,10 @@
 import { BIOMES } from './Biomes.js';
 import { ITEMS_DB, TIER_DROPS, ROLE_DROPS } from './ItemDatabase.js';
+import { MATERIALS } from './data/EconomyCatalog.js';
+import { ENEMY_ARCHETYPES } from '../rpg/world/BiomeEnemyCatalog.js';
+
+// Botín: objetos (ITEMS_DB) o materiales de la Forja (MATERIALS).
+const isLoot = (id) => Boolean(ITEMS_DB[id] || MATERIALS[id]);
 import { pickBattleMap } from './maps/BattleMaps.js';
 import { facingTowards } from './maps/BattleMapLayout.js';
 
@@ -170,7 +175,7 @@ export class DynamicCombatFactory {
           initiative: 50,
           spellIds: ['chimera_bite'],
           expValue: 50,
-          possibleDrops: ['wood_sword']
+          possibleDrops: ['mat_slime_goo']
         }];
       }
     }
@@ -247,20 +252,23 @@ export class DynamicCombatFactory {
     // Pool of mob-specific drops from defeated pack members (archetype drops + role drops)
     const mobDrops = [];
     members.forEach(m => {
-      if (m.possibleDrops && Array.isArray(m.possibleDrops)) {
-        m.possibleDrops.forEach(d => {
-          if (ITEMS_DB[d] && !mobDrops.includes(d)) mobDrops.push(d);
+      // Encuentros fijos de misión: sin lista propia, sueltan lo mismo que su modelo (lobo, dríada, treant…)
+      const drops = Array.isArray(m.possibleDrops) ? m.possibleDrops
+        : (ENEMY_ARCHETYPES[String(m.type || '').replace(/-/g, '_')]?.possibleDrops || null);
+      if (drops) {
+        drops.forEach(d => {
+          if (isLoot(d) && !mobDrops.includes(d)) mobDrops.push(d);
         });
       }
       if (m.role && ROLE_DROPS[m.role]) {
         ROLE_DROPS[m.role].forEach(d => {
-          if (ITEMS_DB[d] && !mobDrops.includes(d)) mobDrops.push(d);
+          if (isLoot(d) && !mobDrops.includes(d)) mobDrops.push(d);
         });
       }
     });
 
     // General tier drops pool appropriate for the biome difficulty
-    const tierPool = (TIER_DROPS[tier] || TIER_DROPS[1]).filter(d => ITEMS_DB[d]);
+    const tierPool = (TIER_DROPS[tier] || TIER_DROPS[1]).filter(isLoot);
 
     // Check if encounter contains an apex boss or dangerous elite mob
     const isApex = members.some(m => m.role === 'apex_boss' || (m.name && (m.name.includes('Señor') || m.name.includes('Jefe'))));
@@ -298,9 +306,9 @@ export class DynamicCombatFactory {
       if (Math.random() > chance) return;
 
       // 70% preference for mob archetype drops if available, otherwise fallback to tier pool
-      const useMobPool = mobDrops.length > 0 && (Math.random() < 0.70 || tierPool.length === 0);
+      const useMobPool = mobDrops.length > 0 && (!pack || Math.random() < 0.70 || tierPool.length === 0); // encuentros fijos: solo lo suyo (su isla)
       const primaryPool = useMobPool ? mobDrops : tierPool;
-      const fallbackPool = useMobPool ? tierPool : mobDrops;
+      const fallbackPool = useMobPool ? (pack ? tierPool : mobDrops) : mobDrops;
 
       // Filter out items already dropped in this batch for reward variety
       let candidates = primaryPool.filter(d => !rewardItems.includes(d));
@@ -313,7 +321,7 @@ export class DynamicCombatFactory {
 
       if (candidates.length > 0) {
         const picked = candidates[Math.floor(Math.random() * candidates.length)];
-        if (picked && ITEMS_DB[picked]) {
+        if (picked && isLoot(picked)) {
           rewardItems.push(picked);
         }
       }
@@ -321,7 +329,7 @@ export class DynamicCombatFactory {
 
     // If apex boss, guarantee at least one apex-exclusive role item
     if (isApex && ROLE_DROPS['apex_boss']) {
-      const apexCandidates = ROLE_DROPS['apex_boss'].filter(d => ITEMS_DB[d]);
+      const apexCandidates = ROLE_DROPS['apex_boss'].filter(isLoot);
       if (apexCandidates.length > 0) {
         rewardItems.push(apexCandidates[Math.floor(Math.random() * apexCandidates.length)]);
       }

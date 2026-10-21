@@ -39,7 +39,8 @@ Ejemplo: Axie Bicho con ojos y orejas Bicho, boca Bestia y cuerno, espalda y col
 - `SpellManager.getSpell(id, unit)` devuelve la carta de esa unidad (con charms); sin unidad, la del catálogo.
 - `SpellManager.getSpellCost(unit, spell)` da el coste real (Discount Coupon, Trickster's Card, Energy Guru, Fate Maker).
 - Solo los **Axies del jugador** llevan runas y charms. El Sapidae y los enemigos no.
-- **Tutorial:** no se aplican (su guion es fijo). La arena de pruebas sí los aplica.
+- **Tutorial:** no se aplican en el combate guiado (su guion es fijo). Sí en el duelo con Paladill y en la prueba de la Ultimate (Hito 48). La arena de pruebas también los aplica.
+- **Desde el 21-oct:** la tecla U se desbloquea en la fase «Runas» del tutorial, donde Paladill da una runa y un charm neutros para equiparlos.
 - Una runa de otra clase o un charm de clase en una parte de otra clase no se aplican (mismas reglas que la Mochila).
 
 ## 3. Decisiones de adaptación (revisar si hace falta)

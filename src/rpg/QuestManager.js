@@ -1,4 +1,6 @@
 // QuestManager.js - Centralized Quest System for Lunacia Adventures
+import { ForgeService } from './ForgeService.js';
+import { isMaterial } from './LootService.js';
 import { canonicalZoneKey, MERGED_ZONES, FERRY_DOCKS, ISLAND_NAMES, mergedBattleAnchor } from './world/islands/IslandWorldLayout.js';
 export class QuestManager {
   constructor(equipmentManager = null, audioSystem = null) {
@@ -14,42 +16,34 @@ export class QuestManager {
       // ==========================================
       quest_slime_purification: {
         id: 'quest_slime_purification',
-        title: 'Atia Slime Purification',
+        title: 'El aprendiz del Dojo',
         category: 'Principal',
         order: 1,
         giver: {
-          name: 'Master Paladill',
-          title: 'Dojo Mentor',
+          name: 'Maestro Paladill',
+          title: 'Mentor del Dojo',
           avatar: './assets/portraits/paladill.png',
           model: 'paladill'
         },
         zoneCoords: [2, 2],
-        lore: 'For millennia, Lunacia flourished under the mystic light of the Atia Tree. But the shadows of the Abyss have corrupted local wildlife into dangerous Chimeras. A Slime Chimera slipped through the mist and prowls the eastern garden, threatening the sanctuary peace.',
-        npcQuote: 'As a Dojo apprentice, your duty is to protect this sanctuary! Cross the wooden bridge to the east garden, face the Slime Chimera, and purify its corrupted core.',
+        lore: 'Las quimeras han llegado hasta el Dojo. El Maestro Paladill entrena a su nuevo aprendiz: combate, equipo, la Forja, el vínculo con su Axie y las runas.',
+        npcQuote: 'Tú y tu Axie sois mi primera línea. ¡Ahora te toca a ti!',
         objective: {
-          summary: 'Head to the east garden by crossing the wooden bridge, purify the Slime Chimera in tactical combat, and return to Master Paladill to report your victory.',
+          summary: 'Completa el entrenamiento del Maestro Paladill en el Dojo.',
           steps: [
-            { id: 'talk_paladill', desc: 'Talk to Master Paladill in the Dojo [2, 2]', done: false },
-            { id: 'defeat_slime', desc: 'Defeat the Slime Chimera in the east garden', done: false },
-            { id: 'report_victory', desc: 'Report your victory to Paladill and receive your sword', done: false },
-            { id: 'equip_sword', desc: 'Open your Inventory [I] and equip the Sword to {heroName}', done: false },
-            { id: 'open_doors', desc: 'Talk to Paladill to unlock the Dojo doors [E]', done: false }
+            { id: 'defend_dojo', desc: 'Defiende el Dojo de las quimeras', done: false },
+            { id: 'equip_sword', desc: 'Equipa la Espada de madera [I]', done: false },
+            { id: 'duel_paladill', desc: 'Entrena con el Maestro Paladill', done: false },
+            { id: 'evolve_sword', desc: 'Mejora tu espada en la Forja', done: false },
+            { id: 'bond_axie', desc: 'Fortalece el vínculo con tu Axie', done: false },
+            { id: 'equip_runes', desc: 'Equipa una runa y un charm [U]', done: false },
+            { id: 'graduate', desc: 'Habla con Paladill para graduarte', done: false }
           ]
         },
         rewards: {
-          gold: 150,
+          gold: 0,
           exp: 100,
-          items: [
-            {
-              id: 'wood_sword',
-              name: 'Dojo Wooden Sword',
-              slot: 'weapon',
-              rarity: 'common',
-              icon: './assets/equippable/wood_sword.png',
-              desc: 'Training sword blessed by Master Paladill. Grants +8 blunt damage to your melee attacks.',
-              stats: { damage: 8 }
-            }
-          ]
+          items: []
         },
         status: 'active',
         rewardClaimed: false
@@ -82,15 +76,7 @@ export class QuestManager {
           exp: 150,
           recruits: ['bing'],
           items: [
-            {
-              id: 'feather_dagger',
-              name: 'Wild Feather Dagger',
-              slot: 'weapon',
-              rarity: 'rare',
-              icon: './assets/equippable/feather_dagger.png',
-              desc: 'Forged with Bing\'s steel-sharp feathers. Grants +14 ranged damage and +3 initiative.',
-              stats: { damage: 14, initiative: 3 }
-            }
+            { id: 'composite_bow', name: 'Arco compuesto', slot: 'weapon', rarity: 'common', icon: './assets/equippable/composite_bow.webp', desc: 'Madera y cola de quimera: ligero y preciso.', stats: { damage: 7, initiative: 3 } }
           ]
         },
         status: 'locked',
@@ -123,15 +109,7 @@ export class QuestManager {
           gold: 250,
           exp: 200,
           items: [
-            {
-              id: 'desert_turban',
-              name: 'Arid Wind Turban',
-              slot: 'hat',
-              rarity: 'rare',
-              icon: './assets/equippable/desert_turban.png',
-              desc: 'Nomad weave protecting against sandstorms. Grants +60 HP and +4 initiative.',
-              stats: { hp: 60, initiative: 4 }
-            }
+            { id: 'beast_helmet', name: 'Yelmo bestial', slot: 'hat', rarity: 'common', icon: './assets/equippable/beast_helmet.webp', desc: 'Casco de cuero y hueso. El primer sombrero de todo aventurero.', stats: { hp: 15 } }
           ]
         },
         status: 'locked',
@@ -165,15 +143,7 @@ export class QuestManager {
           gold: 300,
           exp: 250,
           items: [
-            {
-              id: 'reinforced_leather_shield',
-              name: 'Reinforced Leather Shield',
-              slot: 'shield',
-              rarity: 'rare',
-              icon: './assets/equippable/reinforced_leather_shield.png',
-              desc: 'Tanned from desert chimera hides. Provides +45 Starting Shield and +25 HP.',
-              stats: { shield: 45, hp: 25 }
-            }
+            { id: 'wooden_buckler', name: 'Rodela de roble', slot: 'shield', rarity: 'common', icon: './assets/equippable/wooden_buckler.webp', desc: 'Escudo pequeño de roble con remaches de cobre.', stats: { hp: 18, shield: 15 } }
           ]
         },
         status: 'locked',
@@ -207,15 +177,8 @@ export class QuestManager {
           exp: 300,
           recruits: ['pomodoro'],
           items: [
-            {
-              id: 'sacred_leaf_brooch',
-              name: 'Sacred Leaf Brooch',
-              slot: 'body',
-              rarity: 'epic',
-              icon: './assets/equippable/sacred_leaf_brooch.png',
-              desc: 'Brooch woven from Pomodoro\'s autumn leaves. Grants +100 HP and strengthens defenses.',
-              stats: { hp: 100 }
-            }
+            { id: 'mat_wool', name: 'Lana', qty: 3, kind: 'material', rarity: 'rare', desc: 'Abriga y acolcha. Va en armaduras, sombreros y empuñaduras.' },
+            { id: 'mat_wood', name: 'Madera', qty: 3, kind: 'material', rarity: 'rare', desc: 'Tronco recio y fácil de trabajar. Lo pide cualquier evolución a Raro.' }
           ]
         },
         status: 'locked',
@@ -247,15 +210,8 @@ export class QuestManager {
           gold: 400,
           exp: 350,
           items: [
-            {
-              id: 'frost_amulet',
-              name: 'Amulet of Eternal Ice',
-              slot: 'shield',
-              rarity: 'epic',
-              icon: './assets/equippable/frost_amulet.png',
-              desc: 'A pure crystal condensing protective frost. Grants +80 Starting Shield and +50 HP.',
-              stats: { shield: 80, hp: 50 }
-            }
+            { id: 'mat_wool', name: 'Lana', qty: 4, kind: 'material', rarity: 'rare', desc: 'Abriga y acolcha. Va en armaduras, sombreros y empuñaduras.' },
+            { id: 'mat_frost_crystal', name: 'Cristal de escarcha', qty: 1, kind: 'material', rarity: 'mystic', desc: 'Guarda el frío dentro. Lo pide la evolución a Místico.' }
           ]
         },
         status: 'locked',
@@ -288,15 +244,8 @@ export class QuestManager {
           gold: 450,
           exp: 400,
           items: [
-            {
-              id: 'astral_robe',
-              name: 'Seer Astral Robe',
-              slot: 'body',
-              rarity: 'epic',
-              icon: './assets/equippable/astral_robe.png',
-              desc: 'Woven from cosmic nebula filaments. Grants +120 HP, +10 arcane damage, and +5 initiative.',
-              stats: { hp: 120, damage: 10, initiative: 5 }
-            }
+            { id: 'mat_druid_flower', name: 'Flor de druida', qty: 3, kind: 'material', rarity: 'epic', desc: 'Flor encantada que nunca se marchita.' },
+            { id: 'mat_moon_flower', name: 'Flor lunar', qty: 2, kind: 'material', rarity: 'epic', desc: 'Solo abre de noche. Sus pétalos guardan un poco de luz de luna.' }
           ]
         },
         status: 'locked',
@@ -330,15 +279,8 @@ export class QuestManager {
           gold: 500,
           exp: 450,
           items: [
-            {
-              id: 'ring_of_destiny',
-              name: 'Thread of Fate Ring',
-              slot: 'hat',
-              rarity: 'legendary',
-              icon: './assets/equippable/ring_of_destiny.png',
-              desc: 'A ring of living star silver. Grants +140 HP and allows starting every battle with tactical advantage.',
-              stats: { hp: 140 }
-            }
+            { id: 'mat_druid_staff', name: 'Bastón de druida', qty: 3, kind: 'material', rarity: 'epic', desc: 'Bastón tallado por las dríadas; conduce la magia del bosque.' },
+            { id: 'mat_astral_dust', name: 'Polvo astral', qty: 1, kind: 'material', rarity: 'mystic', desc: 'Restos de estrellas caídas. Despierta la magia del equipo.' }
           ]
         },
         status: 'locked',
@@ -371,16 +313,7 @@ export class QuestManager {
           gold: 600,
           exp: 500,
           items: [
-            {
-              id: 'crimson_crypt_key',
-              name: 'Genesis Sanctum Key',
-              slot: 'quest',
-              category: 'quest',
-              rarity: 'legendary',
-              icon: './assets/equippable/crimson_crypt_key.png',
-              desc: 'Key carved from ancient Genesis crystal. Unlocks the arcane seal of the Sanctum of Origin.',
-              stats: {}
-            }
+            { id: 'crimson_crypt_key', name: 'Crimson Crypt Key', slot: 'quest', rarity: 'mystic', icon: './assets/materials/misions/crimson_crypt_key.webp', desc: 'Key forged in elemental magma. Unlocks the arcane seal of the final Crypt Catacombs.', stats: {} }
           ]
         },
         status: 'locked',
@@ -414,15 +347,8 @@ export class QuestManager {
           gold: 1000,
           exp: 1000,
           items: [
-            {
-              id: 'champion_crown',
-              name: 'Crown of the Champion of Lunacia',
-              slot: 'hat',
-              rarity: 'legendary',
-              icon: './assets/equippable/champion_crown.png',
-              desc: 'The sacred circlet bestowed by the Great Atia Tree. Grants +250 HP, +15 initiative, and everlasting glory.',
-              stats: { hp: 250, initiative: 15 }
-            }
+            { id: 'mat_amber_atia', name: 'Ámbar de Atia', qty: 3, kind: 'material', rarity: 'mystic', desc: 'Savia del Gran Árbol endurecida durante siglos. El corazón de toda pieza Mística.' },
+            { id: 'mat_lunar_shard', name: 'Esquirla lunar', qty: 1, kind: 'material', rarity: 'mystic', desc: 'Fragmento de la luna de Lunacia. Necesario para evolucionar a Místico.' }
           ]
         },
         status: 'locked',
@@ -457,15 +383,7 @@ export class QuestManager {
           gold: 150,
           exp: 80,
           items: [
-            {
-              id: 'feather_hood',
-              name: 'Sacred Feather Hood',
-              slot: 'hat',
-              rarity: 'rare',
-              icon: './assets/equippable/feather_hood.png',
-              desc: 'Hood woven with blessed feathers. Grants +40 HP and +5 initiative.',
-              stats: { hp: 40, initiative: 5 }
-            }
+            { id: 'traveler_cloak', name: 'Capa de viajero', slot: 'body', rarity: 'common', icon: './assets/equippable/traveler_cloak.webp', desc: 'Capa gruesa y cómoda para los caminos de Lunacia.', stats: { hp: 25 } }
           ]
         },
         status: 'available',
@@ -498,15 +416,7 @@ export class QuestManager {
           gold: 120,
           exp: 70,
           items: [
-            {
-              id: 'traveler_boots',
-              name: 'Light Courier Boots',
-              slot: 'boots',
-              rarity: 'common',
-              icon: './assets/equippable/traveler_boots.png',
-              desc: 'Reinforced boots for long journeys. Grants +30 HP and +4 initiative.',
-              stats: { hp: 30, initiative: 4 }
-            }
+            { id: 'heavy_boots', name: 'Botas pesadas', slot: 'boots', rarity: 'common', icon: './assets/equippable/heavy_boots.webp', desc: 'Suela gruesa para no resbalar en el barro.', stats: { hp: 12, initiative: 2 } }
           ]
         },
         status: 'available',
@@ -539,16 +449,7 @@ export class QuestManager {
           gold: 140,
           exp: 85,
           items: [
-            {
-              id: 'dew_flask',
-              name: 'Healing Dew Flask',
-              slot: 'consumable',
-              category: 'consumable',
-              rarity: 'rare',
-              icon: './assets/equippable/dew_flask.png',
-              desc: 'Medicinal flask containing moss extract and healing dew brewed by Rosalba. Instantly restores 100 HP to the selected hero.',
-              effect: { heal: 100 }
-            }
+            { id: 'dew_flask', name: 'Healing Dew Flask', slot: 'consumable', rarity: 'rare', icon: './assets/consumable/healing_dew_flask.webp', desc: 'Medicinal flask with moss extract and healing dew crafted by Rosalba. Instantly restores 100 HP to the selected hero.', stats: {} }
           ]
         },
         status: 'available',
@@ -581,15 +482,8 @@ export class QuestManager {
           gold: 200,
           exp: 120,
           items: [
-            {
-              id: 'obsidian_dagger',
-              name: 'Piercing Obsidian Dagger',
-              slot: 'weapon',
-              rarity: 'rare',
-              icon: './assets/equippable/obsidian_dagger.png',
-              desc: 'Black blade sharpened in canyon heat. Grants +16 damage and +2 initiative.',
-              stats: { damage: 16, initiative: 2 }
-            }
+            { id: 'mat_copper', name: 'Cobre del cañón', qty: 5, kind: 'material', rarity: 'common', desc: 'Metal blando que se trabaja en frío. La base de casi todo el equipo Común.' },
+            { id: 'mat_wolf_tooth', name: 'Diente de lobo', qty: 3, kind: 'material', rarity: 'rare', desc: 'Afilado como una cuchilla: refuerza filos y puntas.' }
           ]
         },
         status: 'available',
@@ -622,15 +516,7 @@ export class QuestManager {
           gold: 220,
           exp: 140,
           items: [
-            {
-              id: 'precision_scope',
-              name: 'Lunacian Precision Scope',
-              slot: 'hat',
-              rarity: 'rare',
-              icon: './assets/equippable/precision_scope.png',
-              desc: 'Polished crystal lens for accurate shots. Grants +50 HP and +6 initiative.',
-              stats: { hp: 50, initiative: 6 }
-            }
+            { id: 'mushroom_staff', name: 'Bastón de hongo', slot: 'weapon', rarity: 'common', icon: './assets/equippable/mushroom_staff.webp', desc: 'Un bastón coronado por un hongo que brilla un poco.', stats: { hp: 20, damage: 6 } }
           ]
         },
         status: 'available',
@@ -663,15 +549,8 @@ export class QuestManager {
           gold: 260,
           exp: 180,
           items: [
-            {
-              id: 'thermal_pot',
-              name: 'Fortifying Thermal Cauldron',
-              slot: 'shield',
-              rarity: 'rare',
-              icon: './assets/equippable/thermal_pot.png',
-              desc: 'Round shield with the aroma of hot stew. Provides +60 Starting Shield and +40 HP.',
-              stats: { shield: 60, hp: 40 }
-            }
+            { id: 'mat_wood', name: 'Madera', qty: 4, kind: 'material', rarity: 'rare', desc: 'Tronco recio y fácil de trabajar. Lo pide cualquier evolución a Raro.' },
+            { id: 'mat_wool', name: 'Lana', qty: 2, kind: 'material', rarity: 'rare', desc: 'Abriga y acolcha. Va en armaduras, sombreros y empuñaduras.' }
           ]
         },
         status: 'available',
@@ -704,15 +583,8 @@ export class QuestManager {
           gold: 280,
           exp: 200,
           items: [
-            {
-              id: 'arctic_buckler',
-              name: 'Mirroring Arctic Buckler',
-              slot: 'shield',
-              rarity: 'rare',
-              icon: './assets/equippable/arctic_buckler.png',
-              desc: 'Reflects polar light, shielding against frontal strikes. Grants +70 Shield and +35 HP.',
-              stats: { shield: 70, hp: 35 }
-            }
+            { id: 'mat_wool', name: 'Lana', qty: 3, kind: 'material', rarity: 'rare', desc: 'Abriga y acolcha. Va en armaduras, sombreros y empuñaduras.' },
+            { id: 'mat_frost_crystal', name: 'Cristal de escarcha', qty: 1, kind: 'material', rarity: 'mystic', desc: 'Guarda el frío dentro. Lo pide la evolución a Místico.' }
           ]
         },
         status: 'available',
@@ -745,15 +617,8 @@ export class QuestManager {
           gold: 320,
           exp: 240,
           items: [
-            {
-              id: 'star_prism',
-              name: 'Prism Star Fragment',
-              slot: 'weapon',
-              rarity: 'epic',
-              icon: './assets/equippable/star_prism.png',
-              desc: 'Gleaming celestial crystal. Grants +22 blunt damage and +4 initiative.',
-              stats: { damage: 22, initiative: 4 }
-            }
+            { id: 'mat_moon_flower', name: 'Flor lunar', qty: 3, kind: 'material', rarity: 'epic', desc: 'Solo abre de noche. Sus pétalos guardan un poco de luz de luna.' },
+            { id: 'mat_astral_dust', name: 'Polvo astral', qty: 1, kind: 'material', rarity: 'mystic', desc: 'Restos de estrellas caídas. Despierta la magia del equipo.' }
           ]
         },
         status: 'available',
@@ -786,15 +651,8 @@ export class QuestManager {
           gold: 360,
           exp: 280,
           items: [
-            {
-              id: 'concentration_talisman',
-              name: 'Ancestral Focus Talisman',
-              slot: 'body',
-              rarity: 'epic',
-              icon: './assets/equippable/concentration_talisman.png',
-              desc: 'Grants absolute mental clarity. Bestows +110 HP.',
-              stats: { hp: 110 }
-            }
+            { id: 'mat_druid_branch', name: 'Rama de druida', qty: 3, kind: 'material', rarity: 'epic', desc: 'Rama viva que todavía brota. Da forma a las piezas Épicas.' },
+            { id: 'mat_druid_staff', name: 'Bastón de druida', qty: 2, kind: 'material', rarity: 'epic', desc: 'Bastón tallado por las dríadas; conduce la magia del bosque.' }
           ]
         },
         status: 'available',
@@ -827,15 +685,8 @@ export class QuestManager {
           gold: 500,
           exp: 350,
           items: [
-            {
-              id: 'fury_ring',
-              name: 'Genesis Aurora Ring',
-              slot: 'hat',
-              rarity: 'epic',
-              icon: './assets/equippable/fury_ring.png',
-              desc: 'Imbued with the ancient magic of Genesis. Grants +130 HP and +8 initiative.',
-              stats: { hp: 130, initiative: 8 }
-            }
+            { id: 'mat_amber_atia', name: 'Ámbar de Atia', qty: 2, kind: 'material', rarity: 'mystic', desc: 'Savia del Gran Árbol endurecida durante siglos. El corazón de toda pieza Mística.' },
+            { id: 'mat_lunar_shard', name: 'Esquirla lunar', qty: 1, kind: 'material', rarity: 'mystic', desc: 'Fragmento de la luna de Lunacia. Necesario para evolucionar a Místico.' }
           ]
         },
         status: 'available',
@@ -994,6 +845,12 @@ export class QuestManager {
 
     if (this.equipmentManager && quest.rewards.items && quest.rewards.items.length > 0) {
       quest.rewards.items.forEach(rewardItem => {
+        // Materiales (20-oct): van a la bolsa de la Forja con su cantidad
+        if (isMaterial(rewardItem.id)) {
+          ForgeService.addMats(rewardItem.id, rewardItem.qty || 1, false);
+          deliveredRewards.items.push(rewardItem);
+          return;
+        }
         const isEquipped = Object.values(this.equipmentManager.equipped || {}).some(
           heroSlots => heroSlots && Object.values(heroSlots).includes(rewardItem.id)
         );
@@ -1181,7 +1038,11 @@ export class QuestManager {
       let targetName = quest.title;
 
       if (currentMapDef) {
-        if (quest.id === 'quest_slime_purification') {
+        const tutNav = quest.id === 'quest_slime_purification' && typeof window !== 'undefined' ? window.lunakaiTutorial?.director?.navTarget?.() : null;
+        if (tutNav) {
+          targetWorldPos = { x: tutNav.x, z: tutNav.z };
+          targetName = tutNav.name;
+        } else if (quest.id === 'quest_slime_purification') {
           if (!pendingStep || pendingStep.id === 'defeat_slime') {
             targetWorldPos = { x: -4.0, z: 2.0 };
             targetName = 'Slime Chimera';

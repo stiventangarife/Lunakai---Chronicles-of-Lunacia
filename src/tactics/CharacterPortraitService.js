@@ -2,6 +2,7 @@
 import * as THREE from 'three';
 import { GLTFLoader } from '../../vendor/GLTFLoader.js';
 import { sapidaeModularController } from '../rpg/SapidaeModularController.js';
+import { sapidaeModelUrl, SAPIDAE_BASES } from '../rpg/SapidaeModels.js';
 
 export const PRE_RENDERED_PORTRAITS = [
   'bear-dad',
@@ -356,7 +357,7 @@ export class CharacterPortraitService {
   _resolveModelPath(id) {
     if (!id) return './assets/models/slime.glb';
     const resolved = this._resolvePortraitId(id);
-    return `./assets/models/${resolved}.glb`;
+    return SAPIDAE_BASES[resolved] ? sapidaeModelUrl(resolved) : `./assets/models/${resolved}.glb`;
   }
 
   async getPortrait(id, modelScene = null, options = {}) {
@@ -572,7 +573,7 @@ export class CharacterPortraitService {
       }
       if (!this._initialized) return null;
 
-      const modelPath = `./assets/models/${modelId}.glb`;
+      const modelPath = sapidaeModelUrl(modelId);
       try {
         const gltf = await this.loader.loadAsync(modelPath);
         const model = gltf.scene;

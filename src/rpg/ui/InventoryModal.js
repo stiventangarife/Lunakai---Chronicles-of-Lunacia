@@ -12,6 +12,9 @@ import { asset, sprite, toast } from '../../ui/lk.js';
 import { HeroModelPreview } from './HeroModelPreview.js';
 import { createRunesView, runesPending } from '../../ui/RunesCharmsPanel.js';
 import { ForgeService } from '../ForgeService.js';
+import { MATERIALS } from '../../tactics/data/EconomyCatalog.js';
+import { matSvg, BIOME } from '../../ui/ForgePanel.js';
+import { MATERIAL_RARITY_NAME } from '../../tactics/data/EconomyCatalog.js';
 
 export function getAxieClassIcon(cls) {
   const s = String(cls || '').toLowerCase();
@@ -32,8 +35,8 @@ const HERO_SPELLS = {
 
 const I = (n) => asset(`assets/ui/icons/${n}.png`);
 const EQ_SLOTS = ['weapon', 'hat', 'shield', 'body', 'boots'];
-const SLOT1 = { weapon: 'Arma', hat: 'Sombrero', shield: 'Escudo', body: 'Armadura', boots: 'Botas', consumable: 'Consumible', quest: 'Objeto de misión' };
-const TABS = [['all', 'Todo'], ['weapon', 'Armas'], ['hat', 'Sombreros'], ['shield', 'Escudos'], ['body', 'Armaduras'], ['boots', 'Botas'], ['consumable', 'Consumibles'], ['quest', 'Misión']];
+const SLOT1 = { weapon: 'Arma', hat: 'Sombrero', shield: 'Escudo', body: 'Armadura', boots: 'Botas', consumable: 'Consumible', quest: 'Objeto de misión', material: 'Material' };
+const TABS = [['all', 'Todo'], ['weapon', 'Armas'], ['hat', 'Sombreros'], ['shield', 'Escudos'], ['body', 'Armaduras'], ['boots', 'Botas'], ['consumable', 'Consumibles'], ['material', 'Materiales'], ['quest', 'Misión']];
 const STAT_ES = { hp: 'Vida', damage: 'Daño', pa: 'PA', pm: 'PM', initiative: 'Iniciativa', shield: 'Escudo' };
 /** Efecto principal de un consumible u objeto de misión, para la franja inferior de su casilla. */
 const effectCap = (it, k) => {
@@ -75,7 +78,11 @@ const slotOf = (it) => (it.slot === 'consumable' || it.category === 'consumable'
   : (it.slot === 'quest' || it.category === 'quest' || it.type === 'quest') ? 'quest' : it.slot;
 const rv = (r) => `var(--lk-rar-${r === 'legendary' ? 'legendary' : (r || 'common')})`;
 const isImg = (s) => typeof s === 'string' && (/^(\.\/|\/|assets\/|http|data:image)/.test(s) || /\.(png|jpe?g|webp|svg)$/i.test(s));
-const art = (it) => isImg(it.icon) ? `<img src="${it.icon}" alt="" draggable="false">` : `<span class="lk-emoji">${it.icon || '📦'}</span>`;
+// Materiales (bolsa de la Forja: recolección, Tienda, botín): se muestran en la mochila como objetos más
+const MAT_RARITY = { 0: 'mystic', 1: 'common', 2: 'uncommon', 3: 'rare', 4: 'epic', 5: 'legendary' };
+const matItem = (m) => m && ({ id: m.id, name: m.name, slot: 'material', tier: m.tier || null, rarity: m.rarity || MAT_RARITY[m.tier] || 'common', glyph: m.glyph, icon: m.icon, biome: m.biome, description: m.description, source: m.source, mat: true });
+const itemOf = (id) => ITEMS_DB[id] || matItem(MATERIALS[id]);
+const art = (it) => it.mat && !it.icon ? `<span class="lk-mat-art" style="color:${BIOME[it.biome]?.[1] || '#B8892E'}">${matSvg(it.glyph, '')}</span>` : isImg(it.icon) ? `<img src="${it.icon}" alt="" draggable="false">` : `<span class="lk-emoji">${it.icon || '📦'}</span>`;
 
 export class InventoryModal {
   constructor(equipmentManager, audioSystem = null) {
@@ -246,7 +253,8 @@ export class InventoryModal {
     this.modalEl.classList.remove('hidden');
     void this.modalEl.offsetWidth;
     this.modalEl.classList.add('lk-is-open');
-    this._modelShown = null;
+    // (ya no se fuerza a rehacer el modelo en cada apertura: _showModel compara héroe + equipo +
+    //  personalización y solo lo rehace si algo cambió mientras la mochila estaba cerrada)
     this.model?.start();
     if (this.audio && this.audio.playBuff) this.audio.playBuff();
     this._renderAll();
@@ -286,8 +294,10 @@ export class InventoryModal {
   _isTutorialEquipActive() {
     if (!this.isTutorialEquipLocked || !this.tutorialTargetItemId) return false;
     if (this.tutorialManager) {
-      if (!this.tutorialManager.isActive || this.tutorialManager.currentStep === 'COMPLETED' || this.tutorialManager.hasEquippedSword
-          || this.tutorialManager.currentStep !== 'EQUIP_SWORD') {
+      // Hito 48: el tutorial dice qué objeto pide (equipLockItem); el gestor antiguo usaba su paso EQUIP_SWORD
+      const lockItem = 'equipLockItem' in this.tutorialManager ? this.tutorialManager.equipLockItem
+        : (this.tutorialManager.isActive && this.tutorialManager.currentStep === 'EQUIP_SWORD' && !this.tutorialManager.hasEquippedSword ? this.tutorialTargetItemId : null);
+      if (!lockItem) {
         this.isTutorialEquipLocked = false;
         this.tutorialTargetItemId = null;
         return false;
@@ -366,13 +376,28 @@ export class InventoryModal {
       });
       this.model.start();
     }
-    if (this._modelShown === this.selectedHeroId) return;
-    this._modelShown = this.selectedHeroId;
-    this.model.show(this.selectedHeroId, this._base(), this._equipped()).then(() => { if (this.isOpen) this.model.start(); });
+    const key = this._modelKey();
+    if (this._modelShown === key) return;
+    this._modelShown = key;
+    this.model.show(this.selectedHeroId, this._base(), this._equipped())
+      .then(() => { if (this.isOpen) this.model.start(); })
+      .catch(() => { if (this._modelShown === key) this._modelShown = null; }); // reintentar en la próxima apertura
   }
 
   _refreshModelEquipment() {
-    if (this.model && this._isSapi(this.selectedHeroId)) this.model.applyEquipment(this._base(), this._equipped());
+    if (this.model && this._isSapi(this.selectedHeroId)) {
+      this.model.applyEquipment(this._base(), this._equipped());
+      this._modelShown = this._modelKey(); // el modelo ya muestra este equipo
+    }
+  }
+
+  /** Lo que determina el aspecto del modelo del visor: si no cambia, no hay que rehacerlo. */
+  _modelKey() {
+    try {
+      return `${this.selectedHeroId}|${JSON.stringify(this._equipped())}|${JSON.stringify(this._base()?.customization || null)}|${this._base()?.modelType || ''}`;
+    } catch (_) {
+      return `${this.selectedHeroId}|${Math.random()}`;
+    }
   }
 
   _equipped() { return this.equipmentManager.getEquipped(this.selectedHeroId) || {}; }
@@ -499,7 +524,9 @@ export class InventoryModal {
     // La mochila guarda ids repetidos: se agrupan con su cantidad
     const counts = new Map();
     (this.equipmentManager.inventory || []).forEach((id) => { if (ITEMS_DB[id]) counts.set(id, (counts.get(id) || 0) + 1); });
-    return [...counts.entries()].map(([id, qty]) => ({ it: ITEMS_DB[id], qty }));
+    const items = [...counts.entries()].map(([id, qty]) => ({ it: ITEMS_DB[id], qty }));
+    const mats = Object.entries(ForgeService.mats() || {}).filter(([id, n]) => n > 0 && MATERIALS[id]).map(([id, qty]) => ({ it: matItem(MATERIALS[id]), qty }));
+    return [...items, ...mats];
   }
 
   _renderBackpackItems() {
@@ -542,9 +569,9 @@ export class InventoryModal {
       // Franja inferior = siempre el efecto principal; la cantidad va en la chapa de la esquina y el nombre en la ficha
       const cap = EQ_SLOTS.includes(k)
         ? (Object.entries(st).filter(([, v]) => v).slice(0, 1).map(([s, v]) => `+${v} ${STAT_ES[s] || s}`).join('') || SLOT1[k])
-        : effectCap(it, k);
+        : k === 'material' ? (it.tier ? `${MATERIAL_RARITY_NAME[it.rarity] || ''} · ${BIOME[it.biome]?.[0] || ''}` : 'Catalizador') : effectCap(it, k);
       const spot = tutOn && !tutDone && it.id === this.tutorialTargetItemId;
-      return `<button type="button" class="lk-it ${this.pinned?.id === it.id ? 'lk-is-sel' : ''} ${spot ? 'lk-tut-spot' : ''}" data-id="${it.id}" ${EQ_SLOTS.includes(k) ? `data-slot="${k}"` : ''} style="--r:${rv(it.rarity)}" aria-label="${esc(it.name)}${qty > 1 ? ` ×${qty}` : ''}"><span class="lk-art">${art(it)}${it.tier ? `<span class="lk-tier">T${it.tier}</span>` : ''}${qty > 1 ? `<span class="lk-qty">×${qty}</span>` : ''}</span><span class="lk-cap">${esc(cap)}</span></button>`;
+      return `<button type="button" class="lk-it ${this.pinned?.id === it.id ? 'lk-is-sel' : ''} ${spot ? 'lk-tut-spot' : ''}" data-id="${it.id}" ${EQ_SLOTS.includes(k) ? `data-slot="${k}"` : ''} style="--r:${rv(it.rarity)}" aria-label="${esc(it.name)}${qty > 1 ? ` ×${qty}` : ''}"><span class="lk-art">${art(it)}${EQ_SLOTS.includes(k) && it.tier != null ? `<span class="lk-tier">T${it.tier}</span>` : ''}${qty > 1 ? `<span class="lk-qty">×${qty}</span>` : ''}</span><span class="lk-cap">${esc(cap)}</span></button>`;
     });
     const pad = Math.max(0, Math.ceil((cells.length + 1) / 8) * 8 - cells.length);
     const grid = this.$('grid');
@@ -566,7 +593,7 @@ export class InventoryModal {
       // Doble clic: equipar al héroe seleccionado (o usar, si es un consumible)
       b.addEventListener('dblclick', () => this._quickUse(b.dataset.id));
     });
-    const n = (this.equipmentManager.inventory || []).length;
+    const n = (this.equipmentManager.inventory || []).length + all.filter((g) => g.it.mat).reduce((a, g) => a + g.qty, 0);
     this.$('count').textContent = `${n} ${n === 1 ? 'objeto' : 'objetos'}`;
     if (this.pinned && !this.pinned.anchor.isConnected) this._closeTip();
   }
@@ -639,6 +666,7 @@ export class InventoryModal {
         ${keys.length || effRows ? `<div class="lk-tt-stats">${keys.map((s) => `<span class="lk-tt-stat">${STAT_ES[s]}<b>${st[s] ? `+${st[s]}` : '—'}${diff(s)}</b></span>`).join('')}${effRows}</div>` : ''}
         ${isOn ? `<span class="lk-tt-note">Equipado en ${esc(hero)}</span>` : cur ? `<span class="lk-tt-note">Comparado con ${esc(cur.name)} (equipado en ${esc(hero)})</span>` : ''}
         ${k === 'quest' ? '<span class="lk-tt-note">Objeto de misión: se guarda para tus misiones activas.</span>' : ''}
+        ${it.mat ? `<span class="lk-tt-note">Material de la Forja · ${esc(it.source || '')}</span>` : ''}
         ${it.description ? `<p class="${pinned ? '' : 'lk-clamp'}">${esc(it.description)}</p>` : ''}
         ${pinned ? (acts ? `<div class="lk-actions">${acts}</div>` : '') : `<span class="lk-tt-hint">${eqSlot ? 'Clic: fijar ficha · Doble clic o arrastra: equipar' : k === 'consumable' ? 'Clic: fijar ficha · Doble clic: usar' : 'Clic: fijar ficha'}</span>`}
       </div>`;
@@ -656,7 +684,7 @@ export class InventoryModal {
 
   _hoverTip(el, id) {
     if (this.pinned || document.body.classList.contains('lk-is-dragging')) return;
-    const it = ITEMS_DB[id];
+    const it = itemOf(id);
     if (!it) return;
     this.itip.style.setProperty('--c', rv(it.rarity));
     this.itip.innerHTML = this._tipHTML(it, false);
@@ -675,7 +703,7 @@ export class InventoryModal {
   _hideTooltip() { this._closeTip(); }
 
   _pinTip(id, anchor) {
-    const it = ITEMS_DB[id];
+    const it = itemOf(id);
     if (!it || !anchor) { this._closeTip(); return; }
     this.pinned = { id, anchor };
     this.modalEl.querySelectorAll('.lk-it[data-id]').forEach((x) => x.classList.toggle('lk-is-sel', x.dataset.id === id));

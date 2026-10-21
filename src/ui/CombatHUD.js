@@ -130,7 +130,9 @@ export function initCombatHUDMarkup() {
       </div>
       <span class="lk-cb-spacer"></span>
       <div class="header-actions lk-cb-tools">
-        <button id="btn-mute" class="icon-btn lk-btn-circle-icon" type="button" title="Silenciar música y sonido">🔊</button>
+        <button id="btn-options" class="icon-btn lk-btn-circle-icon" type="button" title="Opciones (Esc)" aria-label="Opciones"><img class="lk-ai" src="${ICON}setting.png" alt=""></button>
+        <!-- El volumen vive ahora en Opciones › Audio; el botón se conserva oculto porque main.js lo usa -->
+        <button id="btn-mute" class="icon-btn lk-btn-circle-icon" type="button" title="Silenciar música y sonido" hidden>🔊</button>
         <button id="btn-help" class="icon-btn lk-btn-circle-icon" type="button" title="Controles y reglas"><img class="lk-ai" src="${ICON}info.png" alt=""></button>
       </div>`;
   }

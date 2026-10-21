@@ -64,6 +64,7 @@ export class TurnManager {
   startCombat() {
     this.round = 1;
     this.isCombatOver = false;
+    this.endReason = null;
     this.turnEnding = false;
     this.units.forEach(u => {
       if (u.clearDamageFlash) u.clearDamageFlash();
@@ -160,6 +161,17 @@ export class TurnManager {
 
   checkCombatEnd() {
     if (this.isCombatOver) return true;
+
+    // Hito 48: regla de fin propia (duelo de entrenamiento: al 30 % de vida). Cuenta como victoria del escuadrón.
+    if (typeof this.endRule === 'function') {
+      const reason = this.endRule(this.units);
+      if (reason) {
+        this.isCombatOver = true;
+        this.endReason = reason;
+        if (this.onVictory) this.onVictory();
+        return true;
+      }
+    }
 
     const playersAlive = this.units.filter(u => u.team === 'player' && !u.isDead);
     const enemiesAlive = this.units.filter(u => u.team === 'enemy' && !u.isDead);

@@ -1,6 +1,7 @@
 # Hito 29: Motor de combate — Fase 3 (vínculo y Duo Ultimates)
 
 > **Estado:** completado. El vínculo se guarda por Axie en la partida y las 3 Duo Ultimates funcionan en combate con su carta en la barra.
+> **Actualización (21-oct-2026, Hito 48):** la ronda mínima es configurable (`setupCombat({ minRound })`); la prueba de la Ultimate del tutorial (`tut_ult`) la permite desde la ronda 1 con el vínculo prestado al 100 %. El combate guiado sigue sin Ultimate.
 
 ## Reglas
 

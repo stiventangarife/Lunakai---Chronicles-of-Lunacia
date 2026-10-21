@@ -100,7 +100,7 @@ export class EquipmentManager {
     };
 
     // Backpack inventory: starter supplies (consumables)
-    this.inventory = ['potion_health_small', 'potion_health_small', 'potion_energy'];
+    this.inventory = ['potion_health_small', 'potion_health_small', 'potion_health_small'];
     this.gold = 0;
 
     this.heroProgression = {
@@ -319,13 +319,15 @@ export class EquipmentManager {
     }
 
     if (slotData.inventory) {
-      this.inventory = [...slotData.inventory];
+      // Hito 46: los objetos que ya no existen (lista de ítems reducida) se descartan al cargar.
+      this.inventory = slotData.inventory.filter((id) => ITEMS_DB[id]);
     }
     if (typeof slotData.gold === 'number') {
       this.gold = Math.max(0, slotData.gold);
     }
     if (slotData.equipped) {
       this.equipped = JSON.parse(JSON.stringify(slotData.equipped));
+      Object.values(this.equipped).forEach((eq) => { if (eq) Object.keys(eq).forEach((k) => { if (eq[k] && !ITEMS_DB[eq[k]]) eq[k] = null; }); });
     }
     if (!this.equipped.sapidae) {
       this.equipped.sapidae = { weapon: null, hat: null, shield: null, body: null, boots: null };

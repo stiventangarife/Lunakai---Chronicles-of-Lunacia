@@ -6,6 +6,8 @@
 import { NPC_PORTRAIT_MAP } from '../DialogSystem.js';
 import { portraitService } from '../../tactics/CharacterPortraitService.js';
 import { ITEMS_DB } from '../../tactics/ItemDatabase.js';
+import { MATERIALS } from '../../tactics/data/EconomyCatalog.js';
+import { matSvg, matIcon } from '../../ui/MaterialIcons.js';
 import { asset, sprite, bindSwitch } from '../../ui/lk.js';
 
 const I = (n) => asset(`assets/ui/icons/${n}.png`);
@@ -196,6 +198,12 @@ export class QuestBookModal {
     if (q.rewards?.gold) slots.push(`<div class="lk-slot-item" style="--r:var(--lk-rar-common)" title="Oro"><span class="lk-art"><img class="lk-ai" src="${I('resource')}" alt=""></span><span class="lk-cap">${q.rewards.gold}</span></div>`);
     if (q.rewards?.exp) slots.push(`<div class="lk-slot-item" style="--r:var(--lk-rar-rare)" title="Experiencia"><span class="lk-art"><img class="lk-ai" src="${I('upgrade')}" alt=""></span><span class="lk-cap">${q.rewards.exp} EXP</span></div>`);
     (q.rewards?.items || []).forEach((it) => {
+      const mat = it.id ? MATERIALS[it.id] : null;
+      if (mat) { // material de la Forja (20-oct): dibujo SVG y cantidad
+        const r = RAR[mat.rarity] || 'common';
+        slots.push(`<div class="lk-slot-item" style="--r:var(--lk-rar-${r})" title="${esc(mat.name)} ×${it.qty || 1}\n${esc(mat.description)}"><span class="lk-art" style="display:grid;place-items:center;color:var(--lk-gilt-300, #EED39A)">${matIcon(mat, 40)}</span><span class="lk-cap">${esc(mat.name)} ×${it.qty || 1}</span></div>`);
+        return;
+      }
       const db = it.id ? ITEMS_DB[it.id] : null;
       const icon = isImg(it.icon) ? it.icon : db && isImg(db.icon) ? db.icon : null;
       const r = RAR[db?.rarity || it.rarity] || 'common';

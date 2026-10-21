@@ -1702,8 +1702,34 @@ export class VegetationManager {
     }
   }
 
+  /** true si todos los grupos de hierba/flores antiguos están ocultos (los sustituye la capa Genshin). */
+  _allLegacyHidden() {
+    const groups = [this.v3GrassGroup, this.grassMesh, this.stylizedGrassGroup, this.stylizedFlowersGroup, this.flowersGroup].filter(Boolean);
+    if (!groups.length) return false;
+    for (const g of groups) if (g.visible) return false;
+    return true;
+  }
+
+  /**
+   * Busca la luz direccional del sol. `this.scene` es el grupo de la zona y a menudo no la contiene:
+   * antes se recorría el grupo ENTERO en cada fotograma sin encontrarla. Ahora se busca como mucho
+   * una vez cada 2 s.
+   */
+  _findSunLight() {
+    const now = performance.now();
+    if (this._sunSearchAt && now - this._sunSearchAt < 2000) return;
+    this._sunSearchAt = now;
+    if (!this.scene) return;
+    this.scene.traverse((o) => {
+      if (!this.sunLight && o.isDirectionalLight) this.sunLight = o;
+    });
+  }
+
   update(delta, playerPos, companionPos = null) {
     this.time += delta;
+
+    // Si la capa Genshin ocultó toda la vegetación antigua, no hay nada que animar.
+    if (this._allLegacyHidden()) return;
 
     // 1. Actualizar césped Genshin solo si está activo
     if (this.grassType === 'genshin' && this.grassMaterial && this.windEnabled) {
@@ -1728,13 +1754,7 @@ export class VegetationManager {
       }
 
       // Sincronizar sol direccional para translucidez (subsurface backlight)
-      if (!this.sunLight && this.scene) {
-        this.scene.traverse((o) => {
-          if (!this.sunLight && o.isDirectionalLight) {
-            this.sunLight = o;
-          }
-        });
-      }
+      if (!this.sunLight) this._findSunLight();
       if (this.sunLight) {
         this.sunLight.getWorldPosition(this.sunPos);
         this.sunLight.target.getWorldPosition(this.sunTarget);
@@ -1769,13 +1789,7 @@ export class VegetationManager {
         }
       }
 
-      if (!this.sunLight && this.scene) {
-        this.scene.traverse((o) => {
-          if (!this.sunLight && o.isDirectionalLight) {
-            this.sunLight = o;
-          }
-        });
-      }
+      if (!this.sunLight) this._findSunLight();
       if (this.sunLight) {
         this.sunLight.getWorldPosition(this.sunPos);
         this.sunLight.target.getWorldPosition(this.sunTarget);

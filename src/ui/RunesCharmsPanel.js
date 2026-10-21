@@ -369,7 +369,7 @@ export function attachRunesCharms(game) {
     if (typeof ow.isCombatActive === 'function' && ow.isCombatActive()) return;
     const t = ow.tutorialManager;
     if (t && (t.isCutsceneActive || t.isOverlayActive)) return;
-    if (t && typeof t.isFeatureUnlocked === 'function' && !t.isFeatureUnlocked('inventory')) { ow._showFeatureLockedFeedback?.('Las runas y los charms se desbloquean tras tu primer combate.'); e.preventDefault(); return; }
+    if (t && typeof t.isFeatureUnlocked === 'function' && !t.isFeatureUnlocked('runes')) { ow._showFeatureLockedFeedback?.(t.lockMessage?.('runes') || 'Las runas y los charms llegan al final del entrenamiento.'); e.preventDefault(); return; }
     if (!inv.isOpen && ow.state !== 'EXPLORING') return;
     if (!inv.isOpen && typeof ow.isAnyModalOpen === 'function' && ow.isAnyModalOpen() && !ow.squadModal?.isOpen) return;
     if (ow.squadModal?.isOpen) ow.squadModal.close();

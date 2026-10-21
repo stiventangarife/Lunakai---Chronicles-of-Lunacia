@@ -27,6 +27,8 @@ Cada misión se modela mediante una entidad estructurada con ciclo de vida obser
   - `gold`: Monedas de oro de Lunacia.
 
 ### 2.2 Misión Tutorial: "El Despertar del Duelista" (Maestro Paladill)
+
+> **Histórico (21-oct-2026):** esta misión se sustituyó en el **Hito 48** por «El aprendiz del Dojo» (`quest_slime_purification`, mismo id), con un paso por fase del tutorial nuevo: defender el Dojo, equipar la espada, duelo con Paladill, Forja, vínculo, runas y graduación. Paladill habla según el paso (`TutorialDirector.handlePaladill`). Lo de abajo describe la versión original.
 Diseñada como la introducción tutorial interactiva para el jugador:
 1. **Paso 1 - La Voz del Mentor**: Acercarse al Maestro Paladill en el Dojo Central de Lunacia e iniciar el diálogo con la tecla **`[E]`**.
 2. **Paso 2 - Entrenamiento en el Tablero**: Entrar al entrenamiento táctico para dominar la cuadrícula, los Puntos de Acción (PA), Puntos de Movimiento (PM) y cartas de combate.

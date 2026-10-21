@@ -27,7 +27,7 @@ import { StylizedPond } from './stylized/StylizedPond.js';
 import { InventoryModal } from './ui/InventoryModal.js';
 import { QuestManager } from './QuestManager.js';
 import { QuestBookModal } from './ui/QuestBookModal.js';
-import { OverworldTutorialManager } from './OverworldTutorialManager.js';
+import { TutorialDirector } from './tutorial/TutorialDirector.js';
 import { SquadHUD } from './ui/SquadHUD.js';
 import { SquadModal } from './ui/SquadModal.js';
 import { MinimapHUD } from './ui/MinimapHUD.js';
@@ -94,7 +94,7 @@ export class OverworldManager {
     this.monsters.questManager = this.questManager;
     this.questInteractables = new QuestInteractablesManager(this.scene, this.questManager, this.audio, this);
     this.questBookModal = new QuestBookModal(this.questManager, this.audio);
-    this.tutorialManager = new OverworldTutorialManager(this);
+    this.tutorialManager = new TutorialDirector(this); // Hito 48: tutorial nuevo (cinemática + 7 fases)
     this.lodManager = new OverworldLODManager(this);
     window.overworldLODManager = this.lodManager;
     this.environmentSystem = null;
@@ -360,7 +360,7 @@ export class OverworldManager {
           if (this.isCombatActive()) return;
           if (this.tutorialManager && (this.tutorialManager.isCutsceneActive || this.tutorialManager.isOverlayActive)) return;
           if (this.tutorialManager && !this.tutorialManager.isFeatureUnlocked('worldMap')) {
-            this._showFeatureLockedFeedback('The World Map unlocks after graduating from the Dojo.');
+            this._showFeatureLockedFeedback(this.tutorialManager.lockMessage?.('worldMap') || 'El mapa se desbloquea al graduarte en el Dojo.');
             return;
           }
           if (this.worldMapManager) this.worldMapManager.toggleWorldMap();
@@ -374,7 +374,7 @@ export class OverworldManager {
           if (this.tutorialManager && this.tutorialManager.isCutsceneActive) return;
           if (this.tutorialManager && this.tutorialManager.isOverlayActive && this.tutorialManager.activeOverlayStep !== 'EQUIP_SWORD') return;
           if (this.tutorialManager && !this.tutorialManager.isFeatureUnlocked('inventory')) {
-            this._showFeatureLockedFeedback('Inventory unlocks after your first battle.');
+            this._showFeatureLockedFeedback('La Mochila se abre tras tu primer combate.');
             return;
           }
           if (this.inventoryModal) this.inventoryModal.toggle();
@@ -388,7 +388,7 @@ export class OverworldManager {
           if (this.tutorialManager && this.tutorialManager.isCutsceneActive) return;
           if (this.tutorialManager && this.tutorialManager.isOverlayActive && this.tutorialManager.activeOverlayStep !== 'OPEN_QUEST_BOOK') return;
           if (this.tutorialManager && !this.tutorialManager.isFeatureUnlocked('questBook')) {
-            this._showFeatureLockedFeedback('Talk to Master Paladill [E] first to receive your quest.');
+            this._showFeatureLockedFeedback('Habla primero con el Maestro Paladill [E].');
             return;
           }
           if (this.questBookModal) this.questBookModal.toggle();
@@ -415,8 +415,8 @@ export class OverworldManager {
         squadBtn.addEventListener('click', () => {
           if (this.isCombatActive()) return;
           if (this.tutorialManager && (this.tutorialManager.isCutsceneActive || this.tutorialManager.isOverlayActive)) return;
-          if (this.tutorialManager && !this.tutorialManager.isFeatureUnlocked('inventory')) {
-            this._showFeatureLockedFeedback('The squad unlocks after your first battle.');
+          if (this.tutorialManager && !this.tutorialManager.isFeatureUnlocked('squad')) {
+            this._showFeatureLockedFeedback('El Escuadrón se desbloquea al terminar el entrenamiento.');
             return;
           }
           if (this.inventoryModal && this.inventoryModal.isOpen) {
@@ -665,7 +665,7 @@ export class OverworldManager {
           return;
         }
         if (this.tutorialManager && !this.tutorialManager.isFeatureUnlocked('inventory')) {
-          this._showFeatureLockedFeedback('Inventory unlocks after your first battle.');
+          this._showFeatureLockedFeedback('La Mochila se abre tras tu primer combate.');
           e.preventDefault();
           return;
         }
@@ -681,8 +681,8 @@ export class OverworldManager {
           e.preventDefault();
           return;
         }
-        if (this.tutorialManager && !this.tutorialManager.isFeatureUnlocked('inventory')) {
-          this._showFeatureLockedFeedback('The squad unlocks after your first battle.');
+        if (this.tutorialManager && !this.tutorialManager.isFeatureUnlocked('squad')) {
+          this._showFeatureLockedFeedback('El Escuadrón se desbloquea al terminar el entrenamiento.');
           e.preventDefault();
           return;
         }
@@ -703,7 +703,7 @@ export class OverworldManager {
           return;
         }
         if (this.tutorialManager && !this.tutorialManager.isFeatureUnlocked('questBook')) {
-          this._showFeatureLockedFeedback('Talk to Master Paladill [E] first to receive your quest.');
+          this._showFeatureLockedFeedback('Habla primero con el Maestro Paladill [E].');
           e.preventDefault();
           return;
         }
@@ -720,7 +720,7 @@ export class OverworldManager {
           return;
         }
         if (this.tutorialManager && !this.tutorialManager.isFeatureUnlocked('worldMap')) {
-          this._showFeatureLockedFeedback('The World Map unlocks after graduating from the Dojo.');
+          this._showFeatureLockedFeedback('El mapa se desbloquea al graduarte en el Dojo.');
           e.preventDefault();
           return;
         }
@@ -1102,6 +1102,12 @@ export class OverworldManager {
       this.worldMap._updateZone22Visuals(true);
     }
 
+    // Precalentado final: ahora sí existen el composer, las luces definitivas, la forja y los nodos
+    // de recolección. El de loadMap() se hizo antes de todo eso y sus programas no coinciden.
+    if (this.worldMapManager && typeof this.worldMapManager._warmupShaders === 'function') {
+      await this.worldMapManager._warmupShaders(this.renderer, this.scene, this.camera);
+    }
+
     console.log('[OverworldManager] Initialized successfully with stylized assets, EnvironmentSystem and continuous map system!');
     this.isReadyToRender = true;
   }
@@ -1118,12 +1124,23 @@ export class OverworldManager {
     const tutBanner = document.getElementById('overworld-tutorial-banner');
     if (tutBanner) tutBanner.classList.add('hidden');
 
+    // Hito 48: cinemática del prólogo (papel y teatro de sombras) y, después, el tutorial en el Dojo
+    if (this.tutorialManager && typeof this.tutorialManager.playOpening === 'function') {
+      this.tutorialManager.playOpening();
+      return;
+    }
     this.flythrough.start(() => {
       this._presentHero();
     });
     if (this.audio && typeof this.audio.playCinematicMusic === 'function') {
       this.audio.playCinematicMusic();
     }
+  }
+
+  /** Hito 48: combate del tutorial con su configuración (defensa del Dojo, duelo con Paladill, prueba de la Ultimate). */
+  startTutorialBattle(id, levelConfig) {
+    if (this.state === 'TRANSITION' || this.state === 'COMBAT') return;
+    this._handleMonsterEncounter({ id, biome: 'forest', packData: null, levelConfig, name: levelConfig?.title || '' });
   }
 
   _presentHero() {
@@ -1215,23 +1232,9 @@ export class OverworldManager {
       this.minimapHUD.show();
     }
 
-    const isTutorialCompleted = (slotData && (slotData.level > 1 || !slotData.tutorialProgress?.isActive || slotData.tutorialProgress?.currentStep === 'COMPLETED'))
-      || (!this.tutorialManager?.isActive)
-      || (this.tutorialManager?.currentStep === 'COMPLETED');
-
+    // El tutorial sabe si está terminado (loadSaveData): lo retoma en su paso o lo deja todo abierto
     if (this.tutorialManager) {
-      if (isTutorialCompleted) {
-        this.tutorialManager.isActive = false;
-        this.tutorialManager.currentStep = 'COMPLETED';
-        this.tutorialManager.unlockedFeatures = { questBook: true, combat: true, inventory: true, worldMap: true };
-        this.tutorialManager.hideBanner();
-        this.tutorialManager._updateHUDButtonsState();
-        if (this.worldMapManager?.transitionManager) {
-          this.worldMapManager.transitionManager.setPortalsLocked(false);
-        }
-      } else {
-        this.tutorialManager.start(false);
-      }
+      this.tutorialManager.start(false);
     }
 
     // Refresh HUD quest tracker and zone info
@@ -1323,7 +1326,8 @@ export class OverworldManager {
             biome: monster.biome || curMap?.biome || 'forest',
             zoneKey: zoneKey,
             zoneCoords: monster.logicalZone ? monster.logicalZone.split('_').map(Number) : (curMap ? [curMap.gx, curMap.gy] : [3, 3]),
-            isTutorial: monster.id === 'slime_garden_1'
+            isTutorial: monster.id === 'slime_garden_1',
+            levelConfig: monster.levelConfig || null
           });
         }
       },
@@ -1454,9 +1458,13 @@ export class OverworldManager {
         }
 
         if (this.questDescEl) {
-          this.questDescEl.textContent = this.questManager ? this.questManager.getActiveHUDTrackerText() : 'Chimera defeated! Talk to Master Paladill [E]';
+          this.questDescEl.textContent = this.questManager ? this.questManager.getActiveHUDTrackerText() : '';
         }
         this.currentBattlingMonsterId = null;
+        // Hito 48: el tutorial sigue con su siguiente paso
+        if (this.tutorialManager && typeof this.tutorialManager.onBattleReturn === 'function') {
+          this.tutorialManager.onBattleReturn(battlingMonsterId, true);
+        }
 
         this.overworldHudEl.classList.remove('hidden');
         if (this.squadHUD) {
@@ -1483,7 +1491,9 @@ export class OverworldManager {
         const defendPomoDone = qPomo?.objective?.steps?.find(s => s.id === 'defend_pomodoro')?.done;
         const recruitPomoDone = qPomo?.objective?.steps?.find(s => s.id === 'recruit_pomodoro')?.done;
 
-        if (battlingMonsterId === 'slime_garden_1') {
+        if (String(battlingMonsterId || '').startsWith('tut_')) {
+          // tutorial: lo cuenta el Maestro Paladill
+        } else if (battlingMonsterId === 'slime_garden_1') {
           this._showBannerMessage('CHIMERA PURIFIED!', 'The garden is safe. Return to Master Paladill.');
         } else if (battlingMonsterId === 'mob_bing_ambush' || (battlingZoneKey === '3_2' && qBing?.status === 'active' && defendBingDone && !recruitBingDone)) {
           this._showBannerMessage('VICTORY WITH BING!', 'Talk to Bing to seal his recruitment into your squad [E].');
@@ -1502,13 +1512,36 @@ export class OverworldManager {
         } else if (battlingMonsterId === 'mob_oracle_chimera') {
           this._showBannerMessage('DARK RESONANCE NEUTRALIZED!', 'Talk to the Astral Oracle in [1, 3] to consecrate victory [E].');
         } else {
-          this._showBannerMessage('COMBAT VICTORY!', 'The wild creatures have been defeated.');
+          this._showBannerMessage('¡VICTORIA!', 'Las criaturas salvajes han sido derrotadas.');
         }
       }
     );
   }
 
   async resumeAfterDefeat() {
+    const battlingMonsterId = this.currentBattlingMonsterId;
+    // Hito 48: en el tutorial se vuelve junto al Maestro Paladill (sin cambiar de zona)
+    if (String(battlingMonsterId || '').startsWith('tut_')) {
+      await this.transition.playReturn(() => {
+        if (this.player) {
+          if (this.player.group) this.player.group.visible = true;
+          if (this.player.companionGroup) this.player.companionGroup.visible = true;
+          if (this.savedPlayerPosition) this.player.teleport(this.savedPlayerPosition.x, this.savedPlayerPosition.y, this.savedPlayerPosition.z);
+          this.cameraController?.setFollowTarget(this.player, true);
+        }
+        this.currentBattlingMonsterId = null;
+        if (this.monsters) this.monsters.isEncounterTriggered = false;
+        this.overworldHudEl.classList.remove('hidden');
+        this.squadHUD?.render();
+        this.minimapHUD?.show();
+        this.state = 'EXPLORING';
+        if (this.onStateChange) this.onStateChange('OVERWORLD');
+        this.playerController?.setEnabled(true);
+        this.audio?.playBiomeMusic?.(this.worldMapManager?.currentMapDef?.biome || 'forest');
+        this.tutorialManager?.onBattleReturn?.(battlingMonsterId, false);
+      }, () => {});
+      return;
+    }
     // Return fade transition back to Overworld (safe Dojo sanctuary spawn)
     await this.transition.playReturn(
       async () => {
@@ -1549,7 +1582,7 @@ export class OverworldManager {
         }
       },
       () => {
-        this._showBannerMessage('RECOVERY AT THE DOJO', 'Your heroes rest at the dojo. Prepare yourself and return to battle.');
+        this._showBannerMessage('DESCANSO EN EL DOJO', 'Tus héroes se recuperan en el Dojo. Prepárate y vuelve al combate.');
       }
     );
   }
@@ -1662,9 +1695,11 @@ export class OverworldManager {
     }
 
     // Live Player Coordinate HUD display
-    const coordEl = document.getElementById('hud-player-coord-display');
-    if (coordEl && this.player && this.player.position) {
-      coordEl.textContent = `X ${this.player.position.x.toFixed(1)} · Z ${this.player.position.z.toFixed(1)}`;
+    // (solo se escribe en el DOM si el texto cambia: cada escritura recalcula estilos)
+    if (!this._coordEl || !this._coordEl.isConnected) { this._coordEl = document.getElementById('hud-player-coord-display'); this._coordTxt = null; }
+    if (this._coordEl && this.player && this.player.position) {
+      const txt = `X ${this.player.position.x.toFixed(1)} · Z ${this.player.position.z.toFixed(1)}`;
+      if (txt !== this._coordTxt) { this._coordEl.textContent = txt; this._coordTxt = txt; }
     }
 
     // Update real-time minimap radar HUD
@@ -2185,6 +2220,25 @@ export class OverworldManager {
   }
 
   render(time, dt) {
+    // Con un panel a pantalla completa abierto (Mochila, Forja, Tienda, Escuadrón, Diario, Mapa)
+    // el mundo queda oscurecido detrás: se dibuja 1 de cada 4 fotogramas en lugar de todos.
+    // El canvas conserva la última imagen, así que no se nota y la GPU queda libre para el panel.
+    if (this._panelCheckIn > 0) {
+      this._panelCheckIn--;
+    } else {
+      this._panelCheckIn = 10; // comprobar el DOM solo cada 10 fotogramas
+      this._panelCovering = !!document.querySelector('.lk-backdrop.lk-is-open, #world-map-modal:not(.hidden)');
+    }
+    if (this._panelCovering && this.hasRenderedFrame && !(this._onNextFrameCallbacks && this._onNextFrameCallbacks.length)) {
+      // Si el canvas cambió de tamaño (ventana, control de resolución) su contenido se borró:
+      // hay que dibujar ya para no dejarlo vacío.
+      const cv = this.renderer && this.renderer.domElement;
+      const sizeKey = cv ? cv.width * 100000 + cv.height : 0;
+      const resized = sizeKey !== this._panelSizeKey;
+      this._panelSizeKey = sizeKey;
+      this._panelSkip = resized ? 0 : ((this._panelSkip || 0) + 1) % 4;
+      if (this._panelSkip !== 0) return;
+    }
     if (this.environmentSystem) {
       this.environmentSystem.render(time, dt);
     } else {

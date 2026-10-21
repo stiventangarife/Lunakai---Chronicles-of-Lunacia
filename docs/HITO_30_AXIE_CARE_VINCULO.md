@@ -1,6 +1,7 @@
 # Hito 30: Axie Care — subir el vínculo con tu compañero
 
 > **Estado:** completado. Antes el vínculo solo podía bajar (derrotas); ahora se sube jugando, fuera de combate, y al 100 % habilita la Duo Ultimate.
+> **Actualización (21-oct-2026, Hito 48):** el tutorial enseña Axie Care (acariciar y dar de comer). Durante esos pasos la caricia no tiene recarga (`AxieCareService.cooldownFree`). Antes de esa fase, abrir el panel avisa de que llegará más adelante. Los valores del vínculo son los del Hito 39.
 
 ## Cómo se juega
 

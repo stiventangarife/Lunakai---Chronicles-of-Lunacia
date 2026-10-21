@@ -64,7 +64,10 @@ export class GenshinPostFX {
           vec3 col = safeTex(vUv);
 
           // ---------- 1. God rays -------------------------------------------------
-          if (uSunOnScreen > 0.001 && uGodRays > 0.5) {
+          // Rendimiento: el resultado se multiplica por 'falloff', que vale 0 lejos del sol. Se calcula
+          // primero y, donde es 0, se saltan las 20 lecturas de textura (mismo aspecto, mucho menos coste).
+          float falloff = 1.0 - smoothstep(0.0, 0.9, length((vUv - uSunUv) * vec2(uAspect, 1.0)));
+          if (uSunOnScreen > 0.001 && uGodRays > 0.5 && falloff > 0.0) {
             vec2 delta = (vUv - uSunUv) * (1.0 / 20.0) * 0.9;
             vec2 uv = vUv;
             float decay = 1.0;
@@ -76,7 +79,6 @@ export class GenshinPostFX {
               rays += s * b * decay;
               decay *= 0.93;
             }
-            float falloff = 1.0 - smoothstep(0.0, 0.9, length((vUv - uSunUv) * vec2(uAspect, 1.0)));
             col += rays * 0.09 * uGodRayStrength * uSunOnScreen * falloff * vec3(1.0, 0.86, 0.62);
           }
 

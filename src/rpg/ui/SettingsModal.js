@@ -99,6 +99,7 @@ export class SettingsModal {
             <div class="lk-bottom">
               <button class="lk-btn lk-btn-secondary-wood lk-btn--sm" data-act="save"><span class="lk-b-ico"><img class="lk-ai" src="${I}/save.png" alt=""></span>Guardar ahora</button>
               <button class="lk-link-danger" data-act="exit">${EXIT_SVG()}Salir al menú principal</button>
+              <p class="lk-pause__cnote"><b>En combate</b>Guardar y salir al menú estarán disponibles al terminar la batalla. El reloj de tu turno sigue corriendo.</p>
             </div>
           </nav>
           <div class="lk-pause__content">
@@ -330,7 +331,7 @@ export class SettingsModal {
   _applyGraphics() {
     write(K.gfx, this.gfx);
     if (this.renderer) {
-      const base = Math.min(window.devicePixelRatio || 1, 2);
+      const base = Math.min(window.devicePixelRatio || 1, 1.5); // mismo tope que SceneManager
       this.renderer.setPixelRatio(base * (this.gfx.res / 100));
       this.renderer.setSize(window.innerWidth, window.innerHeight);
       const shadows = !!this.gfx.shadows;
@@ -541,6 +542,13 @@ export class SettingsModal {
   open() {
     if (this.isOpen) return;
     this.isOpen = true;
+    // En el tablero: sin «Guardar ahora» ni «Salir» (solo se guarda fuera del combate) y con una nota que lo explica
+    const inCombat = document.body.classList.contains('state-combat') || window.game?.gameState === 'BATTLE';
+    this.modalEl.classList.toggle('lk-in-combat', inCombat);
+    const kick = this.modalEl.querySelector('.lk-panel-head h3 small');
+    if (kick) kick.textContent = inCombat ? 'Combate · Esc' : 'Pausa · Esc'; // en el tablero el juego no se pausa
+    const res = this.$('[data-act="resume"]');
+    if (res) { const t = [...res.childNodes].find((n) => n.nodeType === 3 && n.textContent.trim()); if (t) t.textContent = inCombat ? 'Volver al combate' : 'Reanudar'; }
     this._updateMuteUI();
     this._applyAudio();
     this._applyPrefs();

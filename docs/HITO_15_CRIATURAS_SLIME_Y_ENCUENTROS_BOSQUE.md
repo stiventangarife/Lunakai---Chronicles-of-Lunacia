@@ -1,6 +1,7 @@
 # Hito 15: Criaturas Slime 3D en el Overworld, Ajuste de Físicas, Filtro Fluvial y Depuración de Combate
 
 > **Estado:** Completado y Verificado ✅  
+> **Actualización (21-oct-2026):** el slime del jardín ya no lanza el tutorial: el primer combate empieza tras la cinemática, cuando Paladill da la alarma en el Dojo (Hito 48).  
 > **Área:** Overworld / IA de Criaturas / Físicas 3D / Motor Táctico / Depuración de Combate  
 > **Archivos Involucrados:**  
 > - `src/rpg/world/SlimeCreaturesManager.js`  

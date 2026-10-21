@@ -1,9 +1,9 @@
 # PROJECT_CONTEXT.md — Lunakai: Chronicles of Lunacia
 ## Guía Integral de Arquitectura, Estado y Continuidad Técnica
 
-> **Última actualización:** 2026-10-17 (Hito 32: Fase 5 del motor de combate — versión de prueba)  
+> **Última actualización:** 2026-10-21 (Hito 48: cinemática del prólogo y tutorial nuevo — versión de prueba)  
 > **Nombre del Proyecto:** Lunakai: Chronicles of Lunacia (anteriormente Axie Tactics / Axie Adventures)  
-> **Estado actual:** mundo abierto 3D con **5 Grandes Islas** de 480 m y dirección de arte Genshin (cel-shading suave, pictórico, con bruma): Bosque (Hito 22), Sabana, Ártico, Mística (Hito 23) y **Genesis**, la antigua Mazmorra rediseñada (Hito 24). El Hito 24 añade también un plan de mejora por bioma (puente del Bosque; lugares de la Sabana, el Ártico y la Mística; *Fade LOD* de árboles en el Ártico). Las islas nuevas se construyen la primera vez que se visitan. El viaje entre islas se hace con el **barquero Pomodoro**, en la playa de cada isla; los portales cardinales están retirados. Los terrenos del mundo demo 1.0.0 (cuadrícula de macro-zonas de 80 m) ya no se construyen y su contenido de misiones vive en las islas. NPC, monstruos y nodos de misión están validados sobre el terreno real. Se mantienen la auditoría WebGL anti-NaN, el sistema dual de mapas, el minimapa radar y el determinismo Mulberry32. Desde el Hito 25 hay cuentas con Sky Mavis y guardado en Supabase. Los Hitos 26–32 rehacen el motor de combate en 6 fases (0–5): eventos, estados, habilidades de Sapidae, Ultimates, cartas de partes reales, pronóstico de daño y equilibrio. Ver la sección 5.19.  
+> **Estado actual:** mundo abierto 3D con **5 Grandes Islas** de 480 m y dirección de arte Genshin (cel-shading suave, pictórico, con bruma): Bosque (Hito 22), Sabana, Ártico, Mística (Hito 23) y **Genesis**, la antigua Mazmorra rediseñada (Hito 24). El Hito 24 añade también un plan de mejora por bioma (puente del Bosque; lugares de la Sabana, el Ártico y la Mística; *Fade LOD* de árboles en el Ártico). Las islas nuevas se construyen la primera vez que se visitan. El viaje entre islas se hace con el **barquero Pomodoro**, en la playa de cada isla; los portales cardinales están retirados. Los terrenos del mundo demo 1.0.0 (cuadrícula de macro-zonas de 80 m) ya no se construyen y su contenido de misiones vive en las islas. NPC, monstruos y nodos de misión están validados sobre el terreno real. Se mantienen la auditoría WebGL anti-NaN, el sistema dual de mapas, el minimapa radar y el determinismo Mulberry32. Desde el Hito 25 hay cuentas con Sky Mavis y guardado en Supabase. Los Hitos 26–32 rehacen el motor de combate en 6 fases (0–5): eventos, estados, habilidades de Sapidae, Ultimates, cartas de partes reales, pronóstico de daño y equilibrio. Ver la sección 5.19. Los Hitos 33–48 añaden VFX propios, mapas de combate por bioma, la economía (Forja, Tienda, runas y charms, recolección, lista de ítems), los modelos Ema y Kai, y una partida nueva que empieza con la cinemática del prólogo y el tutorial en 7 fases. Ver la sección 5.21.  
 > **Idioma de comunicación con el usuario:** **Siempre en español**.
 
 ---
@@ -43,7 +43,7 @@ axie-tactics-web/
 │   ├── OrbitControls.js             ← Control de cámara para herramientas/inspección
 │   └── BufferGeometryUtils.js       ← Utilidades de unión de geometrías
 ├── assets/
-│   ├── models/                      ← Modelos 3D GLB (sapidae_male/female, paladill, xia, stylized_dojo, quimeras, slime...)
+│   ├── models/                      ← Modelos 3D GLB (Sapidae_Ema / Sapidae_Kai del jugador, sapidae-f/m-* de los NPC, paladill, xia, stylized_dojo, quimeras, slime...)
 │   ├── portraits/                   ← Retratos 2D/3D (shinji, early-bird, big-yak, bing, pomodoro)
 │   ├── parts/                       ← Iconos oficiales de partes Axie (beast-eyes, ears, mouth, horn, back, tail)
 │   ├── skills/heroes/               ← Iconos 2D dedicados por héroe (/shinji, /early-bird, /big-yak, etc., 6 por héroe)
@@ -69,7 +69,7 @@ axie-tactics-web/
 │   │   ├── FloatingCombatText.js    ← Daño, curación y efectos flotantes en pantalla
 │   │   ├── TacticalAudio.js         ← Motor de audio procedimental Web Audio API
 │   │   ├── TextureGenerator.js      ← Generación de texturas de casillas
-│   │   ├── TutorialManager.js       ← Tutorial guiado paso a paso con flecha 3D
+│   │   ├── TutorialManager.js       ← Combate guiado (8 pasos con flecha 3D) del primer combate del tutorial
 │   │   ├── VFXManager.js            ← Partículas de hechizos, proyectiles e impactos
 │   │   ├── combat/                  ← MOTOR DE REGLAS (Hitos 26–32)
 │   │   │   ├── CombatEvents.js      ← Bus de eventos del combate (spell:cast, unit:damaged, status:applied…)
@@ -82,7 +82,9 @@ axie-tactics-web/
 │   │   │   ├── Forecast.js          ← Pronóstico de daño sin efectos secundarios (HUD e IA)
 │   │   │   ├── CollectionVFX.js     ← VFX de las partes de colección especial
 │   │   │   ├── CombatTelemetry.js   ← Registro de equilibrio de cada combate (localStorage)
-│   │   │   ├── TutorialCombatHooks.js ← Reglas especiales del tutorial
+│   │   │   ├── TutorialCombatHooks.js ← Reglas especiales del combate guiado
+│   │   │   ├── RuneCharmEffects.js  ← Efectos de runas y charms en combate (Hito 44)
+│   │   │   ├── TestArena.js         ← Arena de pruebas (lkDebug.arena)
 │   │   │   └── CombatDebug.js       ← Consola window.lkDebug
 │   │   └── data/
 │   │       ├── PartCards.js         ← 235 cartas de partes (generado: no editar a mano)
@@ -92,14 +94,17 @@ axie-tactics-web/
 │   │       └── EnemySpellEffects.js ← Estados de los hechizos enemigos
 │   ├── vfx/                         ← MOTOR DE VFX (Hito 33): vfx-core.js (sin DOM), vfx-lib.js, modules/mod-<clase>-<parte>.js (235 efectos), vfx-cards.js (carta → efecto)
 │   ├── net/                         ← CUENTAS Y NUBE (Hito 25): AuthService, CloudSave, AccountManager, config
-│   ├── ui/                          ← HUD DE COMBATE Y PANELES: CombatHUD, ForecastPanel, UltimateButton, AxieCarePanel, CSS lunakai-*
+│   ├── ui/                          ← HUD DE COMBATE Y PANELES: CombatHUD, ForecastPanel, UltimateButton, AxieCarePanel, ForgePanel, ShopPanel, RunesCharmsPanel, GatheringHUD, MaterialIcons, CSS lunakai-* (lunakai-tutorial.css: cinemática y tutorial)
 │   └── rpg/                         ← MOTOR DE EXPLORACIÓN DE MUNDO ABIERTO (OVERWORLD)
 │       ├── OverworldManager.js      ← Director general del Overworld, loop y renderizado
 │       ├── PlayerEntity.js          ← Héroe explorador Sapidae humanoide y Compañero Axie seguidor (modelos 3D y animaciones)
 │       ├── PlayerController.js      ← Control WASD, físicas, estados de habilitación/bloqueo
 │       ├── OverworldCamera.js       ← Cámara isométrica (seguimiento suave + snapToTarget)
 │       ├── OverworldCollisions.js   ← Sistema de colisiones sólidas AABB y círculos con deslizamiento
-│       ├── SapidaeModularController.js ← Personalización modular de avatar Sapidae (pelo, ojos, cuernos, vestimenta)
+│       ├── SapidaeModularController.js ← Personalización por piezas A–E de Ema y Kai (peinado, ojos, boca, colores) y expresiones
+│       ├── SapidaeModels.js         ← Modelos del jugador (Ema / Kai) y migración de los antiguos (Hito 47)
+│       ├── ForgeService.js / ShopService.js / GatheringService.js / LootService.js ← Economía (Hitos 43–46)
+│       ├── BondService.js / AxieCareService.js / RuneCharmService.js ← Vínculo, cuidados y runas por Axie
 │       ├── NPCManager.js            ← Spawning de NPCs (Maestro Paladill, Xia), auras y colisión
 │       ├── DialogSystem.js          ← Sistema de diálogos ramificados interactivos
 │       ├── WanderingMonsters.js     ← Quimeras errantes en el mapa con patrulla e IA de alerta (!)
@@ -107,8 +112,10 @@ axie-tactics-web/
 │       ├── QuestManager.js          ← Gestor de misiones, estados de objetivos y recompensas
 │       ├── SaveSlotManager.js       ← 3 Ranuras de guardado en localStorage + auto-save
 │       ├── AxieMixerService.js      ← Generación / personalización de apariencia Axie
-│       ├── OverworldTutorialManager.js ← Guía inicial del nuevo aventurero
-│       ├── CinematicFlythrough.js   ← Vuelos cinemáticos de cámara para revelación de zonas
+│       ├── OverworldTutorialManager.js ← (Legacy, ya no se crea) tutorial antiguo; lo sustituye tutorial/TutorialDirector.js
+│       ├── CinematicFlythrough.js   ← (Legacy) vuelo de cámara del prólogo antiguo
+│       ├── tutorial/                ← TUTORIAL NUEVO (Hito 48): TutorialDirector.js (pasos, bloqueos, franja, recompensas, guardado v2) y TutorialScript.js (todos los textos)
+│       ├── cinematic/               ← CINEMÁTICA DEL PRÓLOGO (Hito 48): PrologueCinematic.js (motor) y CinematicArt.js (arte procedural en Canvas)
 │       ├── stylized/                ← AMBIENTE VISUAL PROCEDIMENTAL Y SHADERS
 │       │   ├── StylizedEnvironment.js   ← Modo `lightingOnly`: solo sol, luz hemisférica y niebla base (la pradera de 80 m es legacy)
 │       │   ├── StylizedGround.js        ← Terreno 80x80m con shader PBR y deformaciones
@@ -441,7 +448,7 @@ Todas las islas se encuentran desbloqueadas desde el inicio para libre exploraci
 
 **Equilibrio:** cada combate queda registrado. En la consola (F12), `lkDebug.balance()`, `balanceFights()` y `balanceExport()` muestran y descargan el registro. Las propuestas pendientes de las primeras partidas reales están en el Hito 32: suavizar la escala de Mística y Genesis y subir el daño de Stargazer.
 
-**VFX (Fase 6):** etapas 1 y 2 completadas (Hitos 33 y 34). El núcleo y los módulos viven en `src/vfx/` y el laboratorio en `tools/vfx-lab/`. `VfxBridge.js` reproduce los efectos en combate: `ctx.vfx.untilImpact` retrasa el daño hasta el impacto y `SpellPresentation` no dibuja el impacto por defecto de esas cartas. Siguiente: etapas 3 y 4 (todas las cartas). Después, runas y amuletos.
+**VFX (Fase 6):** etapas 1 y 2 completadas (Hitos 33 y 34). El núcleo y los módulos viven en `src/vfx/` y el laboratorio en `tools/vfx-lab/`. `VfxBridge.js` reproduce los efectos en combate: `ctx.vfx.untilImpact` retrasa el daño hasta el impacto y `SpellPresentation` no dibuja el impacto por defecto de esas cartas. Las etapas siguientes ya están hechas: todas las cartas, Sapidae, Ultimates y enemigos tienen efecto (Hitos 36 y 42), y las runas y los charms funcionan en combate (Hito 44).
 
 ### 5.20 Mapas de combate por bioma (Hito 35)
 
@@ -450,6 +457,28 @@ Todas las islas se encuentran desbloqueadas desde el inicio para libre exploraci
 - **Tablero:** `GridManager.loadLayout(mapa)` cambia el tamaño y la forma; fuera del tablero `isValidCoord` es falso. El agua corta el paso, pero no la visión. Un empuje contra el vacío choca como contra un muro. En los mapas con forma, `TacticalAI` se acerca por distancia caminando.
 - **Escenario:** `src/tactics/arena/BattleArena.js` y `BattleArenaThemes.js`, con el arte de las islas. Lo coloca `SceneManager.setArena()` y se libera al volver al mundo abierto. Ver `docs/HITO_35_MAPAS_DE_COMBATE_POR_BIOMA.md`.
 - **Dither fading (Hito 37):** `src/tactics/arena/ArenaOcclusionDither.js` disuelve el escenario que tapa a una unidad o a la casilla bajo el ratón; obstáculos del tablero ≥ 35 % visibles, decoración ≥ 8 %. Los puntos los da `main._occlusionPoints()`.
+
+### 5.21 VFX, economía, personaje y tutorial (Hitos 33–48)
+
+| Hito | Sistema | Puntos clave |
+| --- | --- | --- |
+| 33–34, 36, 42 | VFX en combate | Motor propio en `src/vfx/` (núcleo sin DOM + 235 efectos), `VfxBridge.js` en combate, Sapidae y Ultimates, enemigos; precompilado de shaders. |
+| 35, 37 | Tableros | 15 mapas por bioma (`BattleMaps.js`), escenario con el arte de la isla y *dither fading*. |
+| 38–41 | Ajustes y cuentas | Vida persistente, turnos alternados, fuego amigo, vínculo equilibrado, estadísticas base por clase y rol, Axies por ID, inicio de sesión OIDC con Sky Mavis. |
+| 43 | Forja y Tienda | Yunque del patio (E): crear Tier 0 y evolucionar; Tienda del Mercader Ochi. |
+| 44 | Runas y charms | 63 runas y 90 charms con efecto en combate (`RuneCharmEffects.js`), tecla U. |
+| 45 | Recolección | Pesca y tala (Axie), minería y flores (Sapidae); 3 puntos por isla y el árbol de la Forja. |
+| 46 | Ítems | 7 líneas de equipo × 4 rarezas, 14 materiales, comida y pociones; iconos WEBP con fondo de rareza; la Forja se queda la pieza al evolucionar; pantalla de arranque. |
+| 47 | Ema y Kai | Modelos del jugador por piezas A–E con colores; expresiones en combate. |
+| 48 | Prólogo y tutorial | Cinemática de 73 s (papel y teatro de sombras, final épico con el modelo del jugador y el logo). Tutorial en 7 fases: defensa del Dojo, Mochila, duelo con Paladill (fin al 30 %), Forja (×4 gratis), vínculo y prueba de la Ultimate (ronda 1), runas y graduación. «Saltar tutorial». |
+
+**Reglas del tutorial que conviene recordar:**
+
+- **Una sola fuente de textos:** `src/rpg/tutorial/TutorialScript.js` (pasos, diálogos, consejos, avisos y recompensas). Diálogos de 2–3 líneas como máximo.
+- **API heredada:** `TutorialDirector` mantiene la API del gestor antiguo (`isActive`, `isFeatureUnlocked`, `isInputLocked`, `hideBanner`, `loadSaveData`…). Las funciones nuevas preguntan `tutorialManager.lockMessage('forge' | 'care' | 'runes' | 'shop' | 'gather' …)` antes de abrirse.
+- **Combates del tutorial:** `LEVELS_CONFIG[1]` (guiado), `tut_duel` (regla de fin `TurnManager.endRule`, al 30 % de vida) y `tut_ult` (`ultimateMinRound: 1`). Se lanzan con `OverworldManager.startTutorialBattle(id, config)` y al volver avisan a `TutorialDirector.onBattleReturn`.
+- **Guardado:** `slot.tutorialProgress = { v: 2, step, done, flags, bondBefore }`. Cualquier progreso antiguo, o nivel > 1, cuenta como tutorial terminado.
+- **Cinemática:** usa el renderer del juego con `gameState = 'CINEMATIC'` (el bucle principal no dibuja). El velo negro de carga se quita mientras se reproduce.
 
 ---
 
@@ -487,16 +516,18 @@ Para garantizar la estabilidad del proyecto, cualquier persona o agente que trab
 | **`[E]`** | Interactuar con NPCs y cofres | — |
 | **`[Espacio]`** | Avanzar diálogos con NPCs | Pasar turno / Confirmar acción |
 | **`[I]`** | Abrir / Cerrar Inventario y Habilidades | Bloqueado (`display: none`) |
+| **`[U]`** | Mochila › Runas y charms | — |
+| **`[K]`** | Abrir / Cerrar Escuadrón | — |
 | **`[L]` o `[J]`** | Abrir / Cerrar Diario de Aventuras | Bloqueado (`display: none`) |
 | **`[M]`** | Abrir / Cerrar Modal Dual de Mapas (Mundi / Isla) | Bloqueado (`display: none`) |
-| **`[ESC]`** | Abrir / Cerrar Menú de Opciones | Deseleccionar casilla o hechizo |
+| **`[ESC]`** | Abrir / Cerrar Menú de Opciones (saltar la cinemática del prólogo) | Deseleccionar casilla o hechizo |
 | **Clic Izquierdo** | Interactuar con la interfaz | Seleccionar casilla de movimiento o apuntar habilidad |
 | **Clic Derecho + Arrastrar** | — | Rotar cámara táctica 360° en órbita |
 | **Rueda del Ratón** | — | Zoom táctico dinámico |
 | **`[Q] / [E]`** | — | Rotar cámara en pasos de 45° |
 | **`[R]`** | — | Centrar cámara en el héroe activo |
 | **`[1]`–`[6]`** | — | Seleccionar las habilidades de la unidad activa |
-| **`[7]`** | — | Duo Ultimate (Sapidae, vínculo al 100 %, desde la ronda 2) |
+| **`[7]`** | — | Duo Ultimate (Sapidae, vínculo al 100 %, desde la ronda 2; ronda 1 en la prueba del tutorial) |
 | **Botón ⓘ** | — | Ayuda de combate: controles, estados, triángulo de clases y pronóstico |
 | **Clic en el Axie compañero** | Panel Axie Care | — |
 
@@ -518,6 +549,8 @@ curl -I http://localhost:8082/
 ```
 
 Consola de combate (F12): `lkDebug.help()` lista los comandos; `lkDebug.auditParts()` muestra las cartas de cada Axie y `lkDebug.balance()` el registro de equilibrio.
+
+Tutorial y cinemática: `lunakaiTutorial.state()`, `.goto('forge_talk')`, `.skip()`, `.reset()`; `lunakaiCinematic.seek(55)` mientras se reproduce. Forja: `lunakaiForge.finishAll()`. Recolección: `lunakaiGathering.status()`.
 
 ---
 *Este documento es la fuente definitiva de verdad arquitectónica para Lunakai: Chronicles of Lunacia.*

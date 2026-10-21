@@ -5,13 +5,19 @@
 import { asset, tooltip } from '../../ui/lk.js';
 import { BondService, formatBond } from '../BondService.js';
 import { axieMixerService } from '../AxieMixerService.js';
+import { matSvg } from '../../ui/MaterialIcons.js';
 
 const I = (name) => asset(`assets/ui/icons/${name}.png`);
 const MOON = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 3a9 9 0 1 0 6 15.7A7.5 7.5 0 1 1 15 3z" fill="currentColor"/></svg>';
 const BROKEN_MOON = '<svg viewBox="0 0 64 64" aria-hidden="true"><path d="M40 6a26 26 0 1 0 17 45.4A21.5 21.5 0 1 1 40 6z" fill="currentColor" opacity=".9"/><path d="M27 12l6 13-7 6 8 10-5 13" fill="none" stroke="#0B0F1C" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
 const CLASSES = ['beast', 'plant', 'aquatic', 'bird', 'reptile', 'bug', 'mech', 'dawn', 'dusk'];
 const RARITY = { common: ['common', 'Común'], uncommon: ['uncommon', 'Poco común'], rare: ['rare', 'Raro'], epic: ['epic', 'Épico'], legendary: ['mystic', 'Místico'], mystic: ['mystic', 'Místico'] };
-const SLOT = { weapon: 'Arma', hat: 'Sombrero', shield: 'Escudo', body: 'Armadura', boots: 'Botas' };
+const SLOT = { weapon: 'Arma', hat: 'Sombrero', shield: 'Escudo', body: 'Armadura', boots: 'Botas', consumable: 'Consumible', material: 'Material', quest: 'Objeto de misión' };
+const isImg = (s) => typeof s === 'string' && (/^(\.\/|\/|assets\/|http|data:image)/.test(s) || /\.(png|jpe?g|webp|svg)$/i.test(s));
+/** Dibujo de un objeto del botín: imagen, material (SVG) o emoji. */
+const lootArt = (it, size) => it.glyph && !it.icon ? `<span style="display:grid;place-items:center;width:${size}px;height:${size}px;color:var(--lk-gilt-300, #EED39A)">${matSvg(it.glyph, '')}</span>`
+  : isImg(it.icon) ? `<img src="${esc(it.icon)}" alt="" style="width:${size}px;height:${size}px;object-fit:contain">`
+  : `<span style="font-size:${Math.round(size * 0.7)}px;line-height:1">${esc(it.icon || '🎁')}</span>`;
 const STAT = [['damage', 'Daño'], ['hp', 'Vida'], ['shield', 'Escudo'], ['pa', 'PA'], ['pm', 'PM'], ['initiative', 'Iniciativa']];
 
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -227,14 +233,14 @@ export class CombatEndScreen {
     if (!items.length) return `<p class="lk-end-empty">${lost ? 'Este combate no tenía botín.' : 'Este combate no dejó botín.'}</p>`;
     return `<div class="lk-loot ${lost ? 'lk-is-lost' : ''}">${items.map((it, n) => {
       const [r, rName] = RARITY[it.rarity] || RARITY.common;
-      return `<div class="lk-charm-item" data-n="${n}" tabindex="0"><span class="lk-slot-item" style="--r:var(--lk-rar-${r})"><span class="lk-art"><img src="${esc(it.icon)}" alt="" style="width:44px;height:44px;object-fit:contain"></span><span class="lk-cap">${rName}</span></span><small>${esc(it.name)}</small></div>`;
+      return `<div class="lk-charm-item" data-n="${n}" tabindex="0"><span class="lk-slot-item" style="--r:var(--lk-rar-${r})"><span class="lk-art">${lootArt(it, 44)}</span><span class="lk-cap">${it.qty > 1 ? `×${it.qty}` : rName}</span></span><small>${esc(it.name)}</small></div>`;
     }).join('')}</div>`;
   }
 
   _itemTip(it) {
     const [r, rName] = RARITY[it.rarity] || RARITY.common;
     const stats = STAT.filter(([k]) => it.stats && it.stats[k]).map(([k, label]) => `<span class="lk-tt-stat">${label}<b>+${it.stats[k]}</b></span>`).join('');
-    return `<div class="lk-tooltip-tactical" style="--c:var(--lk-rar-${r})"><header><span class="lk-sigil"><img src="${esc(it.icon)}" alt="" style="width:22px;height:22px;object-fit:contain"></span><div><small>${SLOT[it.slot] || esc(it.slot)} · ${rName}</small><b>${esc(it.name)}</b></div></header>`
+    return `<div class="lk-tooltip-tactical" style="--c:var(--lk-rar-${r})"><header><span class="lk-sigil">${lootArt(it, 22)}</span><div><small>${SLOT[it.slot] || esc(it.slot)} · ${rName}</small><b>${esc(it.name)}</b></div></header>`
       + `<div class="lk-tt-body">${stats ? `<div class="lk-tt-stats">${stats}</div>` : ''}${it.description ? `<p>${esc(it.description)}</p>` : ''}</div></div>`;
   }
 

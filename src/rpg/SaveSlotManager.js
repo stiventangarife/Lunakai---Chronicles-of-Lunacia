@@ -1,3 +1,4 @@
+import { playerSapidaeModel } from './SapidaeModels.js';
 // SaveSlotManager.js - Manages 3 persistent adventure save slots in localStorage
 export const HERO_ROSTER = [
   {
@@ -526,9 +527,15 @@ export class SaveSlotManager {
                 }
               }
 
+              // 21-oct: el jugador pasa a los modelos nuevos (Ema / Kai); los antiguos quedan para los NPC
+              if (slot.sapidaeModel && playerSapidaeModel(slot.sapidaeModel) !== slot.sapidaeModel) {
+                slot.sapidaeModel = playerSapidaeModel(slot.sapidaeModel);
+                slot.sapidaePortrait = null;
+                migrated = true;
+              }
               if (!slot.isSapidae || !slot.sapidaeModel) {
                 slot.isSapidae = true;
-                slot.sapidaeModel = 'sapidae-m-a';
+                slot.sapidaeModel = 'sapidae-m-kai';
                 slot.playerName = slot.playerName || 'Sapidae Adventurer';
                 migrated = true;
               }
@@ -625,7 +632,7 @@ export class SaveSlotManager {
       createdAt: Date.now(),
       lastSaved: Date.now(),
       isSapidae: true,
-      sapidaeModel: heroTemplate.sapidaeModel || 'sapidae-f-a',
+      sapidaeModel: playerSapidaeModel(heroTemplate.sapidaeModel || 'sapidae-f-ema'),
       sapidaePortrait: heroTemplate.sapidaePortrait || null,
       playerName: heroTemplate.playerName || 'Ema',
       sapidaeClass: heroTemplate.sapidaeClass || 'crafter',
@@ -675,13 +682,8 @@ export class SaveSlotManager {
         visitedZones: ['zone_2_2']
       },
       questProgress: null,
-      tutorialProgress: {
-        isActive: true,
-        currentStep: 'TALK_TO_PALADILL',
-        hasOpenedQuestBook: false,
-        hasEquippedSword: false,
-        unlockedFeatures: { questBook: false, combat: false, inventory: false, worldMap: false }
-      },
+      // Hito 48: tutorial nuevo (TutorialDirector) desde su primer paso
+      tutorialProgress: { v: 2, step: 'defend', done: false, flags: {}, bondBefore: null, isActive: true },
       unlockedHeroes: ['kotaro'],
       inventory: [],
       gold: 0,
@@ -718,7 +720,7 @@ export class SaveSlotManager {
     if (progressData.equipped) slot.equipped = progressData.equipped;
     if (progressData.progression) slot.progression = progressData.progression;
     if (progressData.currentHP) slot.currentHP = progressData.currentHP; // vida persistente de cada héroe
-    if (progressData.sapidaeModel) slot.sapidaeModel = progressData.sapidaeModel;
+    if (progressData.sapidaeModel) slot.sapidaeModel = playerSapidaeModel(progressData.sapidaeModel);
     if (progressData.sapidaePortrait) slot.sapidaePortrait = progressData.sapidaePortrait;
     if (progressData.playerName) slot.playerName = progressData.playerName;
     if (progressData.sapidaeClass) slot.sapidaeClass = progressData.sapidaeClass;

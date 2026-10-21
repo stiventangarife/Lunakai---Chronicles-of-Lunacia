@@ -9,68 +9,81 @@ export class TutorialManager {
     this.arrowGroup = null;
     this.arrowBaseY = 1.45;
 
+    // Textos (20-oct): cortos, en segunda persona y sin coordenadas: la casilla la marca la flecha dorada.
+    // `kicker` = para quién es el paso (Sapidae / Axie); `hint` = cómo hacerlo con teclado o ratón.
     this.steps = [
       {
         id: 'step_intro',
-        title: '¡Combate Táctico en Pareja!',
-        text: '¡En Lunacia luchas como un <b>Sapidae</b> junto a tu <b>Axie Compañero</b>!<br>Tienes <b>Puntos de Movimiento (PM)</b> para posicionarte en la cuadrícula y <b>Puntos de Acción (PA)</b> para desatar tus habilidades.<br>¡Coordinen sus turnos para purificar el Dojo!',
-        btnText: '¡Comenzar Batalla!',
+        title: 'Combate táctico en pareja',
+        text: 'Luchas como <b>Sapidae</b> junto a tu <b>Axie compañero</b>. Cada uno tiene su turno.',
+        concepts: [
+          { k: 'pm', label: 'PM', text: 'Puntos de Movimiento: una casilla por PM.' },
+          { k: 'pa', label: 'PA', text: 'Puntos de Acción: lo que cuestan tus cartas.' },
+        ],
+        btnText: 'Comenzar batalla',
         targetType: 'dialog'
       },
       {
         id: 'step_move_1',
-        title: 'Paso 1: Mueve a tu Sapidae',
-        text: '¡Tu <b>Sapidae</b> lidera la ofensiva! Haz clic en la casilla dorada señalada por la flecha en <b>(4, 5)</b> para avanzar gastando 2 PM y encarar a la Quimera.',
+        kicker: 'Turno de tu Sapidae',
+        title: 'Muévete hacia la quimera',
+        text: 'Haz clic en la <b>casilla dorada</b> que marca la flecha. Gastarás 2 PM.',
         allowedCell: { x: 4, z: 5 },
         targetType: 'cell'
       },
       {
         id: 'step_select_spell_1',
-        title: 'Paso 2: Prepara el Ataque del Sapidae',
-        text: '¡Excelente posición! Ahora selecciona la <b>Habilidad de Clase [1]</b> de tu Sapidae en la barra inferior (costo en PA).',
+        kicker: 'Turno de tu Sapidae',
+        title: 'Elige tu primera carta',
+        text: 'Pulsa la carta <b>Habilidad de Clase [1]</b> en la barra de abajo, o la tecla <kbd>1</kbd>.',
         allowedSpellIndex: 0,
         targetType: 'spell_slot'
       },
       {
         id: 'step_attack_1',
-        title: 'Paso 3: ¡Ataca y Purifica a la Primera Quimera!',
-        text: '¡Rango de ataque listo! Haz clic directamente sobre la <b>Quimera Slime</b> en <b>(4, 6)</b> para que tu Sapidae aseste un golpe contundente y la derrote.',
+        kicker: 'Turno de tu Sapidae',
+        title: 'Ataca a la Quimera Slime',
+        text: 'Haz clic sobre la quimera marcada para lanzar la carta.',
         allowedCell: { x: 4, z: 6 },
         targetType: 'cell'
       },
       {
         id: 'step_end_turn',
-        title: 'Paso 4: Finaliza el Turno de tu Sapidae',
-        text: '¡Primera quimera derrotada con éxito! Ahora cede la iniciativa a tu compañero presionando <b>[Espacio]</b> o el botón <b>FIN DEL TURNO</b>.',
+        kicker: 'Turno de tu Sapidae',
+        title: 'Pasa el turno a tu Axie',
+        text: 'Pulsa <b>Pasar turno</b> o la tecla <kbd>Espacio</kbd>.',
         targetType: 'end_turn'
       },
       {
         id: 'step_move_2',
-        title: 'Paso 5: Posiciona a tu Axie Compañero',
-        text: '¡Es el turno de tu <b>Axie Compañero</b>! Haz clic en la casilla dorada en <b>(4, 6)</b> para avanzar y encarar a la <b>Quimera Guardián</b>.',
+        kicker: 'Turno de tu Axie',
+        title: 'Acerca a tu Axie',
+        text: 'Haz clic en la <b>casilla dorada</b> para ponerlo frente a la Quimera Guardián.',
         allowedCell: { x: 4, z: 6 },
         allowedCells: [{ x: 4, z: 6 }, { x: 3, z: 6 }, { x: 3, z: 7 }],
         targetType: 'cell'
       },
       {
         id: 'step_select_spell_2',
-        title: 'Paso 6: Selecciona el Ataque de tu Axie',
-        text: '¡En posición de ataque! Ahora selecciona la habilidad <b>[1]</b> de tu Axie en la barra inferior.',
+        kicker: 'Turno de tu Axie',
+        title: 'Elige la carta de tu Axie',
+        text: 'Pulsa su carta <b>[1]</b> en la barra de abajo, o la tecla <kbd>1</kbd>.',
         allowedSpellIndex: 0,
         targetType: 'spell_slot'
       },
       {
         id: 'step_attack_2',
-        title: 'Paso 7: ¡Ataca a la Quimera Guardián con tu Axie!',
-        text: '¡Usa el ataque de tu Axie sobre la <b>Quimera Guardián</b> en <b>(4, 7)</b> para debilitar su defensa!',
+        kicker: 'Turno de tu Axie',
+        title: 'Ataca a la Quimera Guardián',
+        text: 'Haz clic sobre ella para debilitar su defensa.',
         allowedCell: { x: 4, z: 7 },
         targetType: 'cell'
       },
       {
         id: 'step_battle_flow',
-        title: '¡Victoria al Alcance!',
-        text: '¡Excelente trabajo en equipo! Ambos luchan en sincronía. Ahora derrota por completo a la Quimera Guardián combinando libremente los turnos de tu Sapidae y tu Axie.',
-        btnText: '¡A la Carga! ⚔️',
+        title: '¡Buen trabajo en equipo!',
+        text: 'Ya sabes lo básico. Termina con la Quimera Guardián alternando los turnos de tu Sapidae y tu Axie, como prefieras.',
+        btnText: '¡A la carga!',
         targetType: 'free_action'
       }
     ];
@@ -80,10 +93,41 @@ export class TutorialManager {
 
   _initOverlay() {
     this.overlay = document.getElementById('tutorial-overlay');
+    if (this.overlay) {
+      // Crónica Celeste: tarjeta de guía (presentación y cierre, con el Maestro Paladill) o franja de pista (pasos)
+      this.overlay.className = 'tutorial-overlay lk-ui lk-ctut hidden';
+      this.overlay.setAttribute('role', 'status');
+      this.overlay.setAttribute('aria-live', 'polite');
+      this.overlay.innerHTML = `
+        <div class="lk-ctut__card">
+          <span class="lk-ctut__coach" aria-hidden="true"><img src="./assets/portraits/paladill.png" alt="" onerror="this.src='./assets/paladill_portrait.png'"></span>
+          <div class="lk-ctut__body">
+            <div class="lk-ctut__head"><span class="lk-ctut__phases" data-ref="phases" aria-hidden="true"></span><span class="lk-ctut__badge" data-ref="badge"></span></div>
+            <h3 id="tut-title" class="lk-ctut__title"></h3>
+            <p id="tut-text" class="lk-ctut__text"></p>
+            <div class="lk-ctut__concepts" data-ref="concepts"></div>
+          </div>
+          <button id="tut-btn-next" type="button" class="lk-btn lk-btn-primary-gold lk-ctut__go"><span data-ref="goTxt">Comenzar</span><small>Intro</small></button>
+        </div>`;
+      this.titleEl = this.overlay.querySelector('#tut-title');
+      this.textEl = this.overlay.querySelector('#tut-text');
+      this.btnNext = this.overlay.querySelector('#tut-btn-next');
+      // Intro pulsa el botón de la tarjeta (Espacio queda para «Pasar turno»)
+      window.addEventListener('keydown', (e) => {
+        if (e.key !== 'Enter' || !this.isActive || this.overlay.classList.contains('hidden')) return;
+        if (this.btnNext && !this.btnNext.classList.contains('hidden') && !['INPUT', 'TEXTAREA'].includes(document.activeElement?.tagName)) {
+          e.preventDefault(); this.btnNext.click();
+        }
+      });
+      return this._bindNext();
+    }
     this.titleEl = document.getElementById('tut-title');
     this.textEl = document.getElementById('tut-text');
     this.btnNext = document.getElementById('tut-btn-next');
+    this._bindNext();
+  }
 
+  _bindNext() {
     if (this.btnNext) {
       this.btnNext.addEventListener('click', () => {
         const step = this.steps[this.currentStep];
@@ -153,10 +197,9 @@ export class TutorialManager {
     this.groundRing.position.y = 0.035;
     this.arrowGroup.add(this.groundRing);
 
-    // 4. Warm PointLight
-    this.arrowLight = new THREE.PointLight(0xffd700, 1.8, 3.5);
-    this.arrowLight.position.y = 0.75;
-    this.arrowGroup.add(this.arrowLight);
+    // 4. (Sin PointLight: mostrar/ocultar una luz cambia el número de luces y recompila todos los
+    //    shaders del combate. El brillo lo dan los materiales básicos y el bloom.)
+    this.arrowLight = null;
 
     if (this.game && this.game.sceneManager && this.game.sceneManager.scene) {
       this.game.sceneManager.scene.add(this.arrowGroup);
@@ -250,21 +293,39 @@ export class TutorialManager {
 
     if (this.overlay) {
       this.overlay.classList.remove('hidden');
+      const isCard = step.targetType === 'dialog' || step.targetType === 'free_action';
+      this.overlay.classList.toggle('lk-ctut--card', isCard);
+      this.overlay.classList.toggle('lk-ctut--hint', !isCard);
+      this.overlay.classList.toggle('lk-ctut--done', step.targetType === 'free_action');
+      // Progreso en fases lunares: un rombo por paso de acción (sin contar presentación y cierre)
+      const actionSteps = this.steps.filter((s) => s.targetType !== 'dialog' && s.targetType !== 'free_action');
+      const idx = actionSteps.indexOf(step);
+      const phases = this.overlay.querySelector('[data-ref="phases"]');
+      const badge = this.overlay.querySelector('[data-ref="badge"]');
+      if (phases) phases.innerHTML = step.targetType === 'dialog' ? '' : actionSteps.map((s, i) => `<i class="${step.targetType === 'free_action' || i < idx ? 'lk-is-full' : i === idx ? 'lk-is-half' : ''}"></i>`).join('');
+      if (badge) badge.textContent = step.targetType === 'dialog' ? 'Tutorial · Maestro Paladill' : step.targetType === 'free_action' ? 'Tutorial completado' : `Paso ${idx + 1} de ${actionSteps.length}${step.kicker ? ` · ${step.kicker}` : ''}`;
+      const concepts = this.overlay.querySelector('[data-ref="concepts"]');
+      if (concepts) concepts.innerHTML = (step.concepts || []).map((c) => `<span class="lk-ctut__concept lk-ctut__concept--${c.k}"><i aria-hidden="true"></i><b>${c.label}</b>${c.text}</span>`).join('');
+      // Cada paso nuevo entra con una transición corta (sin rebotes)
+      this.overlay.classList.remove('lk-ctut--in'); void this.overlay.offsetWidth; this.overlay.classList.add('lk-ctut--in');
       if (this.titleEl) this.titleEl.textContent = step.title;
       let text = step.text;
       const heroFirstSpellId = this.game?.activeUnit?.spellIds?.[0];
       const spell = heroFirstSpellId ? this.game?.spellManager?.getSpell(heroFirstSpellId) : null;
       if (spell && text.includes('Habilidad de Clase [1]')) {
-        text = text.replace('Habilidad de Clase [1]', `<b>[1] ${spell.name}</b>`);
+        text = text.replace('Habilidad de Clase [1]', `[1] ${spell.name}`);
       }
       if (this.textEl) this.textEl.innerHTML = text;
 
+      const goTxt = this.btnNext.querySelector('[data-ref="goTxt"]');
+      const setGo = (t) => { if (goTxt) goTxt.textContent = t; else this.btnNext.textContent = t; };
       if (step.id === 'step_intro') {
         this.btnNext.classList.remove('hidden');
-        this.btnNext.textContent = step.btnText || '¡Comenzar Batalla!';
+        setGo(step.btnText || 'Comenzar batalla');
+        setTimeout(() => this.btnNext?.focus({ preventScroll: true }), 50);
       } else if (step.id === 'step_battle_flow' || step.targetType === 'free_action') {
         this.btnNext.classList.remove('hidden');
-        this.btnNext.textContent = step.btnText || '¡A la Carga! ⚔️';
+        setGo(step.btnText || '¡A la carga!');
       } else {
         this.btnNext.classList.add('hidden');
       }

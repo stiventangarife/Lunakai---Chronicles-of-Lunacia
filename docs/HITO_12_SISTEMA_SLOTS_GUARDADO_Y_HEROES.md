@@ -1,6 +1,7 @@
 # Hito 12: Sistema Multi-Ranura de Guardado, Nuevos Héroes e Iconos de Habilidades
 
 > **Estado:** Completado y Verificado ✅  
+> **Actualización (21-oct-2026):** las ranuras nuevas guardan el tutorial en formato v2 (`tutorialProgress = { v: 2, step, done, flags, bondBefore }`, Hito 48) y el modelo del jugador es Ema o Kai (Hito 47); las partidas antiguas se migran al cargar.  
 > **Área:** Progresión / Persistencia / UI / Combate Táctico  
 > **Archivos Involucrados:**  
 > - `src/rpg/SaveSlotManager.js`  

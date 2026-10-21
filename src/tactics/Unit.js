@@ -4,6 +4,7 @@ import { GLTFLoader } from '../../vendor/GLTFLoader.js';
 import { axieMixerService } from '../rpg/AxieMixerService.js';
 import { applyToonOutline } from '../rpg/stylized/ToonOutline.js';
 import { sapidaeModularController } from '../rpg/SapidaeModularController.js';
+import { sapidaeModelUrl } from '../rpg/SapidaeModels.js';
 
 
 export class Unit {
@@ -146,8 +147,7 @@ export class Unit {
     }
     let modelPath = './assets/models/' + modelType + '.glb';
     if (modelType.startsWith('sapidae')) {
-      const sapidaeFile = modelType.endsWith('.glb') ? modelType : `${modelType}.glb`;
-      modelPath = './assets/models/' + sapidaeFile;
+      modelPath = sapidaeModelUrl(modelType); // Ema / Kai (21-oct) y los modelos antiguos
     } else if (modelType.startsWith('chimera')) {
       modelPath = './assets/models/dryad-fighter.glb';
     }
@@ -219,7 +219,7 @@ export class Unit {
             if (origMat) {
               origMat.vertexColors = false;
 
-              if (name.includes('eye') || name.includes('mouth') || name.includes('cheek')) {
+              if (name.includes('eye') || name.includes('mouth') || (name.includes('cheek') || name.includes('blush'))) {
                 const decalMat = new THREE.MeshBasicMaterial({
                   map: origMat.map,
                   color: origMat.color,
@@ -293,7 +293,7 @@ export class Unit {
         mode: 'view',
         filter: (mesh) => {
           const name = (mesh.name || '').toLowerCase();
-          if (name.includes('eye') || name.includes('mouth') || name.includes('cheek') || name.includes('decal')) {
+          if (name.includes('eye') || name.includes('mouth') || (name.includes('cheek') || name.includes('blush')) || name.includes('decal')) {
             return false;
           }
           return true;
@@ -798,8 +798,20 @@ export class Unit {
     });
   }
 
+  /** Expresión de Ema / Kai durante un momento (21-oct). Vuelve a la de su personalización al acabar. */
+  _sapiFace(eyes, mouth, ms = 0) {
+    if (this.type !== 'sapidae' || !this.mesh) return;
+    if (!sapidaeModularController.setExpression(this.mesh, eyes, mouth)) return;
+    clearTimeout(this._faceTimer);
+    if (ms > 0) {
+      const c = this.config.customization || {};
+      this._faceTimer = setTimeout(() => { if (!this.isDead && this.mesh) sapidaeModularController.setExpression(this.mesh, c.eyeExpr || 'normal', c.mouthExpr || 'smile'); }, ms);
+    }
+  }
+
   takeDamage(amount) {
     if (this.isDead) return 0;
+    if ((Number(amount) || 0) > 0) this._sapiFace('happy', 'o', 650); // ojos cerrados y «o»: se queja del golpe
     let actualDamage = Number(amount) || 0;
 
     if (this.shield > 0) {
@@ -953,6 +965,7 @@ export class Unit {
 
   die() {
     this.isDead = true;
+    this._sapiFace('happy', 'o');
     this.clearDamageFlash();
     const tile = this.gridManager.getTile(this.gridX, this.gridZ);
     if (tile && tile.unit === this) tile.unit = null;
@@ -1032,9 +1045,11 @@ export class Unit {
     coreSphere.position.set(wPos.x, 0.85, wPos.z);
     scene.add(coreSphere);
 
-    const flashLight = new THREE.PointLight(0xffffff, isCinematic ? 4.5 : 3.0, 6.0);
-    flashLight.position.set(wPos.x, 0.9, wPos.z);
-    scene.add(flashLight);
+    // Luz prestada del conjunto fijo del combate (sin recompilar shaders); objeto vacío si no hay conjunto
+    const lightPool = this.sceneManager?.lightPool;
+    const flashLight = lightPool
+      ? lightPool.acquire({ color: 0xffffff, intensity: isCinematic ? 4.5 : 3.0, distance: 6.0, decay: 2, position: { x: wPos.x, y: 0.9, z: wPos.z }, maxLife: 3 })
+      : { intensity: 0 };
 
     if (this.audio) this.audio.playDisintegrationBurst();
 
@@ -1125,7 +1140,7 @@ export class Unit {
     });
 
     scene.remove(particlesGroup);
-    scene.remove(flashLight);
+    if (lightPool) lightPool.release(flashLight);
     sphereGeo.dispose();
     particles.forEach(pt => pt.mat.dispose());
 
@@ -1170,6 +1185,7 @@ export class Unit {
         console.warn('[Unit] Axie attack anim error:', e);
       }
     } else if (this.type === 'sapidae' && this.mesh) {
+      this._sapiFace('angry', 'open', 900); // ceño fruncido al atacar
       // Dynamic martial lunge and casting flourish for humanoid Sapidae
       const origY = this.mesh.position.y;
       const origZ = this.mesh.position.z;
