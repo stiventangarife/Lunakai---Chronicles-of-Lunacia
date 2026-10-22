@@ -6,6 +6,7 @@ import { axieMixerService } from './AxieMixerService.js';
 import { sapidaeModularController } from './SapidaeModularController.js';
 import { spawnPuff } from './PuffEffect.js';
 import { sapidaeModelUrl, playerSapidaeModel } from './SapidaeModels.js';
+import { cloneGLTF } from '../render/ModelCache.js'; // caché de GLB compartida con el combate
 
 export class PlayerEntity {
   constructor(config = {}) {
@@ -175,11 +176,12 @@ export class PlayerEntity {
   async loadModel(renderer = null) {
     if (renderer) this._renderer = renderer;
     // 1. Load the Sapidae humanoid 3D model
-    const loader = new GLTFLoader();
     const modelPath = sapidaeModelUrl(this.sapidaeModel);
 
     try {
-      const gltf = await loader.loadAsync(modelPath);
+      // Copia del GLB en caché (con geometría propia: aquí se modifican colores y cuernos). El combate
+      // clona el mismo original, así reutiliza las texturas ya teñidas del Sapidae.
+      const gltf = await cloneGLTF(modelPath, { cloneGeometry: true });
       this.mesh = gltf.scene;
 
       // Auto-normalize humanoid scale (target height ~1.55m)
@@ -400,7 +402,7 @@ export class PlayerEntity {
 
   /** Compañero desde un GLB (Bing, Pomodoro…) con playAnimation('Default.Idle' | 'Default.Run') y update(dt). */
   async _loadCompanionGLB(file, scale) {
-    const gltf = await new GLTFLoader().loadAsync(`./assets/models/${file}.glb`);
+    const gltf = await cloneGLTF(`./assets/models/${file}.glb`); // misma caché que las unidades de combate
     const wrapper = new THREE.Group();
     wrapper.add(gltf.scene);
     wrapper.scale.setScalar(scale);

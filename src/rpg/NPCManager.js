@@ -1892,6 +1892,13 @@ export class NPCManager {
 
   tryInteract() {
     if (this.nearbyNPC && this.nearbyNPC.group && this.nearbyNPC.group.visible && !this.dialogSystem.isActive) {
+      // Tutorial del Dojo: solo se habla con el Maestro Paladill hasta graduarse
+      const tut = this.overworldManager?.tutorialManager;
+      const npcId = this.nearbyNPC.id || this.nearbyNPC.config?.id;
+      if (tut && tut.isActive && !tut.done && npcId !== 'paladill') {
+        this.overworldManager?._showFeatureLockedFeedback?.('Primero termina el entrenamiento con el Maestro Paladill.');
+        return true;
+      }
       this.nearbyNPC.onInteract();
       return true;
     }

@@ -448,6 +448,7 @@ export class FootstepEffectsManager {
     );
 
     this.bootMesh.setMatrixAt(idx, this._basisMatrix);
+    this.bootMesh.visible = true;
     this.bootAlphas[idx] = 0.78; // Opacidad nítida inicial
 
     const d = this.bootData[idx];
@@ -491,6 +492,7 @@ export class FootstepEffectsManager {
     );
 
     this.pawMesh.setMatrixAt(idx, this._basisMatrix);
+    this.pawMesh.visible = true;
     this.pawAlphas[idx] = 0.75;
 
     const d = this.pawData[idx];
@@ -532,6 +534,7 @@ export class FootstepEffectsManager {
     this._dummy.scale.set(1, 1, 1);
     this._dummy.updateMatrix();
     this.dustMesh.setMatrixAt(idx, this._dummy.matrix);
+    this.dustMesh.visible = true;
 
     this.dustAlphas[idx] = 0.80;
     this.dustScales[idx] = d.baseScale * 0.35;
@@ -640,10 +643,14 @@ export class FootstepEffectsManager {
     // =====================================================================
     // 3. ACTUALIZACIÓN Y DESVANECIMIENTO DE HUELLAS (Botas)
     // =====================================================================
+    // Sin huellas ni polvo activos, las 3 mallas se ocultan: son transparentes, sin descarte por
+    // cámara, y costaban 6 llamadas de dibujo por fotograma aunque no hubiera nada que mostrar.
+    let bootActive = 0, pawActive = 0, dustActive = 0;
     let bootNeedsUpdate = false;
     for (let i = 0; i < this.maxBootPrints; i++) {
       const d = this.bootData[i];
       if (!d.active) continue;
+      bootActive++;
 
       d.life += delta;
       if (d.life >= d.maxLife) {
@@ -670,6 +677,7 @@ export class FootstepEffectsManager {
     for (let i = 0; i < this.maxPawPrints; i++) {
       const d = this.pawData[i];
       if (!d.active) continue;
+      pawActive++;
 
       d.life += delta;
       if (d.life >= d.maxLife) {
@@ -696,6 +704,7 @@ export class FootstepEffectsManager {
     for (let i = 0; i < this.maxDustPuffs; i++) {
       const d = this.dustData[i];
       if (!d.active) continue;
+      dustActive++;
 
       d.life += delta;
       if (d.life >= d.maxLife) {
@@ -733,6 +742,10 @@ export class FootstepEffectsManager {
       this.dustAlphaAttr.needsUpdate = true;
       this.dustScaleAttr.needsUpdate = true;
     }
+    // (una huella que expira en este fotograma ya tiene alfa 0: ocultarla no cambia la imagen)
+    this.bootMesh.visible = bootActive > 0;
+    this.pawMesh.visible = pawActive > 0;
+    this.dustMesh.visible = dustActive > 0;
   }
 
   setVisible(visible) {

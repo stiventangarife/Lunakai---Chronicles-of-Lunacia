@@ -452,7 +452,42 @@ export class GridManager {
   }
 
   spawnImpactDecal(worldPos, type = 'scorch') {
-    const geo = new THREE.PlaneGeometry(1.3, 1.3);
+    // La textura de cada tipo y la geometría se crean una sola vez y se comparten: antes cada impacto
+    // pintaba un lienzo nuevo y lo subía a la GPU. Cada marca sigue teniendo su propio material (su
+    // propia opacidad al desvanecerse).
+    const D = (GridManager._decal ||= { geo: new THREE.PlaneGeometry(1.3, 1.3), tex: new Map() });
+    const geo = D.geo;
+    let texture = D.tex.get(type);
+    if (!texture) { texture = GridManager._decalTexture(type); D.tex.set(type, texture); }
+    const mat = new THREE.MeshBasicMaterial({
+      map: texture,
+      transparent: true,
+      opacity: 0.75,
+      depthWrite: false,
+      side: THREE.DoubleSide
+    });
+    const decal = new THREE.Mesh(geo, mat);
+    decal.rotation.x = -Math.PI / 2;
+    decal.position.set(worldPos.x, 0.012, worldPos.z);
+    this.gridGroup.add(decal);
+
+    const startTime = performance.now();
+    const duration = 4000;
+    const fadeInterval = setInterval(() => {
+      const elapsed = performance.now() - startTime;
+      const progress = elapsed / duration;
+      if (progress >= 1.0) {
+        clearInterval(fadeInterval);
+        this.gridGroup.remove(decal);
+        decal.material.dispose(); // la geometría y la textura son compartidas: no se destruyen
+      } else {
+        decal.material.opacity = (1.0 - progress) * 0.75;
+      }
+    }, 60);
+  }
+
+  /** Lienzo con el degradado de cada tipo de marca (el mismo dibujo de siempre). */
+  static _decalTexture(type) {
     const canvas = document.createElement('canvas');
     canvas.width = 128;
     canvas.height = 128;
@@ -481,33 +516,7 @@ export class GridManager {
     ctx.fillStyle = grad;
     ctx.fillRect(0, 0, 128, 128);
 
-    const texture = new THREE.CanvasTexture(canvas);
-    const mat = new THREE.MeshBasicMaterial({
-      map: texture,
-      transparent: true,
-      opacity: 0.75,
-      depthWrite: false,
-      side: THREE.DoubleSide
-    });
-    const decal = new THREE.Mesh(geo, mat);
-    decal.rotation.x = -Math.PI / 2;
-    decal.position.set(worldPos.x, 0.012, worldPos.z);
-    this.gridGroup.add(decal);
-
-    const startTime = performance.now();
-    const duration = 4000;
-    const fadeInterval = setInterval(() => {
-      const elapsed = performance.now() - startTime;
-      const progress = elapsed / duration;
-      if (progress >= 1.0) {
-        clearInterval(fadeInterval);
-        this.gridGroup.remove(decal);
-        decal.geometry.dispose();
-        decal.material.dispose();
-      } else {
-        decal.material.opacity = (1.0 - progress) * 0.75;
-      }
-    }, 60);
+    return new THREE.CanvasTexture(canvas);
   }
 
   gridToWorld(gx, gz) {
@@ -743,100 +752,109 @@ export class GridManager {
     return null;
   }
 
+  // ── Casillas resaltadas ──────────────────────────────────────────────────────────────────
+  // Antes cada llamada creaba geometría y material nuevos y clearHighlights() los destruía; al
+  // pasar el ratón (y al arrastrar la cámara) eso ocurría decenas de veces por segundo y el shader
+  // del camino se compilaba y borraba una y otra vez. Ahora las piezas son fijas: geometrías y
+  // materiales compartidos que nunca se destruyen y una reserva de mallas que se encienden y se
+  // apagan. Mismos tamaños, colores, opacidades y alturas que antes.
+  _hl() {
+    if (this._hlRes) return this._hlRes;
+    const plane = (k) => new THREE.PlaneGeometry(TILE_SIZE * k, TILE_SIZE * k);
+    const tileMat = (color, opacity) => new THREE.MeshBasicMaterial({ color, transparent: true, opacity, side: THREE.DoubleSide });
+    this._hlRes = {
+      geo: { reach: plane(0.9), spell: plane(0.9), aoe: plane(0.92), hover: plane(0.94), path: new THREE.CylinderGeometry(0.12, 0.12, 0.08, 12) },
+      mat: { reach: tileMat(0x00d2ff, 0.45), spell: tileMat(0xff4d4d, 0.42), aoe: tileMat(0xffaa00, 0.6), path: new THREE.MeshBasicMaterial({ color: 0x00f3ff }) },
+      hoverMats: new Map(),
+      pools: { reach: [], spell: [], aoe: [], hover: [], path: [] },
+      used: { reach: 0, spell: 0, aoe: 0, hover: 0, path: 0 }
+    };
+    return this._hlRes;
+  }
+
+  _hoverMat(color) {
+    const r = this._hl();
+    let m = r.hoverMats.get(color);
+    if (!m) {
+      m = new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.65, side: THREE.DoubleSide });
+      r.hoverMats.set(color, m);
+    }
+    return m;
+  }
+
+  /** Siguiente malla libre de la reserva `kind` (se crea si hace falta), ya encendida y colocada. */
+  _hlMesh(kind, x, y, z, material = null) {
+    const r = this._hl();
+    const pool = r.pools[kind];
+    let mesh = pool[r.used[kind]];
+    if (!mesh) {
+      mesh = new THREE.Mesh(r.geo[kind], material || r.mat[kind]);
+      if (kind !== 'path') mesh.rotation.x = -Math.PI / 2;
+      pool.push(mesh);
+      this.highlightGroup.add(mesh);
+    }
+    r.used[kind]++;
+    if (material) mesh.material = material;
+    mesh.position.set(x, y, z);
+    mesh.visible = true;
+    return mesh;
+  }
+
   clearHighlights() {
-    while (this.highlightGroup.children.length > 0) {
-      const child = this.highlightGroup.children[0];
-      this.highlightGroup.remove(child);
-      if (child.geometry) child.geometry.dispose();
-      if (child.material) child.material.dispose();
+    this.highlightVersion = (this.highlightVersion || 0) + 1;
+    const r = this._hlRes;
+    if (r) {
+      for (const k in r.pools) {
+        const pool = r.pools[k];
+        for (let i = 0; i < r.used[k]; i++) pool[i].visible = false;
+        r.used[k] = 0;
+      }
     }
     this.highlightMeshes.clear();
   }
 
   highlightReachable(cells) {
-    const geo = new THREE.PlaneGeometry(TILE_SIZE * 0.9, TILE_SIZE * 0.9);
-    const mat = new THREE.MeshBasicMaterial({
-      color: 0x00d2ff,
-      transparent: true,
-      opacity: 0.45,
-      side: THREE.DoubleSide
-    });
-
+    this.highlightVersion = (this.highlightVersion || 0) + 1;
     cells.forEach(c => {
-      const mesh = new THREE.Mesh(geo, mat);
       const wPos = this.gridToWorld(c.x, c.z);
-      mesh.rotation.x = -Math.PI / 2;
-      mesh.position.set(wPos.x, 0.02, wPos.z);
-      this.highlightGroup.add(mesh);
+      const mesh = this._hlMesh('reach', wPos.x, 0.02, wPos.z);
       this.highlightMeshes.set(c.x + ',' + c.z, mesh);
     });
   }
 
   highlightSpellRange(cells) {
-    const geo = new THREE.PlaneGeometry(TILE_SIZE * 0.9, TILE_SIZE * 0.9);
-    const mat = new THREE.MeshBasicMaterial({
-      color: 0xff4d4d,
-      transparent: true,
-      opacity: 0.42,
-      side: THREE.DoubleSide
-    });
-
+    this.highlightVersion = (this.highlightVersion || 0) + 1;
     cells.forEach(c => {
-      const mesh = new THREE.Mesh(geo, mat);
       const wPos = this.gridToWorld(c.x, c.z);
-      mesh.rotation.x = -Math.PI / 2;
-      mesh.position.set(wPos.x, 0.025, wPos.z);
-      this.highlightGroup.add(mesh);
+      const mesh = this._hlMesh('spell', wPos.x, 0.025, wPos.z);
       this.highlightMeshes.set('spell_' + c.x + ',' + c.z, mesh);
     });
   }
 
   highlightAoE(cells) {
-    const geo = new THREE.PlaneGeometry(TILE_SIZE * 0.92, TILE_SIZE * 0.92);
-    const mat = new THREE.MeshBasicMaterial({
-      color: 0xffaa00,
-      transparent: true,
-      opacity: 0.6,
-      side: THREE.DoubleSide
-    });
-
+    this.highlightVersion = (this.highlightVersion || 0) + 1;
     cells.forEach(c => {
       if (!this.isValidCoord(c.x, c.z)) return;
-      const mesh = new THREE.Mesh(geo, mat);
       const wPos = this.gridToWorld(c.x, c.z);
-      mesh.rotation.x = -Math.PI / 2;
-      mesh.position.set(wPos.x, 0.035, wPos.z);
-      this.highlightGroup.add(mesh);
+      this._hlMesh('aoe', wPos.x, 0.035, wPos.z);
     });
   }
 
   highlightHover(gx, gz, color = 0xffffff) {
     if (!this.isValidCoord(gx, gz)) return;
-    const geo = new THREE.PlaneGeometry(TILE_SIZE * 0.94, TILE_SIZE * 0.94);
-    const mat = new THREE.MeshBasicMaterial({
-      color,
-      transparent: true,
-      opacity: 0.65,
-      side: THREE.DoubleSide
-    });
-    const mesh = new THREE.Mesh(geo, mat);
+    this.highlightVersion = (this.highlightVersion || 0) + 1;
     const wPos = this.gridToWorld(gx, gz);
-    mesh.rotation.x = -Math.PI / 2;
-    mesh.position.set(wPos.x, 0.03, wPos.z);
-    this.highlightGroup.add(mesh);
+    this._hlMesh('hover', wPos.x, 0.03, wPos.z, this._hoverMat(color));
   }
 
   highlightPath(path) {
     if (!path || path.length <= 1) return;
-    const geo = new THREE.CylinderGeometry(0.12, 0.12, 0.08, 12);
-    const mat = new THREE.MeshBasicMaterial({ color: 0x00f3ff });
-
+    this.highlightVersion = (this.highlightVersion || 0) + 1;
     for (let i = 1; i < path.length; i++) {
       const step = path[i];
-      const mesh = new THREE.Mesh(geo, mat);
       const wPos = this.gridToWorld(step.x, step.z);
-      mesh.position.set(wPos.x, 0.04, wPos.z);
-      this.highlightGroup.add(mesh);
+      this._hlMesh('path', wPos.x, 0.04, wPos.z);
     }
   }
+
 }

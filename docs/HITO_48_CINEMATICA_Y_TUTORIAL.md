@@ -3,6 +3,14 @@
 > **Estado:** completado en la versión de prueba (21-oct-2026).
 > **Pedido:** cambiar el tutorial por completo, con diálogos cortos, y hacer una cinemática nueva al estilo de las referencias (vídeo de lore de Axie y presentación de raza de Dofus), con un momento épico al final.
 
+> **Actualización (22-oct, Hito 50):**
+> - El tutorial ahora guía cada acción con velo, flecha y resaltado, y bloquea todo lo demás hasta hacerla.
+> - El duelo y la prueba de la Ultimate tienen guía por turno.
+> - En la cinemática, el hilo dorado del friso es ahora un corazón en el pecho y la luna queda en media luna.
+> - Solo Paladill habla y los slimes se ocultan hasta terminar el tutorial.
+>
+> Ver `HITO_50_TUTORIAL_GUIADO_Y_AJUSTES.md`.
+
 ## 1. La cinemática (73 s, se puede saltar con Esc)
 
 Narra el Maestro Paladill (de momento solo subtítulos). Papel envejecido con grano, viñeta y bordes quemados; siluetas hechas con los modelos 3D reales del juego pintados a tinta.

@@ -11,6 +11,7 @@ import { LightingManager } from '../demo_scena/LightingManager.js';
 import { AtmosphereManager } from '../demo_scena/AtmosphereManager.js';
 import { FootstepEffectsManager } from '../demo_scena/FootstepEffectsManager.js';
 import { SavannaGenshinArt } from './SavannaGenshinArt.js';
+import { mergeStaticByMaterial } from '../../../render/StaticMerge.js';
 
 /**
  * SavannaZone.js - Master Coordinator for Isla de la Sabana (Macro-Zone [3, 2] / Savannah Grand Island)
@@ -68,7 +69,14 @@ export class SavannaZone {
     console.log('[SavannaZone] 🏜️ Inicializando Isla de la Sabana (480m x 480m)...');
 
     // 1. Cargar catálogo de modelos (palmeras, rocas sabana, acacias, árboles secos)
-    await this.assetManager.loadAll(onProgress);
+    // Con el arte Genshin, las palmeras y árboles GLTF antiguos no se ven (IslandTrees ocupa sus posiciones)
+    // y las texturas sueltas del catálogo y las briznas estilizadas no las usa nadie: no se cargan.
+    // Si hicieran falta (aspecto antiguo), SavannaPropsManager.ensureLegacyTrees() los carga.
+    const legacyKeys = ['palm_1', 'palm_2', 'palm_3', 'palm_4', 'palm_5', 'tree_palm_bend', 'tree_palm_tall',
+      'tree_plateau', 'tree_plateau_fall', 'tree_twisted_1', 'tree_twisted_2', 'tree_twisted_3', 'tree_twisted_4', 'tree_twisted_5',
+      'tree_dead_1', 'tree_dead_2', 'tree_dead_3', 'tree_dead_4', 'tree_dead_5',
+      'stylized_grass_blades', 'rocks_desert_diffuse', 'rocks_diffuse', 'leaves_texture', 'leaves_twisted', 'bark_twisted', 'bark_dead', 'sand_path', 'wind_noise'];
+    await this.assetManager.loadAll(onProgress, { deferKeys: this.useGenshinArt ? legacyKeys : [] });
 
     // 2. Terreno de Meseta Alta Escalonada con shaders de estratos de cañón
     this.terrain = new SavannaTerrain(this.group, this.assetManager);
@@ -77,16 +85,19 @@ export class SavannaZone {
     this.waterManager = new SavannaWaterManager(this.group, this.terrain, this.assetManager);
 
     // 4. Césped dorado de Sabana V3 (45,000 briznas instanciadas en GPU)
-    this.vegetationManager = new SavannaVegetationManager(this.group, this.terrain, this.assetManager);
+    // Con el arte Genshin la hierba dorada antigua (45.000 matas) queda oculta: no se construye
+    this.vegetationManager = new SavannaVegetationManager(this.group, this.terrain, this.assetManager, { deferGrass: this.useGenshinArt });
 
     // 5. Props instanciados (palmeras de oasis, acacias, rocas de sabana y desierto)
-    this.propsManager = new SavannaPropsManager(this.group, this.terrain, this.assetManager);
+    this.propsManager = new SavannaPropsManager(this.group, this.terrain, this.assetManager, { deferLegacyTrees: this.useGenshinArt });
 
     // 6. Los 3 Puntos de Interés / Landmarks de la Sabana
     this.landmarksManager = new SavannaLandmarksManager(this.group, this.terrain, this.assetManager);
 
     // 7. Siluetas de las otras islas en el horizonte marino (Bosque al Oeste, Ártico al Norte, Volcán al Sur)
     this.distantIslands = new SavannaDistantIslands(this.group);
+    // Decorado fijo: una malla por material (misma imagen, muchas menos llamadas de dibujo)
+    mergeStaticByMaterial(this.distantIslands.group, { name: 'SavannaHorizonMerged' });
 
     // 8. Partículas de viento y ráfagas de arena (reemplazando hojas de bosque)
     this.particleManager = new SavannaParticles(this.group, this.terrain);
@@ -114,6 +125,8 @@ export class SavannaZone {
       } catch (err) {
         console.error('[SavannaZone] Genshin art layer failed, keeping legacy visuals:', err);
         this.genshinArt = null;
+        try { this.vegetationManager && this.vegetationManager.ensureGrass && this.vegetationManager.ensureGrass(); } catch (e) { console.warn(e); }
+        try { this.propsManager && this.propsManager.ensureLegacyTrees && await this.propsManager.ensureLegacyTrees(); } catch (e) { console.warn(e); }
       }
     }
 

@@ -200,6 +200,7 @@ export class SavannaGenshinOasis {
     flw.push(colored(new THREE.SphereGeometry(0.05, 6, 4).translate(0, 0.09, 0), 0xffd24a));
     const flowerGeo = mergeGeometries(flw, false);
     const lilyMat = toon(0xffffff, { vertexColors: true, side: THREE.DoubleSide, transparent: true });
+    lilyMat.forceSinglePass = true; // opaco (opacidad 1): una pasada en lugar de dos, mismo aspecto
     const padM = [], flM = [];
     for (let i = 0; i < 26; i++) {
       const a = rng() * Math.PI * 2;

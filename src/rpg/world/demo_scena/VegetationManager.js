@@ -20,7 +20,15 @@ import { createSeededRandom } from './MathUtils.js';
  * Soporta alternar entre el césped Genshin actual, Stylized Field y el nuevo Césped Estilizado V3.
  */
 export class VegetationManager {
-  constructor(scene, terrain, roadManager, assetManager) {
+  /**
+   * @param {object} [options]
+   * @param {boolean} [options.deferLegacyGrass=false] no construir la hierba V3 (50.000 matas) al crear
+   *   el gestor. La capa de arte Genshin la oculta de todas formas; se construye bajo demanda con
+   *   ensureLegacyGrass() o setGrassType('stylized_v3') si alguna vez vuelve a hacer falta.
+   *   Ahorra unos 2,3 s de carga y sus shaders.
+   */
+  constructor(scene, terrain, roadManager, assetManager, options = {}) {
+    this.deferLegacyGrass = !!options.deferLegacyGrass;
     this.scene = scene;
     this.terrain = terrain;
     this.roadManager = roadManager;
@@ -93,7 +101,7 @@ export class VegetationManager {
       this.initGrass();
     }
     this.initAnimeFlowers();
-    this.initGrassV3();
+    if (!this.deferLegacyGrass) this.initGrassV3();
     if (this.grassType === 'stylized') {
       this.initStylizedGrass();
       this.initStylizedFlowers();
@@ -1700,6 +1708,12 @@ export class VegetationManager {
       c.meshLOD1.instanceMatrix.needsUpdate = true;
       c.meshLOD2.instanceMatrix.needsUpdate = true;
     }
+  }
+
+  /** Construye la hierba V3 si se difirió (vuelta al aspecto antiguo). Devuelve el grupo. */
+  ensureLegacyGrass() {
+    if (!this.v3GrassGroup) this.initGrassV3();
+    return this.v3GrassGroup;
   }
 
   /** true si todos los grupos de hierba/flores antiguos están ocultos (los sustituye la capa Genshin). */

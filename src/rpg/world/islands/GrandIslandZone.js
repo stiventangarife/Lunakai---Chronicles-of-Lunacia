@@ -6,6 +6,7 @@ import { DistantIsland } from '../demo_scena/DistantIsland.js';
 import { SavannaDistantIslands } from '../savanna/SavannaDistantIslands.js';
 import { createSeededRandom } from '../demo_scena/MathUtils.js';
 import { IslandArtLayer } from './kit/IslandArtLayer.js';
+import { mergeStaticByMaterial } from '../../../render/StaticMerge.js';
 
 /**
  * GrandIslandZone (Hito 23) — Base for the three new 480 m islands (Arctic, Mystic, Dungeon).
@@ -212,6 +213,10 @@ export class GrandIslandZone {
       else child.visible = false;
     });
     this.horizonMaterials = [...(di.materials || []), ...(sdi.materials || [])];
+    // Las islas vecinas son decorado fijo: una malla por material en lugar de ~170 sueltas (misma imagen).
+    // Las piezas ocultas (la propia isla y las siluetas que no tocan) no se vuelven a mostrar: fuera.
+    const r = mergeStaticByMaterial(this.horizon, { removeHidden: true, name: `${this.id}_HorizonMerged` });
+    console.log(`[GrandIslandZone] Horizonte de ${this.def.label}: ${r.before} → ${r.after} mallas`);
   }
 
   _tintHorizon(m) {

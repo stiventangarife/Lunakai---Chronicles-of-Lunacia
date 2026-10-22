@@ -108,6 +108,9 @@ export function getHeroClassKey(base, heroId) {
   if (c.includes('acu') || c.includes('aquatic')) return 'aquatic';
   if (c.includes('bicho') || c.includes('bug')) return 'bug';
   if (c.includes('reptil') || c.includes('reptile')) return 'reptile';
+  if (c.includes('mech') || c.includes('mecá') || c.includes('meca')) return 'mech';
+  if (c.includes('dawn') || c.includes('alba')) return 'dawn';
+  if (c.includes('dusk') || c.includes('ocaso') || c.includes('crepús')) return 'dusk';
 
   const key = String(base?.heroKey || '').toLowerCase();
   if (key.includes('beast') || key.includes('rage')) return 'beast';
@@ -262,7 +265,7 @@ export class SquadHUD {
       } else {
         const cKey = getHeroClassKey(base, heroId);
         clsName = CLS_ES[cKey] || 'Axie';
-        clsIcon = `./assets/classes/${cKey}.png`;
+        clsIcon = `./assets/classes/${cKey === 'dusk' ? 'dust' : cKey}.png`;
         const m = String(base.archetype || '').match(/\(([^)]+)\)/);
         role = m ? (ROLE_ES[m[1]] || m[1]) : '';
       }

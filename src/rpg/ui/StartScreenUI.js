@@ -41,15 +41,25 @@ export const RANDOM_NAMES = [
   'Aeron', 'Kael', 'Finn', 'Elowen', 'Bryn', 'Kaelis'
 ];
 
-export function getAxieClassIcon(cls) {
+/** Clave de clase de un axie (beast · bird · plant · aquatic · bug · reptile · mech · dawn · dusk). */
+export function axieClassKey(cls) {
   const s = String(cls || '').toLowerCase();
-  if (s.includes('bestia') || s.includes('beast')) return 'assets/classes/beast.png';
-  if (s.includes('pájaro') || s.includes('pajaro') || s.includes('bird')) return 'assets/classes/bird.png';
-  if (s.includes('planta') || s.includes('plant')) return 'assets/classes/plant.png';
-  if (s.includes('acu') || s.includes('aquatic')) return 'assets/classes/aquatic.png';
-  if (s.includes('bicho') || s.includes('bug')) return 'assets/classes/bug.png';
-  if (s.includes('reptil') || s.includes('reptile')) return 'assets/classes/reptile.png';
-  return 'assets/classes/beast.png';
+  if (s.includes('bestia') || s.includes('beast')) return 'beast';
+  if (s.includes('pájaro') || s.includes('pajaro') || s.includes('bird')) return 'bird';
+  if (s.includes('planta') || s.includes('plant')) return 'plant';
+  if (s.includes('acu') || s.includes('aquatic')) return 'aquatic';
+  if (s.includes('bicho') || s.includes('bug')) return 'bug';
+  if (s.includes('reptil') || s.includes('reptile')) return 'reptile';
+  if (s.includes('mech') || s.includes('mecá') || s.includes('meca')) return 'mech';
+  if (s.includes('dawn') || s.includes('alba') || s.includes('amanecer')) return 'dawn';
+  if (s.includes('dusk') || s.includes('ocaso') || s.includes('crepús') || s.includes('crepus')) return 'dusk';
+  return 'beast';
+}
+
+/** Ícono de clase: assets/classes/<clave>.png (el de Dusk se llama dust.png). */
+export function getAxieClassIcon(cls) {
+  const k = axieClassKey(cls);
+  return `assets/classes/${k === 'dusk' ? 'dust' : k}.png`;
 }
 
 export const CLASS_PORTRAITS = {
@@ -922,7 +932,7 @@ export class StartScreenUI {
       const axiePortrait = portraitService.getPortraitSync(hero.axieId)
         || (hero.heroKey && portraitService.getPortraitSync(hero.heroKey))
         || hero.image || null;
-      const axCls = String(getAxieClassIcon(hero.class || hero.heroKey || hero.archetype)).match(/classes\/(\w+)\.png/)?.[1] || 'beast';
+      const axCls = axieClassKey(hero.class || hero.heroKey || hero.archetype) || 'beast';
       return `<div class="lk-slot" ${common}>
         <div class="lk-slot__top"><span class="lk-slot__n">Ranura ${slotInfo.id}</span>${slotInfo.id === recentId ? '<span class="lk-recent">Última partida</span>' : ''}
           <button class="lk-kebab" aria-label="Más opciones de la ranura ${slotInfo.id}"><svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><circle cx="5" cy="12" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="19" cy="12" r="2"/></svg></button>
@@ -1193,7 +1203,7 @@ export class StartScreenUI {
     const comp = this._ccCompanion();
     const guest = (this._getSession && this._getSession()?.mode) !== 'skymavis';
     const portraitOf = (h) => portraitService.getPortraitSync(h.axieId) || h.image || `./assets/portraits/${h.heroKey}.png`;
-    const clsKey = (h) => String(getAxieClassIcon(h.class || h.heroKey)).match(/classes\/(\w+)\.png/)?.[1] || 'beast';
+    const clsKey = (h) => axieClassKey(h.class || h.heroKey) || 'beast';
     const card = (h) => `<button type="button" aria-pressed="${h.heroKey === this.selectedCompanionKey}" data-cc="axie" data-k="${h.heroKey}"><span class="lk-med" style="--cc:var(--lk-class-${clsKey(h)})"><img src="${portraitOf(h)}" alt=""></span><b>${h.name}</b><small><img src="${getAxieClassIcon(h.class || h.heroKey)}" alt="">${h.class}</small></button>`;
     const custom = this._customCompanion && this._customCompanion.heroKey === this.selectedCompanionKey;
     const mine = custom
@@ -1400,7 +1410,7 @@ export class StartScreenUI {
     this._ccPickerTexts('Elige uno de tus axies', 'Axies de tu cuenta Sky Mavis. Llegan con su nivel AXP y sus partes; podrás cambiarlo después en el Escuadrón.');
     const list = this.ownedAxies || [];
     const grid = this._ccRef('pickGrid');
-    const clsKey = (h) => String(getAxieClassIcon(h.class || h.heroKey)).match(/classes\/(\w+)\.png/)?.[1] || 'beast';
+    const clsKey = (h) => axieClassKey(h.class || h.heroKey) || 'beast';
     grid.innerHTML = list.map((a, i) => `<button type="button" class="lk-ax-card ${a.heroKey === this.selectedCompanionKey ? 'lk-is-sel' : ''}" data-cc="pickAxie" data-i="${i}" style="--cc:var(--lk-class-${clsKey(a)});cursor:pointer"><span class="lk-med" style="--cc:var(--lk-class-${clsKey(a)})"><img src="${portraitService.getPortraitSync(a.axieId) || a.image || ''}" alt=""></span><b>${a.name}</b><small><img src="${getAxieClassIcon(a.class)}" alt="">${a.class}${a.axpLevel ? ` · AXP ${a.axpLevel}` : ''}</small></button>`).join('')
       // También con cuenta: cargar cualquier Axie por su ID (19-oct)
       + `<button type="button" class="lk-ax-card" data-cc="pickById" style="--cc:var(--lk-gilt-300);cursor:pointer"><span class="lk-med" style="--cc:var(--lk-gilt-300);display:grid;place-items:center;font-size:22px;font-weight:700">#</span><b>Cargar por ID</b><small>Cualquier Axie de Lunacia</small></button>`;
@@ -1494,7 +1504,7 @@ export class StartScreenUI {
     return 'loading';
   }
 
-  _ccAxieCls(h) { const c = String(getAxieClassIcon(h.class || h.heroKey)).match(/classes\/(\w+)\.png/)?.[1] || 'beast'; return CC_PART_CLASSES.includes(c) ? c : 'beast'; }
+  _ccAxieCls(h) { const c = axieClassKey(h.class || h.heroKey) || 'beast'; return CC_PART_CLASSES.includes(c) ? c : 'beast'; }
   _ccPartOf(s, i) { return (s.part || AXIE_BODY_PARTS[i]?.id || 'eyes').toLowerCase(); }
 
   _showSkillTooltip(el) {

@@ -23,7 +23,7 @@ export const icon = (name, { ink = false } = {}) => `<img class="lk-ai ${ink ? '
 export const sprite = (id, { fill = false } = {}) => `<svg class="lk-ic ${fill ? 'lk-fill' : ''}" aria-hidden="true"><use href="${asset('assets/ui/sprite.svg')}#${id}"/></svg>`;
 
 /** Ícono de clase de axie (assets/classes/<cls>.png). */
-const CLASS_FILE = { mech: 'Mech', dawn: 'Dawn', dusk: 'Dusk' };
+const CLASS_FILE = { dusk: 'dust' }; // los PNG están en minúsculas; el de Dusk se llama dust.png
 export const classIcon = (cls) => `<img src="${asset(`assets/classes/${CLASS_FILE[cls] || cls}.png`)}" alt="${esc(cls)}">`;
 
 /**

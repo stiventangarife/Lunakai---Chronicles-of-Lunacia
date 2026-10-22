@@ -16,7 +16,13 @@ const CACTUS_MODEL_HEIGHT = 0.8;
 const CACTUS_SINK = -0.03;
 
 export class SavannaPropsManager {
-  constructor(parentGroup, terrain, assetManager) {
+  /**
+   * @param {{ deferLegacyTrees?: boolean }} [opts] con el arte Genshin las palmeras y árboles GLTF antiguos
+   *   no se ven (IslandTrees los sustituye en las mismas posiciones): no se construyen. Sus posiciones
+   *   (pendingPalms / pendingTrees) se generan igual. ensureLegacyTrees() los construye si hacen falta.
+   */
+  constructor(parentGroup, terrain, assetManager, opts = {}) {
+    this.deferLegacyTrees = !!opts.deferLegacyTrees;
     this.parentGroup = parentGroup;
     this.terrain = terrain;
     this.assetManager = assetManager;
@@ -364,12 +370,31 @@ export class SavannaPropsManager {
   // CONSTRUCCIÓN DE TODAS LAS MALLAS INSTANCIADAS (THREE.InstancedMesh)
   // =========================================================================
   buildAllInstancedMeshes() {
-    this._instantiateGroup(this.pendingPalms, 'Palm', false);
-    this._instantiateGroup(this.pendingTrees, 'Tree', true); // Tint tree foliage to golden savannah
+    if (!this.deferLegacyTrees) {
+      this._instantiateGroup(this.pendingPalms, 'Palm', false);
+      this._instantiateGroup(this.pendingTrees, 'Tree', true); // Tint tree foliage to golden savannah
+    }
     this._instantiateGroup(this.pendingRocks, 'Rock', false);
     this._instantiateGroup(this.pendingCacti, 'Cactus', false);
     this._instantiateGroup(this.pendingVegetation, 'Veg', true);
     this._instantiateGroup(this.pendingPebbles, 'Pebble', false);
+  }
+
+  /** Construye las palmeras y árboles antiguos si se difirieron (carga antes sus modelos). */
+  ensureLegacyTrees() {
+    if (this._legacyTreesPromise) return this._legacyTreesPromise;
+    const keys = new Set([...this.pendingPalms, ...this.pendingTrees].map((t) => t.key));
+    const before = this.instancedMeshes.length;
+    this._legacyTreesPromise = Promise.resolve(this.assetManager.loadModels ? this.assetManager.loadModels(keys) : null)
+      .then(() => {
+        if (this.deferLegacyTrees && !this._legacyBuilt) {
+          this._legacyBuilt = true;
+          this._instantiateGroup(this.pendingPalms, 'Palm', false);
+          this._instantiateGroup(this.pendingTrees, 'Tree', true);
+        }
+        return this.instancedMeshes.slice(before);
+      });
+    return this._legacyTreesPromise;
   }
 
   _instantiateGroup(items, tag, tintWarmFoliage = false) {

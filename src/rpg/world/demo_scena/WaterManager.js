@@ -78,6 +78,7 @@ export class WaterManager {
       transparent: true,
       depthWrite: false,
       side: THREE.DoubleSide,
+      forceSinglePass: true, // agua vista siempre desde arriba: una pasada en lugar de dos
       fog: true,
       uniforms: {
         ...THREE.UniformsLib.fog,
@@ -276,6 +277,7 @@ export class WaterManager {
       transparent: true,
       depthWrite: false,
       side: THREE.DoubleSide,
+      forceSinglePass: true, // agua vista siempre desde arriba: una pasada en lugar de dos
       fog: true,
       uniforms: {
         ...THREE.UniformsLib.fog,
@@ -437,23 +439,30 @@ export class WaterManager {
       { centerZ: 125, spanZ: 38, count: 3, baseSpeed: 1.10 }  // Tramo bajo abierto
     ];
 
+    // Los 21 peces se dibujan con 4 InstancedMesh (cuerpo, aletas y cola) en lugar de 84 mallas
+    // sueltas. Cada pez conserva su "esqueleto" de Object3D (raíz + pivote de cola) fuera de la escena:
+    // la animación de update() no cambia, y al final de cada fotograma se copian sus matrices.
+    // Todas las piezas comparten color y opacidad, así que el orden de dibujo no altera la mezcla.
+    fishMaterial.forceSinglePass = true; // plano visto siempre desde arriba: una pasada basta
+    const parts = [];
     schoolZones.forEach((zone) => {
       for (let i = 0; i < zone.count; i++) {
         const root = new THREE.Group();
-        const bodyMesh = new THREE.Mesh(bodyGeo, fishMaterial);
-        const rFinMesh = new THREE.Mesh(rFinGeo, fishMaterial);
-        const lFinMesh = new THREE.Mesh(lFinGeo, fishMaterial);
+        const bodyNode = new THREE.Object3D();
+        const rFinNode = new THREE.Object3D();
+        const lFinNode = new THREE.Object3D();
 
         // Pivote de la cola para aleteo ondulatorio orgánico
         const tailPivot = new THREE.Group();
         tailPivot.position.set(0, 0, 0.22);
-        const tailMesh = new THREE.Mesh(tailGeo, fishMaterial);
-        tailPivot.add(tailMesh);
+        const tailNode = new THREE.Object3D();
+        tailPivot.add(tailNode);
 
-        root.add(bodyMesh);
-        root.add(rFinMesh);
-        root.add(lFinMesh);
+        root.add(bodyNode);
+        root.add(rFinNode);
+        root.add(lFinNode);
         root.add(tailPivot);
+        parts.push([bodyNode, rFinNode, lFinNode, tailNode]);
 
         const scale = 0.85 + Math.random() * 0.45;
         root.scale.set(scale, scale, scale);
@@ -476,10 +485,32 @@ export class WaterManager {
           wanderPhase: Math.random() * Math.PI * 2,
           heading: -1 // -1 = nadando río arriba (hacia -Z, contracorriente)
         });
-
-        this.fishGroup.add(root);
       }
     });
+
+    const n = this.fishes.length;
+    this.fishParts = parts;
+    this.fishMeshes = [bodyGeo, rFinGeo, lFinGeo, tailGeo].map((geo, k) => {
+      const im = new THREE.InstancedMesh(geo, fishMaterial, n);
+      im.name = ['RiverFishBody', 'RiverFishFinR', 'RiverFishFinL', 'RiverFishTail'][k];
+      im.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+      im.frustumCulled = false; // nadan por todo el río: una sola llamada, sin esfera que recalcular
+      this.fishGroup.add(im);
+      return im;
+    });
+    this._syncFishInstances();
+  }
+
+  /** Copia la pose de cada pez (raíz + cola) a sus 4 InstancedMesh. */
+  _syncFishInstances() {
+    if (!this.fishMeshes) return;
+    for (let i = 0; i < this.fishes.length; i++) {
+      const root = this.fishes[i].root;
+      root.updateMatrixWorld(true); // la raíz no está en la escena: matrixWorld = matriz local en fishGroup
+      const p = this.fishParts[i];
+      for (let k = 0; k < 4; k++) this.fishMeshes[k].setMatrixAt(i, p[k].matrixWorld);
+    }
+    for (let k = 0; k < 4; k++) this.fishMeshes[k].instanceMatrix.needsUpdate = true;
   }
 
   createBulrushesAndRiverRocks() {
@@ -537,6 +568,7 @@ export class WaterManager {
         transparent: true,
         depthWrite: false,
         side: THREE.DoubleSide,
+        forceSinglePass: true, // plano horizontal visto desde arriba: una pasada basta
         uniforms: {
           uTime: { value: 0 }
         },
@@ -544,7 +576,11 @@ export class WaterManager {
           varying vec2 vUv;
           void main() {
             vUv = uv;
-            gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+            vec4 p = vec4(position, 1.0);
+            #ifdef USE_INSTANCING
+              p = instanceMatrix * p;
+            #endif
+            gl_Position = projectionMatrix * modelViewMatrix * p;
           }
         `,
         fragmentShader: `
@@ -611,6 +647,23 @@ export class WaterManager {
     ];
 
     const pendingRiverRocks = [];
+    // Espadañas, ondas y burbujas: se dibujan instanciadas (antes eran ~490 mallas sueltas).
+    // La disposición es idéntica: se calculan las mismas transformaciones, en el mismo orden y con
+    // la misma semilla, y se guardan como matrices de instancia.
+    const tmpStalk = new THREE.Object3D();
+    const tmpLeaf = new THREE.Object3D();
+    const tmpMat = new THREE.Matrix4();
+    const pendingWakes = [];
+    const pendingBubbles = [];
+    const makeInstanced = (geo, mat, matrices, name) => {
+      const im = new THREE.InstancedMesh(geo, mat, matrices.length);
+      im.name = name;
+      matrices.forEach((m, i) => im.setMatrixAt(i, m));
+      im.instanceMatrix.needsUpdate = true;
+      im.computeBoundingSphere();
+      im.matrixAutoUpdate = false; // fija dentro de su grupo (el grupo sí se mece)
+      return im;
+    };
 
     clusterSites.forEach((site) => {
       const { riverCenterX, riverHalfWidth } = WaterManager.getRiverBounds(site.z);
@@ -622,38 +675,42 @@ export class WaterManager {
       const clusterGroup = new THREE.Group();
       clusterGroup.position.set(baseX, waterY - 0.4, baseZ); // Raíz sumergida en el lecho del río
 
+      const stalkMatrices = [];
+      const leafLocal = [];
+      const leafMatrices = [];
       for (let s = 0; s < site.countStalks; s++) {
-        const stalkGroup = new THREE.Group();
         const offsetX = (reedRng() - 0.5) * 1.4;
         const offsetZ = (reedRng() - 0.5) * 1.4;
-        stalkGroup.position.set(offsetX, 0, offsetZ);
-
-        const stalkMesh = new THREE.Mesh(stalkGeo, stalkMat);
-        const spikeMesh = new THREE.Mesh(spikeGeo, ripeSpikeMat);
-        const tipMesh = new THREE.Mesh(spikeTipGeo, spikeTipMat);
-
-        stalkGroup.add(stalkMesh);
-        stalkGroup.add(spikeMesh);
-        stalkGroup.add(tipMesh);
+        tmpStalk.position.set(offsetX, 0, offsetZ);
+        tmpStalk.rotation.set(0, 0, 0);
+        tmpStalk.scale.set(1, 1, 1);
 
         // 2 a 3 hojas curvadas por tallo
         const leafCount = 2 + Math.floor(reedRng() * 2);
+        leafLocal.length = 0;
         for (let l = 0; l < leafCount; l++) {
-          const leafMesh = new THREE.Mesh(leafGeo, leafMat);
-          leafMesh.rotation.y = (l / leafCount) * Math.PI * 2 + reedRng() * 0.5;
-          leafMesh.rotation.z = 0.12 + reedRng() * 0.18;
-          leafMesh.scale.set(0.9, 0.8 + reedRng() * 0.4, 0.9);
-          stalkGroup.add(leafMesh);
+          tmpLeaf.position.set(0, 0, 0);
+          tmpLeaf.rotation.set(0, (l / leafCount) * Math.PI * 2 + reedRng() * 0.5, 0);
+          tmpLeaf.rotation.z = 0.12 + reedRng() * 0.18;
+          tmpLeaf.scale.set(0.9, 0.8 + reedRng() * 0.4, 0.9);
+          tmpLeaf.updateMatrix();
+          leafLocal.push(tmpLeaf.matrix.clone());
         }
 
         const hScale = 0.82 + reedRng() * 0.38;
-        stalkGroup.scale.set(1.0, hScale, 1.0);
-        stalkGroup.rotation.y = reedRng() * Math.PI * 2;
-        stalkGroup.rotation.x = (reedRng() - 0.5) * 0.14;
-        stalkGroup.rotation.z = (reedRng() - 0.5) * 0.14;
+        tmpStalk.scale.set(1.0, hScale, 1.0);
+        tmpStalk.rotation.y = reedRng() * Math.PI * 2;
+        tmpStalk.rotation.x = (reedRng() - 0.5) * 0.14;
+        tmpStalk.rotation.z = (reedRng() - 0.5) * 0.14;
+        tmpStalk.updateMatrix();
 
-        clusterGroup.add(stalkGroup);
+        stalkMatrices.push(tmpStalk.matrix.clone());
+        for (const lm of leafLocal) leafMatrices.push(tmpMat.multiplyMatrices(tmpStalk.matrix, lm).clone());
       }
+      clusterGroup.add(makeInstanced(stalkGeo, stalkMat, stalkMatrices, 'BulrushStalks'));
+      clusterGroup.add(makeInstanced(spikeGeo, ripeSpikeMat, stalkMatrices, 'BulrushSpikes'));
+      clusterGroup.add(makeInstanced(spikeTipGeo, spikeTipMat, stalkMatrices, 'BulrushTips'));
+      clusterGroup.add(makeInstanced(leafGeo, leafMat, leafMatrices, 'BulrushLeaves'));
 
       this.bulrushClusters.push({
         group: clusterGroup,
@@ -677,32 +734,31 @@ export class WaterManager {
 
         // Malla horizontal de ondas por el choque del agua (Collision Wake Ripple)
         const wakeSize = rInfo.r * 3.6;
-        const wakePlane = new THREE.PlaneGeometry(wakeSize, wakeSize);
-        wakePlane.rotateX(-Math.PI / 2); // Plano horizontal sobre el agua
-
-        const wakeMat = createWakeMaterial();
-        const wakeMesh = new THREE.Mesh(wakePlane, wakeMat);
-        wakeMesh.position.set(rx, rWaterY + 0.012, rz);
-        this.bulrushGroup.add(wakeMesh);
+        pendingWakes.push(new THREE.Matrix4().compose(
+          new THREE.Vector3(rx, rWaterY + 0.012, rz),
+          new THREE.Quaternion(),
+          new THREE.Vector3(wakeSize, 1, wakeSize)
+        ));
 
         // 3. Burbujas muy sutiles y escasas ("muy pocas partículas de burbujas")
         // Exactamente 4 a 6 burbujas por roca
         const bubbleCount = 4 + Math.floor(Math.random() * 3);
         for (let b = 0; b < bubbleCount; b++) {
-          const bMesh = new THREE.Mesh(bubbleGeo, bubbleMat);
           const bAngle = Math.random() * Math.PI * 2;
           const bRadius = rInfo.r * (0.65 + Math.random() * 0.6);
           const originX = rx + Math.cos(bAngle) * bRadius;
           const originZ = rz + Math.sin(bAngle) * bRadius;
           const startY = rWaterY - 0.25 - Math.random() * 0.15;
 
-          bMesh.position.set(originX, startY, originZ);
           const bScale = 0.5 + Math.random() * 0.6;
-          bMesh.scale.set(bScale, bScale, bScale);
-          this.bulrushGroup.add(bMesh);
 
           this.bubbleParticles.push({
-            mesh: bMesh,
+            index: pendingBubbles.length,
+            x: originX,
+            y: startY,
+            z: originZ,
+            scale: bScale,
+            visible: true, // como antes: las inactivas se ven quietas hasta su primer ascenso
             originX,
             originZ,
             waterY: rWaterY,
@@ -710,9 +766,34 @@ export class WaterManager {
             wobbleSeed: Math.random() * 10,
             active: Math.random() > 0.35 // Algunas inactivas al inicio para espaciar el efecto
           });
+          pendingBubbles.push(null);
         }
       });
     });
+
+    // Ondas de choque: una sola InstancedMesh con un único material (todas compartían el mismo tiempo)
+    if (pendingWakes.length > 0) {
+      const wakePlane = new THREE.PlaneGeometry(1, 1);
+      wakePlane.rotateX(-Math.PI / 2); // Plano horizontal sobre el agua
+      this.bulrushGroup.add(makeInstanced(wakePlane, createWakeMaterial(), pendingWakes, 'RiverRockWakes'));
+    }
+
+    // Burbujas: una InstancedMesh; una burbuja "oculta" se dibuja con escala 0
+    if (pendingBubbles.length > 0) {
+      bubbleMat.forceSinglePass = true;
+      this.bubbleMesh = new THREE.InstancedMesh(bubbleGeo, bubbleMat, pendingBubbles.length);
+      this.bubbleMesh.name = 'RiverBubbles';
+      this.bubbleMesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+      this.bubbleMesh.frustumCulled = false; // repartidas por todo el río: una sola llamada
+      this.bubbleMesh.matrixAutoUpdate = false;
+      this.bulrushGroup.add(this.bubbleMesh);
+      this._bubbleTmp = new THREE.Matrix4();
+      this._bubbleQ = new THREE.Quaternion();
+      this._bubblePos = new THREE.Vector3();
+      this._bubbleScale = new THREE.Vector3();
+      for (const bp of this.bubbleParticles) this._writeBubble(bp);
+      this.bubbleMesh.instanceMatrix.needsUpdate = true;
+    }
 
     // Crear InstancedMesh para todas las rocas de río
     if (pendingRiverRocks.length > 0) {
@@ -732,6 +813,14 @@ export class WaterManager {
       instancedRiverRocks.instanceMatrix.needsUpdate = true;
       this.bulrushGroup.add(instancedRiverRocks);
     }
+  }
+
+  _writeBubble(bp) {
+    const s = bp.visible ? bp.scale : 0;
+    this._bubblePos.set(bp.x, bp.y, bp.z);
+    this._bubbleScale.set(s, s, s);
+    this._bubbleTmp.compose(this._bubblePos, this._bubbleQ, this._bubbleScale);
+    this.bubbleMesh.setMatrixAt(bp.index, this._bubbleTmp);
   }
 
   update(delta) {
@@ -788,6 +877,7 @@ export class WaterManager {
         f.tailPivot.rotation.y = Math.sin(this.time * wiggleSpeed + f.wigglePhase) * 0.38;
       }
     }
+    this._syncFishInstances();
 
     // 4. Suave balanceo por el viento de las espadañas maduras (Ripe Bulrushes)
     for (let i = 0; i < this.bulrushClusters.length; i++) {
@@ -798,30 +888,36 @@ export class WaterManager {
     }
 
     // 5. Partículas de burbujas escasas y sutiles en las rocas
+    let bubblesChanged = false;
     for (let i = 0; i < this.bubbleParticles.length; i++) {
       const bp = this.bubbleParticles[i];
       if (!bp.active) {
         if (Math.random() < delta * 0.7) {
           bp.active = true;
-          bp.mesh.visible = true;
-          bp.mesh.position.y = bp.waterY - 0.30 - Math.random() * 0.12;
+          bp.visible = true;
+          bp.y = bp.waterY - 0.30 - Math.random() * 0.12;
+          this._writeBubble(bp);
+          bubblesChanged = true;
         }
         continue;
       }
 
       // Ascenso lento hacia la superficie del agua
-      bp.mesh.position.y += bp.riseSpeed * delta;
+      bp.y += bp.riseSpeed * delta;
       // Oscilación horizontal orgánica
-      bp.mesh.position.x = bp.originX + Math.sin(this.time * 4.0 + bp.wobbleSeed) * 0.018;
-      bp.mesh.position.z = bp.originZ + Math.cos(this.time * 3.5 + bp.wobbleSeed) * 0.018;
+      bp.x = bp.originX + Math.sin(this.time * 4.0 + bp.wobbleSeed) * 0.018;
+      bp.z = bp.originZ + Math.cos(this.time * 3.5 + bp.wobbleSeed) * 0.018;
 
       // Al romper la superficie del agua: la burbuja estalla y se reinicia
-      if (bp.mesh.position.y >= bp.waterY) {
+      if (bp.y >= bp.waterY) {
         bp.active = false;
-        bp.mesh.visible = false;
-        bp.mesh.position.y = bp.waterY - 0.32;
+        bp.visible = false;
+        bp.y = bp.waterY - 0.32;
       }
+      this._writeBubble(bp);
+      bubblesChanged = true;
     }
+    if (bubblesChanged && this.bubbleMesh) this.bubbleMesh.instanceMatrix.needsUpdate = true;
   }
 
   setFoamIntensity(val) {

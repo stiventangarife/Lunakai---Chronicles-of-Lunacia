@@ -40,7 +40,7 @@ import { EnvironmentSystem } from './world/EnvironmentSystem.js';
 import { DemoScenaZone22 } from './world/demo_scena/DemoScenaZone22.js';
 import { DemoScenaDebugUI } from './world/demo_scena/DemoScenaDebugUI.js';
 import { SavannaZone } from './world/savanna/SavannaZone.js';
-import { createGrandIslands, getActiveGrandIsland } from './world/islands/GrandIslands.js';
+import { createGrandIslands, getActiveGrandIsland, GRAND_ISLAND_ZONES } from './world/islands/GrandIslands.js';
 import { canonicalZoneId, FERRY_DOCKS, mergedBattleAnchor } from './world/islands/IslandWorldLayout.js';
 
 /**
@@ -1036,16 +1036,19 @@ export class OverworldManager {
     await this.biomeDecorationManager.init();
     console.log('[DIAG] BiomeDecorationManager OK');
 
-    // 7b. Initialize DemoScenaZone22 for Macro-Zone [2, 2]
-    console.log('[DIAG] Iniciando DemoScenaZone22...');
-    await this.demoScenaZone.init();
-    this.demoScenaDebugUI = new DemoScenaDebugUI(this);
-    console.log('[DIAG] DemoScenaZone22 OK');
+    // 7b. Isla del Bosque (DemoScenaZone22). Si la partida empieza en otra isla (Sabana o una de las
+    //     grandes islas) no se construye ahora: se construye al viajar a ella (ensureForestBuilt), como
+    //     la Sabana. Ahorra varios segundos de carga y su memoria cuando no se va a ver.
+    const startsElsewhere = initialMapId === 'zone_3_2' || Boolean(GRAND_ISLAND_ZONES[initialMapId]);
+    if (!startsElsewhere) {
+      console.log('[DIAG] Iniciando DemoScenaZone22...');
+      await this.ensureForestBuilt();
+      console.log('[DIAG] DemoScenaZone22 OK');
+    }
 
-    // 7c. Initialize SavannaZone for Macro-Zone [3, 2] (Isla de la Sabana)
-    console.log('[DIAG] Iniciando SavannaZone...');
-    await this.savannaZone.init();
-    console.log('[DIAG] SavannaZone OK');
+    // 7c. SavannaZone (Isla de la Sabana): ya no se construye al arrancar. Se construye la primera vez
+    //     que se viaja a ella (WorldMapManager._ensureSavannaBuilt), como el Ártico, la Mística y Genesis.
+    //     Ahorra ~1,4 s de carga, sus shaders y su memoria cuando la partida empieza en otra isla.
 
     // 8. Initialize Continuous Map & Biome System with loaded zone
     await this.worldMapManager.init(
@@ -1100,6 +1103,13 @@ export class OverworldManager {
     // Si estamos en la macro-zona [2, 2], reaplicar sus visuales, niebla cálida y luces dedicadas
     if (this.demoScenaZone && this.demoScenaZone.isActive && this.worldMap) {
       this.worldMap._updateZone22Visuals(true);
+    }
+
+    // Visor 3D de la mochila: se prepara detrás de la pantalla de carga (antes, la primera apertura
+    // creaba su contexto WebGL, cargaba el modelo y compilaba: tirón de ~200–570 ms). Tope de 1,5 s
+    // para no alargar la carga si la red va lenta (si no termina, sigue en segundo plano).
+    if (this.inventoryModal && typeof this.inventoryModal.prewarmModel === 'function') {
+      await Promise.race([this.inventoryModal.prewarmModel(), new Promise((r) => setTimeout(r, 1500))]);
     }
 
     // Precalentado final: ahora sí existen el composer, las luces definitivas, la forja y los nodos
@@ -1628,6 +1638,19 @@ export class OverworldManager {
     }
   }
 
+  /** Construye la Isla del Bosque si aún no existe (una sola vez aunque lleguen dos llamadas). */
+  ensureForestBuilt() {
+    if (this.demoScenaZone.isLoaded) return Promise.resolve();
+    if (!this._forestInitPromise) {
+      this._forestInitPromise = this.demoScenaZone.init().then(() => {
+        if (!this.demoScenaDebugUI) this.demoScenaDebugUI = new DemoScenaDebugUI(this);
+      });
+      // Si falla, no se reintenta: DemoScenaZone22.init() no es seguro de repetir a medias (duplicaría
+      // terreno y luces). Los viajes al Bosque fallarán con el mismo error en vez de corromper la escena.
+    }
+    return this._forestInitPromise;
+  }
+
   getGroundHeight(x, z) {
     const grand = getActiveGrandIsland(this);
     if (grand) {
@@ -1810,7 +1833,15 @@ export class OverworldManager {
     // Live tracking of roaming tutorial slime or Maestro Paladill if active
     let hasAttachedMobArrow = false;
     if (nav && nav.quest && nav.isCurrentZone) {
-      if (nav.quest.id === 'quest_slime_purification') {
+      // Tutorial (Hito 48/50): el director dice adónde hay que ir (árbol de la Forja, yunque, Paladill…).
+      // Si el paso no tiene un sitio al que caminar (Mochila, vínculo, runas), no hay flecha.
+      const tutDir = nav.quest.id === 'quest_slime_purification' ? window.lunakaiTutorial?.director : null;
+      const tutOn = Boolean(tutDir && tutDir.isActive && !tutDir.done);
+      if (tutOn) {
+        const t = tutDir.navTarget?.();
+        if (t) { nav.targetWorldPos = { x: t.x, z: t.z }; nav.targetName = t.name || nav.targetName; }
+        else nav.targetWorldPos = null;
+      } else if (nav.quest.id === 'quest_slime_purification') {
         const isSlimeStep = Boolean(nav.stepDesc && (nav.stepDesc.toLowerCase().includes('derrotar') || nav.stepDesc.toLowerCase().includes('slime')));
         if (isSlimeStep) {
           const slime = this.monsters?.monsters?.find(m => m.id === 'slime_garden_1');
@@ -2227,7 +2258,14 @@ export class OverworldManager {
       this._panelCheckIn--;
     } else {
       this._panelCheckIn = 10; // comprobar el DOM solo cada 10 fotogramas
-      this._panelCovering = !!document.querySelector('.lk-backdrop.lk-is-open, #world-map-modal:not(.hidden)');
+      // Solo cuentan los paneles que se ven de verdad: algunos (p. ej. la pantalla de fin de combate)
+      // conservan la clase lk-is-open estando ocultos. getClientRects() sale vacío si el elemento o
+      // alguno de sus padres tiene display:none.
+      let covering = false;
+      for (const el of document.querySelectorAll('.lk-backdrop.lk-is-open, #world-map-modal:not(.hidden)')) {
+        if (!el.classList.contains('hidden') && el.getClientRects().length > 0) { covering = true; break; }
+      }
+      this._panelCovering = covering;
     }
     if (this._panelCovering && this.hasRenderedFrame && !(this._onNextFrameCallbacks && this._onNextFrameCallbacks.length)) {
       // Si el canvas cambió de tamaño (ventana, control de resolución) su contenido se borró:

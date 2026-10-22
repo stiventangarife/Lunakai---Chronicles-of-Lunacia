@@ -20,6 +20,22 @@ import { createSeededRandom, SimplexNoise } from '../MathUtils.js';
  */
 export class GenshinTrees {
   /**
+   * Cambio de LOD: a LOD_SWITCH metros de la cámara (con ±LOD_HYST de margen para que no oscile)
+   * el árbol pasa del original a su versión ligera con un fundido de LOD_FADE_S segundos.
+   * Fundido en el tiempo (no en la distancia): el patrón del fundido solo se ve durante ese medio
+   * segundo; con la cámara quieta ningún árbol queda a medias.
+   */
+  static LOD_SWITCH = 50;
+  /**
+   * LOD desactivado (medido en el Bosque con una RTX 4060, alternando A/B): la versión ligera no
+   * ahorra GPU —los árboles cuestan por los píxeles de sus tarjetas de hojas, no por triángulos— y
+   * mezclar las dos versiones costó ~2 ms más. Con false los árboles se dibujan exactamente como
+   * antes (mismos materiales y sombras); solo queda el descarte árbol a árbol, que no se ve.
+   */
+  static LOD_ENABLED = false;
+  static LOD_HYST = 3;
+  static LOD_FADE_S = 0.5;
+  /**
    * Hand-painted bark textures that already ship with the game (assets/nature). Only their
    * strokes + relief are used; the colour comes from the tree variety tone below.
    * avg = linear-space average colour of each texture (measured offline).
@@ -392,14 +408,18 @@ export class GenshinTrees {
 
   _buildBroadleaf(seed, variant) {
     const rng = createSeededRandom(seed);
+    // Se anotan los argumentos de cada rama para construir después la versión ligera (LOD1) con las
+    // mismas curvas: _branch es determinista (ruido con semilla fija) y no consume `rng`.
+    const calls = [];
+    const br = (...args) => { calls.push(args); return this._branch(...args); };
     const height = 4.2 + variant * 0.5 + rng() * 0.8;
     const lean = new THREE.Vector3((rng() - 0.5) * 0.25, 1, (rng() - 0.5) * 0.25);
-    const trunk = this._branch(new THREE.Vector3(0, -0.3, 0), lean, height, 0.42, 0.2, 8, 5, seed * 0.01);
+    const trunk = br(new THREE.Vector3(0, -0.3, 0), lean, height, 0.42, 0.2, 8, 5, seed * 0.01);
     const trunkGeos = [trunk.geo];
     // Flared roots
     for (let r = 0; r < 4; r++) {
       const a = (r / 4) * Math.PI * 2 + rng() * 0.6;
-      const root = this._branch(new THREE.Vector3(0, 0.45, 0), new THREE.Vector3(Math.cos(a), -0.55, Math.sin(a)), 0.9, 0.22, 0.05, 5, 2, seed + r);
+      const root = br(new THREE.Vector3(0, 0.45, 0), new THREE.Vector3(Math.cos(a), -0.55, Math.sin(a)), 0.9, 0.22, 0.05, 5, 2, seed + r);
       trunkGeos.push(root.geo);
     }
     const crownCenter = trunk.end.clone().add(new THREE.Vector3(0, 1.4, 0));
@@ -409,7 +429,7 @@ export class GenshinTrees {
       const a = (l / limbs) * Math.PI * 2 + rng() * 0.8;
       const start = trunk.end.clone().multiplyScalar(0.62 + rng() * 0.2);
       const dir = new THREE.Vector3(Math.cos(a), 0.9 + rng() * 0.6, Math.sin(a));
-      const limb = this._branch(start, dir, 1.8 + rng() * 1.0, 0.16, 0.06, 6, 3, seed + 10 + l);
+      const limb = br(start, dir, 1.8 + rng() * 1.0, 0.16, 0.06, 6, 3, seed + 10 + l);
       trunkGeos.push(limb.geo);
       puffs.push({ c: limb.end.clone().add(new THREE.Vector3(0, 0.6, 0)), r: 1.5 + rng() * 0.5 });
     }
@@ -427,7 +447,11 @@ export class GenshinTrees {
     const foliageGeo = mergeGeometries(foliageGeos, false);
     trunkGeo.computeBoundingSphere();
     foliageGeo.computeBoundingSphere();
-    return { trunk: trunkGeo, foliage: foliageGeo, kind: 'broad' };
+    const lod1 = GenshinTrees.LOD_ENABLED ? {
+      trunk: this._lodTrunk(calls),
+      foliage: this._decimateCards(foliageGeo, 0.4, 1.5)
+    } : null;
+    return { trunk: trunkGeo, foliage: foliageGeo, kind: 'broad', lod1 };
   }
 
   /**
@@ -440,7 +464,8 @@ export class GenshinTrees {
     const height = 9.0 + variant * 1.2 + rng() * 1.4;
     // Straight, perfectly vertical trunk (no procedural bend) running up through every tier,
     // so the needle skirts — centred on the Y axis — always sit on the trunk.
-    const trunk = this._branch(new THREE.Vector3(0, -0.3, 0), new THREE.Vector3(0, 1, 0), height + 1.2, 0.34, 0.06, 7, 4, seed * 0.02, 0.0);
+    const trunkArgs = [new THREE.Vector3(0, -0.3, 0), new THREE.Vector3(0, 1, 0), height + 1.2, 0.34, 0.06, 7, 4, seed * 0.02, 0.0];
+    const trunk = this._branch(...trunkArgs);
     const tiers = 7 + variant;
     const positions = [];
     const normals = [];
@@ -509,7 +534,184 @@ export class GenshinTrees {
     foliage.computeBoundingSphere();
     const trunkGeo = this._withSway(trunk.geo, 0.0);
     trunkGeo.computeBoundingSphere();
-    return { trunk: trunkGeo, foliage, kind: 'conifer' };
+    const lod1 = GenshinTrees.LOD_ENABLED ? {
+      trunk: this._lodTrunk([trunkArgs]),
+      foliage: this._decimateConiferSkirts(foliage, tiers, radial)
+    } : null;
+    return { trunk: trunkGeo, foliage, kind: 'conifer', lod1 };
+  }
+
+  // ---------------------------------------------------------------------------
+  // LOD1: versión ligera de cada arquetipo (misma silueta, colores y balanceo)
+  // ---------------------------------------------------------------------------
+
+  /** Tronco y ramas con las mismas curvas pero menos lados (el contorno a distancia no cambia). */
+  _lodTrunk(calls) {
+    const geos = calls.map((a) => {
+      const b = a.slice();
+      b[5] = Math.max(3, Math.round((b[5] ?? 7) * 0.6)); // lados del tubo
+      return this._withSway(this._branch(...b).geo, 0.0);
+    });
+    const g = geos.length > 1 ? mergeGeometries(geos, false) : geos[0];
+    g.computeBoundingSphere();
+    return g;
+  }
+
+  /**
+   * Copa de hoja ancha: se conserva una parte de las tarjetas (en su sitio exacto, con su normal,
+   * color y balanceo) y cada una crece un poco para cubrir lo mismo. 4 vértices y 6 índices por tarjeta.
+   */
+  _decimateCards(src, keep, grow) {
+    const P = src.attributes.position, N = src.attributes.normal, U = src.attributes.uv;
+    const C = src.attributes.color, S = src.attributes.aSway;
+    const cards = P.count / 4;
+    const step = 1 / keep;
+    const pos = [], nor = [], uv = [], col = [], sw = [], idx = [];
+    let acc = 0;
+    for (let c = 0; c < cards; c++) {
+      acc += 1;
+      if (acc < step) continue; // reparto uniforme: 1 de cada `step` tarjetas
+      acc -= step;
+      const v0 = c * 4;
+      let cx = 0, cy = 0, cz = 0;
+      for (let k = 0; k < 4; k++) { cx += P.getX(v0 + k); cy += P.getY(v0 + k); cz += P.getZ(v0 + k); }
+      cx /= 4; cy /= 4; cz /= 4;
+      const base = pos.length / 3;
+      for (let k = 0; k < 4; k++) {
+        const v = v0 + k;
+        pos.push(cx + (P.getX(v) - cx) * grow, cy + (P.getY(v) - cy) * grow, cz + (P.getZ(v) - cz) * grow);
+        nor.push(N.getX(v), N.getY(v), N.getZ(v));
+        uv.push(U.getX(v), U.getY(v));
+        col.push(C.getX(v), C.getY(v), C.getZ(v));
+        sw.push(S.getX(v));
+      }
+      idx.push(base, base + 1, base + 2, base, base + 2, base + 3);
+    }
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+    g.setAttribute('normal', new THREE.Float32BufferAttribute(nor, 3));
+    g.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
+    g.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
+    g.setAttribute('aSway', new THREE.Float32BufferAttribute(sw, 1));
+    g.setIndex(idx);
+    g.computeBoundingSphere();
+    return g;
+  }
+
+  /** Faldas del abeto con la mitad de divisiones: se quedan los vértices pares (las puntas largas). */
+  _decimateConiferSkirts(src, tiers, radial) {
+    const row = radial + 1;
+    const half = radial / 2; // 22 → 11 segmentos
+    const nrow = half + 1;
+    const attrs = ['position', 'normal', 'uv', 'color', 'aSway'];
+    const out = Object.fromEntries(attrs.map((a) => [a, []]));
+    const idx = [];
+    for (let t = 0; t < tiers; t++) {
+      const base = (out.position.length / 3);
+      for (let ring = 0; ring < 3; ring++) {
+        for (let i = 0; i <= radial; i += 2) {
+          const v = t * 3 * row + ring * row + i;
+          for (const a of attrs) {
+            const A = src.attributes[a];
+            for (let k = 0; k < A.itemSize; k++) out[a].push(A.array[v * A.itemSize + k]);
+          }
+        }
+      }
+      for (let ring = 0; ring < 2; ring++) {
+        for (let i = 0; i < half; i++) {
+          const a = base + ring * nrow + i;
+          const b = a + nrow;
+          idx.push(a, b, a + 1, a + 1, b, b + 1);
+        }
+      }
+    }
+    const g = new THREE.BufferGeometry();
+    for (const a of attrs) g.setAttribute(a, new THREE.Float32BufferAttribute(out[a], src.attributes[a].itemSize));
+    g.setIndex(idx);
+    g.computeBoundingSphere();
+    return g;
+  }
+
+  /**
+   * Añade a un material el fundido entre LODs por patrón de píxeles (dithering, como el
+   * "LOD Cross-Fade" de Unity). Atributo por instancia `aLod`:
+   *   0..1  → LOD0, se descarta donde patrón < valor (0 = árbol completo)
+   *   2..3  → LOD1, se descarta donde patrón >= valor − 2 (3 = árbol completo)
+   * Los dos patrones son complementarios: en la franja de cambio cada píxel lo pinta uno de los dos.
+   * Una malla sin `aLod` (p. ej. el árbol de recolección) recibe 0 → se ve completa.
+   */
+  static _lodChunks() {
+    return {
+      vertPars: 'attribute float aLod;\nvarying float vLkLod;',
+      vertMain: 'vLkLod = aLod;',
+      fragPars: `varying float vLkLod;
+        float lkBayer4(vec2 p) {
+          vec2 q = mod(floor(p), 4.0);
+          int i = int(q.x) + int(q.y) * 4;
+          float m[16] = float[16](0.0, 8.0, 2.0, 10.0, 12.0, 4.0, 14.0, 6.0, 3.0, 11.0, 1.0, 9.0, 15.0, 7.0, 13.0, 5.0);
+          return (m[i] + 0.5) / 16.0;
+        }`
+    };
+  }
+
+  /**
+   * Copia del material con el fundido de LOD. Los originales no se tocan: otros objetos los usan
+   * sin el atributo aLod (p. ej. el árbol de recolección de GatheringNodes).
+   */
+  _lodify(mat) {
+    if (!this._lodMats) this._lodMats = new Map();
+    const cached = this._lodMats.get(mat);
+    if (cached) return cached;
+    const C = GenshinTrees._lodChunks();
+    const prev = mat.onBeforeCompile;
+    const prevKey = mat.customProgramCacheKey ? mat.customProgramCacheKey() : '';
+    const copy = mat.clone();
+    copy.name = `${mat.name || 'GenshinTree'}_LOD`;
+    this._lodMats.set(mat, copy);
+    mat = copy;
+    mat.onBeforeCompile = (shader, renderer) => {
+      if (prev) prev.call(mat, shader, renderer);
+      shader.vertexShader = shader.vertexShader
+        .replace('#include <common>', `#include <common>\n${C.vertPars}`)
+        .replace('#include <begin_vertex>', `#include <begin_vertex>\n${C.vertMain}`);
+      shader.fragmentShader = shader.fragmentShader
+        .replace('#include <common>', `#include <common>\n${C.fragPars}`)
+        .replace('#include <clipping_planes_fragment>', `#include <clipping_planes_fragment>
+          {
+            float lkB = lkBayer4(gl_FragCoord.xy);
+            if (vLkLod < 1.5) { if (lkB < vLkLod) discard; }
+            else { if (lkB >= vLkLod - 2.0) discard; }
+          }`);
+    };
+    mat.customProgramCacheKey = () => `${prevKey}|lk-lod-xfade-v1`;
+    return mat;
+  }
+
+  /**
+   * Material de sombra para los árboles con LOD: la sombra no se difumina (quedaría granulada),
+   * cambia de golpe a mitad de la franja; a esa distancia las dos versiones dan la misma sombra.
+   * three.js le copia en cada uso el mapa, alphaTest y lado del material del árbol.
+   */
+  _depthFor(mat) {
+    if (!this._depthMats) this._depthMats = new Map();
+    let d = this._depthMats.get(mat);
+    if (d) return d;
+    const C = GenshinTrees._lodChunks();
+    d = new THREE.MeshDepthMaterial({ depthPacking: THREE.RGBADepthPacking });
+    d.name = `GenshinTreeDepth_${mat.name || ''}`;
+    d.onBeforeCompile = (shader) => {
+      shader.vertexShader = shader.vertexShader
+        .replace('#include <common>', `#include <common>\n${C.vertPars}`)
+        .replace('#include <begin_vertex>', `#include <begin_vertex>\n${C.vertMain}`);
+      shader.fragmentShader = shader.fragmentShader
+        .replace('#include <common>', `#include <common>\nvarying float vLkLod;`)
+        .replace('#include <clipping_planes_fragment>', `#include <clipping_planes_fragment>
+          if (vLkLod < 1.5) { if (vLkLod > 0.5) discard; }
+          else { if (vLkLod - 2.0 <= 0.5) discard; }`);
+    };
+    d.customProgramCacheKey = () => 'lk-tree-depth-lod-v1';
+    this._depthMats.set(mat, d);
+    return d;
   }
 
   // ---------------------------------------------------------------------------
@@ -571,59 +773,266 @@ export class GenshinTrees {
     const trunkTint = new THREE.Color();
     // Separate RNG for trunk tone jitter so the canopy colours / variants stay exactly the same
     const trunkRng = createSeededRandom(4242);
+    // Cada árbol conserva exactamente su posición, giro, escala, color, arquetipo y tono de tronco.
+    // Por cada pieza (copa, troncos por familia) hay dos InstancedMesh: LOD0 (original) y LOD1 (ligera).
+    // _cull() decide en cada render qué árboles se dibujan y con qué LOD (ver _cull).
+    this.lodBuckets = [];
+    const box = new THREE.Box3();
+    const sphere = new THREE.Sphere();
     buckets.forEach(({ arch, items }, bkey) => {
       const n = items.length;
-      const foliage = new THREE.InstancedMesh(arch.foliage, arch.kind === 'conifer' ? this.needleMaterial : this.leafMaterial, n);
-      foliage.name = `GenshinTreeFoliage_${bkey}`;
-      foliage.castShadow = true;
-      foliage.receiveShadow = true;
+      const matrices = new Float32Array(n * 16);
+      const centers = new Float32Array(n * 3);
+      const radii = new Float32Array(n);
+      // Esfera local del árbol (tronco + copa)
+      box.makeEmpty();
+      arch.foliage.computeBoundingBox(); arch.trunk.computeBoundingBox();
+      box.union(arch.foliage.boundingBox).union(arch.trunk.boundingBox);
+      box.getBoundingSphere(sphere);
+      const foliageColors = new Float32Array(n * 3);
       items.forEach((it, i) => {
         q.setFromAxisAngle(yAxis, it.rotY);
         sc.set(it.s, it.sy, it.s);
         m.compose(it.pos, q, sc);
-        foliage.setMatrixAt(i, m);
-        foliage.setColorAt(i, it.color);
+        m.toArray(matrices, i * 16);
+        const c = sphere.center.clone().applyMatrix4(m);
+        centers[i * 3] = c.x; centers[i * 3 + 1] = c.y; centers[i * 3 + 2] = c.z;
+        radii[i] = sphere.radius * Math.max(it.s, it.sy) + 0.5;
+        foliageColors[i * 3] = it.color.r; foliageColors[i * 3 + 1] = it.color.g; foliageColors[i * 3 + 2] = it.color.b;
       });
-      foliage.instanceMatrix.needsUpdate = true;
-      if (foliage.instanceColor) foliage.instanceColor.needsUpdate = true;
-      foliage.computeBoundingSphere();
-      this.group.add(foliage);
-      this.meshes.push(foliage);
+
+      const parts = [];
+      const LOD = GenshinTrees.LOD_ENABLED;
+      const baseFoliage = arch.kind === 'conifer' ? this.needleMaterial : this.leafMaterial;
+      const foliageMat = LOD ? this._lodify(baseFoliage) : baseFoliage;
+      parts.push(this._makeLodPart(`GenshinTreeFoliage_${bkey}`, arch.foliage, LOD ? arch.lod1.foliage : null, foliageMat,
+        Int32Array.from(items.keys()), foliageColors));
 
       // Trunks: one InstancedMesh per variety in this archetype (bark pattern + brown tone)
       const byFamily = new Map();
-      for (const it of items) {
+      items.forEach((it, i) => {
         if (!byFamily.has(it.family)) byFamily.set(it.family, []);
-        byFamily.get(it.family).push(it);
-      }
-      byFamily.forEach((list, family) => {
-        const trunk = new THREE.InstancedMesh(arch.trunk, this._getTrunkMaterial(family), list.length);
-        trunk.name = `GenshinTreeTrunk_${bkey}_${family}`;
-        trunk.castShadow = true;
-        trunk.receiveShadow = true;
-        list.forEach((it, i) => {
-          q.setFromAxisAngle(yAxis, it.rotY);
-          sc.set(it.s, it.sy, it.s);
-          m.compose(it.pos, q, sc);
-          trunk.setMatrixAt(i, m);
+        byFamily.get(it.family).push(i);
+      });
+      byFamily.forEach((ids, family) => {
+        const tc = new Float32Array(ids.length * 3);
+        ids.forEach((_, j) => {
           // Subtle per-tree tonality (±8 % value) so neighbouring trunks never look identical
           const v = 0.92 + trunkRng() * 0.16;
           trunkTint.setRGB(v, v * (0.98 + trunkRng() * 0.04), v * (0.97 + trunkRng() * 0.04));
-          trunk.setColorAt(i, trunkTint);
+          tc[j * 3] = trunkTint.r; tc[j * 3 + 1] = trunkTint.g; tc[j * 3 + 2] = trunkTint.b;
         });
-        trunk.instanceMatrix.needsUpdate = true;
-        if (trunk.instanceColor) trunk.instanceColor.needsUpdate = true;
-        trunk.computeBoundingSphere();
-        this.group.add(trunk);
-        this.meshes.push(trunk);
+        const trunkMat = this._getTrunkMaterial(family);
+        parts.push(this._makeLodPart(`GenshinTreeTrunk_${bkey}_${family}`, arch.trunk, LOD ? arch.lod1.trunk : null,
+          LOD ? this._lodify(trunkMat) : trunkMat, Int32Array.from(ids), tc));
       });
-    });
 
-    console.log(`[GenshinTrees] 🍁 ${trees.length} painterly trees in ${this.meshes.length} instanced draw calls.`);
+      this.lodBuckets.push({ n, matrices, centers, radii, parts, fade: new Float32Array(n), target: new Uint8Array(n), cam: new Uint8Array(n), shadow: new Uint8Array(n), init: false });
+    });
+    this._tmpM = new THREE.Matrix4();
+    this._frustum = new THREE.Frustum();
+    this._shadowFrustum = new THREE.Frustum();
+    this._pm = new THREE.Matrix4();
+    this._sph = new THREE.Sphere();
+    this._installCullHook();
+
+    console.log(`[GenshinTrees] 🍁 ${trees.length} painterly trees in ${this.meshes.length} instanced meshes (LOD0 + LOD1 con fundido).`);
+  }
+
+  /** Crea el par LOD0/LOD1 de una pieza. `ids` = índices de árbol del cubo; `colors` = color por id. */
+  _makeLodPart(name, geo0, geo1, mat, ids, colors) {
+    const make = (srcGeo, suffix) => {
+      // Geometría propia (comparte los buffers del arquetipo) para poder llevar su atributo aLod
+      const g = new THREE.BufferGeometry();
+      for (const k in srcGeo.attributes) g.setAttribute(k, srcGeo.attributes[k]);
+      g.setIndex(srcGeo.index);
+      g.boundingSphere = srcGeo.boundingSphere;
+      const cap = ids.length;
+      if (GenshinTrees.LOD_ENABLED) {
+        g.setAttribute('aLod', new THREE.InstancedBufferAttribute(new Float32Array(cap), 1).setUsage(THREE.DynamicDrawUsage));
+      }
+      const im = new THREE.InstancedMesh(g, mat, cap);
+      im.name = name + suffix;
+      im.castShadow = true;
+      im.receiveShadow = true;
+      im.frustumCulled = false; // el descarte lo hace _cull, árbol a árbol
+      im.matrixAutoUpdate = false;
+      im.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+      im.setColorAt(0, trunkTintTmp);
+      im.instanceColor.setUsage(THREE.DynamicDrawUsage);
+      if (GenshinTrees.LOD_ENABLED) im.customDepthMaterial = this._depthFor(mat);
+      im.count = 0;
+      im.visible = false;
+      im.userData.mainCount = 0;
+      im.userData.totalCount = 0;
+      // Las instancias van ordenadas: primero las que ve la cámara y detrás las que solo proyectan
+      // sombra hacia la vista. El pase de sombras dibuja todas; el principal, solo las primeras.
+      im.onBeforeShadow = () => { im.count = im.userData.totalCount; };
+      im.onBeforeRender = () => { im.count = im.userData.mainCount; };
+      this.group.add(im);
+      this.meshes.push(im);
+      return im;
+    };
+    const trunkTintTmp = new THREE.Color(1, 1, 1);
+    return { ids, colors, lod0: make(geo0, ''), lod1: geo1 ? make(geo1, '_LOD1') : null };
+  }
+
+  _installCullHook() {
+    // Se ejecuta al principio de cada renderer.render() de la escena, ya con las matrices de la
+    // cámara de ese render y antes del pase de sombras (scene.onBeforeRender de three r160).
+    // Un único gancho por escena con una lista de árboles registrados: varias instancias (p. ej. un
+    // Bosque reconstruido) funcionan, y una instancia retirada de la escena se da de baja sola.
+    // Las subclases sin árboles propios en este camino (IslandTrees/ArenaTrees) no se registran.
+    const tryInstall = () => {
+      if (!this.lodBuckets || this.lodBuckets.length === 0) return true;
+      let scene = this.group;
+      while (scene.parent) scene = scene.parent;
+      if (!scene.isScene) return false;
+      let set = scene.userData.lkTreeCullers;
+      if (!set) {
+        set = scene.userData.lkTreeCullers = new Set();
+        const prev = scene.onBeforeRender;
+        scene.onBeforeRender = (renderer, sc, camera, target) => {
+          if (prev) prev.call(sc, renderer, sc, camera, target);
+          for (const t of set) {
+            let root = t.group;
+            while (root.parent) root = root.parent;
+            if (root !== sc) { set.delete(t); continue; } // ya no está en esta escena
+            t._cull(camera);
+          }
+        };
+      }
+      set.add(this);
+      this._cullScene = scene;
+      return true;
+    };
+    this._hookReady = tryInstall();
+    this._tryInstallHook = tryInstall;
+  }
+
+  _shadowLight() {
+    // Luz que proyecta sombra y se ve de verdad (ella y todos sus padres visibles)
+    const usable = (o) => {
+      if (!o || !o.isDirectionalLight || !o.castShadow) return false;
+      for (let p = o; p; p = p.parent) if (!p.visible) return false;
+      return true;
+    };
+    if (this._light && this._light.parent && usable(this._light)) return this._light;
+    const now = performance.now();
+    if (this._lightSearchAt && now - this._lightSearchAt < 200) return null; // sin luz: buscar cada 0.2 s
+    this._lightSearchAt = now;
+    this._light = null;
+    let scene = this.group;
+    while (scene.parent) scene = scene.parent;
+    scene.traverse((o) => { if (!this._light && usable(o)) this._light = o; });
+    return this._light;
+  }
+
+  /**
+   * Elige qué árboles se dibujan y con qué LOD para la cámara de este render.
+   *  - Cerca de la cámara: árbol original; lejos: versión ligera (ver LOD_SWITCH). Durante el
+   *    fundido se dibujan los dos, repartiéndose los píxeles (patrón complementario).
+   *  - Se dibujan los que caen en la cámara; los que solo caen en la zona de sombras se añaden al
+   *    final de la lista y solo los dibuja el pase de sombras.
+   */
+  _cull(camera) {
+    if (!camera || !camera.isCamera) return;
+    for (let p = this.group; p; p = p.parent) if (!p.visible) return;
+    const SW = GenshinTrees.LOD_SWITCH, H = GenshinTrees.LOD_HYST;
+    const now = performance.now();
+    const dt = this._lastCull ? Math.min(0.1, Math.max(0, (now - this._lastCull) / 1000)) : 0;
+    this._lastCull = now;
+    const step = dt / GenshinTrees.LOD_FADE_S;
+    this._pm.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse);
+    this._frustum.setFromProjectionMatrix(this._pm);
+    const light = this._shadowLight();
+    let useShadow = false;
+    if (light && light.shadow && light.shadow.camera) {
+      light.shadow.updateMatrices(light); // lo mismo que hará el pase de sombras a continuación
+      const sc = light.shadow.camera;
+      this._pm.multiplyMatrices(sc.projectionMatrix, sc.matrixWorldInverse);
+      this._shadowFrustum.setFromProjectionMatrix(this._pm);
+      useShadow = true;
+    }
+    const cx = camera.matrixWorld.elements[12], cy = camera.matrixWorld.elements[13], cz = camera.matrixWorld.elements[14];
+    const sph = this._sph;
+    for (const B of this.lodBuckets) {
+      for (let i = 0; i < B.n; i++) {
+        sph.center.set(B.centers[i * 3], B.centers[i * 3 + 1], B.centers[i * 3 + 2]);
+        sph.radius = B.radii[i];
+        B.cam[i] = this._frustum.intersectsSphere(sph) ? 1 : 0;
+        B.shadow[i] = (!B.cam[i] && useShadow && this._shadowFrustum.intersectsSphere(sph)) ? 1 : 0;
+        const d = Math.hypot(sph.center.x - cx, sph.center.y - cy, sph.center.z - cz);
+        // target: 1 = original, 0 = ligera (con histéresis)
+        if (!B.init) B.target[i] = d < SW ? 1 : 0;
+        else if (d < SW - H) B.target[i] = 1;
+        else if (d > SW + H) B.target[i] = 0;
+        if (!GenshinTrees.LOD_ENABLED) B.target[i] = 1; // sin LOD: siempre el árbol original
+        const tgt = B.target[i];
+        if (!B.init) B.fade[i] = tgt;
+        else if (B.fade[i] < tgt) B.fade[i] = Math.min(tgt, B.fade[i] + step);
+        else if (B.fade[i] > tgt) B.fade[i] = Math.max(tgt, B.fade[i] - step);
+      }
+      B.init = true;
+      for (const part of B.parts) {
+        this._fillLod(part.lod0, part, B, true);
+        if (part.lod1) this._fillLod(part.lod1, part, B, false);
+      }
+    }
+  }
+
+  _fillLod(im, part, B, isLod0) {
+    const ids = part.ids;
+    const mat = im.instanceMatrix.array;
+    const col = im.instanceColor.array;
+    const lodAttr = im.geometry.attributes.aLod;
+    const lod = lodAttr ? lodAttr.array : null;
+    // Solo se sube a la GPU lo que cambió: con la cámara quieta no se sube nada, y al caminar
+    // casi siempre cambia solo el valor de fundido de unos pocos árboles.
+    const order = im.userData.order || (im.userData.order = new Int32Array(ids.length).fill(-1));
+    let k = 0;
+    let main = 0;
+    let orderChanged = false;
+    let lodChanged = false;
+    for (let pass = 0; pass < 2; pass++) { // 0: visibles en cámara, 1: solo sombra
+      for (let j = 0; j < ids.length; j++) {
+        const i = ids[j];
+        if (pass === 0 ? !B.cam[i] : !B.shadow[i]) continue;
+        const f = B.fade[i];
+        if (isLod0 ? f <= 0 : f >= 1) continue;
+        if (order[k] !== j) {
+          order[k] = j;
+          orderChanged = true;
+          for (let e = 0; e < 16; e++) mat[k * 16 + e] = B.matrices[i * 16 + e];
+          col[k * 3] = part.colors[j * 3]; col[k * 3 + 1] = part.colors[j * 3 + 1]; col[k * 3 + 2] = part.colors[j * 3 + 2];
+        }
+        if (lod) {
+          const v = Math.fround(isLod0 ? 1 - f : 3 - f);
+          if (lod[k] !== v) { lod[k] = v; lodChanged = true; }
+        }
+        k++;
+      }
+      if (pass === 0) main = k;
+    }
+    if (k !== im.userData.totalCount) orderChanged = true;
+    for (let r = k; r < order.length && order[r] !== -1; r++) order[r] = -1;
+    im.userData.mainCount = main;
+    im.userData.totalCount = k;
+    im.count = k;
+    im.visible = k > 0;
+    if (k > 0 && orderChanged) {
+      im.instanceMatrix.needsUpdate = true;
+      im.instanceColor.needsUpdate = true;
+    }
+    if (lod && k > 0 && (lodChanged || orderChanged)) lodAttr.needsUpdate = true;
   }
 
   update(delta) {
     this.time.value += delta;
+    if (this._tryInstallHook) {
+      const set = this._cullScene && this._cullScene.userData.lkTreeCullers;
+      if (!this._hookReady || (set && !set.has(this))) this._hookReady = this._tryInstallHook();
+    }
   }
 
   setVisible(v) {

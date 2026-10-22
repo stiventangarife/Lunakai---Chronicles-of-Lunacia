@@ -14,6 +14,7 @@ import { DistantIsland } from './DistantIsland.js';
 import { FootstepEffectsManager } from './FootstepEffectsManager.js';
 import { GenshinForestArt } from './genshin/GenshinForestArt.js';
 import { ForestBridge } from './ForestBridge.js';
+import { mergeStaticByMaterial } from '../../../render/StaticMerge.js';
 
 /**
  * DemoScenaZone22 - Master Coordinator for Macro-Zone [2, 2] (Dojo / Valle de Lunacia)
@@ -71,7 +72,12 @@ export class DemoScenaZone22 {
     console.log('[DemoScenaZone22] 🌸 Inicializando mapa Demo_Scena para macro-zona [2, 2]...');
 
     // 1. Cargar catálogo completo de modelos y texturas
-    await this.assetManager.loadAll(onProgress);
+    // Con el arte Genshin, los árboles GLTF antiguos no se ven (GenshinTrees ocupa sus posiciones):
+    // no se cargan (≈235 MB de texturas menos). Si hicieran falta, PropsManager.ensureLegacyTrees().
+    // tree_twisted_1 sí se carga: es el modelo del Gran Árbol Ancestral (LandmarksManager), que se ve.
+    const legacyTreeKeys = ['common', 'twisted', 'pine'].flatMap((k) => [1, 2, 3, 4, 5].map((i) => `tree_${k}_${i}`))
+      .filter((k) => k !== 'tree_twisted_1');
+    await this.assetManager.loadAll(onProgress, { deferKeys: this.useGenshinArt ? legacyTreeKeys : [] });
 
     // 2. Sistema de caminos splines
     this.roadManager = new RoadManager();
@@ -83,16 +89,19 @@ export class DemoScenaZone22 {
     this.waterManager = new WaterManager(this.group, this.terrain, this.assetManager);
 
     // 5. 55k briznas de hierba con viento GPU y flores 3D
-    this.vegetationManager = new VegetationManager(this.group, this.terrain, this.roadManager, this.assetManager);
+    // Con el arte Genshin activo la hierba V3 antigua queda oculta: no se construye (≈2,3 s menos de carga)
+    this.vegetationManager = new VegetationManager(this.group, this.terrain, this.roadManager, this.assetManager, { deferLegacyGrass: this.useGenshinArt });
 
     // 6. >260 props de naturaleza estilizada (árboles, pinos, rocas, arbustos, etc.)
-    this.propsManager = new PropsManager(this.group, this.terrain, this.roadManager, this.assetManager);
+    this.propsManager = new PropsManager(this.group, this.terrain, this.roadManager, this.assetManager, { deferLegacyTrees: this.useGenshinArt });
 
     // 7. Landmarks (Árbol Vital, Santuario Atia, 3 Rocas Levitantes, Dojō Secreto)
     this.landmarksManager = new LandmarksManager(this.group, this.terrain, this.assetManager);
 
     // 7b. 3 Islas Distantes en el horizonte marino (Norte, Este, Oeste)
     this.distantIslands = new DistantIsland(this.group);
+    // Decorado fijo: una malla por material (misma imagen, muchas menos llamadas de dibujo)
+    mergeStaticByMaterial(this.distantIslands.group, { name: 'ForestHorizonMerged' });
 
     // 8. Partículas atmosféricas y mágicas
     this.particleManager = new ParticleSystemManager(this.group, this.terrain);
@@ -105,7 +114,8 @@ export class DemoScenaZone22 {
     await this.slimeCreaturesManager.init();
 
     // 9. Iluminación y Atmósfera dedicada (Preset Sunset)
-    this.lightingManager = new LightingManager(this.scene);
+    // Bosque: caja de sombras de ±80 m estabilizada (plan de optimización, punto B1)
+    this.lightingManager = new LightingManager(this.scene, { shadowExtent: 80, snapShadows: true });
     this.atmosphereManager = new AtmosphereManager(this.scene, this.renderer);
 
     // 10. Genshin-style art pass (sky, mountains, grass, trees, river, rocks, post FX)
@@ -115,6 +125,10 @@ export class DemoScenaZone22 {
       } catch (err) {
         console.error('[DemoScenaZone22] Genshin art pass failed, falling back to legacy visuals:', err);
         this.genshinArt = null;
+        // el aspecto antiguo necesita su hierba (no se construyó al crear el gestor)
+        try { this.vegetationManager && this.vegetationManager.ensureLegacyGrass && this.vegetationManager.ensureLegacyGrass(); } catch (e) { console.warn(e); }
+        // y sus árboles GLTF (se difirieron)
+        try { this.propsManager && this.propsManager.ensureLegacyTrees && await this.propsManager.ensureLegacyTrees(); } catch (e) { console.warn(e); }
       }
     }
 
@@ -164,7 +178,7 @@ export class DemoScenaZone22 {
       this.landmarksManager.update(delta);
     }
     if (this.particleManager && typeof this.particleManager.update === 'function') {
-      this.particleManager.update(delta);
+      this.particleManager.update(delta, this.om && this.om.camera);
     }
     if (this.footstepManager && typeof this.footstepManager.update === 'function') {
       this.footstepManager.update(delta, this.om?.player);

@@ -23,6 +23,7 @@ import { createVfxCore } from './vfx-core.js';
 import { loadVfxModules } from './vfx-modules.js';
 import { CARD_VFX } from './vfx-cards.js';
 import { PART_CARDS_LIST } from '../tactics/data/PartCards.js';
+import { waitProgramsReady } from '../render/RenderWarmup.js';
 
 /** Habilidades del Sapidae (la clave del efecto es el id del hechizo) y Ultimates de dúo → [clave, módulo]. */
 const SAPIDAE_MODULE = { craft: 'sapidae-forjacubiles', shepard: 'sapidae-susurrador', lunalogist: 'sapidae-lunalogista', stargazer: 'sapidae-astromante' };
@@ -320,16 +321,70 @@ export class VfxBridge {
 
   _base() { return new URL('./', import.meta.url).href; }
 
-  /** Carga y construye los efectos de las cartas de estas unidades (y precompila sus shaders). */
-  async prepare(units) {
-    if (!this.enabled) return 0;
+  /**
+   * Carga y construye los efectos de las cartas de estas unidades (y precompila sus shaders).
+   * Las llamadas se encadenan (nunca dos a la vez) y los efectos ya preparados en un combate
+   * anterior se saltan: antes se repetía todo (≈5 s) en cada combate, y a veces dos veces seguidas.
+   */
+  prepare(units) {
+    // tope por eslabón: una preparación colgada (p. ej. un módulo que no responde) no bloquea las siguientes
+    const run = () => Promise.race([this._prepareImpl(units), new Promise((r) => setTimeout(() => r(0), 8000))]);
+    this._prepareChain = (this._prepareChain || Promise.resolve()).then(run, run);
+    return this._prepareChain;
+  }
+
+  /** Efectos que necesitan estas unidades (más la Ultimate activa, si la hay). */
+  _wantedFor(units) {
     const wanted = new Map();
-    for (const u of units) for (const sid of u.spellIds || []) {
+    for (const u of units || []) for (const sid of u.spellIds || []) {
       const fx = this.effectFor(this.game.spellManager?.getSpell(sid));
       if (fx) wanted.set(fx.key, fx);
     }
     const ult = this.effectFor(this.game.spellManager?.ultimates?.spell);
     if (ult) wanted.set(ult.key, ult);
+    return wanted;
+  }
+
+  /**
+   * Prepara en segundo plano, mientras se explora, los efectos de estas unidades (el escuadrón):
+   * uno por rato libre del navegador (requestIdleCallback), en la misma cola que prepare(), así que
+   * nunca se solapa con la preparación de un combate. Si empieza un combate a medias, lo que falte
+   * se hace sin esperar a ratos libres (el combate lo necesita igualmente).
+   */
+  prepareInBackground(units) {
+    if (!this.enabled) return Promise.resolve(0);
+    if (!this._preparedKeys) this._preparedKeys = new Set();
+    // Combate en marcha: sin esperar (lo necesita ya). Explorando: en un rato libre. Cargando una
+    // zona, cinemática, etc.: esperar a que se vuelva a explorar, para no competir con la carga.
+    const idle = () => new Promise((r) => {
+      const tick = () => {
+        const st = this.game.gameState;
+        if (st === 'BATTLE') return r();
+        const exploring = st === 'OVERWORLD' && this.game.overworldManager?.state === 'EXPLORING' && !this.game.overworldManager?.isLoadingZone;
+        if (!exploring) { setTimeout(tick, 500); return; }
+        if (typeof requestIdleCallback === 'function') requestIdleCallback(() => r(), { timeout: 3000 });
+        else setTimeout(r, 60);
+      };
+      tick();
+    });
+    let n = 0;
+    for (const fx of this._wantedFor(units).values()) {
+      if (this._preparedKeys.has(fx.key)) continue;
+      const one = new Map([[fx.key, fx]]);
+      // background: true → no compila la escena de combate (estaría vacía) ni gasta su precalentado único
+      const run = () => idle().then(() => Promise.race([this._prepareImpl(null, one, { background: true }), new Promise((r) => setTimeout(() => r(0), 8000))]));
+      this._prepareChain = (this._prepareChain || Promise.resolve()).then(run, run);
+      n++;
+    }
+    return (this._prepareChain || Promise.resolve()).then(() => n);
+  }
+
+  async _prepareImpl(units, presetWanted = null, { background = false } = {}) {
+    if (!this.enabled) return 0;
+    if (!this._preparedKeys) this._preparedKeys = new Set();
+    const wanted = presetWanted ? new Map(presetWanted) : this._wantedFor(units);
+    // ya construidos y precompilados antes: no hace falta repetirlos
+    for (const k of [...wanted.keys()]) if (this._preparedKeys.has(k) && this.core?.ABS[k]?.built) wanted.delete(k);
     if (!wanted.size) return 0;
     await this._ensureCore();
     await loadVfxModules(this._base(), [...new Set([...wanted.values()].map((f) => f.module))]);
@@ -341,7 +396,8 @@ export class VfxBridge {
       ab.root.visible = false;
     }
     try {
-      await this._precompile([...wanted.values()].map(({ key }) => this.core.ABS[key]).filter(Boolean));
+      await this._precompile([...wanted.values()].map(({ key }) => this.core.ABS[key]).filter(Boolean), { includeScene: !background });
+      for (const { key } of wanted.values()) if (this.core.ABS[key]?.built) this._preparedKeys.add(key);
     } catch { /* compilar por adelantado es opcional */ }
     return wanted.size;
   }
@@ -352,21 +408,23 @@ export class VfxBridge {
    * la clave de programa de three no coincidía con la del combate (luces de la escena, niebla, sombras y el render
    * target del EffectComposer → sin tone mapping y espacio lineal) y cada efecto volvía a compilar 6–17 shaders al lanzarse.
    */
-  async _precompile(abs) {
+  async _precompile(abs, { includeScene = true } = {}) {
     const r = this.sm.renderer, scene = this.sm.scene, cam = this.sm.camera;
     if (!r || !scene || !cam || !abs.length) return;
     const rt = this.sm.composer?.readBuffer || null; // la RenderPass dibuja la escena en este render target
     const prevRT = r.getRenderTarget();
     const objs = [...abs.map((ab) => ab.root), this.core.glow, this.dim, this.white].filter(Boolean);
     // la primera vez, también la escena: la luz del núcleo de VFX cambia el número de luces y three recompila sus materiales
-    if (!this._sceneWarm) { this._sceneWarm = true; objs.unshift(scene); }
-    const pending = [];
-    // compileAsync solo con compilación en paralelo (sin la extensión three avisa en consola y no aporta nada)
-    const par = !!(r.compileAsync && r.extensions?.has?.('KHR_parallel_shader_compile'));
+    if (includeScene && !this._sceneWarm) { this._sceneWarm = true; objs.unshift(scene); }
+    const compiled = new Set();
+    // Con compilación en paralelo se espera a que los programas estén listos (waitProgramsReady), no con
+    // renderer.compileAsync: si un material se destruye mientras tanto, compileAsync no termina nunca y
+    // sigue preguntando por un programa borrado cada 10 ms (avisos «glGetProgramiv» en la consola).
+    const par = !!r.extensions?.has?.('KHR_parallel_shader_compile');
     r.setRenderTarget(rt);
     try {
       // compile() recorre todo el objeto (también lo oculto) y toma luces y niebla de la escena real (targetScene)
-      for (const o of objs) pending.push(par ? r.compileAsync(o, cam, scene) : (r.compile(o, cam, scene), null));
+      for (const o of objs) { const mats = r.compile(o, cam, scene); if (mats) for (const m of mats) compiled.add(m); }
     } finally {
       r.setRenderTarget(prevRT);
     }
@@ -380,7 +438,8 @@ export class VfxBridge {
         }
       });
     }
-    await Promise.all(pending.filter(Boolean));
+    // Con KHR_parallel_shader_compile basta con esperar a que el driver termine (sin bloquear).
+    if (par) { await waitProgramsReady(r, compiled, 8000); return; }
     // sin KHR_parallel_shader_compile el enlazado real del shader ocurre en su primer uso: se fuerza aquí, un objeto por
     // fotograma, para que no caiga en el fotograma del lanzamiento
     for (const o of objs) {

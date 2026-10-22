@@ -450,6 +450,18 @@ export class SavannaGenshinArt {
 
   setEnabled(enabled) {
     this.enabled = enabled;
+    // Al volver al aspecto antiguo, construir la hierba dorada si se difirió
+    if (!enabled && this.zone.vegetationManager && typeof this.zone.vegetationManager.ensureGrass === 'function') {
+      this.zone.vegetationManager.ensureGrass();
+    }
+    // Palmeras y árboles antiguos: no se cargaron mientras el arte Genshin estaba activo
+    const pm = this.zone.propsManager;
+    if (!enabled && pm && pm.deferLegacyTrees && typeof pm.ensureLegacyTrees === 'function' && !this._legacyTreesTracked) {
+      this._legacyTreesTracked = true;
+      pm.ensureLegacyTrees().then((meshes) => {
+        (meshes || []).forEach((m) => { this._hidden.push({ obj: m, visible: true }); m.visible = !this.enabled; });
+      }).catch((e) => console.warn('[SavannaGenshinArt] árboles antiguos:', e));
+    }
     this._hidden.forEach(({ obj, visible }) => { obj.visible = enabled ? false : visible; });
     this.layer.root.visible = enabled && this.zone.isActive;
     const t = this.zone.terrain;

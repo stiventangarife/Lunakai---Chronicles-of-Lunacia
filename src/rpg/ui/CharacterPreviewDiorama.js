@@ -189,6 +189,9 @@ export class CharacterPreviewDiorama {
     }
 
     this.currentModelName = modelName;
+    // Cada carga lleva su número: si mientras tanto se pidió otro modelo (Femenina ↔ Masculina seguido),
+    // al terminar se descarta en lugar de añadirse encima del otro.
+    const token = (this._loadToken = (this._loadToken || 0) + 1);
 
     // Clear old model from group
     if (this.currentModel) {
@@ -202,6 +205,7 @@ export class CharacterPreviewDiorama {
 
     try {
       const gltf = await this.loader.loadAsync(sapidaeModelUrl(modelName));
+      if (token !== this._loadToken) return; // ya se pidió otro modelo: este no se usa
       const model = gltf.scene;
 
       // 1. Create a discrete cartoon ramp gradient map for MeshToonMaterial (3-step cel-shading matching Axie)
@@ -280,6 +284,9 @@ export class CharacterPreviewDiorama {
       model.scale.set(1.0, 1.0, 1.0);
       model.position.set(0, 0, 0);
 
+      // Por si acaso: nunca más de un Sapidae en el diorama
+      if (this.currentModel && this.currentModel !== model) this.characterGroup.remove(this.currentModel);
+      if (this.mixer) { this.mixer.stopAllAction(); this.mixer = null; }
       this.currentModel = model;
       this.characterGroup.add(model);
 

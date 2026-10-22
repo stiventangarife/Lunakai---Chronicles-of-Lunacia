@@ -475,7 +475,10 @@ export class CharacterPortraitService {
 
     // Persist to disk via server API if available
     try {
-      if (typeof fetch === 'function') {
+      // Solo nombres cortos y simples (p. ej. «active_player_slot», «10455»). Las claves de retratos
+      // personalizados incluyen la personalización en JSON: el servidor no puede guardarlas (nombre de
+      // archivo demasiado largo → error 500) y enviarlas solo gastaba tiempo. Esos ya quedan en caché.
+      if (typeof fetch === 'function' && /^[A-Za-z0-9_-]{1,64}$/.test(String(id))) {
         fetch('/api/save-portrait', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },

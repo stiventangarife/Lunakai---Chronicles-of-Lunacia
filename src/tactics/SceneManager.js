@@ -1,5 +1,6 @@
 // SceneManager.js - 3D Tactical Arena, Floating Island, Isometric Camera & Post-processing
 import * as THREE from 'three';
+import { mergeStaticByMaterial } from '../render/StaticMerge.js';
 import { EffectComposer } from '../../vendor/postprocessing/EffectComposer.js';
 import { RenderPass } from '../../vendor/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from '../../vendor/postprocessing/UnrealBloomPass.js';
@@ -224,6 +225,9 @@ export class SceneManager {
         puff.scale.set(1.0, 0.72, 1.0);
         cloudGroup.add(puff);
       }
+      // Las bolas de una nube nunca se mueven entre sí (se mueve la nube entera): una sola malla por
+      // nube en vez de 5–8 (≈130 → 20 llamadas de dibujo). Sombreado plano: la imagen es la misma.
+      mergeStaticByMaterial(cloudGroup, { name: 'BattleCloud' });
 
       cloudGroup.position.set(
         Math.cos(initialAngle) * cfg.radius,

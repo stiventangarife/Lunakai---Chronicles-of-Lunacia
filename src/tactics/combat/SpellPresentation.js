@@ -338,7 +338,8 @@ export class SpellPresentation {
 
         // Trailing luminous particle
         if (Math.random() < 0.75 && progress < 0.95) {
-          const trailGeo = new THREE.SphereGeometry(0.08, 6, 6);
+          // geometría compartida por todas las estelas (antes una esfera nueva ~45 veces por segundo)
+          const trailGeo = (SpellPresentation._trailGeo ||= new THREE.SphereGeometry(0.08, 6, 6));
           const trailMat = new THREE.MeshBasicMaterial({
             color: particleColor,
             transparent: true,
@@ -360,7 +361,6 @@ export class SpellPresentation {
           const age = now - t.born;
           if (age >= t.life) {
             scene.remove(t.mesh);
-            t.mesh.geometry.dispose();
             t.mat.dispose();
             trails.splice(i, 1);
           } else {
@@ -381,7 +381,6 @@ export class SpellPresentation {
 
           trails.forEach(t => {
             scene.remove(t.mesh);
-            t.mesh.geometry.dispose();
             t.mat.dispose();
           });
 

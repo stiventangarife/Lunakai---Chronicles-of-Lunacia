@@ -2,6 +2,7 @@
 
 > **Estado:** completado (19 y 20-oct-2026).
 > **Resumen:** auditoría de VFX y 10 pruebas automáticas del core loop; ahora tienen efecto todas las cartas, Bing, Pomodoro y los 61 ataques de enemigos; se arregló el tirón del primer lanzamiento y el error de los retratos; se cambió la Beaked Alpha Chimera; el orden de turnos se fija al empezar el combate. Se probó un estilo «toon» para los VFX y se descartó.
+> **Actualización (Hito 49, 22-oct):** el precompilado de los VFX ya no usa `renderer.compileAsync` (con un material destruido no terminaba nunca y llenaba la consola de avisos «glGetProgramiv»); ahora espera con `waitProgramsReady` de `src/render/RenderWarmup.js`. Además, `src/render/ProgramKeepAlive.js` conserva los shaders de los materiales que los efectos destruyen al terminar, y `_prewarmBattle` dibuja un fotograma completo detrás del velo. Ver `HITO_49_OPTIMIZACION_DE_RENDIMIENTO.md`.
 
 ## 1. Auditoría (19-oct)
 

@@ -1,9 +1,9 @@
 # PROJECT_CONTEXT.md — Lunakai: Chronicles of Lunacia
 ## Guía Integral de Arquitectura, Estado y Continuidad Técnica
 
-> **Última actualización:** 2026-10-21 (Hito 48: cinemática del prólogo y tutorial nuevo — versión de prueba)  
+> **Última actualización:** 2026-10-22 (Hito 49: optimización de rendimiento de las islas, la memoria y los combates)  
 > **Nombre del Proyecto:** Lunakai: Chronicles of Lunacia (anteriormente Axie Tactics / Axie Adventures)  
-> **Estado actual:** mundo abierto 3D con **5 Grandes Islas** de 480 m y dirección de arte Genshin (cel-shading suave, pictórico, con bruma): Bosque (Hito 22), Sabana, Ártico, Mística (Hito 23) y **Genesis**, la antigua Mazmorra rediseñada (Hito 24). El Hito 24 añade también un plan de mejora por bioma (puente del Bosque; lugares de la Sabana, el Ártico y la Mística; *Fade LOD* de árboles en el Ártico). Las islas nuevas se construyen la primera vez que se visitan. El viaje entre islas se hace con el **barquero Pomodoro**, en la playa de cada isla; los portales cardinales están retirados. Los terrenos del mundo demo 1.0.0 (cuadrícula de macro-zonas de 80 m) ya no se construyen y su contenido de misiones vive en las islas. NPC, monstruos y nodos de misión están validados sobre el terreno real. Se mantienen la auditoría WebGL anti-NaN, el sistema dual de mapas, el minimapa radar y el determinismo Mulberry32. Desde el Hito 25 hay cuentas con Sky Mavis y guardado en Supabase. Los Hitos 26–32 rehacen el motor de combate en 6 fases (0–5): eventos, estados, habilidades de Sapidae, Ultimates, cartas de partes reales, pronóstico de daño y equilibrio. Ver la sección 5.19. Los Hitos 33–48 añaden VFX propios, mapas de combate por bioma, la economía (Forja, Tienda, runas y charms, recolección, lista de ítems), los modelos Ema y Kai, y una partida nueva que empieza con la cinemática del prólogo y el tutorial en 7 fases. Ver la sección 5.21.  
+> **Estado actual:** mundo abierto 3D con **5 Grandes Islas** de 480 m y dirección de arte Genshin (cel-shading suave, pictórico, con bruma): Bosque (Hito 22), Sabana, Ártico, Mística (Hito 23) y **Genesis**, la antigua Mazmorra rediseñada (Hito 24). El Hito 24 añade también un plan de mejora por bioma (puente del Bosque; lugares de la Sabana, el Ártico y la Mística; *Fade LOD* de árboles en el Ártico). Las islas nuevas se construyen la primera vez que se visitan. El viaje entre islas se hace con el **barquero Pomodoro**, en la playa de cada isla; los portales cardinales están retirados. Los terrenos del mundo demo 1.0.0 (cuadrícula de macro-zonas de 80 m) ya no se construyen y su contenido de misiones vive en las islas. NPC, monstruos y nodos de misión están validados sobre el terreno real. Se mantienen la auditoría WebGL anti-NaN, el sistema dual de mapas, el minimapa radar y el determinismo Mulberry32. Desde el Hito 25 hay cuentas con Sky Mavis y guardado en Supabase. Los Hitos 26–32 rehacen el motor de combate en 6 fases (0–5): eventos, estados, habilidades de Sapidae, Ultimates, cartas de partes reales, pronóstico de daño y equilibrio. Ver la sección 5.19. Los Hitos 33–48 añaden VFX propios, mapas de combate por bioma, la economía (Forja, Tienda, runas y charms, recolección, lista de ítems), los modelos Ema y Kai, y una partida nueva que empieza con la cinemática del prólogo y el tutorial en 7 fases. Ver la sección 5.21. El Hito 49 optimiza el rendimiento (islas, memoria de texturas y combates) sin cambiar la imagen; ver la sección 5.22. El Hito 50 convierte el tutorial en una guía paso a paso que bloquea todo lo demás; ver la sección 5.23.  
 > **Idioma de comunicación con el usuario:** **Siempre en español**.
 
 ---
@@ -92,6 +92,7 @@ axie-tactics-web/
 │   │       ├── StarterCards.js      ← Cartas α de Bing y Pomodoro
 │   │       ├── CollectionCards.js   ← Cartas de colección Japan y Xmas
 │   │       └── EnemySpellEffects.js ← Estados de los hechizos enemigos
+│   ├── render/                      ← UTILIDADES DE RENDER (Hito 49): RenderWarmup.js (precalentado de shaders/texturas, waitProgramsReady), StaticMerge.js (combinar decorado fijo por material), ProgramKeepAlive.js (conservar shaders de materiales destruidos)
 │   ├── vfx/                         ← MOTOR DE VFX (Hito 33): vfx-core.js (sin DOM), vfx-lib.js, modules/mod-<clase>-<parte>.js (235 efectos), vfx-cards.js (carta → efecto)
 │   ├── net/                         ← CUENTAS Y NUBE (Hito 25): AuthService, CloudSave, AccountManager, config
 │   ├── ui/                          ← HUD DE COMBATE Y PANELES: CombatHUD, ForecastPanel, UltimateButton, AxieCarePanel, ForgePanel, ShopPanel, RunesCharmsPanel, GatheringHUD, MaterialIcons, CSS lunakai-* (lunakai-tutorial.css: cinemática y tutorial)
@@ -480,6 +481,29 @@ Todas las islas se encuentran desbloqueadas desde el inicio para libre exploraci
 - **Guardado:** `slot.tutorialProgress = { v: 2, step, done, flags, bondBefore }`. Cualquier progreso antiguo, o nivel > 1, cuenta como tutorial terminado.
 - **Cinemática:** usa el renderer del juego con `gameState = 'CINEMATIC'` (el bucle principal no dibuja). El velo negro de carga se quita mientras se reproduce.
 
+### 5.22 Optimización de rendimiento (Hito 49)
+
+| Área | Qué se hizo | Dónde |
+| --- | --- | --- |
+| Bosque | Río instanciado, partículas en pausa fuera de cámara, recorte por árbol (LOD desactivado), caja de sombras 80 con ajuste al texel, calidad Media/Baja, construcción diferida (`ensureForestBuilt`). | `demo_scena/`, `genshin/`, `OverworldManager.js` |
+| Memoria | 40 GLB con texturas a 1024 (jefe y cuerpo del Sapidae a 2048); árboles antiguos diferidos (salvo `tree_twisted_1`); variantes del Sapidae fuera de la GPU (`lkNoPrewarm`); texturas de islas inactivas liberadas (`releaseTextures`). | `DemoScenaAssetManager.js`, `PropsManager.js`, `SapidaeModularController.js`, `render/RenderWarmup.js`, `WorldMapManager.js` |
+| Sabana | Carga diferida de modelos y texturas antiguos; `forceSinglePass`; las islas se construyen antes de cambiar `currentMapId`. | `world/savanna/`, `WorldMapManager.js` |
+| Horizonte | `mergeStaticByMaterial` en las cinco islas: 174 → ~10 mallas. | `render/StaticMerge.js`, `GrandIslandZone.js`, `DemoScenaZone22.js`, `SavannaZone.js` |
+| Mística | Islotes y lugares combinados; minimapa con el nombre real de la isla. | `MysticIsland.js`, `MysticLandmarks.js`, `MinimapHUD.js` |
+| Combate | Hover una vez por fotograma y solo si cambia algo; casillas resaltadas en reserva; ficha de unidad sin recalcular la página; fotograma completo detrás del velo; `ProgramKeepAlive`; marcas y estelas compartidas; nubes combinadas. | `main.js`, `GridManager.js`, `CombatHUD.js`, `SpellPresentation.js`, `SceneManager.js`, `VfxBridge.js` |
+
+Detalle, mediciones y reglas en `docs/HITO_49_OPTIMIZACION_DE_RENDIMIENTO.md`.
+
+### 5.23 Tutorial guiado paso a paso (Hito 50)
+
+- **Mundo abierto:** `TutorialDirector._computeGuide()` decide qué señalar (elemento o hueco en el mundo, frase, teclas permitidas) y `_updateGuide()` lo aplica cada 200 ms con el velo `#tutorial-focus-overlay.lk-tut-guide`, la flecha y la capa `#lk-tut-catch`. Fuera del hueco no responde nada; las teclas pasan por `_guardKeys` (fase de captura).
+- **`isOverlayActive`:** queda en `false` cuando la guía señala el botón de la Mochila, el Axie o el panel de cuidados, porque `isAnyModalOpen()` lo lee y si no el juego ignoraría el botón, la tecla U o el clic sobre el compañero.
+- **Combate:** `TutorialManager` tiene pasos fijos (Dojo) y una guía calculada por turno para el duelo y la Ultimate (`startDynamic('duel' | 'ult')`, `_dynStep`). `main.js` consulta `isSpellAllowed`, `isUltAllowed` y las casillas permitidas antes de pintar o actuar, y llama a `nudge()` si se intenta otra cosa.
+- **Mientras dura el tutorial:** solo Paladill habla (`NPCManager.tryInteract`) y los slimes del Bosque están ocultos (`SlimeCreaturesManager._tutorialRunning`).
+- **Paso nuevo con ventana:** añadir su caso en `_computeGuide()` con un selector estable (`data-*`), no con textos.
+
+Detalle y pruebas en `docs/HITO_50_TUTORIAL_GUIADO_Y_AJUSTES.md`.
+
 ---
 
 ## 6. Reglas Inmutables para Desarrolladores y Agentes
@@ -502,7 +526,11 @@ Para garantizar la estabilidad del proyecto, cualquier persona o agente que trab
    - Nunca almacenar referencias críticas de geometrías o centros en variables locales de métodos `async load()`, ya que métodos síncronos posteriores como `setZone()` fallarán con `ReferenceError`.
 7. **Secretos**:
    - El *client secret* de Sky Mavis nunca va en el código ni en el chat: solo en los *secrets* de Supabase.
-8. **Idioma de comunicación**:
+8. **Rendimiento (Hito 49)**:
+   - No crear y destruir materiales, texturas o geometrías en cada evento o fotograma: compartirlos y reutilizar mallas.
+   - No añadir ni quitar luces en juego (recompila todos los materiales): usar `TransientLightPool` o luces fijas con intensidad 0.
+   - Decorado fijo con muchas piezas: `mergeStaticByMaterial` al construirlo. Texturas a 1024 (2048 solo jefes y el cuerpo del jugador).
+9. **Idioma de comunicación**:
    - Mensajes y explicaciones al usuario: **Siempre en español**.
    - Código, comentarios técnicos y commits/logs: En inglés o español según consistencia del archivo.
 

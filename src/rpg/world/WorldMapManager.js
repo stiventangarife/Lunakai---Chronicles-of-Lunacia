@@ -1,6 +1,6 @@
 // WorldMapManager.js - Master coordinator for 5x5 World Grid, 5 Biomes, Dofus Portals & World Map UI
 import { GRAND_ISLAND_ZONES, GRAND_ISLAND_TRAVEL } from './islands/GrandIslands.js';
-import { warmupRender } from '../../render/RenderWarmup.js';
+import { warmupRender, releaseTextures } from '../../render/RenderWarmup.js';
 import { canonicalZoneId, mergedZonesOf, FERRY_DOCKS } from './islands/IslandWorldLayout.js';
 import * as THREE from 'three';
 import { MAP_REGISTRY, getZoneByCoord, ISLANDS_REGISTRY } from './MapRegistry.js';
@@ -94,6 +94,11 @@ export class WorldMapManager {
       this.om.unloadSecondaryPonds(targetMap.biome);
     }
 
+    // Islas que se construyen bajo demanda: ANTES de cambiar el mapa actual, para que si la construcción
+    // falla el juego siga en la isla de origen (y el autoguardado no registre una isla a medio hacer)
+    await this._ensureSavannaBuilt(targetMap);
+    await this._ensureForestBuilt(targetMap);
+
     this.currentMapId = targetMap.id || targetMapId;
     this.currentMapDef = targetMap;
     this.visitedZones.add(this.currentMapId);
@@ -107,6 +112,7 @@ export class WorldMapManager {
     } else if (this.om.biomeDecorationManager && typeof this.om.biomeDecorationManager.ensureBiomeLoaded === 'function') {
       await this.om.biomeDecorationManager.ensureBiomeLoaded(targetMap.biome, targetMap.gx, targetMap.gy);
     }
+    // (La Sabana y el Bosque, si hacía falta, ya se construyeron arriba, antes de cambiar el mapa actual)
     // Legacy 80 m ponds belong to the retired demo terrains: never built on the islands
     const isIslandMap = Boolean(grandKey) || targetMap.id === 'zone_2_2' || targetMap.id === 'zone_3_2';
     if (!isIslandMap && typeof this.om.ensureZonePonds === 'function') {
@@ -351,6 +357,8 @@ export class WorldMapManager {
       this.om.unloadSecondaryPonds(mapDef.biome);
     }
 
+    await this._ensureSavannaBuilt(mapDef);
+    await this._ensureForestBuilt(mapDef);
     this.currentMapId = mapDef.id;
     this.currentMapDef = mapDef;
     this.visitedZones.add(this.currentMapId);
@@ -815,6 +823,35 @@ export class WorldMapManager {
     }
   }
 
+  /** Construye la Isla del Bosque si el mapa destino es el suyo y no se construyó al arrancar. */
+  async _ensureForestBuilt(mapDef) {
+    if (!mapDef || mapDef.id !== 'zone_2_2') return;
+    const om = this.om;
+    if (!om.demoScenaZone || om.demoScenaZone.isLoaded || typeof om.ensureForestBuilt !== 'function') return;
+    const t0 = performance.now();
+    await om.ensureForestBuilt(); // si falla, el viaje falla (como la Sabana) en vez de dejar al jugador sin isla
+    console.log(`[WorldMapManager] Bosque construido bajo demanda en ${Math.round(performance.now() - t0)} ms`);
+  }
+
+  /** Construye la Isla de la Sabana si el mapa destino es suyo y aún no existe (carga diferida). */
+  async _ensureSavannaBuilt(mapDef) {
+    const sz = this.om.savannaZone;
+    if (!sz || sz.isLoaded || !mapDef) return;
+    const isSavanna = mapDef.id === 'zone_3_2' || mapDef.biome === 'savannah';
+    if (!isSavanna) return;
+    const t0 = performance.now();
+    // una sola construcción aunque lleguen dos llamadas a la vez
+    if (!sz._initPromise) sz._initPromise = sz.init();
+    try {
+      await sz._initPromise;
+    } catch (e) {
+      sz._initPromise = null; // se podrá reintentar
+      console.error('[WorldMapManager] No se pudo construir la Sabana:', e);
+      throw e; // el viaje falla (el barquero lo avisa) en lugar de dejar al jugador en una isla sin terreno
+    }
+    console.log(`[WorldMapManager] Sabana construida bajo demanda en ${Math.round(performance.now() - t0)} ms`);
+  }
+
   _updateSavannaVisuals(isSavanna) {
     if (this.om.savannaZone) {
       this.om.savannaZone.setActive(isSavanna);
@@ -1038,7 +1075,14 @@ export class WorldMapManager {
       const env = om.environmentSystem;
       const composer = env && env.isPostProcessingActive !== false && env.composer;
       const target = composer ? (composer.readBuffer || null) : null;
-      const res = await warmupRender(renderer, scene, camera, { target });
+      // Solo la isla activa: las demás (ocultas) ni se compilan ni suben texturas, y las de la isla que
+      // se dejó atrás se liberan de la GPU (se vuelven a subir aquí mismo al regresar a ella).
+      const inactive = [om.demoScenaZone, om.savannaZone, ...Object.values(om.grandIslands || {})]
+        .filter((z) => z && z.group && z.isActive === false && z.isLoaded)
+        .map((z) => z.group);
+      const released = releaseTextures(scene, inactive);
+      const res = await warmupRender(renderer, scene, camera, { target, skipRoots: inactive });
+      if (released) console.log(`[WorldMapManager] Texturas de islas inactivas liberadas de la GPU: ${released}`);
       console.log(`[WorldMapManager] Precalentado: ${res.programs} programas nuevos (${res.total} en total), ${res.textures} texturas, ${Math.round(performance.now() - t0)} ms`);
     } catch (e) {
       console.warn('[WorldMapManager] Shader warmup error (safely skipped):', e);

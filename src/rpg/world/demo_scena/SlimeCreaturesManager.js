@@ -99,15 +99,16 @@ export class SlimeCreaturesManager {
         jumpHeight: 1.5
       },
 
-      // 3. Attack Chimera Slime (En la colina del sendero al Dojō)
+      // 3. Attack Chimera Slime (al otro lado del Bosque, en el sendero del este; antes en -60, 45, junto al
+      //    camino del Dojō, donde atacaba al jugador recién salido del tutorial)
       {
         id: 'slime_ds_attack',
         name: 'Attack Slime',
         tier: 2,
         modelType: 'slime-attack',
         archetypeId: 'slime_attack',
-        x: -60.0,
-        z: 45.0,
+        x: 55.0,
+        z: -60.0,
         scale: 1.85,
         jumpInterval: 2.0,
         chaseJumpInterval: 1.05,
@@ -321,8 +322,20 @@ export class SlimeCreaturesManager {
     s.alertSprite.scale.set(0, 0, 1);
   }
 
+  /** Tutorial del Dojo en marcha: los slimes no aparecen (nadie ataca al jugador antes de terminarlo). */
+  _tutorialRunning() {
+    const tm = this.om && this.om.tutorialManager;
+    return Boolean(tm && tm.isActive && !tm.done);
+  }
+
   update(delta, playerPos = null) {
     if (!this.group.visible || !this.isLoaded) return;
+    const hide = this._tutorialRunning();
+    if (hide !== Boolean(this._hiddenForTutorial)) {
+      this._hiddenForTutorial = hide;
+      for (const s of this.slimes) if (s.group) s.group.visible = !hide;
+    }
+    if (hide) return;
     this.time += delta;
 
     // Obtener posición del jugador de OverworldManager si no viene por parámetro

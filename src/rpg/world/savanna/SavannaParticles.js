@@ -39,6 +39,7 @@ export class SavannaParticles {
 
     const sandMat = new THREE.MeshBasicMaterial({
       side: THREE.DoubleSide,
+      forceSinglePass: true, // lámina fina: una pasada en lugar de dos (mismo aspecto)
       transparent: true,
       opacity: 0.85
     });
@@ -101,6 +102,7 @@ export class SavannaParticles {
     const gustMat = new THREE.ShaderMaterial({
       transparent: true,
       side: THREE.DoubleSide,
+      forceSinglePass: true, // aditivo: el orden de las caras no cambia el resultado
       depthWrite: false,
       blending: THREE.AdditiveBlending,
       vertexShader: `

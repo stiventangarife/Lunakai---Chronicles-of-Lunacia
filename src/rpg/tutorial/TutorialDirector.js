@@ -51,6 +51,10 @@ export class TutorialDirector {
     this._createDOM();
     this._wireServices();
     this._tick = setInterval(() => this._update(), 300);
+    // Guía paso a paso (22-oct): señala lo que hay que pulsar y bloquea el resto hasta hacerlo
+    this._guide = null;
+    this._guideTick = setInterval(() => this._updateGuide(), 200);
+    window.addEventListener('keydown', (e) => this._guardKeys(e), true);
     if (typeof window !== 'undefined') {
       window.lunakaiTutorial = {
         state: () => ({ step: this.step, done: this.done, active: this.isActive, flags: { ...this.flags } }),
@@ -89,7 +93,7 @@ export class TutorialDirector {
 
   isInputLocked(code) {
     if (this.isCutsceneActive) return code !== 'Escape';
-    if (this.isOverlayActive) return !(code === 'KeyI' || code === 'Escape');
+    if (this._guide) return !this._guideKeyAllowed(code);
     return false;
   }
 
@@ -127,8 +131,8 @@ export class TutorialDirector {
   // Llamadas que siguen haciendo OverworldManager y NPCManager
   onQuestBookOpened() {}
   onQuestBookClosed() {}
-  onInventoryOpened() { if (this.step === 'equip_sword') this._spotlightOff(); }
-  onInventoryClosed() { if (this.step === 'equip_sword' && !this._swordOn()) this._spotlight('#btn-open-inventory', 'Pulsa <kbd>I</kbd> o haz clic aquí'); }
+  onInventoryOpened() { this._updateGuide(); }
+  onInventoryClosed() { this._updateGuide(); }
   onSwordEquipped() { if (this.step === 'equip_sword') this._completeEquip(); }
   onSlimeDefeated() {}
   onPaladillInitialTalkComplete() {}
@@ -189,7 +193,6 @@ export class TutorialDirector {
     if (step === 'equip_sword') {
       this._ensureItem('wood_sword');
       if (this._swordOn()) { this._completeEquip(); return; }
-      if (!this.om?.inventoryModal?.isOpen) setTimeout(() => this.step === 'equip_sword' && !this.om?.inventoryModal?.isOpen && this._spotlight('#btn-open-inventory', 'Pulsa <kbd>I</kbd> o haz clic aquí'), 400);
     }
     if (step === 'chop') { try { GatheringService.reset('tree_forest_forge'); } catch { /* nada */ } }
     if (step === 'forge_open' || step === 'forge_evolve' || step === 'forge_speed' || step === 'forge_collect') this._onForge();
@@ -611,10 +614,31 @@ export class TutorialDirector {
     overlay.className = 'tutorial-focus-overlay hidden';
     overlay.addEventListener('click', (e) => {
       const t = this._spotTarget;
-      if (!this.isOverlayActive || !t) return;
+      if (!this._guide && !this.isOverlayActive) return;
+      if (!t) { if (this._guide) this._nudge(); return; }
       const r = t.getBoundingClientRect();
       if (e.clientX >= r.left - 6 && e.clientX <= r.right + 6 && e.clientY >= r.top - 6 && e.clientY <= r.bottom + 6) t.click();
+      else this._nudge(); // fuera del hueco no pasa nada: solo se recuerda dónde pulsar
     });
+    // El velo no deja pasar la rueda del ratón ni los arrastres al juego mientras hay algo que pulsar
+    ['wheel', 'pointerdown', 'contextmenu'].forEach((ev) => overlay.addEventListener(ev, (e) => { if (this._guide) { e.preventDefault(); e.stopPropagation(); } }, { passive: false }));
+    let catcher = document.getElementById('lk-tut-catch');
+    if (!catcher) {
+      catcher = document.createElement('div');
+      catcher.id = 'lk-tut-catch';
+      catcher.className = 'lk-tut-catch';
+      document.body.appendChild(catcher);
+    }
+    catcher.hidden = true;
+    // Que pulsar sobre el hueco no cuente como «clic fuera» para las ventanas (p. ej. la ficha del ítem
+    // de la Mochila se cerraría antes de recibir el clic en Equipar)
+    catcher.addEventListener('pointerdown', (e) => e.stopPropagation());
+    catcher.addEventListener('click', (e) => {
+      e.preventDefault(); e.stopPropagation();
+      const t = this._spotTarget;
+      if (t && this._guide && !this._guide.noClick) { t.click(); setTimeout(() => this._updateGuide(), 60); }
+    });
+    this._catchEl = catcher;
     this.overlayEl = overlay;
     window.addEventListener('resize', () => this._placeSpot());
 
@@ -656,7 +680,7 @@ export class TutorialDirector {
     // por encima de la Forja, la Mochila y Axie Care cuando el paso ocurre dentro de ellas
     b.classList.toggle('tutorial-spotlight-banner', ['forge_evolve', 'forge_speed', 'forge_collect', 'runes', 'equip_sword', 'pet', 'feed'].includes(this.step) && !completed);
     // dentro de la Forja y la Mochila la franja baja al pie de la pantalla para no tapar sus cabeceras
-    b.classList.toggle('lk-tut--low', ['forge_evolve', 'forge_speed', 'forge_collect', 'runes'].includes(this.step) && !completed);
+    b.classList.toggle('lk-tut--low', !completed && this._bannerLow());
     if (changed) { b.classList.remove('lk-tut--new'); void b.offsetWidth; b.classList.add('lk-tut--new'); this.om?.audio?.playStep?.(); }
   }
 
@@ -672,6 +696,194 @@ export class TutorialDirector {
     set('btn-open-quest-book', this.isFeatureUnlocked('questBook'));
     set('btn-open-world-map', this.isFeatureUnlocked('worldMap'));
     set('btn-open-squad', this.isFeatureUnlocked('squad'));
+  }
+
+  // ------------------------------------------------ guía paso a paso
+  /**
+   * Qué hay que pulsar ahora mismo (null = paso del mundo: caminar hasta Paladill, el árbol o la Forja,
+   * con la flecha de la misión). { sel | el | rect, html, keys, canvas } — `canvas`: el objetivo está en
+   * la escena 3D (el clic pasa por el hueco al juego).
+   */
+  _computeGuide() {
+    if (!this.isActive || this.done || this.isCutsceneActive || this._rewardOpen || this._talking) return null;
+    const g = this.game, om = this.om;
+    if (!om || g?.gameState !== 'OVERWORLD' || om.state !== 'EXPLORING') return null;
+    if (om.dialogSystem?.isActive || om.isLoadingZone) return null;
+    if (om.settingsModal?.isOpen || om.questBookModal?.isOpen || om.worldMapManager?.worldMapModal?.isOpen) return null;
+    const vis = (el) => Boolean(el && el.isConnected && el.getClientRects().length && getComputedStyle(el).visibility !== 'hidden');
+    const q = (sel, root = document) => { const el = root.querySelector(sel); return vis(el) ? el : null; };
+    const inv = om.inventoryModal;
+    const forgeOpen = Boolean(om.forgeModal?.isOpen);
+    const carePanel = this.game?.axieCare?.panel;
+    const careOpen = Boolean(carePanel && !carePanel.hidden);
+    const axie = this._axieName();
+    switch (this.step) {
+      case 'equip_sword': {
+        if (!inv?.isOpen) return { sel: '#btn-open-inventory', html: 'Pulsa <kbd>I</kbd> o haz clic aquí', keys: ['KeyI'] };
+        const eq = q('[data-act="equip"]', inv.itip || document);
+        if (eq) return { el: eq, html: 'Pulsa <b>Equipar</b>' };
+        return { sel: '#inventory-modal .lk-it.lk-tut-spot, .lk-it.lk-tut-spot', html: 'Haz clic en la <b>Espada de madera</b>', scroll: true };
+      }
+      case 'forge_evolve': case 'forge_speed': case 'forge_collect': {
+        if (!forgeOpen) return null; // la flecha del mundo lleva al yunque
+        const L = document.querySelector('.lk-forge-layer');
+        if (!L) return null;
+        if (this.step === 'forge_evolve') {
+          const evo = L.querySelector('[data-m="evolve"]');
+          if (evo && !/lk-is-on|active/.test(evo.className) && evo.getAttribute('aria-pressed') === 'false') return { el: evo, html: 'Pestaña <b>Evolucionar</b>' };
+          // primero la fila de la Espada de madera (por su nombre), luego Evolucionar; si no se puede
+          // evolucionar con ella elegida, no se señala nada para no dejar al jugador atrapado
+          const name = this._itemView('wood_sword').name;
+          const row = [...L.querySelectorAll('.lk-fr')].find((r) => vis(r) && r.querySelector('b')?.textContent.trim() === name);
+          if (row && row.getAttribute('aria-selected') !== 'true') return { el: row, html: `Elige la <b>${esc(name)}</b>`, scroll: true };
+          const go = L.querySelector('[data-act="go"]');
+          if (row && go && !go.disabled && /Evolucionar/.test(go.textContent)) return { el: go, html: 'Pulsa <b>Evolucionar</b>' };
+          return null;
+        }
+        if (this.step === 'forge_speed') {
+          const x4 = q('.lk-speed__opts [data-x="4"]', L);
+          return x4 ? { el: x4, html: 'Pulsa <b>×4</b> (invita Paladill)', scroll: true } : null;
+        }
+        const go = L.querySelector('[data-act="go"]');
+        if (go && !go.disabled && /Recoger/.test(go.textContent)) return { el: go, html: 'Pulsa <b>Recoger</b>', scroll: true };
+        const wait = q('.lk-forge-cost', L) || q('.lk-forge-stage', L);
+        return wait ? { el: wait, html: 'Un momento: la espada se está forjando…', scroll: true, noClick: true } : null;
+      }
+      case 'pet': case 'feed': {
+        if (careOpen) {
+          if (this.step === 'pet') { const b = q('[data-act="pet"]', carePanel); return b ? { el: b, html: 'Pulsa <b>Acariciar</b>' } : null; }
+          const f = [...carePanel.querySelectorAll('[data-food]')].find((b) => !b.disabled && vis(b));
+          return f ? { el: f, html: `Dale la fruta a ${esc(axie)}` } : null;
+        }
+        const r = this._companionRect();
+        return r ? { rect: r, html: `Haz clic en <b>${esc(axie)}</b>`, canvas: true } : null;
+      }
+      case 'runes': {
+        const main = this._mainAxie();
+        if (!inv?.isOpen) return { sel: '#btn-open-inventory', html: 'Pulsa <kbd>U</kbd> o abre la Mochila', keys: ['KeyU', 'KeyI'] };
+        const view = q('[data-view="runes"]');
+        if (view && view.getAttribute('aria-pressed') !== 'true') return { el: view, html: 'Abre <b>Runas y charms</b>' };
+        const pip = q(`[data-h="${main}"]`);
+        if (pip && pip.getAttribute('aria-pressed') !== 'true') return { el: pip, html: `Elige a <b>${esc(axie)}</b>` };
+        const eq = RuneCharmService.get(main);
+        const tabOn = (k) => q(`[data-k="${k}"]`)?.getAttribute('aria-pressed') === 'true';
+        if (!eq.rune) {
+          if (!tabOn('runes')) { const s2 = q('[data-ref="runeSocket"]'); return s2 ? { el: s2, html: 'Pulsa el hueco de la <b>runa</b>' } : null; }
+          const it = q(`[data-rune="${REWARDS.rune}"]`);
+          return it ? { el: it, html: 'Elige la runa <b>neutra</b>', scroll: true } : null;
+        }
+        if (!Object.values(eq.charms || {}).some(Boolean)) {
+          if (!tabOn('charms')) { const t = q('[data-k="charms"]') || q('[data-part="eyes"]'); return t ? { el: t, html: 'Ahora los <b>charms</b>' } : null; }
+          const it = q(`[data-charm="${REWARDS.charm}"]`);
+          return it ? { el: it, html: 'Elige el charm <b>neutro</b>', scroll: true } : null;
+        }
+        return null;
+      }
+      default: {
+        // Paso de hablar o de ir a algún sitio con una ventana abierta: primero, cerrarla
+        const kind = STEPS[this.step]?.kind;
+        if (kind !== 'talk' && !['chop', 'forge_open'].includes(this.step)) return null;
+        if (inv?.isOpen) { const x = q('[data-ref="close"]', inv.modalEl) || q('#inventory-modal [data-ref="close"]'); if (x) return { el: x, html: 'Cierra la Mochila', keys: ['KeyI'] }; }
+        // (al abrir la Forja en el paso forge_open, el paso cambia enseguida a forge_evolve: no pedir cerrarla)
+        if (forgeOpen && this.step !== 'forge_open') { const x = q('.lk-forge-layer [data-act="close"]'); if (x) return { el: x, html: 'Cierra la Forja' }; }
+        if (careOpen) { const x = q('[data-act="close"]', carePanel); if (x) return { el: x, html: 'Cierra el panel' }; }
+        return null;
+      }
+    }
+  }
+
+  /** Rectángulo en pantalla alrededor del Axie compañero (para hacer clic en él). */
+  _companionRect() {
+    const om = this.om, cam = om?.camera, c = om?.player?.companionGroup;
+    if (!cam || !c || !c.visible) return null;
+    const THREE_V = c.position.clone();
+    const top = THREE_V.clone(); top.y += 1.4;
+    const p0 = THREE_V.project(cam), p1 = top.project(cam);
+    if (p0.z > 1 || p1.z > 1) return null;
+    const sx = (v) => (v.x + 1) / 2 * innerWidth, sy = (v) => (1 - v.y) / 2 * innerHeight;
+    const x = sx(p0), yb = sy(p0), yt = sy(p1);
+    const h = Math.max(60, yb - yt + 30), w = Math.max(70, h * 0.95);
+    return { left: x - w / 2, top: yt - 20, right: x + w / 2, bottom: yt - 20 + h, width: w, height: h };
+  }
+
+  _guideKeyAllowed(code) {
+    const g = this._guide;
+    if (!g) return true;
+    if ((g.keys || []).includes(code)) return true;
+    // Esc solo para cerrar una ventana del propio paso (nunca abre el menú con la guía puesta)
+    if (code === 'Escape') return Boolean(this.om?.inventoryModal?.isOpen || this.om?.forgeModal?.isOpen);
+    return false;
+  }
+
+  _guardKeys(e) {
+    if (!this._guide || this._guideKeyAllowed(e.code)) return;
+    if (/input|textarea|select/i.test(e.target?.tagName || '')) return;
+    e.preventDefault();
+    e.stopImmediatePropagation();
+    this._nudge();
+  }
+
+  /** Aviso corto cuando se intenta otra cosa: el señalador se sacude. */
+  _nudge() {
+    const ptr = document.getElementById('tutorial-spotlight-pointer');
+    if (!ptr) return;
+    ptr.classList.remove('lk-tut-nudge'); void ptr.offsetWidth; ptr.classList.add('lk-tut-nudge');
+  }
+
+  /** La franja baja al pie solo con la Forja o la Mochila abiertas (cerradas, taparía los botones de abajo). */
+  _bannerLow() {
+    if (!['forge_evolve', 'forge_speed', 'forge_collect', 'runes'].includes(this.step)) return false;
+    return Boolean(this.om?.inventoryModal?.isOpen || this.om?.forgeModal?.isOpen);
+  }
+
+  _updateGuide() {
+    let g = null;
+    try { g = this._computeGuide(); } catch (e) { console.warn('[Tutorial] guía', e); g = null; }
+    if (this.bannerEl && !this.bannerEl.classList.contains('is-completed')) {
+      // abajo con la Forja o la Mochila abiertas, salvo que lo que hay que pulsar esté en la mitad de abajo
+      const tEl = g && (g.el || (g.sel ? document.querySelector(g.sel) : null));
+      const tr = g?.rect || tEl?.getBoundingClientRect?.();
+      const targetLow = Boolean(tr && tr.height && (tr.top + tr.height / 2) > innerHeight * 0.55);
+      this.bannerEl.classList.toggle('lk-tut--low', this._bannerLow() && !targetLow);
+    }
+    let el = g ? (g.el || (g.sel ? document.querySelector(g.sel) : null)) : null;
+    // objetivo que no está o no se ve: mejor sin guía que un velo sin hueco
+    if (g && !g.rect && (!el || !el.getClientRects().length)) g = null;
+    if (!g) { if (this._guide) { this._guide = null; this._spotlightOff(); } return; }
+    const key = `${this.step}|${g.html}`;
+    if (!this._guide || this._guide.key !== key || this._guide.target !== el) {
+      if (el && g.scroll) el.scrollIntoView({ block: 'center', behavior: 'smooth' });
+      this._guide = { ...g, key, target: el };
+      this._spotlightOn(el, g);
+    } else {
+      this._guide.rect = g.rect;
+    }
+    // El velo no deja usar la rueda: si el objetivo queda fuera de la vista, se desplaza hasta él
+    if (el) {
+      const r = el.getBoundingClientRect();
+      if (r.height && (r.top < 0 || r.bottom > innerHeight)) el.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    }
+    this._placeSpot();
+  }
+
+  _spotlightOn(el, g) {
+    this._spotTarget?.classList.remove('tutorial-spotlight-target');
+    // Cuando la guía señala algo que abre una ventana desde el mundo (el botón de la Mochila, el Axie) o
+    // el panel de cuidados, el juego no debe creer que ya hay una ventana abierta: si no, el botón, la
+    // tecla U y el clic sobre el compañero se ignoran, y el panel de cuidados se cierra solo. El velo y el
+    // bloqueo de teclas de la guía siguen impidiendo todo lo demás.
+    const opensFromWorld = g.canvas || el?.id === 'btn-open-inventory' || this.step === 'pet' || this.step === 'feed';
+    this.isOverlayActive = !opensFromWorld;
+    this.activeOverlayStep = this.step === 'equip_sword' ? 'EQUIP_SWORD' : this.step;
+    this._spotTarget = el || null;
+    this.overlayEl.classList.remove('hidden');
+    this.overlayEl.classList.add('lk-tut-guide');
+    const ptr = document.getElementById('tutorial-spotlight-pointer');
+    const txt = document.getElementById('pointer-text');
+    if (txt) txt.innerHTML = g.html;
+    ptr?.classList.remove('hidden');
+    if (this._catchEl) this._catchEl.hidden = Boolean(g.canvas || g.noClick || !el);
+    this.bannerEl?.classList.add('tutorial-spotlight-banner');
   }
 
   _spotlight(selector, html) {
@@ -693,14 +905,17 @@ export class TutorialDirector {
 
   _placeSpot() {
     const t = this._spotTarget;
-    if (!this.isOverlayActive || !t) return;
-    const r = t.getBoundingClientRect();
+    const rr = this._guide?.rect || null;
+    if ((!this.isOverlayActive && !this._guide) || (!t && !rr)) return;
+    const r = rr || t.getBoundingClientRect();
     if (!r.width && !r.height) return;
     const pad = 6, x1 = Math.max(0, r.left - pad), y1 = Math.max(0, r.top - pad), x2 = Math.min(innerWidth, r.right + pad), y2 = Math.min(innerHeight, r.bottom + pad);
     const poly = `polygon(evenodd, 0px 0px, 100vw 0px, 100vw 100vh, 0px 100vh, 0px 0px, ${x1}px ${y1}px, ${x2}px ${y1}px, ${x2}px ${y2}px, ${x1}px ${y2}px, ${x1}px ${y1}px)`;
     this.overlayEl.style.clipPath = poly; this.overlayEl.style.webkitClipPath = poly;
     const box = document.getElementById('tutorial-spotlight-box');
     if (box) { Object.assign(box.style, { top: `${y1}px`, left: `${x1}px`, width: `${x2 - x1}px`, height: `${y2 - y1}px` }); box.classList.remove('hidden'); }
+    // Capa que recibe el clic sobre el objetivo y se lo pasa (aunque otro elemento lo tape a medias)
+    if (this._catchEl && !this._catchEl.hidden) Object.assign(this._catchEl.style, { top: `${y1}px`, left: `${x1}px`, width: `${x2 - x1}px`, height: `${y2 - y1}px` });
     const ptr = document.getElementById('tutorial-spotlight-pointer');
     if (ptr) {
       const pw = ptr.offsetWidth || 260, ph = ptr.offsetHeight || 40;
@@ -710,6 +925,9 @@ export class TutorialDirector {
   }
 
   _spotlightOff() {
+    this._guide = null;
+    if (this._catchEl) this._catchEl.hidden = true;
+    this.overlayEl?.classList.remove('lk-tut-guide');
     this.isOverlayActive = false;
     this.activeOverlayStep = null;
     this._spotTarget?.classList.remove('tutorial-spotlight-target');
@@ -728,6 +946,8 @@ export class TutorialDirector {
     const kind = cfg?.tutorialKind;
     const inFight = g?.gameState === 'BATTLE' && !document.body.classList.contains('state-combat-ended') && (kind === 'duel' || kind === 'ult');
     if (!inFight) { this._coachOff(); return; }
+    // Mientras la guía del combate (TutorialManager) lleva el paso a paso, el consejo no se muestra
+    if (g.tutorialManager?.dynamic) { this._coachOff(); return; }
     let html = '';
     const ult = g.spellManager?.ultimates;
     const btn = document.getElementById('spell-slot-ult');

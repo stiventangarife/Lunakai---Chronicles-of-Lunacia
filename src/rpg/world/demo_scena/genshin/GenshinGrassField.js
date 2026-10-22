@@ -75,6 +75,8 @@ export class GenshinGrassField {
     this.geoNear = this._createTuftGeometry(grassInst, quality.grassTuftsNear, 3);
     this.geoFar = this._createTuftGeometry(grassInst, farGrass, 1);
     this.uniforms.uGrassFarKeep.value = farGrass / quality.grassTuftsNear;
+    this._nearCount = quality.grassTuftsNear;
+    this._farCount = farGrass;
     const flowerInst = this._createFlowerInstances(quality.flowersPerTile);
     const farFlowers = Math.max(1, Math.round(quality.flowersPerTile * 0.4));
     this.flowerGeoNear = this._createFlowerGeometry(flowerInst, quality.flowersPerTile);
@@ -622,6 +624,20 @@ export class GenshinGrassField {
         tile.flowers.geometry = near ? this.flowerGeoNear : this.flowerGeoFar;
       }
     }
+  }
+
+  /**
+   * Densidad de la hierba (1 = la de siempre). Para las calidades Media y Baja. Las matas están
+   * barajadas, así que dibujar solo las primeras de la lista da un subconjunto uniforme: la pradera
+   * es la misma, con menos matas. No reconstruye nada.
+   */
+  setDensity(k) {
+    k = THREE.MathUtils.clamp(k, 0.1, 1);
+    const near = Math.max(1, Math.round(this._nearCount * k));
+    const far = Math.max(1, Math.round(this._farCount * k));
+    this.geoNear.instanceCount = near;
+    this.geoFar.instanceCount = far;
+    this.uniforms.uGrassFarKeep.value = far / this._nearCount;
   }
 
   setVisible(v) {

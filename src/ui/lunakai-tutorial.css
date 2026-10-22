@@ -2,30 +2,30 @@
    Mismo lenguaje que el resto de la Crónica Celeste: franjas oscuras con filo dorado, rombos y marfil. */
 
 /* ══ Cinemática ═══════════════════════════════════════════════════════════════════════════════════════ */
-.lk-cine { position: fixed; inset: 0; z-index: 2147482000; pointer-events: none; --bar: clamp(48px, 8vh, 84px); opacity: 0; transition: opacity .6s ease; }
-.lk-cine.lk-is-on { opacity: 1; }
-.lk-cine__bar { position: absolute; left: 0; right: 0; height: var(--bar); background: #030202; display: flex; align-items: center; justify-content: space-between; padding: 0 clamp(16px, 3vw, 40px); }
-.lk-cine__bar::after { content: ""; position: absolute; left: 0; right: 0; height: 1px; background: linear-gradient(90deg, transparent, rgba(211, 174, 108, .4) 20%, #EED39A 50%, rgba(211, 174, 108, .4) 80%, transparent); opacity: .7; }
-.lk-cine__bar--top { top: 0; } .lk-cine__bar--top::after { bottom: 0; }
-.lk-cine__bar--bot { bottom: 0; justify-content: center; } .lk-cine__bar--bot::after { top: 0; }
-.lk-cine.lk-is-on .lk-cine__bar--top { animation: lkCineTop .9s cubic-bezier(.2, .8, .2, 1) both; }
-.lk-cine.lk-is-on .lk-cine__bar--bot { animation: lkCineBot .9s cubic-bezier(.2, .8, .2, 1) both; }
+#lk-cine.lk-cine { position: fixed; inset: 0; z-index: 2147482000; pointer-events: none; --bar: clamp(48px, 8vh, 84px); opacity: 0; transition: opacity .6s ease; }
+#lk-cine.lk-cine.lk-is-on { opacity: 1; }
+#lk-cine .lk-cine__bar { position: absolute; left: 0; right: 0; height: var(--bar); background: #030202; display: flex; align-items: center; justify-content: space-between; padding: 0 clamp(16px, 3vw, 40px); }
+#lk-cine .lk-cine__bar::after { content: ""; position: absolute; left: 0; right: 0; height: 1px; background: linear-gradient(90deg, transparent, rgba(211, 174, 108, .4) 20%, #EED39A 50%, rgba(211, 174, 108, .4) 80%, transparent); opacity: .7; }
+#lk-cine .lk-cine__bar--top { top: 0; } #lk-cine .lk-cine__bar--top::after { bottom: 0; }
+#lk-cine .lk-cine__bar--bot { bottom: 0; justify-content: center; } #lk-cine .lk-cine__bar--bot::after { top: 0; }
+#lk-cine.lk-cine.lk-is-on .lk-cine__bar--top { animation: lkCineTop .9s cubic-bezier(.2, .8, .2, 1) both; }
+#lk-cine.lk-cine.lk-is-on .lk-cine__bar--bot { animation: lkCineBot .9s cubic-bezier(.2, .8, .2, 1) both; }
 @keyframes lkCineTop { from { transform: translateY(-100%); } to { transform: none; } }
 @keyframes lkCineBot { from { transform: translateY(100%); } to { transform: none; } }
-.lk-cine__kicker { display: flex; align-items: center; gap: 12px; font: 800 .7rem/1 var(--lk-font-ui, 'Nunito Sans', sans-serif); letter-spacing: .26em; text-transform: uppercase; color: #C9A867; }
-.lk-cine__kicker i { width: 7px; height: 7px; transform: rotate(45deg); background: #EED39A; box-shadow: 0 0 8px rgba(238, 211, 154, .6); }
-.lk-cine__skip { pointer-events: auto; display: flex; align-items: center; gap: 10px; padding: 7px 14px 7px 18px; border: 0; border-radius: 999px; cursor: pointer; font: 800 .8rem/1 var(--lk-font-ui, 'Nunito Sans', sans-serif); color: #F4EEDF; background: rgba(239, 232, 218, .06); box-shadow: inset 0 0 0 1px rgba(211, 174, 108, .35); transition: background .18s, box-shadow .18s; }
-.lk-cine__skip svg { width: 16px; height: 16px; color: #EED39A; }
-.lk-cine__skip kbd { font: 800 .62rem var(--lk-font-ui, sans-serif); padding: 3px 6px; border-radius: 5px; background: rgba(0, 0, 0, .4); color: #EED39A; }
-.lk-cine__skip:hover, .lk-cine__skip:focus-visible { outline: none; background: rgba(211, 174, 108, .16); box-shadow: inset 0 0 0 1px #EED39A, 0 0 18px rgba(238, 211, 154, .25); }
-.lk-cine__sub { position: absolute; left: 50%; bottom: calc(var(--bar) + clamp(18px, 4vh, 40px)); width: min(900px, calc(100% - 48px)); transform: translate(-50%, 8px); display: grid; justify-items: center; gap: 6px; text-align: center; opacity: 0; transition: opacity .5s ease, transform .5s ease; }
-.lk-cine__sub.lk-is-on { opacity: 1; transform: translate(-50%, 0); }
-.lk-cine__sub small { font: 800 .64rem/1 var(--lk-font-ui, sans-serif); letter-spacing: .24em; text-transform: uppercase; color: #D9B46A; text-shadow: 0 1px 6px rgba(0, 0, 0, .9); }
-.lk-cine__sub small:empty { display: none; }
-.lk-cine__sub p { margin: 0; font: 400 clamp(1.15rem, 2.2vw, 1.7rem)/1.45 var(--lk-font-display, 'Marcellus', serif); color: #FBF6EA; text-wrap: balance; text-shadow: 0 2px 16px rgba(0, 0, 0, .95), 0 0 3px rgba(0, 0, 0, .8); }
-.lk-cine__sub.lk-is-big p { font: 700 clamp(1.8rem, 4vw, 3rem)/1.1 'Cinzel', var(--lk-font-display, serif); letter-spacing: .08em; color: #FFE7A8; text-shadow: 0 0 24px rgba(255, 200, 90, .8), 0 2px 10px rgba(0, 0, 0, .9); }
-.lk-cine__prog { position: relative; width: min(320px, 40vw); height: 2px; border-radius: 2px; background: rgba(239, 232, 218, .1); overflow: hidden; }
-.lk-cine__prog i { position: absolute; left: 0; top: 0; bottom: 0; width: 0; background: linear-gradient(90deg, #C9A867, #FFF1C9); box-shadow: 0 0 8px rgba(238, 211, 154, .7); }
+#lk-cine .lk-cine__kicker { display: flex; align-items: center; gap: 12px; font: 800 .7rem/1 var(--lk-font-ui, 'Nunito Sans', sans-serif); letter-spacing: .26em; text-transform: uppercase; color: #C9A867; }
+#lk-cine .lk-cine__kicker i { width: 7px; height: 7px; transform: rotate(45deg); background: #EED39A; box-shadow: 0 0 8px rgba(238, 211, 154, .6); }
+#lk-cine .lk-cine__skip { pointer-events: auto; display: flex; align-items: center; gap: 10px; padding: 7px 14px 7px 18px; border: 0; border-radius: 999px; cursor: pointer; font: 800 .8rem/1 var(--lk-font-ui, 'Nunito Sans', sans-serif); color: #F4EEDF; background: rgba(239, 232, 218, .06); box-shadow: inset 0 0 0 1px rgba(211, 174, 108, .35); transition: background .18s, box-shadow .18s; }
+#lk-cine .lk-cine__skip svg { width: 16px; height: 16px; color: #EED39A; }
+#lk-cine .lk-cine__skip kbd { font: 800 .62rem var(--lk-font-ui, sans-serif); padding: 3px 6px; border-radius: 5px; background: rgba(0, 0, 0, .4); color: #EED39A; }
+#lk-cine .lk-cine__skip:hover, #lk-cine .lk-cine__skip:focus-visible { outline: none; background: rgba(211, 174, 108, .16); box-shadow: inset 0 0 0 1px #EED39A, 0 0 18px rgba(238, 211, 154, .25); }
+#lk-cine .lk-cine__sub { position: absolute; left: 50%; bottom: calc(var(--bar) + clamp(18px, 4vh, 40px)); width: min(900px, calc(100% - 48px)); transform: translate(-50%, 8px); display: grid; justify-items: center; gap: 6px; text-align: center; opacity: 0; transition: opacity .5s ease, transform .5s ease; }
+#lk-cine .lk-cine__sub.lk-is-on { opacity: 1; transform: translate(-50%, 0); }
+#lk-cine .lk-cine__sub small { font: 800 .64rem/1 var(--lk-font-ui, sans-serif); letter-spacing: .24em; text-transform: uppercase; color: #D9B46A; text-shadow: 0 1px 6px rgba(0, 0, 0, .9); }
+#lk-cine .lk-cine__sub small:empty { display: none; }
+#lk-cine .lk-cine__sub p { margin: 0; font: 400 clamp(1.15rem, 2.2vw, 1.7rem)/1.45 var(--lk-font-display, 'Marcellus', serif); color: #FBF6EA; text-wrap: balance; text-shadow: 0 2px 16px rgba(0, 0, 0, .95), 0 0 3px rgba(0, 0, 0, .8); }
+#lk-cine .lk-cine__sub.lk-is-big p { font: 700 clamp(1.8rem, 4vw, 3rem)/1.1 'Cinzel', var(--lk-font-display, serif); letter-spacing: .08em; color: #FFE7A8; text-shadow: 0 0 24px rgba(255, 200, 90, .8), 0 2px 10px rgba(0, 0, 0, .9); }
+#lk-cine .lk-cine__prog { position: relative; width: min(320px, 40vw); height: 2px; border-radius: 2px; background: rgba(239, 232, 218, .1); overflow: hidden; }
+#lk-cine .lk-cine__prog i { position: absolute; left: 0; top: 0; bottom: 0; width: 0; background: linear-gradient(90deg, #C9A867, #FFF1C9); box-shadow: 0 0 8px rgba(238, 211, 154, .7); }
 
 /* Velo negro mientras se pasa de la cinemática al Dojo */
 .lk-cine-veil { position: fixed; inset: 0; z-index: 2147481999; background: #000; opacity: 1; transition: opacity .9s ease; pointer-events: none; }
@@ -84,3 +84,40 @@
 .lk-cine-veil__load { position: absolute; left: 50%; bottom: 14vh; transform: translateX(-50%); display: grid; justify-items: center; gap: 10px; font: 800 .72rem/1 var(--lk-font-ui, sans-serif); letter-spacing: .24em; text-transform: uppercase; color: #C9A867; }
 .lk-cine-veil__load i { display: block; width: 200px; height: 2px; border-radius: 2px; background: rgba(239, 232, 218, .12); overflow: hidden; }
 .lk-cine-veil__load b { display: block; height: 100%; width: 0; background: linear-gradient(90deg, #C9A867, #FFF1C9); transition: width .2s; }
+
+/* ── Guía paso a paso del tutorial (22-oct): el velo va por encima de todas las ventanas; solo el hueco
+   (lo que hay que pulsar) responde. La franja del tutorial y su botón «Saltar tutorial» quedan encima. */
+.tutorial-focus-overlay.lk-tut-guide {
+  z-index: 2147483000 !important;
+  background: rgba(4, 7, 18, 0.62);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+.tutorial-focus-overlay.lk-tut-guide .tutorial-spotlight-highlight-box { z-index: 2147483001; border-radius: 12px; }
+.tutorial-focus-overlay.lk-tut-guide .tutorial-spotlight-pointer { z-index: 2147483002; }
+.lk-tut-catch {
+  position: fixed;
+  z-index: 2147483001;
+  cursor: pointer;
+  background: transparent;
+}
+.lk-tut-catch[hidden] { display: none !important; }
+body .lk-tut.tutorial-spotlight-banner { z-index: 2147483003 !important; }
+.tutorial-spotlight-pointer.lk-tut-nudge { animation: lkTutNudge 0.42s ease-in-out; }
+@keyframes lkTutNudge {
+  0%, 100% { transform: translateX(0); }
+  20% { transform: translateX(-9px); }
+  40% { transform: translateX(8px); }
+  60% { transform: translateX(-6px); }
+  80% { transform: translateX(4px); }
+}
+
+/* Combate guiado: lo que no toca en este paso queda apagado; al intentarlo, la franja se sacude */
+#ui-overlay .tut-dim, .lk-cb-ult-wrap .tut-dim, #btn-end-turn.tut-dim { opacity: 0.38 !important; filter: grayscale(0.75) !important; }
+.lk-ctut.lk-ctut--nudge .lk-ctut__card { animation: lkTutFlash 0.5s ease-in-out; }
+@keyframes lkTutFlash {
+  0%, 100% { box-shadow: none; }
+  35% { box-shadow: 0 0 0 3px #EED39A, 0 0 28px rgba(238, 211, 154, 0.9); }
+}
+/* La guía también se ve con la Mochila abierta (lunakai-ui.css ocultaba el velo antiguo en ese caso) */
+body:has(.lk-bag-layer:not(.hidden)) #tutorial-focus-overlay.lk-tut-guide:not(.hidden) { display: block !important; }

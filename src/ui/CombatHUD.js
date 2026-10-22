@@ -46,7 +46,7 @@ function spellClassKey(spell, unit) {
   return classKey(unit);
 }
 // Los iconos de Mech, Dawn y Dusk están en mayúscula en assets/classes (el hosting distingue mayúsculas).
-const CLASS_ICON_FILE = { mech: 'Mech', dawn: 'Dawn', dusk: 'Dusk' };
+const CLASS_ICON_FILE = { dusk: 'dust' }; // los PNG están en minúsculas; el de Dusk se llama dust.png
 const classIcon = (k) => `./assets/classes/${CLASS_ICON_FILE[k] || k}.png`;
 // Icono de la carta: la parte del cuerpo (assets/parts/<clase>-<parte>.png, ya pintada con el color de su clase).
 // Mech, Dawn y Dusk no tienen iconos de partes: usan la parte de su iconClass y un filtro con el color de su clase.
@@ -559,8 +559,13 @@ export function attachCombatHUD(game) {
   unitTip.className = 'lk-ui lk-tooltip-float lk-cb-unit-tip';
   document.body.appendChild(unitTip);
   const mouse = { x: 0, y: 0 };
-  window.addEventListener('mousemove', (e) => { mouse.x = e.clientX; mouse.y = e.clientY; mouse.onBoard = Boolean(e.target?.closest?.('#canvas-container')); if (!mouse.onBoard) hideUnitTip(); else placeUnitTip(); }, { passive: true });
+  // La ficha se recoloca como mucho una vez por fotograma (el ratón manda varios eventos por fotograma)
+  let placeRaf = 0;
+  const schedulePlace = () => { if (!placeRaf) placeRaf = requestAnimationFrame(() => { placeRaf = 0; placeUnitTip(); }); };
+  window.addEventListener('mousemove', (e) => { mouse.x = e.clientX; mouse.y = e.clientY; mouse.onBoard = Boolean(e.target?.closest?.('#canvas-container')); if (!mouse.onBoard) hideUnitTip(); else schedulePlace(); }, { passive: true });
   let tipUnit = null;
+  let unitTipLastHTML = '';
+  let tipSize = null; // ancho y alto de la ficha: se miden solo cuando cambia su contenido
 
   function portraitOf(u) {
     const ps = window.portraitService || game.portraitService;
@@ -596,23 +601,27 @@ export function attachCombatHUD(game) {
   }
   function placeUnitTip() {
     if (!unitTip.classList.contains('lk-is-on')) return;
-    const t = unitTip.getBoundingClientRect();
+    if (!tipSize) { const r = unitTip.getBoundingClientRect(); tipSize = { width: r.width, height: r.height }; }
+    const t = tipSize;
     let x = mouse.x + 18, y = mouse.y + 18;
     if (x + t.width > innerWidth - 8) x = mouse.x - t.width - 18;
     if (y + t.height > innerHeight - 8) y = mouse.y - t.height - 18;
     unitTip.style.left = Math.max(8, x) + 'px';
     unitTip.style.top = Math.max(8, y) + 'px';
   }
-  function hideUnitTip() { tipUnit = null; unitTip.classList.remove('lk-is-on'); }
+  function hideUnitTip() { tipUnit = null; if (unitTip.classList.contains('lk-is-on')) unitTip.classList.remove('lk-is-on'); }
   function refreshUnitTip() {
     if (!inBattle() || !mouse.onBoard || !game.hoverCell || game.activeUnit?.isMoving) { hideUnitTip(); return; }
     const tile = game.gridManager?.getTile?.(game.hoverCell.x, game.hoverCell.z);
     const u = tile?.unit;
     if (!u || u.isDead) { hideUnitTip(); return; }
     tipUnit = u;
-    unitTip.innerHTML = unitTipHTML(u);
-    unitTip.classList.add('lk-is-on');
-    placeUnitTip();
+    // Solo se reescribe (y se vuelve a medir) si cambió algo: misma unidad y mismos datos → nada que hacer
+    const html = unitTipHTML(u);
+    const wasOn = unitTip.classList.contains('lk-is-on');
+    if (html !== unitTipLastHTML) { unitTip.innerHTML = html; unitTipLastHTML = html; tipSize = null; }
+    if (!wasOn) { unitTip.classList.add('lk-is-on'); tipSize = null; }
+    if (!wasOn || !tipSize) placeUnitTip(); else schedulePlace();
   }
   wrap('_handleHover', function () { hideOverheads(); refreshUnitTip(); });
   wrap('_updateTimelineUI', function () { hideOverheads(); });

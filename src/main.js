@@ -36,6 +36,7 @@ import { VfxBridge } from './vfx/VfxBridge.js';
 import { installTestArena } from './tactics/combat/TestArena.js';
 import { installPerfProbe } from './debug/PerfProbe.js';
 import { warmupRender } from './render/RenderWarmup.js';
+import { installProgramKeepAlive } from './render/ProgramKeepAlive.js';
 import { BondService } from './rpg/BondService.js';
 import { RuneCharmService } from './rpg/RuneCharmService.js';
 import { ULTIMATE_SLOT } from './ui/UltimateButton.js';
@@ -83,6 +84,8 @@ class AxieTacticsGame {
 
     this.audio = new TacticalAudio();
     this.sceneManager = new SceneManager(this.container);
+    // Los shaders de efectos que se crean y destruyen en cada lanzamiento no se borran (ver ProgramKeepAlive.js)
+    installProgramKeepAlive(this.sceneManager.renderer);
     this.gridManager = new GridManager(this.sceneManager.scene);
     this.combatText = new FloatingCombatText(this.sceneManager.camera, this.textLayer);
     this.spellManager = new SpellManager(this.gridManager, this.sceneManager, this.audio, this.combatText, this);
@@ -380,6 +383,7 @@ class AxieTacticsGame {
       this.audio.init();
       if (this.tutorialManager.isActive && !this.tutorialManager.isEndTurnAllowed()) {
         this.audio.playCollision();
+        this.tutorialManager.nudge?.();
         return;
       }
       if (this.activeUnit && this.activeUnit.team === 'player' && !this.activeUnit.isMoving) {
@@ -542,13 +546,23 @@ class AxieTacticsGame {
       if (this.gameState !== 'BATTLE') return;
       this.mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
       this.mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
-      this._handleHover();
+      // El ratón puede mandar varios eventos por fotograma (más aún al arrastrar la cámara): la casilla
+      // bajo el cursor se calcula como mucho una vez por fotograma, con la última posición, al principio
+      // del fotograma de combate (_animate), antes de dibujar: sin retraso respecto a antes.
+      this._hoverDirty = true;
     });
 
     this.container.addEventListener('click', (e) => {
       if (this.gameState !== 'BATTLE') return;
       this.audio.init();
       if (e.button === 0) {
+        // Un clic sin movimiento previo (toque en pantalla táctil, o ratón que no se movió desde el
+        // último fotograma) debe apuntar a la casilla donde se hizo el clic, no a la última del cursor.
+        const mx = (e.clientX / window.innerWidth) * 2 - 1;
+        const my = -(e.clientY / window.innerHeight) * 2 + 1;
+        if (Math.abs(mx - this.mouse.x) > 1e-6 || Math.abs(my - this.mouse.y) > 1e-6) {
+          this.mouse.x = mx; this.mouse.y = my; this._hoverDirty = true;
+        }
         this._handleGridClick();
       }
     });
@@ -564,6 +578,7 @@ class AxieTacticsGame {
         e.preventDefault();
         if (this.tutorialManager.isActive && !this.tutorialManager.isEndTurnAllowed()) {
           this.audio.playCollision();
+          this.tutorialManager.nudge?.();
           return;
         }
         if (this.activeUnit && this.activeUnit.team === 'player' && !this.activeUnit.isMoving) {
@@ -719,6 +734,49 @@ class AxieTacticsGame {
     if (!withPrologue && this.overworldManager.state === 'EXPLORING' && this.overworldManager.playerController) {
       this.overworldManager.playerController.setEnabled(true);
     }
+
+    // Efectos de las cartas del escuadrón: se preparan en segundo plano mientras se explora, para que
+    // el primer combate no tenga que hacerlo (≈2–5 s menos tras el velo)
+    this._scheduleBackgroundCombatWarmup();
+  }
+
+  /** Cartas que llevarán al combate el Sapidae y los Axies del escuadrón (misma lógica que _startBattle). */
+  _squadSpellIds() {
+    const slot = saveSlotManager.getActiveSlot();
+    const classDef = SAPIDAE_CLASSES[(slot && slot.sapidaeClass) || 'crafter'] || SAPIDAE_CLASSES.crafter;
+    const ids = [...(classDef.spells || [])];
+    const HERO_SPELLS = { kotaro: ['kotaro_slash', 'kotaro_push', 'kotaro_jump'], bing: STARTER_DECKS.bing, pomodoro: STARTER_DECKS.pomodoro };
+    const em = this.equipmentManager;
+    const squad = (em && typeof em.getSquad === 'function') ? em.getSquad().filter(Boolean) : [];
+    for (const heroId of squad) {
+      const base = (em.heroesBase && em.heroesBase[heroId]) || {};
+      const isAxie = base.modelType === 'axie' || Boolean(base.axieId);
+      const own = (isAxie && this.partsResolver?.idsFor(base))
+        || (heroId === 'kotaro' ? (base.spellIds || getHeroSpells(base.heroKey || base.axieId)) : HERO_SPELLS[heroId])
+        || [];
+      ids.push(...own);
+    }
+    return ids;
+  }
+
+  /** Lanza (una vez por partida cargada) la preparación en segundo plano de los VFX del escuadrón. */
+  _scheduleBackgroundCombatWarmup() {
+    if (!this.vfxBridge || typeof this.vfxBridge.prepareInBackground !== 'function') return;
+    const token = (this._bgWarmToken = (this._bgWarmToken || 0) + 1);
+    const start = async () => {
+      if (token !== this._bgWarmToken) return; // se cargó otra partida
+      // esperar a estar explorando (no durante la cinemática, cargas o combates)
+      if (this.gameState !== 'OVERWORLD' || this.overworldManager?.state !== 'EXPLORING') { setTimeout(start, 3000); return; }
+      try {
+        try { await this._resolvePartCards(); } catch (_) { /* sin red: cartas por defecto */ }
+        const t0 = performance.now();
+        const n = await this.vfxBridge.prepareInBackground([{ spellIds: this._squadSpellIds() }]);
+        if (n) console.log(`[vfx] ${n} efectos del escuadrón preparados en segundo plano (${Math.round(performance.now() - t0)} ms)`);
+      } catch (e) {
+        console.warn('[vfx] preparación en segundo plano omitida', e);
+      }
+    };
+    setTimeout(start, 4000);
   }
 
   async _onOverworldBattleEncounter(encounterData) {
@@ -779,6 +837,7 @@ class AxieTacticsGame {
     // Clean up combat units from tactical scene
     this.units.forEach(u => {
       if (u.group) this.sceneManager.scene.remove(u.group);
+      if (typeof u.dispose === 'function') u.dispose(); // libera su memoria de GPU propia
       const tile = this.gridManager.getTile(u.gridX, u.gridZ);
       if (tile && tile.unit === u) tile.unit = null;
     });
@@ -940,6 +999,7 @@ class AxieTacticsGame {
     // Clean up existing units
     this.units.forEach(u => {
       if (u.group) this.sceneManager.scene.remove(u.group);
+      if (typeof u.dispose === 'function') u.dispose(); // libera su memoria de GPU propia
       const tile = this.gridManager.getTile(u.gridX, u.gridZ);
       if (tile && tile.unit === u) tile.unit = null;
     });
@@ -1195,6 +1255,9 @@ class AxieTacticsGame {
       this.tutorialManager.startTutorial();
     } else {
       this.tutorialManager.completeTutorial();
+      // Duelo con Paladill y prueba de la Ultimate: guiados paso a paso (TutorialManager.startDynamic). Antes de
+      // empezar el combate, para que el reloj de turno no arranque en el primer turno guiado.
+      if (config.tutorialKind === 'duel' || config.tutorialKind === 'ult') this.tutorialManager.startDynamic(config.tutorialKind);
       this.turnManager.startCombat();
     }
   }
@@ -1210,11 +1273,26 @@ class AxieTacticsGame {
     try {
       if (this.vfxBridge && this.vfxBridge.enabled) {
         this.vfxBridge._prewarm = this.vfxBridge.prepare(this.units).catch((e) => console.warn('[vfx] prepare', e));
-        await cap(this.vfxBridge._prewarm, 4000);
+        // prepare() va en cola detrás de la preparación de la Ultimate (evento ultimate:ready), así que
+        // esta espera cubre las dos. Tope de 8 s: antes era 4 s y la Ultimate (~3 s la primera vez)
+        // agotaba el tope y terminaba de compilarse ya con el velo abierto.
+        await cap(this.vfxBridge._prewarm, 8000);
       }
       const sm = this.sceneManager;
-      const res = await cap(warmupRender(sm.renderer, sm.scene, sm.camera, { target: sm.composer ? sm.composer.readBuffer : null }), 3000);
-      if (res) console.log(`[combate] Precalentado: ${res.programs} programas nuevos, ${res.textures} texturas, ${Math.round(performance.now() - t0)} ms`);
+      // Tope de 6 s (antes 3): el velo sigue cerrado y lo que no se termine aquí se compila ya en el combate
+      const res = await cap(warmupRender(sm.renderer, sm.scene, sm.camera, { target: sm.composer ? sm.composer.readBuffer : null, deadline: performance.now() + 6000 }), 6000);
+      // Un fotograma detrás del velo con TODO el escenario a la vista: three solo sube la geometría a la
+      // GPU (y compila los shaders de la pasada de sombras) la primera vez que dibuja cada malla, y antes
+      // eso pasaba al girar o alejar la cámara por primera vez (fotogramas de 60–160 ms).
+      const t1 = performance.now();
+      const flipped = [];
+      sm.scene.traverse((o) => { if (o.frustumCulled && (o.isMesh || o.isPoints || o.isLine)) { o.frustumCulled = false; flipped.push(o); } });
+      try {
+        if (sm.composer) sm.composer.render(); else sm.renderer.render(sm.scene, sm.camera);
+      } finally {
+        for (const o of flipped) o.frustumCulled = true;
+      }
+      if (res) console.log(`[combate] Precalentado: ${res.programs} programas nuevos, ${res.textures} texturas, fotograma completo ${Math.round(performance.now() - t1)} ms, total ${Math.round(performance.now() - t0)} ms`);
     } catch (e) {
       console.warn('[combate] precalentado omitido', e);
     }
@@ -1924,6 +2002,13 @@ class AxieTacticsGame {
     }, 1500);
   }
 
+  /** Casillas alcanzables que el paso del tutorial permite (combate guiado). */
+  _tutorialAllowedReach() {
+    const tm = this.tutorialManager;
+    if (!tm?.isActive) return this.reachableCells || [];
+    return (this.reachableCells || []).filter((c) => tm.isCellAllowed(c.x, c.z));
+  }
+
   _refreshMovementHighlights() {
     if (this.selectedSpell) return;
     this.gridManager.clearHighlights();
@@ -1947,8 +2032,9 @@ class AxieTacticsGame {
             this.activeUnit.currentPM,
             this.activeUnit
           );
-          // Highlight ALL theoretical reachable cells in blue
-          this.gridManager.highlightReachable(this.reachableCells);
+          // Solo las casillas que pide el paso (antes se pintaban todas las alcanzables en azul y parecía
+          // que se podía ir a cualquiera)
+          this.gridManager.highlightReachable(this._tutorialAllowedReach());
           // Highlight designated target cell with golden halo and 3D bouncing arrow
           if (step.allowedCell) {
             this.gridManager.highlightHover(step.allowedCell.x, step.allowedCell.z, 0xffd700);
@@ -1987,6 +2073,7 @@ class AxieTacticsGame {
 
     if (this.tutorialManager.isActive && !this.tutorialManager.isSpellAllowed(index)) {
       this.audio.playCollision();
+      this.tutorialManager.nudge?.();
       return;
     }
 
@@ -2020,6 +2107,11 @@ class AxieTacticsGame {
   _toggleUltimateSelect() {
     if (this.gameState !== 'BATTLE') return;
     if (!this.activeUnit || this.activeUnit.team !== 'player' || this.activeUnit.isMoving) return;
+    if (this.tutorialManager.isActive && !this.tutorialManager.isUltAllowed()) {
+      this.audio.playCollision();
+      this.tutorialManager.nudge?.();
+      return;
+    }
     const ult = this.spellManager.ultimates;
     const spell = ult.spell;
     if (!spell || !ult.canCast(this.activeUnit)) {
@@ -2069,11 +2161,29 @@ class AxieTacticsGame {
 
     if (!cell) {
       this._hideForecast();
+      this._hoverMemo = null;
+      return;
+    }
+
+    // Misma casilla y nada cambió desde el último repintado (unidad, carta, casillas alcanzables y
+    // ningún otro código tocó los resaltados): el tablero ya está como debe, no se rehace.
+    const gm = this.gridManager;
+    const tutStep = this.tutorialManager?.isActive ? this.tutorialManager.currentStep : -1;
+    const memo = this._hoverMemo;
+    if (memo && memo.x === cell.x && memo.z === cell.z && memo.unit === this.activeUnit && memo.spell === this.selectedSpell
+      && memo.reach === this.reachableCells && memo.valid === this.validSpellCells && memo.tut === tutStep
+      && memo.ver === gm.highlightVersion) {
       return;
     }
 
     const tile = this.gridManager.getTile(cell.x, cell.z);
+    this._paintHover(cell, tile);
+    this._hoverMemo = { x: cell.x, z: cell.z, unit: this.activeUnit, spell: this.selectedSpell, reach: this.reachableCells,
+      valid: this.validSpellCells, tut: tutStep, ver: gm.highlightVersion };
+  }
 
+  /** Resaltados y previsión de la casilla bajo el cursor (lo que antes hacía _handleHover en cada evento). */
+  _paintHover(cell, tile) {
     if (this.selectedSpell) {
       const isValid = this.validSpellCells.some(c => c.x === cell.x && c.z === cell.z);
       if (isValid) {
@@ -2098,9 +2208,10 @@ class AxieTacticsGame {
     } else {
       this._hideForecast();
       const reachable = this.reachableCells.find(c => c.x === cell.x && c.z === cell.z);
-      if (reachable) {
+      const tutBlocked = this.tutorialManager.isActive && reachable && !this.tutorialManager.isCellAllowed(cell.x, cell.z);
+      if (reachable && !tutBlocked) {
         this.gridManager.clearHighlights();
-        this.gridManager.highlightReachable(this.reachableCells);
+        this.gridManager.highlightReachable(this._tutorialAllowedReach());
         this.gridManager.highlightPath(reachable.path);
         this.gridManager.highlightHover(cell.x, cell.z, 0x00f3ff);
 
@@ -2115,6 +2226,9 @@ class AxieTacticsGame {
   }
 
   async _handleGridClick() {
+    // La casilla bajo el cursor se calcula una vez por fotograma: si el clic llega antes (ratón movido y
+    // pulsado en el mismo fotograma), se calcula ya con la posición actual
+    if (this._hoverDirty) { this._hoverDirty = false; this._handleHover(); }
     if (!this.activeUnit && this.turnManager) {
       this.activeUnit = this.turnManager.getActiveUnit() || this.units?.[0];
     }
@@ -2134,6 +2248,7 @@ class AxieTacticsGame {
     if (this.selectedSpell) {
       if (this.tutorialManager.isActive && !this.tutorialManager.isCellAllowed(cell.x, cell.z)) {
         this.audio.playCollision();
+        this.tutorialManager.nudge?.();
         return;
       }
 
@@ -2157,6 +2272,7 @@ class AxieTacticsGame {
     } else {
       if (this.tutorialManager.isActive && !this.tutorialManager.isCellAllowed(cell.x, cell.z)) {
         this.audio.playCollision();
+        this.tutorialManager.nudge?.();
         return;
       }
 
@@ -2303,6 +2419,7 @@ class AxieTacticsGame {
       this.overworldManager.render(time, dt);
       if (this.gameState === 'OVERWORLD') this._tickOverworldRegen(dt);
     } else if (this.gameState === 'BATTLE') {
+      if (this._hoverDirty) { this._hoverDirty = false; this._handleHover(); }
       this.units.forEach(u => u.update(dt, time));
       this.combatText.update(dt);
       if (this.tutorialManager) {

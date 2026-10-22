@@ -5,6 +5,22 @@ import { axieMixerService } from '../rpg/AxieMixerService.js';
 import { applyToonOutline } from '../rpg/stylized/ToonOutline.js';
 import { sapidaeModularController } from '../rpg/SapidaeModularController.js';
 import { sapidaeModelUrl } from '../rpg/SapidaeModels.js';
+import { cloneGLTF } from '../render/ModelCache.js'; // caché de GLB compartida con el mundo abierto
+
+/**
+ * Clona un material sin serializar su userData. Material.clone() copia userData con
+ * JSON.parse(JSON.stringify(...)); si contiene texturas (origMap, exprTex… del Sapidae) eso las
+ * convierte a imagen con canvas.toDataURL (decenas o cientos de ms por material) y deja en el clon
+ * objetos JSON en lugar de texturas. Aquí se copia el userData tal cual (copia superficial).
+ */
+function cloneMaterialFast(mat) {
+  const ud = mat.userData;
+  mat.userData = {};
+  let c;
+  try { c = mat.clone(); } finally { mat.userData = ud; }
+  c.userData = { ...ud };
+  return c;
+}
 
 
 export class Unit {
@@ -117,7 +133,6 @@ export class Unit {
       }
     }
 
-    const loader = new GLTFLoader();
     let modelType = this.config.modelType || this.type;
     // Model name alias resolution
     if (modelType === 'axie' || modelType === 'shinji' || !modelType) {
@@ -153,7 +168,10 @@ export class Unit {
     }
 
     try {
-      const gltf = await loader.loadAsync(modelPath);
+      // El Sapidae modifica su geometría (atributos de color, cuernos): cada unidad lleva la suya
+      const isSapModel = this.isSapidae || (this.config && this.config.isSapidae) || modelType.toLowerCase().startsWith('sapidae');
+      const gltf = await cloneGLTF(modelPath, { cloneGeometry: isSapModel });
+      this._ownedGeometries = gltf.ownedGeometries;
       this.mesh = gltf.scene;
       
       let scale = this.config.scale;
@@ -260,7 +278,7 @@ export class Unit {
       if (this.config.tintColor) {
         this.mesh.traverse(child => {
           if (child.isMesh && child.material) {
-            child.material = child.material.clone();
+            child.material = cloneMaterialFast(child.material);
             child.material.color.multiplyScalar(0.65).add(new THREE.Color(this.config.tintColor).multiplyScalar(0.45));
           }
         });
@@ -271,7 +289,7 @@ export class Unit {
           child.castShadow = true;
           child.receiveShadow = true;
           if (child.material) {
-            child.material = child.material.clone();
+            child.material = cloneMaterialFast(child.material);
             const mats = Array.isArray(child.material) ? child.material : [child.material];
             mats.forEach(mat => {
               if (mat) {
@@ -348,6 +366,49 @@ export class Unit {
       console.warn('Failed loading model for ' + this.name + ', using fallback:', err);
       this._createProceduralFallback();
       return true;
+    }
+  }
+
+  /**
+   * Libera lo que es solo de esta unidad al terminar el combate (antes solo se quitaba de la
+   * escena y su memoria de GPU se acumulaba combate tras combate). No toca lo compartido: las
+   * texturas y geometrías del modelo en caché, ni los materiales (sus programas se reutilizan en
+   * el siguiente combate y liberarlos obligaría a recompilar). El modelo de los Axies es de la
+   * librería del mixer y tampoco se toca.
+   */
+  dispose() {
+    if (this._disposed) return;
+    this._disposed = true;
+    try {
+      if (this.mixer) {
+        this.mixer.stopAllAction();
+        if (this.mesh) this.mixer.uncacheRoot(this.mesh);
+        this.mixer = null;
+      }
+      if (this.hudSprite && this.hudSprite.material) {
+        if (this.hudSprite.material.map) this.hudSprite.material.map.dispose();
+        this.hudSprite.material.dispose();
+      }
+      // Discos y anillos tácticos (geometrías creadas para esta unidad)
+      for (const m of [this.ringMesh, this.activeRuneMesh]) if (m && m.geometry) m.geometry.dispose();
+      for (const c of this.group.children) {
+        if (c.isMesh && c.geometry && c.geometry.type === 'CircleGeometry') c.geometry.dispose();
+      }
+      if (this._ownedGeometries) for (const g of this._ownedGeometries) g.dispose();
+      this._ownedGeometries = null;
+      // Texturas de expresión de la cara del Sapidae (SapidaeModularController._ownMap): son copias
+      // creadas para los materiales de ESTA unidad (sus materiales son clones propios)
+      if (this.mesh && !this.axie) {
+        this.mesh.traverse((o) => {
+          const mats = o.material ? (Array.isArray(o.material) ? o.material : [o.material]) : [];
+          for (const m of mats) {
+            const t = m && m.userData && m.userData.exprTex;
+            if (t && typeof t.dispose === 'function') { t.dispose(); m.userData.exprTex = null; }
+          }
+        });
+      }
+    } catch (e) {
+      console.warn('[Unit] dispose', e);
     }
   }
 

@@ -19,10 +19,13 @@ import * as THREE from 'three';
 import { GLTFLoader } from '../../../vendor/GLTFLoader.js';
 import { clone as cloneSkinned } from '../../../vendor/utils/SkeletonUtils.js';
 import {
-  rng, paperCanvas, gradientCanvas, glowCanvas, sparkleCanvas, moonCanvas, crackPaths, treeCanvas, islandsCanvas,
+  rng, paperCanvas, gradientCanvas, glowCanvas, sparkleCanvas, moonCanvas, crackPaths, heartCanvas, MOON_BITE, treeCanvas, islandsCanvas,
   friezeCanvas, totemCanvas, hillsCanvas, smokeCanvas, ringCanvas, raysCanvas, CONSTELLATIONS,
 } from './CinematicArt.js';
 
+// Corazones del friso (unidades de escena): adelanto hacia donde mira cada figura y ajuste de altura.
+// En el Axie se parte del hueso del tronco (MIX = 0 → tronco, 1 → cabeza): queda en el pecho, bajo la cara.
+const HEART_FWD_SAP = 0.22, HEART_UP_SAP = 0.05, HEART_FWD_AXIE = 0.26, HEART_UP_AXIE = -0.12, HEART_MIX_AXIE = 0;
 const VIEW_H = 10;
 const NARRATOR = 'Maestro Paladill';
 const LOGO_URL = './assets/ui/brand/lunakai-logo.webp';
@@ -185,6 +188,8 @@ export class PrologueCinematic {
     T.glowRed = this._tex(glowCanvas(128, 'rgba(255,60,30,1)', 'rgba(255,20,0,0)'));
     T.sparkle = this._tex(sparkleCanvas(128));
     T.moon = this._tex(moonCanvas(512));
+    T.moonBroken = this._tex(moonCanvas(512, 11, MOON_BITE)); // la media luna que queda tras romperse
+    T.heart = this._tex(heartCanvas(128));
     T.tree = this._tex(treeCanvas(1024, 1024));
     T.islands = this._tex(islandsCanvas(2048, 512, 3, '#5a3d22'), { repeat: true });
     T.islandsDark = this._tex(islandsCanvas(2048, 512, 8, '#080303', 5));
@@ -620,13 +625,22 @@ export class PrologueCinematic {
       const ink = '#4a2f17';
       const a = this._silhouette(g, sap, { height: 4.0, x: x - face * 0.9, y: ground, face, ink, anim: 'idle' });
       const b = this._silhouette(g, ax, { height: 1.9, x: x + face * 0.9, y: ground, face: -face, ink, anim: 'idle' });
-      // hilo dorado del vínculo
-      const from = [x - face * 0.95, ground + 2.9], to = [x + face * 0.9, ground + 1.5];
-      const thread = this._stroke(g, from, to, 0.04, '#ffd889', 1);
-      const knot = this._sprite(g, this.textures.glowGold, 1.6, { x: (from[0] + to[0]) / 2, y: (from[1] + to[1]) / 2 + 0.1, opacity: 0 });
-      return { x, a, b, thread, knot };
+      // Vínculo: un corazón pequeño dorado en el pecho del Sapidae y otro en el del Axie (antes, un hilo entre los dos)
+      const hearts = [
+        this._sprite(g, this.textures.heart, 0.62, { x: x - face * 0.9, y: ground + 1.6, z: 2, opacity: 0 }),
+        this._sprite(g, this.textures.heart, 0.5, { x: x + face * 0.9, y: ground + 0.5, z: 2, opacity: 0 }),
+      ];
+      // Anclas del esqueleto: el corazón sigue el pecho real de cada modelo (y su animación)
+      const bone = (sil, re) => { let f = null; sil?.obj.traverse((o) => { if (!f && o.isBone && re.test(o.name)) f = o; }); return f; };
+      const anc = {
+        chest: bone(a, /^chest$/i) || bone(a, /spine/i),
+        spine: bone(b, /^Spine01_JNT$/i) || bone(b, /spine/i),
+        head: bone(b, /^Head_JNT$/i) || bone(b, /head/i),
+      };
+      return { x, a, b, hearts, anc, face, ph: i * 0.9 };
     });
     S.FW = FW;
+    S.tmpA = new THREE.Vector3(); S.tmpB = new THREE.Vector3();
   }
 
   _upd_frieze(lt, len, dt, S) {
@@ -636,11 +650,34 @@ export class PrologueCinematic {
     this.post.uniforms.uPaper.value = 0.85;
     S.pairs.forEach((p) => {
       const near = 1 - smooth(1.5, 5.5, Math.abs(this.cam.x - p.x));
-      p.thread.userData.setProgress(near * 1.0);
-      p.thread.material.opacity = 0.4 + near * 0.6;
-      p.knot.material.opacity = near * (0.55 + Math.sin(lt * 4 + p.x) * 0.15);
+      // latido: dos golpes rápidos y una pausa, más vivo cuanto más cerca está la cámara
+      const beat = Math.max(0, Math.sin(lt * 7 + p.ph)) ** 6;
+      this._placeHearts(p, S);
+      p.hearts.forEach((h, k) => {
+        h.material.opacity = 0.35 + near * 0.65;
+        const base = k === 0 ? 0.62 : 0.5;
+        h.scale.setScalar(base * (1 + beat * 0.18 * (0.4 + near)));
+      });
       [p.a, p.b].forEach((s) => s && s.setRim(near * 0.4, '#ffd889'));
     });
+  }
+
+  /** Coloca los dos corazones de una pareja sobre el pecho de cada modelo (hueso del pecho del Sapidae;
+   *  en el Axie, entre el tronco y la cabeza, hacia delante). Sin huesos, se quedan donde se crearon. */
+  _placeHearts(p, S) {
+    const parent = p.hearts[0].parent;
+    if (!parent) return;
+    const { chest, spine, head } = p.anc || {};
+    if (chest) {
+      const v = chest.getWorldPosition(S.tmpA); parent.worldToLocal(v);
+      p.hearts[0].position.set(v.x + p.face * HEART_FWD_SAP, v.y + HEART_UP_SAP, p.hearts[0].position.z);
+    }
+    if (spine && head) {
+      const v = spine.getWorldPosition(S.tmpA); parent.worldToLocal(v);
+      const w = head.getWorldPosition(S.tmpB); parent.worldToLocal(w);
+      v.lerp(w, HEART_MIX_AXIE);
+      p.hearts[1].position.set(v.x - p.face * HEART_FWD_AXIE, v.y + HEART_UP_AXIE, p.hearts[1].position.z);
+    }
   }
 
   // ================================================================ 4 · Llegan las quimeras (rojo)
@@ -693,7 +730,11 @@ export class PrologueCinematic {
     S.moon = this._plane(g, this.textures.moon, S.R * 2, S.R * 2, { x: S.c[0], y: S.c[1], z: -30, color: '#ffd9c2' });
     S.isl = this._plane(g, this.textures.islandsDark, 40, 10, { y: -4.6, z: -5 });
     S.cracks = [];
-    crackPaths(21, 8).forEach((path, pi) => {
+    // Solo se agrieta (y se desprende) el trozo de abajo a la derecha: la luna queda como media luna
+    const B = MOON_BITE;
+    const P0 = (q) => [S.c[0] + (q[0] - 0.5) * S.R * 2, S.c[1] - (q[1] - 0.5) * S.R * 2];
+    S.bite = P0([B.x, B.y]);
+    crackPaths(21, 9, { from: [B.x - 0.05, B.y - 0.04], within: B }).forEach((path, pi) => {
       for (let k = 0; k < path.length - 1; k++) {
         const P = (q) => [S.c[0] + (q[0] - 0.5) * S.R * 2, S.c[1] - (q[1] - 0.5) * S.R * 2];
         const st = this._stroke(g, P(path[k]), P(path[k + 1]), 0.07, '#c8f6ff', -29);
@@ -701,7 +742,7 @@ export class PrologueCinematic {
         S.cracks.push(st);
       }
     });
-    S.coreGlow = this._sprite(g, this.textures.glowCyan, 2, { x: S.c[0] - 0.2, y: S.c[1] + 0.25, z: -28, opacity: 0 });
+    S.coreGlow = this._sprite(g, this.textures.glowCyan, 2, { x: S.bite[0] - 0.25, y: S.bite[1] + 0.2, z: -28, opacity: 0 });
     // esquirlas
     const r = rng(55);
     S.shards = [];
@@ -710,8 +751,11 @@ export class PrologueCinematic {
       const sz = 0.25 + r() * 0.45;
       shape.moveTo(0, sz); shape.lineTo(sz * 0.5, -sz * 0.2); shape.lineTo(0, -sz); shape.lineTo(-sz * 0.45, 0); shape.closePath();
       const m = new THREE.Mesh(new THREE.ShapeGeometry(shape), new THREE.MeshBasicMaterial({ color: '#dffaff', transparent: true, opacity: 0, depthWrite: false }));
-      const a = (i / 16) * Math.PI * 2 + r() * 0.3;
-      m.position.set(S.c[0] + Math.cos(a) * 0.5, S.c[1] + Math.sin(a) * 0.5, -27);
+      // Las esquirlas salen del trozo roto, sobre todo hacia fuera de la luna (abajo a la derecha)
+      const out = Math.atan2(S.bite[1] - S.c[1], S.bite[0] - S.c[0]);
+      const a = out + (r() - 0.5) * 2.6;
+      const d = r() * B.r * S.R * 1.4;
+      m.position.set(S.bite[0] + Math.cos(a) * d, S.bite[1] + Math.sin(a) * d, -27);
       m.userData = { vx: Math.cos(a) * (2 + r() * 2.5), vy: Math.sin(a) * (1.5 + r() * 2) + 1.2, vr: (r() - 0.5) * 6 };
       const trail = this._sprite(g, this.textures.glowCyan, 0.9, { opacity: 0 });
       g.add(m);
@@ -736,7 +780,9 @@ export class PrologueCinematic {
       S.broke = true;
       this.post.uniforms.uFlash.value = 1.4;
       this.post.uniforms.uFlashCol.value.set('#dff8ff');
-      S.moon.visible = false; S.coreGlow.visible = false;
+      // El trozo se desprende y queda la media luna (antes desaparecía la luna entera)
+      S.moon.material.map = this.textures.moonBroken; S.moon.material.needsUpdate = true;
+      S.coreGlow.visible = false;
       S.halo.material.opacity = 0.25;
       this._sfx('playExplosion'); this._sfx('playHitStopBass');
     }

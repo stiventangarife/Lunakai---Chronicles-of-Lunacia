@@ -2,7 +2,7 @@
 
 Bienvenido al repositorio de documentación técnica, arquitectura y especificaciones de **Lunakai: Chronicles of Lunacia** (anteriormente *Axie Tactics*), un RPG táctico 3D con exploración de mundo abierto (*Overworld*) estilizado y combates estratégicos por turnos basado en la propiedad intelectual de Axie Infinity.
 
-> **Estado actual (21-oct-2026) — versión de prueba:** el mundo jugable son las **5 grandes islas** con dirección de arte Genshin: Bosque, Sabana, Ártico, Mística y **Genesis** (la antigua Mazmorra, rediseñada en el Hito 24).
+> **Estado actual (22-oct-2026) — versión de prueba:** el mundo jugable son las **5 grandes islas** con dirección de arte Genshin: Bosque, Sabana, Ártico, Mística y **Genesis** (la antigua Mazmorra, rediseñada en el Hito 24).
 > - **Viaje entre islas:** se habla con el barquero **Pomodoro** en la playa de cada isla; los portales cardinales están retirados.
 > - **Cuentas y nube (Hito 25):** inicio de sesión con Sky Mavis o correo y guardado en Supabase; falta la configuración del servidor.
 > - **Motor de combate nuevo (Hitos 26–32):**
@@ -17,8 +17,10 @@ Bienvenido al repositorio de documentación técnica, arquitectura y especificac
 > - **Economía (Hitos 43–46):** Forja (crear y evolucionar), Tienda del Mercader Ochi, runas y charms con efecto en combate, recolección (pesca, tala, minería y flores) y la lista de ítems del Excel.
 > - **Personaje (Hito 47):** el jugador es **Ema** o **Kai**, con peinado, ojos, boca y colores.
 > - **Inicio de partida (Hito 48):** cinemática del prólogo con final épico y tutorial en 7 fases con el Maestro Paladill (se puede saltar).
+> - **Tutorial guiado (Hito 50):** el tutorial y sus combates señalan cada acción con flecha y resaltado y bloquean todo lo demás hasta hacerla; corazones y media luna en la cinemática, tienda en (-77, 3.7) y slimes ocultos durante el tutorial.
+> - **Rendimiento (Hito 49):** optimización isla por isla y de los tableros de combate sin cambiar la imagen: texturas a 1024, carga diferida, horizonte combinado, menos memoria de GPU (~1220 → ~400 MB) y combates sin tirones al mover la cámara o lanzar habilidades.
 >
-> Los hitos 2, 3, 6, 9, 10, 11 y 21 describen sistemas históricos y llevan una nota de estado al principio. Los hitos 4, 12, 14, 15, 29, 30, 43, 44 y 45 llevan una nota de actualización con lo que cambió después. Donde aparece "Mazmorra", hoy es Genesis.
+> Los hitos 2, 3, 6, 9, 10, 11 y 21 describen sistemas históricos y llevan una nota de estado al principio. Los hitos 4, 12, 14, 15, 29, 30, 42, 43, 44, 45 y 48 llevan una nota de actualización con lo que cambió después. Donde aparece "Mazmorra", hoy es Genesis.
 
 ---
 
@@ -315,6 +317,15 @@ Bienvenido al repositorio de documentación técnica, arquitectura y especificac
     - Cinemática de 73 s en papel y teatro de sombras con final épico (el Señor de las Quimeras, tu Sapidae y tu Axie, el logo LUNAKAI).
     - Tutorial en 7 fases con diálogos cortos: defensa del Dojo, Mochila, duelo con Paladill, Forja, vínculo y Ultimate, runas y graduación. Botón «Saltar tutorial».
     - Funciones bloqueadas hasta su fase, tarjetas de recompensa y guardado por paso. Corregido el 21-oct: la cinemática se veía en negro por el velo de carga.
+49. [**Hito 49: Optimización de rendimiento**](HITO_49_OPTIMIZACION_DE_RENDIMIENTO.md)
+    - Bosque: río instanciado, partículas en pausa fuera de cámara, recorte por árbol, sombras ajustadas y calidad Media/Baja; el Bosque se construye solo cuando hace falta. CPU de render 8,8 → 4,5 ms.
+    - Memoria: 40 GLB con texturas a 1024 (jefe y cuerpo del Sapidae a 2048), árboles antiguos y variantes del Sapidae fuera de la GPU, texturas de islas inactivas liberadas: ~1220 → ~400 MB de texturas.
+    - Sabana con carga diferida (8,6 → 6,8 s) y horizonte de islas lejanas combinado en todas las islas (174 → ~10 mallas, `render/StaticMerge.js`); Mística con islotes y lugares combinados; minimapa con el nombre real de cada isla.
+    - Combate: casillas resaltadas y ficha de unidad sin rehacerse en cada movimiento del ratón, shaders de efectos conservados (`render/ProgramKeepAlive.js`), precalentado completo detrás del velo, nubes combinadas y fin de los avisos «glGetProgramiv».
+50. [**Hito 50: Tutorial guiado paso a paso y ajustes del inicio**](HITO_50_TUTORIAL_GUIADO_Y_AJUSTES.md)
+    - Guía con velo, hueco, flecha y frase en cada paso del tutorial (Mochila, Forja, vínculo, runas); solo responden el objetivo y sus teclas, y el panel se desplaza solo hasta él.
+    - Combates guiados: casillas, cartas, Pasar turno y Ultimate bloqueados fuera de su paso; duelo y prueba de la Ultimate con guía calculada por turno (`TutorialManager.startDynamic`).
+    - Cinemática con corazones en el pecho y luna en media luna; elegir personaje sin modelos superpuestos; tienda en (-77.0, 3.7); solo Paladill habla y los slimes se ocultan durante el tutorial.
 
 ---
 

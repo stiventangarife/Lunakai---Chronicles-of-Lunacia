@@ -49,6 +49,7 @@ export function createGenshinRiverMaterial() {
     transparent: true,
     depthWrite: false,
     side: THREE.DoubleSide,
+    forceSinglePass: true, // agua vista siempre desde arriba: una pasada en lugar de dos
     fog: true,
     uniforms: {
       ...THREE.UniformsLib.fog,
@@ -189,6 +190,7 @@ export function applyGenshinOcean(waterManager) {
     transparent: true,
     depthWrite: false,
     side: THREE.DoubleSide,
+    forceSinglePass: true, // agua vista siempre desde arriba: una pasada en lugar de dos
     fog: true,
     uniforms: {
       ...THREE.UniformsLib.fog,

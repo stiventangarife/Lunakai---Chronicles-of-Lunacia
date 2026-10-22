@@ -406,7 +406,43 @@ export class SapidaeModularController {
       if (mat.map !== next) { mat.map = next; mat.needsUpdate = true; }
     });
     model.userData.sapiExpression = { eyes: look.eyes, mouth: look.mouth };
+    this._releaseUnusedVariantTextures(model, [g.hair, g.head, g.shirt, g.hat ? { hat: g.hat } : null]);
     return parts;
+  }
+
+  /**
+   * Memoria: las variantes de peinado, cabeza, camisa y el sombrero que no se ven no ocupan la tarjeta
+   * gráfica. Sus texturas se liberan de la GPU (siguen en memoria: el recoloreado las necesita) y se marcan
+   * para que el precalentado no las vuelva a subir. Si una variante se vuelve a mostrar, three.js la sube
+   * sola al dibujarla. Los ojos y bocas no se tocan: son expresiones que cambian durante el juego.
+   */
+  _releaseUnusedVariantTextures(model, groups) {
+    const texOf = (mesh) => {
+      const out = new Set();
+      for (const mat of [].concat(mesh.material || [])) {
+        if (!mat) continue;
+        if (mat.map) out.add(mat.map);
+        if (mat.userData && mat.userData.origMap) out.add(mat.userData.origMap);
+      }
+      return out;
+    };
+    const keep = new Set(), drop = new Set();
+    for (const grp of groups) {
+      if (!grp) continue;
+      for (const mesh of Object.values(grp)) {
+        if (!mesh) continue;
+        const target = mesh.visible ? keep : drop;
+        texOf(mesh).forEach((t) => target.add(t));
+      }
+    }
+    keep.forEach((t) => { if (t.userData) t.userData.lkNoPrewarm = false; });
+    drop.forEach((t) => {
+      if (keep.has(t)) return;
+      if (!t.userData) t.userData = {};
+      if (t.userData.lkNoPrewarm) return; // ya liberada
+      t.userData.lkNoPrewarm = true;
+      t.dispose(); // libera la copia de la GPU; la imagen se conserva
+    });
   }
 
   /** Zona de pelo de las cabezas de Kai: los píxeles en los que las 5 cabezas no coinciden (frente y cejas pintadas

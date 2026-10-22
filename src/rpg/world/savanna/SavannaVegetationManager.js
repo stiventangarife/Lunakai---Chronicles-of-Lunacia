@@ -14,7 +14,12 @@ import { createSeededRandom } from '../demo_scena/MathUtils.js';
  * - 100% deterministic placement using Mulberry32 RNG (never shifts between reloads).
  */
 export class SavannaVegetationManager {
-  constructor(parentGroup, terrain, assetManager) {
+  /**
+   * @param {object} [options]
+   * @param {boolean} [options.deferGrass=false] no construir las 45.000 matas al crear el gestor (la capa
+   *   Genshin las oculta). Se construyen con ensureGrass() si se vuelve al aspecto antiguo.
+   */
+  constructor(parentGroup, terrain, assetManager, options = {}) {
     this.parentGroup = parentGroup;
     this.terrain = terrain;
     this.assetManager = assetManager;
@@ -33,7 +38,16 @@ export class SavannaVegetationManager {
     this.v3GrassCount = 45000;
     this.rng = createSeededRandom(88127);
 
-    this.initSavannaGrass();
+    if (!options.deferGrass) this.initSavannaGrass();
+  }
+
+  /** Construye la hierba si se difirió (vuelta al aspecto antiguo de la Sabana). */
+  ensureGrass() {
+    if (!this.v3GrassUniforms) {
+      this.rng = createSeededRandom(88127); // mismas posiciones que si se hubiera construido al inicio
+      this.initSavannaGrass();
+    }
+    return this.group;
   }
 
   random() {

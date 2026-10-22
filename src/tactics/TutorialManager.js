@@ -88,7 +88,126 @@ export class TutorialManager {
       }
     ];
 
+    this.dojoSteps = this.steps;
+    this.dynamic = null; // duelo y prueba de la Ultimate: pasos que se calculan según el turno (startDynamic)
     this._initOverlay();
+  }
+
+  // ================================================================ guía dinámica (duelo · Ultimate)
+  /**
+   * Duelo con Paladill y prueba de la Ultimate (22-oct): pasos calculados en cada momento según quién
+   * juega, en lugar de una lista fija. Usan los mismos ganchos que el combate guiado (casillas, cartas,
+   * Pasar turno), así que lo que no toca queda bloqueado igual.
+   *  · duel: el primer turno de cada aliado va guiado (acercarse si hace falta → carta → Paladill →
+   *    Pasar turno); después, libre.
+   *  · ult: tu Sapidae lanza la Ultimate (botón → objetivo); tu Axie pasa turno; tras la Ultimate, libre.
+   */
+  startDynamic(kind) {
+    this.dynamic = { kind, guided: new Set(), cur: null, lastUnit: null, freeShown: false };
+    this.isActive = true;
+    this.currentStep = 0;
+    this._setDynStep();
+    this._renderStep();
+  }
+
+  _setDynStep() {
+    const D = this.dynamic;
+    const step = this._dynStep();
+    this.steps = [step];
+    // Libre: la tarjeta se ve unos segundos y la guía termina (todo vuelve a estar permitido)
+    if (step.targetType === 'free_action' && !D.freeAt) {
+      D.freeAt = performance.now();
+      setTimeout(() => { if (this.dynamic === D) this.completeTutorial(); }, 4000);
+    }
+  }
+
+  _dynEnemy() {
+    const g = this.game;
+    return (g?.units || []).find((u) => u.team === 'enemy' && !u.isDead) || null;
+  }
+
+  _dynStep() {
+    const D = this.dynamic, g = this.game;
+    const tm = g?.turnManager;
+    const a = (tm && tm.getActiveUnit && tm.getActiveUnit()) || g?.activeUnit;
+    const free = { id: 'step_battle_flow', targetType: 'free_action', title: D.kind === 'ult' ? '¡Resonancia!' : '¡Ahora tú decides!', text: D.kind === 'ult' ? 'Ahora termina el combate como prefieras.' : 'Sigue el duelo a tu manera: termina cuando alguien baje al <b>30 %</b> de vida.', btnText: '¡A la carga!' };
+    if (!a) return { id: 'step_wait', targetType: 'waiting', title: 'Un momento…', text: '' };
+    if (a.team !== 'player') return { id: 'step_wait', targetType: 'waiting', kicker: 'Turno rival', title: `Turno de ${a.name}`, text: 'Mira cómo se mueve y prepárate para tu turno.' };
+    if (!D.cur || D.cur.unit !== a) D.cur = { unit: a, moved: false, cast: false };
+    const C = D.cur;
+    const endStep = (title, text) => ({ id: 'step_end_turn', targetType: 'end_turn', kicker: a.name, title, text });
+    const slotsWhere = (fn) => (a.spellIds || []).map((sid, i) => {
+      const sp = sid && g.spellManager?.getSpell(sid, a);
+      return sp && g.spellManager._canPay(a, sp) && fn(sp) ? i : -1;
+    }).filter((i) => i >= 0);
+
+    if (D.kind === 'ult') {
+      const ult = g.spellManager?.ultimates;
+      if (!ult || ult.used) return free;
+      const isSap = a === ult.sapidae || a.id === 'sapidae';
+      if (!isSap) return endStep('Pasa el turno', 'La Ultimate la lanza tu <b>Sapidae</b>. Pulsa <b>Pasar turno</b> o <kbd>Espacio</kbd>.');
+      if (g.selectedSpell && g.selectedSpell.isUltimate) {
+        const cells = g.validSpellCells || [];
+        const foes = cells.filter((c) => g.gridManager.getTile(c.x, c.z)?.unit?.team === 'enemy');
+        if (foes.length) return { id: 'step_attack_1', targetType: 'cell', kicker: 'Duo Ultimate', title: 'Elige el objetivo', text: 'Haz clic en la <b>quimera marcada</b>.', allowedCell: foes[0], allowedCells: foes };
+        // Ultimates sin objetivo enemigo (p. ej. Égida de Gaia, sobre tu propia casilla): cualquier casilla válida
+        if (cells.length) return { id: 'step_attack_1', targetType: 'cell', kicker: 'Duo Ultimate', title: 'Lanza la Ultimate', text: 'Haz clic en la <b>casilla marcada</b>.', allowedCell: cells[0], allowedCells: cells };
+        return free; // ningún objetivo al alcance: no se bloquea el combate
+      }
+      if (ult.canCast && ult.canCast(a)) return { id: 'step_ult', targetType: 'ult', allowUlt: true, kicker: 'Duo Ultimate', title: 'Lanza la Ultimate', text: 'Pulsa el <b>medallón dorado</b> o la tecla <kbd>7</kbd>.' };
+      return free; // no se puede lanzar (caso raro): no se bloquea el combate
+    }
+
+    // duel: libre cuando todos tus aliados han hecho su primer turno guiado (o desde la ronda 2)
+    const allies = (g.units || []).filter((u) => u.team === 'player' && !u.isDead);
+    if ((tm?.round || 1) > 1 || allies.every((u) => D.guided.has(u))) return free;
+    if (D.guided.has(a)) return { id: 'step_wait', targetType: 'waiting', kicker: a.name, title: 'Turno terminado', text: '' };
+    const foe = this._dynEnemy();
+    if (!foe) return free;
+    const fc = { x: foe.gridX, z: foe.gridZ };
+    if (C.cast) return endStep('Pasa el turno', 'Bien hecho. Pulsa <b>Pasar turno</b> o <kbd>Espacio</kbd>.');
+    if (g.selectedSpell && !g.selectedSpell.isUltimate) {
+      if ((g.validSpellCells || []).some((c) => c.x === fc.x && c.z === fc.z)) return { id: 'step_attack_1', targetType: 'cell', kicker: a.name, title: `Ataca a ${foe.name}`, text: 'Haz clic sobre él para lanzar la carta.', allowedCell: fc };
+    }
+    const hits = (sp) => (g.spellManager.getValidTargetCells(a, sp) || []).some((c) => c.x === fc.x && c.z === fc.z);
+    const usable = slotsWhere(hits);
+    if (usable.length) return { id: 'step_select_spell_1', targetType: 'spell_slot', kicker: a.name, title: 'Elige una carta', text: 'Pulsa una de las <b>cartas iluminadas</b> (o su número).', allowedSpellIndexes: usable, allowedSpellIndex: usable[0] };
+    if (!C.moved && a.currentPM > 0) {
+      const cells = (g.gridManager.getReachableCells(a.gridX, a.gridZ, a.currentPM, a) || []).filter((c) => !g.gridManager.getTile(c.x, c.z)?.unit);
+      let best = null, bd = Infinity;
+      for (const c of cells) { const d = Math.abs(c.x - fc.x) + Math.abs(c.z - fc.z); if (d < bd) { bd = d; best = c; } }
+      if (best) return { id: 'step_move_1', targetType: 'cell', kicker: a.name, title: `Acércate a ${foe.name}`, text: 'Haz clic en la <b>casilla dorada</b> que marca la flecha.', allowedCell: { x: best.x, z: best.z } };
+    }
+    return endStep('Pasa el turno', `${foe.name} aún está lejos. Pulsa <b>Pasar turno</b> o <kbd>Espacio</kbd>.`);
+  }
+
+  /** Avanza la guía dinámica según lo que acaba de hacer el jugador y recalcula el paso. */
+  _dynAdvance() {
+    const D = this.dynamic;
+    const step = this.steps[this.currentStep];
+    if (D.cur && step) {
+      if (step.id === 'step_move_1') D.cur.moved = true;
+      else if (step.id === 'step_attack_1') D.cur.cast = true;
+      else if (step.id === 'step_end_turn') D.guided.add(D.cur.unit);
+    }
+    this.currentStep = 0;
+    this._setDynStep();
+    this._renderStep();
+  }
+
+  /** ¿Se puede usar la Ultimate ahora? (combate guiado: solo si el paso lo pide) */
+  isUltAllowed() {
+    if (!this.isActive) return true;
+    const step = this.steps[this.currentStep];
+    if (!step) return true;
+    if (step.targetType === 'free_action' || step.id === 'step_battle_flow') return true;
+    return Boolean(step.allowUlt);
+  }
+
+  /** Recuerda dónde pulsar cuando se intenta otra cosa (la franja y la flecha se sacuden). */
+  nudge() {
+    if (!this.isActive || !this.overlay) return;
+    this.overlay.classList.remove('lk-ctut--nudge'); void this.overlay.offsetWidth; this.overlay.classList.add('lk-ctut--nudge');
   }
 
   _initOverlay() {
@@ -228,6 +347,14 @@ export class TutorialManager {
   }
 
   update(time) {
+    if (this.isActive && this.dynamic) {
+      const g = this.game;
+      if (!g || g.gameState !== 'BATTLE' || g.turnManager?.isCombatOver) { this.completeTutorial(); return; }
+      const a = g.turnManager?.getActiveUnit?.() || null;
+      // cambio de turno, o la carta seleccionada cambió: se recalcula el paso
+      const sig = `${a ? a.id || a.name : '-'}|${g.selectedSpell ? g.selectedSpell.id : '-'}|${a ? a.gridX + ',' + a.gridZ : ''}`;
+      if (sig !== this.dynamic.lastSig) { this.dynamic.lastSig = sig; this.currentStep = 0; this._setDynStep(); this._renderStep(); }
+    }
     if (!this.isActive || !this.arrowGroup || !this.arrowGroup.visible) return;
 
     const bounce = Math.sin(time * 5.0) * 0.22;
@@ -241,6 +368,8 @@ export class TutorialManager {
   }
 
   startTutorial() {
+    this.dynamic = null;
+    this.steps = this.dojoSteps;
     this.isActive = true;
     this.currentStep = 0;
     this.hideArrow();
@@ -256,6 +385,7 @@ export class TutorialManager {
 
   advanceStep() {
     if (!this.isActive) return;
+    if (this.dynamic) { this._dynAdvance(); return; }
     this.currentStep++;
     if (this.currentStep >= this.steps.length) {
       this.currentStep = this.steps.length - 1;
@@ -302,8 +432,14 @@ export class TutorialManager {
       const idx = actionSteps.indexOf(step);
       const phases = this.overlay.querySelector('[data-ref="phases"]');
       const badge = this.overlay.querySelector('[data-ref="badge"]');
-      if (phases) phases.innerHTML = step.targetType === 'dialog' ? '' : actionSteps.map((s, i) => `<i class="${step.targetType === 'free_action' || i < idx ? 'lk-is-full' : i === idx ? 'lk-is-half' : ''}"></i>`).join('');
-      if (badge) badge.textContent = step.targetType === 'dialog' ? 'Tutorial · Maestro Paladill' : step.targetType === 'free_action' ? 'Tutorial completado' : `Paso ${idx + 1} de ${actionSteps.length}${step.kicker ? ` · ${step.kicker}` : ''}`;
+      if (this.dynamic) {
+        // Duelo / prueba de la Ultimate: sin «Paso X de Y» (los pasos dependen del turno)
+        if (phases) phases.innerHTML = '';
+        if (badge) badge.textContent = `${this.dynamic.kind === 'ult' ? 'Prueba de la Ultimate' : 'Duelo de entrenamiento'}${step.kicker ? ` · ${step.kicker}` : ''}`;
+      } else {
+        if (phases) phases.innerHTML = step.targetType === 'dialog' ? '' : actionSteps.map((s, i) => `<i class="${step.targetType === 'free_action' || i < idx ? 'lk-is-full' : i === idx ? 'lk-is-half' : ''}"></i>`).join('');
+        if (badge) badge.textContent = step.targetType === 'dialog' ? 'Tutorial · Maestro Paladill' : step.targetType === 'free_action' ? 'Tutorial completado' : `Paso ${idx + 1} de ${actionSteps.length}${step.kicker ? ` · ${step.kicker}` : ''}`;
+      }
       const concepts = this.overlay.querySelector('[data-ref="concepts"]');
       if (concepts) concepts.innerHTML = (step.concepts || []).map((c) => `<span class="lk-ctut__concept lk-ctut__concept--${c.k}"><i aria-hidden="true"></i><b>${c.label}</b>${c.text}</span>`).join('');
       // Cada paso nuevo entra con una transición corta (sin rebotes)
@@ -344,17 +480,30 @@ export class TutorialManager {
       }
     }
 
-    // Highlight bottom bar UI elements
-    const slot0 = document.getElementById('spell-slot-0');
+    // Barra de abajo: se ilumina lo que toca y el resto queda apagado (y bloqueado)
+    this._markUi(step);
+  }
+
+  _clearUiMarks() {
+    document.querySelectorAll('.tut-highlight, .tut-dim').forEach((el) => el.classList.remove('tut-highlight', 'tut-dim'));
+  }
+
+  _markUi(step) {
+    this._clearUiMarks();
+    if (!this.isActive || !step) return;
+    const free = step.targetType === 'free_action' || step.id === 'step_battle_flow';
+    if (free) return;
+    const slots = [...document.querySelectorAll('[id^="spell-slot-"]')].filter((el) => /^spell-slot-\d+$/.test(el.id));
+    const allowed = Array.isArray(step.allowedSpellIndexes) ? step.allowedSpellIndexes : (step.allowedSpellIndex !== undefined && step.targetType === 'spell_slot' ? [step.allowedSpellIndex] : []);
+    slots.forEach((el) => {
+      const i = Number(el.id.slice(11));
+      if (step.targetType === 'spell_slot' && allowed.includes(i)) el.classList.add('tut-highlight');
+      else el.classList.add('tut-dim');
+    });
+    const ult = document.getElementById('spell-slot-ult');
+    if (ult) ult.classList.add(step.allowUlt ? 'tut-highlight' : 'tut-dim');
     const btnEnd = document.getElementById('btn-end-turn');
-
-    [slot0, btnEnd].forEach(el => el && el.classList.remove('tut-highlight'));
-
-    if ((step.id === 'step_select_spell_1' || step.id === 'step_select_spell_2') && slot0) {
-      slot0.classList.add('tut-highlight');
-    } else if (step.id === 'step_end_turn' && btnEnd) {
-      btnEnd.classList.add('tut-highlight');
-    }
+    if (btnEnd) btnEnd.classList.add(step.id === 'step_end_turn' ? 'tut-highlight' : 'tut-dim');
   }
 
   isCellAllowed(x, z) {
@@ -378,6 +527,7 @@ export class TutorialManager {
     if (!step) return true;
     if (step.targetType === 'free_action' || step.id === 'step_battle_flow') return true;
 
+    if (Array.isArray(step.allowedSpellIndexes)) return step.allowedSpellIndexes.includes(spellIndex);
     if (step.allowedSpellIndex !== undefined) {
       return spellIndex === step.allowedSpellIndex;
     }
@@ -400,6 +550,9 @@ export class TutorialManager {
 
   completeTutorial() {
     this.isActive = false;
+    this.dynamic = null;
+    this.steps = this.dojoSteps;
+    this._clearUiMarks();
     this.hideArrow();
     const slot0 = document.getElementById('spell-slot-0');
     const btnEnd = document.getElementById('btn-end-turn');

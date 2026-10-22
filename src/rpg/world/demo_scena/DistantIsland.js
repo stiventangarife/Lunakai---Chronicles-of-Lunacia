@@ -511,7 +511,10 @@ export class DistantIsland {
       opacity: opacityVal,
       depthWrite: false,
       fog: false,
-      side: THREE.DoubleSide
+      side: THREE.DoubleSide,
+      // Color y opacidad uniformes y sin escritura de profundidad: la mezcla es conmutativa, así que pintar las caras
+      // traseras y delanteras en una sola pasada da el mismo resultado y ahorra un draw por anillo de bruma.
+      forceSinglePass: true
     });
     const mistMesh = new THREE.Mesh(mistGeo, mistMat);
     mistMesh.scale.set(1.2, 0.92, 0.84);

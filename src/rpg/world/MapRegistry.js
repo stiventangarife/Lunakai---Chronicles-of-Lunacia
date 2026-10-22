@@ -71,7 +71,7 @@ export const ISLANDS_REGISTRY = {
     description: 'Valle templado y verde custodiado por el Gran Árbol Sagrado de Atia. Centro de entrenamiento marcial donde el Maestro Paladill instruye a los jóvenes reclutas de Lunacia.',
     landmarks: [
       { id: 'dojo', name: 'Valle del Dojō', icon: '🥋', coords: { x: -87.9, z: 74.0 }, desc: 'Centro de entrenamiento marcial y dojo del Maestro Paladill.' },
-      { id: 'shop', name: 'Mercader Ochi', icon: '🪙', coords: { x: -80.0, z: 61.0 }, desc: 'Puesto de mercado en el patio del Dojō: compra recursos, comida, pociones y equipo, y vende lo que te sobre.' },
+      { id: 'shop', name: 'Mercader Ochi', icon: '🪙', coords: { x: -77.0, z: 3.7 }, desc: 'Puesto de mercado del Valle: compra recursos, comida, pociones y equipo, y vende lo que te sobre.' },
       { id: 'forge', name: 'Forja del Valle', icon: '🔨', coords: { x: -76.5, z: 67.0 }, desc: 'Yunque y horno en el patio del Dojō: crea equipo de Tier 0 y evoluciona tus piezas.' },
       { id: 'elder_tree', name: 'Gran Árbol Ancestral de Atia', icon: '🌳', coords: { x: -8.0, z: -25.0 }, desc: 'Monumento natural místico que irradia bendición y vida.' },
       { id: 'ancient_shrine', name: 'Santuario del Portal Antiguo', icon: '🏛️', coords: { x: 115.0, z: 65.0 }, desc: 'Monolitos flotantes con levitación mágica y runas antiguas.' }
@@ -219,7 +219,7 @@ export const ZONE_NPCS = {
     { id: 'cartographer', type: 'quest_giver', questId: 'quest_world_cartographer', position: { x: 8.4, y: 0, z: 46.7 }, name: 'Xia', model: 'xia.glb', scale: 2.70, collisionRadius: 1.1, auraRadius: 1.6, rotation: 1.2, title: '🗺️ Imperial Explorer', bubbleQuote: 'Hey, traveler! Got a map handy?', avatar: 'xia' },
     { id: 'postman', type: 'quest_giver', questId: 'quest_lost_mail', position: { x: 15.4, y: 0, z: 26.0 }, rotation: (24.0 * Math.PI) / 180, name: 'Postman', model: 'sapidae-m-a.glb', scale: 2.80, collisionRadius: 1.1, auraRadius: 1.6, title: '📬 Royal Messenger', bubbleQuote: 'Please help me! My letters scattered across the meadow!', avatar: 'sapidae-m-a' },
     // Mercader del Valle: al hablar con él abre la Tienda (ShopPanel · SHOPS.dojo_valley). Puesto de mercado en MerchantStall.js
-    { id: 'merchant_ochi', type: 'merchant', shopId: 'dojo_valley', position: { x: -80.0, y: 0, z: 61.0 }, rotation: Math.PI / 2, name: 'Mercader Ochi', model: 'sapidae-m-d.glb', scale: 2.80, collisionRadius: 1.1, auraRadius: 1.6, title: '🪙 Mercader del Valle', bubbleQuote: '¡Bambú, fibra y pociones frescas! Pasa y echa un vistazo.', avatar: 'sapidae-m-d' },
+    { id: 'merchant_ochi', type: 'merchant', shopId: 'dojo_valley', position: { x: -77.0, y: 0, z: 3.7 }, rotation: Math.PI / 2, name: 'Mercader Ochi', model: 'sapidae-m-d.glb', scale: 2.80, collisionRadius: 1.1, auraRadius: 1.6, title: '🪙 Mercader del Valle', bubbleQuote: '¡Bambú, fibra y pociones frescas! Pasa y echa un vistazo.', avatar: 'sapidae-m-d' },
     { id: 'herbalist', type: 'quest_giver', questId: 'quest_forest_elixir', position: { x: -15.9, y: 0, z: -30.1 }, rotation: (-15 * Math.PI) / 180, name: 'Rosalba', model: 'sapidae-f-a.glb', scale: 2.80, collisionRadius: 1.1, auraRadius: 1.6, title: '🌿 Flower Alchemist', bubbleQuote: 'Psst! Looking for fresh sprouts from the Sacred Atia Tree...', avatar: 'sapidae-f-a' }
   ],
   // East Savannah Island [3, 2]: Bing (Main 2 Recruit), Sentinel (Main 3 & 4), Blacksmith Baruk (Side 4), Hunter Zarek (Side 5)

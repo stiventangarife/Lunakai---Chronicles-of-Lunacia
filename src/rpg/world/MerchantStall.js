@@ -5,7 +5,7 @@
 import * as THREE from 'three';
 
 /** Mismo sitio que el NPC; el frente (+z local) mira al este, hacia el camino y la forja. */
-export const STALL_SPOT = { zone: '2_2', x: -80.0, z: 61.0, yaw: Math.PI / 2 };
+export const STALL_SPOT = { zone: '2_2', x: -77.0, z: 3.7, yaw: Math.PI / 2 }; // movida aquí el 22-oct (antes -80, 61)
 const TAG = 'merchant_stall';
 const mat = (color, o = {}) => new THREE.MeshStandardMaterial({ color, roughness: 0.85, metalness: 0, flatShading: true, ...o });
 

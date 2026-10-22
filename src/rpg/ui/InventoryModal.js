@@ -16,15 +16,25 @@ import { MATERIALS } from '../../tactics/data/EconomyCatalog.js';
 import { matSvg, BIOME } from '../../ui/ForgePanel.js';
 import { MATERIAL_RARITY_NAME } from '../../tactics/data/EconomyCatalog.js';
 
-export function getAxieClassIcon(cls) {
+/** Clave de clase de un axie (beast · bird · plant · aquatic · bug · reptile · mech · dawn · dusk). */
+export function axieClassKey(cls) {
   const s = String(cls || '').toLowerCase();
-  if (s.includes('bestia') || s.includes('beast')) return 'assets/classes/beast.png';
-  if (s.includes('pájaro') || s.includes('pajaro') || s.includes('bird')) return 'assets/classes/bird.png';
-  if (s.includes('planta') || s.includes('plant')) return 'assets/classes/plant.png';
-  if (s.includes('acu') || s.includes('aquatic')) return 'assets/classes/aquatic.png';
-  if (s.includes('bicho') || s.includes('bug')) return 'assets/classes/bug.png';
-  if (s.includes('reptil') || s.includes('reptile')) return 'assets/classes/reptile.png';
-  return 'assets/classes/beast.png';
+  if (s.includes('bestia') || s.includes('beast')) return 'beast';
+  if (s.includes('pájaro') || s.includes('pajaro') || s.includes('bird')) return 'bird';
+  if (s.includes('planta') || s.includes('plant')) return 'plant';
+  if (s.includes('acu') || s.includes('aquatic')) return 'aquatic';
+  if (s.includes('bicho') || s.includes('bug')) return 'bug';
+  if (s.includes('reptil') || s.includes('reptile')) return 'reptile';
+  if (s.includes('mech') || s.includes('mecá') || s.includes('meca')) return 'mech';
+  if (s.includes('dawn') || s.includes('alba') || s.includes('amanecer')) return 'dawn';
+  if (s.includes('dusk') || s.includes('ocaso') || s.includes('crepús') || s.includes('crepus')) return 'dusk';
+  return 'beast';
+}
+
+/** Ícono de clase: assets/classes/<clave>.png (el de Dusk se llama dust.png). */
+export function getAxieClassIcon(cls) {
+  const k = axieClassKey(cls);
+  return `assets/classes/${k === 'dusk' ? 'dust' : k}.png`;
 }
 
 const HERO_SPELLS = {
@@ -367,13 +377,7 @@ export class InventoryModal {
   _showModel() {
     if (!this.isOpen) return;
     if (!this.model) {
-      this.model = new HeroModelPreview(this.$('stage'), {
-        fallbackPortrait: (id) => {
-          const base = this._base(id);
-          const key = this._isSapi(id) ? (base?.modelType || 'sapidae-f-a') : (base?.axieId || id);
-          return portraitService.getPortraitSync(key) || (this._isSapi(id) ? `./assets/portraits/${key}.png` : base?.image || `./assets/portraits/${id}.png`);
-        }
-      });
+      this.model = this._createModel();
       this.model.start();
     }
     const key = this._modelKey();
@@ -382,6 +386,40 @@ export class InventoryModal {
     this.model.show(this.selectedHeroId, this._base(), this._equipped())
       .then(() => { if (this.isOpen) this.model.start(); })
       .catch(() => { if (this._modelShown === key) this._modelShown = null; }); // reintentar en la próxima apertura
+  }
+
+  _createModel() {
+    return new HeroModelPreview(this.$('stage'), {
+      fallbackPortrait: (id) => {
+        const base = this._base(id);
+        const key = this._isSapi(id) ? (base?.modelType || 'sapidae-f-a') : (base?.axieId || id);
+        return portraitService.getPortraitSync(key) || (this._isSapi(id) ? `./assets/portraits/${key}.png` : base?.image || `./assets/portraits/${id}.png`);
+      }
+    });
+  }
+
+  /**
+   * Prepara el visor 3D sin abrir la mochila (se llama detrás de la pantalla de carga): crea su
+   * contexto WebGL, carga el modelo del héroe seleccionado y compila sus shaders. Así la primera
+   * apertura ya no da el tirón de crear todo eso. No arranca el bucle de render.
+   */
+  async prewarmModel() {
+    if (this.model || this.isOpen) return;
+    try {
+      const em = this.equipmentManager;
+      if (em && typeof em.isHeroUnlocked === 'function' && !em.isHeroUnlocked(this.selectedHeroId)) {
+        this.selectedHeroId = this._heroIds()[0] || 'sapidae';
+      }
+      this.model = this._createModel();
+      const key = this._modelKey();
+      this._modelShown = key;
+      await this.model.show(this.selectedHeroId, this._base(), this._equipped());
+      const d = this.model.d;
+      if (d && d.renderer && d.scene && d.camera) d.renderer.compile(d.scene, d.camera);
+    } catch (err) {
+      if (this._modelShown === this._modelKey()) this._modelShown = null;
+      console.warn('[InventoryModal] Precalentado del visor omitido:', err);
+    }
   }
 
   _refreshModelEquipment() {
@@ -405,7 +443,7 @@ export class InventoryModal {
   _isSapi(id) { return id === 'sapidae' || this._base(id)?.isSapidae; }
   _clsKey(id) {
     if (this._isSapi(id)) return null;
-    const c = String(getAxieClassIcon(this._base(id)?.class)).match(/classes\/(\w+)\.png/)?.[1];
+    const c = axieClassKey(this._base(id)?.class);
     return c || 'beast';
   }
   _portrait(id, size) {

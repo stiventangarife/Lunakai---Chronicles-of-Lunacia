@@ -37,9 +37,15 @@ export class SavannaAssetManager {
     };
   }
 
-  async loadAll(onProgress) {
+  /**
+   * @param {Function} onProgress
+   * @param {{ deferKeys?: Iterable<string> }} [opts] modelos y texturas que no se cargan ahora
+   *   (p. ej. palmeras y árboles GLTF antiguos que el arte Genshin sustituye). loadModels(keys) los carga.
+   */
+  async loadAll(onProgress, opts = {}) {
     if (this.isLoaded) return;
     this.onProgressCallback = onProgress;
+    const defer = new Set(opts.deferKeys || []);
 
     const modelDefinitions = [
       // 1. Palms for the Oasis and Plateau Groves (Replacing pines with authentic palms)
@@ -143,8 +149,12 @@ export class SavannaAssetManager {
       });
     };
 
-    const modelPromises = modelDefinitions.map(loadModel);
-    const texturePromises = textureDefinitions.map(loadTexture);
+    this._deferred = new Map([...modelDefinitions, ...textureDefinitions].filter((d) => defer.has(d.key)).map((d) => [d.key, d]));
+    this._loadModelFn = loadModel;
+    this._loadTextureFn = loadTexture;
+    this._textureKeys = new Set(textureDefinitions.map((d) => d.key));
+    const modelPromises = modelDefinitions.filter((d) => !defer.has(d.key)).map(loadModel);
+    const texturePromises = textureDefinitions.filter((d) => !defer.has(d.key)).map(loadTexture);
 
     await Promise.all([...modelPromises, ...texturePromises]);
     this.isLoaded = true;
@@ -155,6 +165,21 @@ export class SavannaAssetManager {
     const gltf = this.models.get(key);
     if (!gltf) return null;
     return gltf.scene ? gltf.scene.clone() : null;
+  }
+
+  /** Carga (una vez) modelos o texturas que se difirieron en loadAll. */
+  loadModels(keys) {
+    if (!this._lazy) this._lazy = new Map();
+    return Promise.all([...keys].map((key) => {
+      if (this.models.has(key) || this.textures.has(key)) return Promise.resolve();
+      let p = this._lazy.get(key);
+      if (!p) {
+        const def = this._deferred && this._deferred.get(key);
+        p = !def ? Promise.resolve() : (this._textureKeys.has(key) ? this._loadTextureFn(def) : this._loadModelFn(def));
+        this._lazy.set(key, p);
+      }
+      return p;
+    }));
   }
 
   getRawModel(key) {

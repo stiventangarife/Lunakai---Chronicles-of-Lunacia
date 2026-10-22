@@ -7,7 +7,7 @@ import { getHeroSpells } from '../SaveSlotManager.js';
 import { SPELLS_DB } from '../../tactics/Spells.js';
 import { STARTER_DECKS } from '../../tactics/data/StarterCards.js';
 import { portraitService } from '../../tactics/CharacterPortraitService.js';
-import { getAxieClassIcon } from './InventoryModal.js';
+import { getAxieClassIcon, axieClassKey } from './InventoryModal.js';
 import { BondDemo } from './CombatEndScreen.js';
 import { asset, sprite, toast } from '../../ui/lk.js';
 import { canBeMainAxie } from '../../tactics/EquipmentManager.js';
@@ -22,7 +22,7 @@ const HERO_SPELLS = {
 };
 const PART_ES = { eyes: 'Ojos', ears: 'Orejas', horn: 'Cuerno', mouth: 'Boca', back: 'Espalda', tail: 'Cola' };
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-const clsIcon = (c) => `<img src="${asset(`assets/classes/${c}.png`)}" alt="">`;
+const clsIcon = (c) => `<img src="${asset(`assets/classes/${c === 'dusk' ? 'dust' : c}.png`)}" alt="">`;
 
 export class SquadModal {
   constructor(equipmentManager, audioSystem = null) {
@@ -129,7 +129,7 @@ export class SquadModal {
   _isSapi(id) { return id === 'sapidae' || this._base(id)?.isSapidae; }
   _cls(id) {
     if (this._isSapi(id)) return 'sapidae';
-    return String(getAxieClassIcon(this._base(id)?.class)).match(/classes\/(\w+)\.png/)?.[1] || 'beast';
+    return axieClassKey(this._base(id)?.class) || 'beast';
   }
   _cc(id) { return this._isSapi(id) ? 'var(--lk-gilt-300)' : `var(--lk-class-${this._cls(id)})`; }
   _clsName(id) {

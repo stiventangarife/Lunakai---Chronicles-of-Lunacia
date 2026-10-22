@@ -21,6 +21,12 @@ export class ParticleSystemManager {
     this.time = 0;
     this._dummy = new THREE.Object3D();
 
+    // Pausa fuera de cámara: un sistema cuyas partículas no se ven no se anima. Cuando vuelve a
+    // entrar en cámara continúa desde donde estaba (al estar fuera de la vista, no se nota).
+    this._frustum = new THREE.Frustum();
+    this._projScreen = new THREE.Matrix4();
+    this._boxes = new Map(); // clave → { box, t }
+
     // Inicializar cada subsistema
     this.initPrairieLeaves();
     this.initForestLeaves();
@@ -39,6 +45,7 @@ export class ParticleSystemManager {
 
     const leafMat = new THREE.MeshBasicMaterial({
       side: THREE.DoubleSide,
+      forceSinglePass: true, // lámina fina: una pasada en lugar de dos (mismo aspecto)
       transparent: true,
       opacity: 0.95
     });
@@ -103,6 +110,7 @@ export class ParticleSystemManager {
 
     const leafMat = new THREE.MeshBasicMaterial({
       side: THREE.DoubleSide,
+      forceSinglePass: true, // lámina fina: una pasada en lugar de dos (mismo aspecto)
       transparent: true,
       opacity: 0.95
     });
@@ -175,6 +183,7 @@ export class ParticleSystemManager {
     const gustMat = new THREE.ShaderMaterial({
       transparent: true,
       side: THREE.DoubleSide,
+      forceSinglePass: true, // lámina fina: una pasada en lugar de dos (mismo aspecto)
       depthWrite: false,
       blending: THREE.AdditiveBlending,
       vertexShader: `
@@ -434,6 +443,7 @@ export class ParticleSystemManager {
 
     const petalMat = new THREE.MeshBasicMaterial({
       side: THREE.DoubleSide,
+      forceSinglePass: true, // lámina fina: una pasada en lugar de dos (mismo aspecto)
       transparent: true,
       opacity: 0.95
     });
@@ -515,14 +525,41 @@ export class ParticleSystemManager {
     return geom;
   }
 
-  update(delta) {
+  /** Caja que envuelve las partículas de un sistema; se recalcula cada 0.5 s (con 4 m de margen). */
+  _boxFor(key, count, getXYZ) {
+    let e = this._boxes.get(key);
+    if (!e) { e = { box: new THREE.Box3(), t: -1 }; this._boxes.set(key, e); }
+    if (e.t >= 0 && this.time - e.t < 0.5) return e.box;
+    e.t = this.time;
+    const b = e.box.makeEmpty();
+    const v = this._dummy.position; // vector temporal (el dummy se reescribe antes de usarse)
+    for (let i = 0; i < count; i++) { getXYZ(i, v); b.expandByPoint(v); }
+    return b.expandByScalar(4.0);
+  }
+
+  /** ¿Se ve el sistema? Sin cámara, se anima siempre (comportamiento anterior). */
+  _inView(key, count, getXYZ) {
+    if (!this._camOK) return true;
+    return this._frustum.intersectsBox(this._boxFor(key, count, getXYZ));
+  }
+
+  update(delta, camera = null) {
     if (!this.enabled || !this.group.visible) return;
     this.time += delta;
+
+    this._camOK = !!(camera && camera.isCamera);
+    if (this._camOK) {
+      camera.updateMatrixWorld();
+      this._projScreen.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse);
+      this._frustum.setFromProjectionMatrix(this._projScreen);
+    }
+    const fromData = (arr) => (i, v) => v.set(arr[i].x, arr[i].y, arr[i].z);
+    const fromAttr = (attr) => (i, v) => v.set(attr.getX(i), attr.getY(i), attr.getZ(i));
 
     const dummy = this._dummy;
 
     // 1. Pradera: Hojas mecidas
-    if (this.prairieLeavesMesh) {
+    if (this.prairieLeavesMesh && this._inView('prairie', this.prairieLeavesData.length, fromData(this.prairieLeavesData))) {
       for (let i = 0; i < this.prairieLeavesData.length; i++) {
         const d = this.prairieLeavesData[i];
         d.x += d.speedX * delta;
@@ -549,7 +586,7 @@ export class ParticleSystemManager {
     }
 
     // 2. Bosque: Hojas multicolores en espiral (CPU Optimizada: getHeight solo al reaparecer)
-    if (this.forestLeavesMesh) {
+    if (this.forestLeavesMesh && this._inView('forest', this.forestLeavesData.length, fromData(this.forestLeavesData))) {
       for (let i = 0; i < this.forestLeavesData.length; i++) {
         const d = this.forestLeavesData[i];
         d.y -= d.fallSpeed * delta;
@@ -582,6 +619,10 @@ export class ParticleSystemManager {
     }
 
     // 3 & 4. Mirador y Riscos: Ráfagas de viento
+    if (this._gustScale === undefined) {
+      const fl = this.forestLeavesData;
+      this._gustScale = fl && fl.length ? fl[fl.length - 1].scale : 1;
+    }
     if (this.windGustsMesh) {
       for (let i = 0; i < this.windGustsData.length; i++) {
         const d = this.windGustsData[i];
@@ -604,6 +645,9 @@ export class ParticleSystemManager {
 
         dummy.position.set(d.x, d.y, d.z);
         dummy.rotation.set(0, Math.PI * 0.2, 0);
+        // Antes la escala se heredaba sin querer de la última hoja del bosque (constante); se fija aquí
+        // para que no cambie cuando el bosque o la pradera se pausan fuera de cámara.
+        dummy.scale.setScalar(this._gustScale);
         dummy.updateMatrix();
         this.windGustsMesh.setMatrixAt(i, dummy.matrix);
       }
@@ -611,7 +655,7 @@ export class ParticleSystemManager {
     }
 
     // 6. Árbol Vital: Esporas mágicas y luciérnagas
-    if (this.elderMagicParticles) {
+    if (this.elderMagicParticles && this._inView('elder', this.elderMagicData.length, fromAttr(this.elderMagicParticles.geometry.attributes.position))) {
       const posAttr = this.elderMagicParticles.geometry.attributes.position;
       for (let i = 0; i < this.elderMagicData.length; i++) {
         const d = this.elderMagicData[i];
@@ -629,7 +673,7 @@ export class ParticleSystemManager {
       posAttr.needsUpdate = true;
     }
 
-    if (this.elderFireflies) {
+    if (this.elderFireflies && this._inView('fireflies', this.elderFirefliesData.length, fromAttr(this.elderFireflies.geometry.attributes.position))) {
       const posAttr = this.elderFireflies.geometry.attributes.position;
       const sizeAttr = this.elderFireflies.geometry.attributes.size;
       for (let i = 0; i < this.elderFirefliesData.length; i++) {
@@ -648,7 +692,7 @@ export class ParticleSystemManager {
     }
 
     // 7. Santuario Atia: Columnas de energía verde sagrada
-    if (this.shrineParticles) {
+    if (this.shrineParticles && this._inView('shrine', this.shrineData.length, fromAttr(this.shrineParticles.geometry.attributes.position))) {
       const posAttr = this.shrineParticles.geometry.attributes.position;
       for (let i = 0; i < this.shrineData.length; i++) {
         const d = this.shrineData[i];
@@ -667,7 +711,7 @@ export class ParticleSystemManager {
     }
 
     // 8. Templo Dojō: Pétalos de cerezo (Sakura)
-    if (this.sakuraMesh) {
+    if (this.sakuraMesh && this._inView('sakura', this.sakuraData.length, fromData(this.sakuraData))) {
       for (let i = 0; i < this.sakuraData.length; i++) {
         const d = this.sakuraData[i];
         d.y -= d.fallSpeed * delta;
@@ -697,7 +741,15 @@ export class ParticleSystemManager {
   }
 
   setVisible(visible) {
-    this.enabled = visible;
-    this.group.visible = visible;
+    this._zoneVisible = visible;
+    const on = visible && this._qualityOn !== false;
+    this.enabled = on;
+    this.group.visible = on;
+  }
+
+  /** Calidad gráfica: partículas sí/no (se combina con la visibilidad de la zona). */
+  setQualityEnabled(on) {
+    this._qualityOn = !!on;
+    this.setVisible(this._zoneVisible !== undefined ? this._zoneVisible : this.group.visible || !on);
   }
 }

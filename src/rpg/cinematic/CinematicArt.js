@@ -81,7 +81,13 @@ export function sparkleCanvas(size = 128) {
 }
 
 /** Luna con cráteres a tinta (papel marfil). */
-export function moonCanvas(size = 512, seed = 11) {
+/**
+ * Mordisco de la luna rota (coordenadas 0–1 del lienzo, como crackPaths): el trozo que se desprende al
+ * romperse. Lo que queda es una media luna abierta hacia abajo a la derecha.
+ */
+export const MOON_BITE = { x: 0.77, y: 0.72, r: 0.22 };
+
+export function moonCanvas(size = 512, seed = 11, bite = null) {
   const c = cv(size, size), g = c.getContext('2d'), r = rng(seed), m = size / 2, R = m * 0.94;
   const gr = g.createRadialGradient(m * 0.8, m * 0.75, R * 0.1, m, m, R);
   gr.addColorStop(0, '#fff8e6'); gr.addColorStop(0.7, '#f1dfb2'); gr.addColorStop(1, '#d9bb7d');
@@ -102,13 +108,42 @@ export function moonCanvas(size = 512, seed = 11) {
   }
   g.restore();
   g.strokeStyle = '#6e4e24'; g.lineWidth = 6; g.beginPath(); g.arc(m, m, R, 0, Math.PI * 2); g.stroke();
+  if (bite) {
+    // Se recorta el trozo que se rompió y se repasa su borde con la misma tinta (solo dentro del disco)
+    const bx = bite.x * size, by = bite.y * size, br = bite.r * size;
+    g.save(); g.globalCompositeOperation = 'destination-out';
+    g.beginPath(); g.arc(bx, by, br, 0, Math.PI * 2); g.fill();
+    g.restore();
+    g.save(); g.beginPath(); g.arc(m, m, R + 4, 0, Math.PI * 2); g.clip();
+    g.strokeStyle = '#6e4e24'; g.lineWidth = 6; g.beginPath(); g.arc(bx, by, br + 2, 0, Math.PI * 2); g.stroke();
+    g.restore();
+  }
+  return c;
+}
+
+/** Corazón pequeño dorado y luminoso (vínculo Sapidae–Axie). */
+export function heartCanvas(size = 128, col = '255,216,137') {
+  const c = cv(size, size), g = c.getContext('2d'), m = size / 2;
+  const heart = (s) => {
+    g.beginPath();
+    g.moveTo(m, m + s * 0.62);
+    g.bezierCurveTo(m - s * 0.95, m + s * 0.02, m - s * 0.62, m - s * 0.72, m, m - s * 0.3);
+    g.bezierCurveTo(m + s * 0.62, m - s * 0.72, m + s * 0.95, m + s * 0.02, m, m + s * 0.62);
+    g.closePath();
+  };
+  const gl = g.createRadialGradient(m, m, 0, m, m, m);
+  gl.addColorStop(0, `rgba(${col},0.55)`); gl.addColorStop(1, `rgba(${col},0)`);
+  g.fillStyle = gl; g.fillRect(0, 0, size, size);
+  heart(size * 0.36); g.fillStyle = `rgba(${col},1)`; g.fill();
+  heart(size * 0.2); g.fillStyle = 'rgba(255,248,225,0.9)'; g.fill();
   return c;
 }
 
 /** Grietas de la luna: polilíneas quebradas desde un punto (coordenadas 0–1 del disco). */
-export function crackPaths(seed = 21, count = 7) {
+export function crackPaths(seed = 21, count = 7, { from = [0.47, 0.42], within = null } = {}) {
   const r = rng(seed), out = [];
-  const from = [0.47, 0.42];
+  // within = { x, y, r }: las grietas no salen de ese círculo (el trozo que se va a romper)
+  const inside = (x, y) => Math.hypot(x - 0.5, y - 0.5) <= 0.47 && (!within || Math.hypot(x - within.x, y - within.y) <= within.r * 1.05);
   for (let i = 0; i < count; i++) {
     const pts = [[...from]];
     let a = (i / count) * Math.PI * 2 + r() * 0.5, x = from[0], y = from[1];
@@ -118,14 +153,14 @@ export function crackPaths(seed = 21, count = 7) {
       const l = 0.05 + r() * 0.07;
       x += Math.cos(a) * l; y += Math.sin(a) * l;
       pts.push([x, y]);
-      if (Math.hypot(x - 0.5, y - 0.5) > 0.47) break;
+      if (!inside(x, y)) break;
     }
     out.push(pts);
     if (r() < 0.6) { // rama
       const b = pts[Math.min(pts.length - 1, 2 + Math.floor(r() * 2))];
       const br = [[...b]]; let bx = b[0], by = b[1], ba = a + (r() < 0.5 ? 1 : -1) * (0.7 + r() * 0.6);
-      for (let k = 0; k < 3; k++) { ba += (r() - 0.5) * 0.7; bx += Math.cos(ba) * 0.05; by += Math.sin(ba) * 0.05; br.push([bx, by]); }
-      out.push(br);
+      for (let k = 0; k < 3; k++) { ba += (r() - 0.5) * 0.7; bx += Math.cos(ba) * 0.05; by += Math.sin(ba) * 0.05; if (!inside(bx, by)) break; br.push([bx, by]); }
+      if (br.length > 1) out.push(br);
     }
   }
   return out;

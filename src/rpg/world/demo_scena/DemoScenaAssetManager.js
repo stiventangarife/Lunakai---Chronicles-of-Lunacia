@@ -33,9 +33,15 @@ export class DemoScenaAssetManager {
     };
   }
 
-  async loadAll(onProgress) {
+  /**
+   * @param {Function} onProgress
+   * @param {{ deferKeys?: Iterable<string> }} [opts] modelos que no se cargan ahora (p. ej. los árboles
+   *   GLTF antiguos cuando el arte Genshin los sustituye). Se cargan después con loadModels(keys).
+   */
+  async loadAll(onProgress, opts = {}) {
     if (this.isLoaded) return;
     this.onProgressCallback = onProgress;
+    const defer = new Set(opts.deferKeys || []);
 
     // Catálogo de modelos de naturaleza estilizada de alta calidad
     const modelDefinitions = [
@@ -120,7 +126,41 @@ export class DemoScenaAssetManager {
     ];
 
     // Cargar modelos concurrentemente y preparar materiales
-    const modelPromises = modelDefinitions.map(async (def) => {
+    this._deferredModels = new Map(modelDefinitions.filter((d) => defer.has(d.key)).map((d) => [d.key, d]));
+    const modelPromises = modelDefinitions.filter((d) => !defer.has(d.key)).map((def) => this._loadModel(def));
+
+    const texturePromises = textureDefinitions.map(async (def) => {
+      try {
+        const tex = await this.textureLoader.loadAsync(def.url);
+        tex.wrapS = THREE.RepeatWrapping;
+        tex.wrapT = THREE.RepeatWrapping;
+        this.textures.set(def.key, tex);
+      } catch (err) {
+        console.warn(`[DemoScenaAssetManager] No se pudo cargar textura ${def.key}:`, err);
+      }
+    });
+
+    await Promise.all([...modelPromises, ...texturePromises]);
+    this.isLoaded = true;
+    console.log('[DemoScenaAssetManager] Todos los assets del mapa Demo_Scena cargados con éxito.');
+  }
+
+  /** Carga (una vez) modelos que se difirieron en loadAll. */
+  loadModels(keys) {
+    if (!this._modelLoads) this._modelLoads = new Map();
+    return Promise.all([...keys].map((key) => {
+      if (this.models.has(key)) return Promise.resolve();
+      let p = this._modelLoads.get(key);
+      if (!p) {
+        const def = this._deferredModels && this._deferredModels.get(key);
+        p = def ? this._loadModel(def) : Promise.resolve();
+        this._modelLoads.set(key, p);
+      }
+      return p;
+    }));
+  }
+
+  async _loadModel(def) {
       try {
         const gltf = await this.gltfLoader.loadAsync(def.url);
         gltf.scene.traverse((child) => {
@@ -152,22 +192,6 @@ export class DemoScenaAssetManager {
       } catch (err) {
         console.warn(`[DemoScenaAssetManager] No se pudo cargar modelo ${def.key}:`, err);
       }
-    });
-
-    const texturePromises = textureDefinitions.map(async (def) => {
-      try {
-        const tex = await this.textureLoader.loadAsync(def.url);
-        tex.wrapS = THREE.RepeatWrapping;
-        tex.wrapT = THREE.RepeatWrapping;
-        this.textures.set(def.key, tex);
-      } catch (err) {
-        console.warn(`[DemoScenaAssetManager] No se pudo cargar textura ${def.key}:`, err);
-      }
-    });
-
-    await Promise.all([...modelPromises, ...texturePromises]);
-    this.isLoaded = true;
-    console.log('[DemoScenaAssetManager] Todos los assets del mapa Demo_Scena cargados con éxito.');
   }
 
   getModel(key) {

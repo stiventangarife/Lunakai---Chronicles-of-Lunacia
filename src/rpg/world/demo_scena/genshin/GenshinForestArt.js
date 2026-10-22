@@ -106,6 +106,44 @@ export class GenshinForestArt {
 
     window.genshinArt = this;
     console.log('[GenshinForestArt] ✨ Genshin art pass ready.');
+
+    // 9. Calidad gráfica (menú de opciones). En Alta todo queda como siempre.
+    this._bloomStrength = 0.42;
+    this._onSettings = (e) => this.applySettings(e && e.detail);
+    window.addEventListener('lk:settings', this._onSettings);
+    try {
+      const sm = this.om && this.om.settingsModal;
+      if (sm && typeof sm.getSettings === 'function') this.applySettings(sm.getSettings());
+    } catch (_) { /* opcional */ }
+  }
+
+  /**
+   * Aplica la calidad elegida en Opciones al Bosque (evento 'lk:settings').
+   *  - Hierba desactivada (Media/Baja): menos matas (55 %), misma pradera.
+   *  - Partículas desactivadas: sin hojas, pétalos ni esporas.
+   *  - Cielo desactivado (Baja): sin rayos de sol.
+   *  - Calidad Media/Baja: mapa de sombras de 1024 (Alta: 2048). Baja: bloom más suave.
+   * Las sombras (sí/no) y la escala de resolución ya las aplica SettingsModal.
+   */
+  applySettings(s) {
+    if (!s) return;
+    const g = s.graphics || {};
+    const q = s.quality || 'high';
+    if (this.grass && this.grass.setDensity) this.grass.setDensity(g.grass === false ? 0.55 : 1.0);
+    const pm = this.zone.particleManager;
+    if (pm && typeof pm.setQualityEnabled === 'function') pm.setQualityEnabled(g.particles !== false);
+    if (this.postFX && this.postFX.pass && this.postFX.pass.uniforms && this.postFX.pass.uniforms.uGodRays) {
+      this.postFX.pass.uniforms.uGodRays.value = (g.sky !== false && this.quality.godRays) ? 1 : 0;
+    }
+    this._bloomStrength = q === 'low' ? 0.28 : 0.42;
+    const light = this.zone.lightingManager && this.zone.lightingManager.dirLight;
+    if (light && light.shadow) {
+      const size = (q === 'mid' || q === 'low') ? 1024 : 2048;
+      if (light.shadow.mapSize.x !== size) {
+        light.shadow.mapSize.set(size, size);
+        if (light.shadow.map) { light.shadow.map.dispose(); light.shadow.map = null; }
+      }
+    }
   }
 
   _hide(obj) {
@@ -359,7 +397,7 @@ export class GenshinForestArt {
     // Keep bloom gentle & painterly while the island is active (EnvironmentSystem may reset it)
     const env = this.om.environmentSystem;
     if (env && env.bloomPass) {
-      env.bloomPass.strength = 0.42;
+      env.bloomPass.strength = this._bloomStrength ?? 0.42;
       env.bloomPass.radius = 0.55;
       env.bloomPass.threshold = 0.92;
     }
@@ -404,6 +442,22 @@ export class GenshinForestArt {
 
   setEnabled(enabled) {
     this.enabled = enabled;
+    // Al volver al aspecto antiguo: construir su hierba V3 si se difirió y mostrarla
+    if (!enabled) {
+      const veg = this.zone.vegetationManager;
+      if (veg && !veg.v3GrassGroup && typeof veg.ensureLegacyGrass === 'function') {
+        const g = veg.ensureLegacyGrass();
+        if (g) this._hidden.push({ obj: g, visible: true });
+      }
+      // Árboles GLTF antiguos: no se cargaron mientras el arte Genshin estaba activo
+      const props = this.zone.propsManager;
+      if (props && props.deferLegacyTrees && typeof props.ensureLegacyTrees === 'function' && !this._legacyTreesTracked) {
+        this._legacyTreesTracked = true;
+        props.ensureLegacyTrees().then((meshes) => {
+          (meshes || []).forEach((m) => { this._hidden.push({ obj: m, visible: true }); m.visible = !this.enabled; });
+        }).catch((e) => console.warn('[GenshinForestArt] árboles antiguos:', e));
+      }
+    }
     this.root.visible = enabled;
     this._hidden.forEach(({ obj, visible }) => { obj.visible = enabled ? false : visible; });
     if (this.terrainUniforms) this.terrainUniforms.uGenshinOn.value = enabled ? 1.0 : 0.0;

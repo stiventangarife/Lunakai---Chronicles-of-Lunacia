@@ -1,5 +1,6 @@
 // MinimapHUD.js - Sleek Real-Time Overworld Minimap / Tactical Radar (Top-Right HUD)
 import { ISLANDS_REGISTRY } from '../world/MapRegistry.js';
+import { ISLAND_NAMES, canonicalZoneId } from '../world/islands/IslandWorldLayout.js';
 
 export class MinimapHUD {
   constructor(overworldManager) {
@@ -136,7 +137,10 @@ export class MinimapHUD {
     // Update live coordinates text & zone title
     const isSavannah = Boolean(ISLANDS_REGISTRY.island_savannah?.isCurrent);
     if (!this._titleEl || !this._titleEl.isConnected) { this._titleEl = document.getElementById('minimap-zone-title'); this._titleTxt = null; }
-    const titleTxt = isSavannah ? 'Isla de la Sabana' : 'Isla del Bosque';
+    // Nombre de la isla en la que está el jugador (las cinco); si el mapa no es de ninguna, como antes.
+    const mapId = canonicalZoneId(this.om?.worldMapManager?.currentMapId);
+    const islandName = typeof mapId === 'string' ? ISLAND_NAMES[mapId.replace(/^zone_/, '')] : null;
+    const titleTxt = islandName || (isSavannah ? 'Isla de la Sabana' : 'Isla del Bosque');
     if (this._titleEl && this._titleTxt !== titleTxt) {
       this._titleEl.textContent = titleTxt;
       this._titleTxt = titleTxt;

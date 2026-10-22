@@ -9,6 +9,7 @@ import { IslandParticles } from '../kit/IslandParticles.js';
 import { IslandWaterBody } from '../kit/IslandWater.js';
 import { MysticLandmarks, MYSTIC_SITES } from './MysticLandmarks.js';
 import { MysticLife, buildArcaneTreeVines } from './MysticLife.js';
+import { mergeStaticByMaterial } from '../../../../render/StaticMerge.js';
 
 /**
  * Isla Mística (Hito 23) — "El Árbol Arcano de Lunacia".
@@ -376,6 +377,9 @@ async function buildMystic(zone) {
     cr.scale.set(0.5, 3.0, 0.5);
     cr.position.y = 2.4;
     islet.add(cr);
+    // Cono y plataforma comparten material y se mueven juntos: una sola malla por islote (el cristal,
+    // translúcido, se queda aparte para que se siga ordenando con el resto de transparencias).
+    mergeStaticByMaterial(islet, { name: 'MysticFloatingIsletRock' });
     const bx = TREE.x + Math.cos(a) * rr, bz = TREE.z + Math.sin(a) * rr, by = 26 + rng() * 14;
     islet.position.set(bx, by, bz);
     islet.name = 'MysticFloatingIslet';

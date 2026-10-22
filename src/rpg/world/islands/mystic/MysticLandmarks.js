@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { mergeGeometries } from '../../../../../vendor/utils/BufferGeometryUtils.js';
 import { getSoftToonRamp } from '../../demo_scena/genshin/GenshinMaterials.js';
 import { createSeededRandom } from '../../demo_scena/MathUtils.js';
+import { mergeStaticByMaterial } from '../../../../render/StaticMerge.js';
 
 /**
  * MysticLandmarks — places of the Mystic improvement plan, built with stylised primitives
@@ -98,6 +99,11 @@ export class MysticLandmarks {
     this._buildObservatory();
     this._buildHouse();
     this._buildIslet();
+    // Partes fijas y opacas (cuerpos de piedra y ventanas que brillan): una malla por material para
+    // los cuatro lugares. Los anillos de la esfera armilar giran, así que se quedan sueltos; los
+    // cristales translúcidos y las hebras del sauce no se combinan (StaticMerge ya los salta).
+    const spinning = new Set(this.spinners.map((s) => s.o));
+    mergeStaticByMaterial(this.root, { name: 'MysticLandmarksMerged', skip: (o) => spinning.has(o) });
     zone.updatables.push(() => this.update());
   }
 

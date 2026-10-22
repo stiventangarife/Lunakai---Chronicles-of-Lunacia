@@ -6,8 +6,16 @@ import { applyGenshinGoldenHour } from './genshin/GenshinArtDirection.js';
  * Soporta sombras suaves, luces hemisféricas y presets dinámicos de hora del día.
  */
 export class LightingManager {
-  constructor(scene) {
+  /**
+   * @param {THREE.Scene} scene
+   * @param {{ shadowExtent?: number, snapShadows?: boolean }} [opts]
+   *   shadowExtent: semilado de la caja de sombras en metros (130 por defecto; el Bosque usa 80).
+   *   snapShadows: mover la caja en pasos de un texel para que las sombras no tiemblen.
+   */
+  constructor(scene, opts = {}) {
     this.scene = scene;
+    this._shadowExtent = opts.shadowExtent || 130;
+    this._snapShadows = !!opts.snapShadows;
 
     this.group = new THREE.Group();
     this.scene.add(this.group);
@@ -34,8 +42,10 @@ export class LightingManager {
     this.dirLight.shadow.camera.near = 1.0;
     this.dirLight.shadow.camera.far = 380;
 
-    // Área de sombra que cubre la región de exploración
-    const shadowD = 130;
+    // Área de sombra alrededor del jugador (ver opts.shadowExtent). En el Bosque ±80 m: el mapa de
+    // 2048 px cubre menos terreno, las sombras cercanas ganan nitidez y el pase de sombras dibuja
+    // menos objetos. Las demás islas conservan ±130 m.
+    const shadowD = this._shadowExtent;
     this.dirLight.shadow.camera.left = -shadowD;
     this.dirLight.shadow.camera.right = shadowD;
     this.dirLight.shadow.camera.top = shadowD;
@@ -155,10 +165,32 @@ export class LightingManager {
 
   updateLightTarget(targetPosition) {
     if (this.dirLight && targetPosition) {
-      this.dirLight.position.copy(targetPosition).add(this._lightOffset);
-      this.dirLight.target.position.copy(targetPosition);
+      // La caja de sombra se mueve en pasos de un texel del mapa (en el plano de la luz): así los
+      // bordes de las sombras no "tiemblan" ni parpadean mientras el jugador camina.
+      const snapped = this._snapShadows ? this._snapToShadowTexels(targetPosition) : targetPosition;
+      this.dirLight.position.copy(snapped).add(this._lightOffset);
+      this.dirLight.target.position.copy(snapped);
       this.dirLight.target.updateMatrixWorld();
     }
+  }
+
+  _snapToShadowTexels(p) {
+    const sh = this.dirLight.shadow;
+    const cam = sh.camera;
+    const texel = (cam.right - cam.left) / Math.max(1, sh.mapSize.width);
+    if (!(texel > 0)) return p;
+    if (!this._snapTmp) {
+      this._snapTmp = { fwd: new THREE.Vector3(), right: new THREE.Vector3(), up: new THREE.Vector3(), out: new THREE.Vector3() };
+    }
+    const t = this._snapTmp;
+    // Ejes del plano de la luz (iguales a los de la cámara de sombra, que mira a lo largo de -offset)
+    t.fwd.copy(this._lightOffset).normalize().negate();
+    t.right.crossVectors(t.fwd, Math.abs(t.fwd.y) > 0.99 ? new THREE.Vector3(1, 0, 0) : THREE.Object3D.DEFAULT_UP).normalize();
+    t.up.crossVectors(t.right, t.fwd).normalize();
+    const r = p.dot(t.right), u = p.dot(t.up);
+    const dr = Math.round(r / texel) * texel - r;
+    const du = Math.round(u / texel) * texel - u;
+    return t.out.copy(p).addScaledVector(t.right, dr).addScaledVector(t.up, du);
   }
 
   setVisible(visible) {

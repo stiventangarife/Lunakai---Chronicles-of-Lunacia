@@ -99,6 +99,29 @@ export class IslandArtLayer {
     this._postInserted = false;
 
     if (typeof profile.build === 'function') profile.build(this);
+
+    // Calidad gráfica (menú de opciones), igual que el Bosque. En Alta todo queda como siempre.
+    this._bloomMul = 1;
+    this._onSettings = (e) => this.applySettings(e && e.detail);
+    window.addEventListener('lk:settings', this._onSettings);
+    try {
+      const sm = this.om && this.om.settingsModal;
+      if (sm && typeof sm.getSettings === 'function') this.applySettings(sm.getSettings());
+    } catch (_) { /* opcional */ }
+  }
+
+  /**
+   * Media/Baja: menos matas de hierba (55 %) si la hierba está desactivada, sin partículas si están
+   * desactivadas, sin rayos de sol si el cielo está desactivado y bloom más suave en Baja.
+   */
+  applySettings(s) {
+    if (!s) return;
+    const g = s.graphics || {};
+    if (this.grass && typeof this.grass.setDensity === 'function') this.grass.setDensity(g.grass === false ? 0.55 : 1.0);
+    (this.particles || []).forEach((p) => { if (p && p.material) p.material.visible = g.particles !== false; });
+    const pu = this.postFX && this.postFX.pass && this.postFX.pass.uniforms;
+    if (pu && pu.uGodRays) pu.uGodRays.value = (g.sky !== false && this.quality.godRays) ? 1 : 0;
+    this._bloomMul = s.quality === 'low' ? 0.65 : 1;
   }
 
   /** Golden-hour style lighting on the zone's LightingManager. */
@@ -155,7 +178,7 @@ export class IslandArtLayer {
     const env = this.om.environmentSystem;
     const B = this.profile.bloom || { strength: 0.42, radius: 0.55, threshold: 0.92 };
     if (env && env.bloomPass) {
-      env.bloomPass.strength = B.strength;
+      env.bloomPass.strength = B.strength * (this._bloomMul ?? 1);
       env.bloomPass.radius = B.radius;
       env.bloomPass.threshold = B.threshold;
     }

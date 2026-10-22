@@ -14,7 +14,13 @@ import { createSeededRandom } from './MathUtils.js';
  * - De ~1,000 draw calls individuales se reduce a solo ~30 draw calls para toda la isla.
  */
 export class PropsManager {
-  constructor(scene, terrain, roadManager, assetManager) {
+  /**
+   * @param {{ deferLegacyTrees?: boolean }} [opts] con el arte Genshin los árboles GLTF antiguos no se
+   *   ven (GenshinTrees los sustituye en las mismas posiciones): no se cargan ni se construyen; solo
+   *   se generan sus posiciones (pendingTrees). ensureLegacyTrees() los construye si hacen falta.
+   */
+  constructor(scene, terrain, roadManager, assetManager, opts = {}) {
+    this.deferLegacyTrees = !!opts.deferLegacyTrees;
     this.scene = scene;
     this.terrain = terrain;
     this.roadManager = roadManager;
@@ -83,7 +89,7 @@ export class PropsManager {
     this.lastPebblePlayerPos = new THREE.Vector3(-9999, -9999, -9999);
 
     this.populateAllZones();
-    this.buildInstancedTrees();
+    if (!this.deferLegacyTrees) this.buildInstancedTrees();
     this.buildInstancedVegetation();
     this.buildInstancedRocks();
     this.buildInstancedPebbles();
@@ -373,6 +379,18 @@ export class PropsManager {
   // =========================================================================
   // CONSTRUCCIÓN DE ÁRBOLES MEDIANTE THREE.InstancedMesh (100% MODELOS REALES)
   // =========================================================================
+  /** Construye los árboles GLTF antiguos si se difirieron (carga sus modelos). Devuelve sus mallas. */
+  ensureLegacyTrees() {
+    if (this._legacyTreesPromise) return this._legacyTreesPromise;
+    const keys = new Set((this.pendingTrees || []).map((t) => t.key));
+    this._legacyTreesPromise = Promise.resolve(this.assetManager.loadModels ? this.assetManager.loadModels(keys) : null)
+      .then(() => {
+        if (this.instancedTreeMeshes.length === 0) this.buildInstancedTrees();
+        return this.instancedTreeMeshes;
+      });
+    return this._legacyTreesPromise;
+  }
+
   buildInstancedTrees() {
     if (!this.pendingTrees || this.pendingTrees.length === 0) return;
 
