@@ -1,13 +1,14 @@
 // ZoneBanner.js — Rótulo de zona al entrar (Crónica Celeste: banner de juego con medallón de bioma).
 // Sustituye al antiguo «zone-discovery-banner» de ZoneTransitionManager, que solo delega aquí.
-import { ISLANDS_REGISTRY } from '../world/MapRegistry.js';
+import { ISLANDS_REGISTRY, MAP_REGISTRY } from '../world/MapRegistry.js';
+import * as i18n from '../../i18n/i18n.js';
 
 const BIOMES = {
-  forest: { label: 'Bosque', color: '#4ADE80' },
-  arctic: { label: 'Ártico', color: '#7DD3FC' },
-  savannah: { label: 'Sabana', color: '#FAC651' },
-  mystic: { label: 'Mística', color: '#FFB3CA' },
-  dungeon: { label: 'Génesis', color: '#A5B4FC' }
+  forest: { label: i18n.t('hud.biomeForest'), color: '#4ADE80' },
+  arctic: { label: i18n.t('hud.biomeArctic'), color: '#7DD3FC' },
+  savannah: { label: i18n.t('hud.biomeSavannah'), color: '#FAC651' },
+  mystic: { label: i18n.t('hud.biomeMystic'), color: '#FFB3CA' },
+  dungeon: { label: i18n.t('hud.biomeGenesis'), color: '#A5B4FC' }
 };
 // Mismos glifos dibujados que las tarjetas del mapa del archipiélago
 const GLYPH = {
@@ -29,12 +30,24 @@ function biomeKey(badge) {
 }
 
 const SEEN_KEY = 'lk_zones_seen';
-function markSeen(name) {
+/** Id estable de la zona (p. ej. 'zone_2_2') a partir de su nombre visible, que depende del idioma. */
+function zoneIdOf(name) {
+  const def = Object.values(MAP_REGISTRY).find((d) => d && d.name === name);
+  return (def && def.id) || null;
+}
+/**
+ * Marca la zona como vista y dice si es nueva. Se guarda por id estable (no cambia con el idioma); las partidas
+ * antiguas guardaban el NOMBRE: si está el nombre en cualquiera de los dos idiomas, cuenta como vista y se añade su id.
+ */
+function markSeen(name, zoneId) {
   try {
     const seen = JSON.parse(localStorage.getItem(SEEN_KEY) || '[]');
-    if (seen.includes(name)) return false;
-    seen.push(name); localStorage.setItem(SEEN_KEY, JSON.stringify(seen.slice(-200)));
-    return true;
+    const id = zoneId || zoneIdOf(name) || name;
+    if (seen.includes(id)) return false;
+    const names = [name, i18n.inLang(name, 'es'), i18n.inLang(name, 'en')];
+    const wasSeen = names.some((n) => seen.includes(n));
+    seen.push(id); localStorage.setItem(SEEN_KEY, JSON.stringify(seen.slice(-200)));
+    return !wasSeen;
   } catch { return false; }
 }
 const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
@@ -54,12 +67,12 @@ function ensure() {
   return el;
 }
 
-/** Muestra el rótulo de la zona. `badge` admite la etiqueta antigua («🌲 Forest») o la clave del bioma. */
-export function showZoneBanner(zoneName, badge, ms = 3600) {
+/** Muestra el rótulo de la zona. `badge` admite la etiqueta antigua («🌲 Forest») o la clave del bioma. `zoneId` (opcional): id estable; si falta se busca por el nombre. */
+export function showZoneBanner(zoneName, badge, ms = 3600, zoneId = null) {
   const key = biomeKey(badge);
   const b = BIOMES[key];
   const island = Object.values(ISLANDS_REGISTRY).find((i) => i && i.biome === key);
-  const isNew = markSeen(zoneName);
+  const isNew = markSeen(zoneName, zoneId);
   const root = ensure();
   root.style.setProperty('--zc', b.color);
   root.innerHTML = `
@@ -68,7 +81,7 @@ export function showZoneBanner(zoneName, badge, ms = 3600) {
       <span class="lk-zone__kicker"><i></i>${esc(b.label)}<i></i></span>
       <h2 class="lk-zone__name">${esc(zoneName)}</h2>
       <span class="lk-zone__line"><i></i></span>
-      <span class="lk-zone__sub">${isNew ? '<b>Zona descubierta</b> · ' : ''}${esc(island?.name || 'Lunacia')}</span>
+      <span class="lk-zone__sub">${isNew ? `<b>${i18n.t('hud.zoneDiscovered')}</b> · ` : ''}${esc(island?.name || 'Lunacia')}</span>
     </div>`;
   clearTimeout(timer); clearTimeout(outTimer);
   root.classList.remove('hidden', 'lk-is-out', 'lk-is-on');

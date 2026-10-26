@@ -240,7 +240,7 @@ export class SavannaGenshinArt {
     this._restyleProps();
 
     // Savanna improvement plan (primitives, to be swapped for final assets later):
-    // landmarks (Bing camp house + lamps, Atia altar, Baruk forge + house), richer oasis,
+    // landmarks (GLB since Hito 55: Bing house + totem + lamps, Atia altar, Baruk house, surf board, canoe), richer oasis,
     // rock mounds by the trails, desert flora, golden horizon haze and pollen.
     try {
       this.landmarks = new SavannaGenshinLandmarks(this);

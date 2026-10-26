@@ -8,10 +8,11 @@
 // Al pulsarlo (o con la tecla 7) se llama a game._toggleUltimateSelect().
 
 import { formatBond } from '../rpg/BondService.js';
+import * as i18n from '../i18n/i18n.js';
 
 const ICON = './assets/ui/icons/';
 const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
-const TRIAD_LABEL = { assault: 'Asalto', bastion: 'Bastión', torrent: 'Torrente' };
+const TRIAD_LABEL = { assault: i18n.t('combatUi.triadAssault'), bastion: i18n.t('combatUi.triadBastion'), torrent: i18n.t('combatUi.triadTorrent') };
 
 /** ¿Hay sistema de Ultimates y una Ultimate para este combate? */
 export function hasUltimate(game) {
@@ -25,14 +26,14 @@ export function ultimateView(game, unit = game?.activeUnit) {
   const caster = unit && unit.team === 'player' ? unit : ult.sapidae;
   const check = ult.check(caster);
   const map = {
-    bond: ['locked', `Vínculo ${formatBond(ult.bond)}%`],
-    used: ['used', 'Usada'],
-    axie_down: ['used', 'Axie caído'],
-    round: ['wait', 'Ronda 2'],
-    pa: ['wait', 'Faltan PA'],
-    not_sapidae: ['wait', 'Turno Sapidae'],
-    not_turn: ['wait', 'Turno Sapidae'],
-    ok: ['ready', 'Lista'],
+    bond: ['locked', i18n.t('combatUi.bondPct', { n: formatBond(ult.bond) })],
+    used: ['used', i18n.t('combatUi.ultUsed')],
+    axie_down: ['used', i18n.t('combatUi.axieDown')],
+    round: ['wait', i18n.t('combatUi.round2')],
+    pa: ['wait', i18n.t('combatUi.needPa')],
+    not_sapidae: ['wait', i18n.t('combatUi.sapidaeTurn')],
+    not_turn: ['wait', i18n.t('combatUi.sapidaeTurn')],
+    ok: ['ready', i18n.t('combatUi.ultReady')],
   };
   const [state, label] = map[check.reason] || ['used', check.label || ''];
   return { state, label, bond: ult.bond, ready: check.ok, check, spell: ult.spell };
@@ -70,17 +71,17 @@ export function ultimateTipHTML(game) {
   const range = s.minRange === s.maxRange ? `${s.minRange}` : `${s.minRange}–${s.maxRange}`;
   const round = game.turnManager?.round || 1;
   const req = [
-    [`Vínculo con ${esc(ult.axie?.name || 'tu Axie')} al 100 %`, ult.bond >= 100, `${formatBond(ult.bond)}%`],
-    ['Desde la ronda 2', round >= 2, `ronda ${round}`],
-    ['6 PA del Sapidae', (ult.sapidae?.currentPA || 0) >= 6, `${ult.sapidae?.currentPA ?? 0} PA`],
-    ['Un uso por combate', !ult.used, 'usada'],
+    [i18n.t('combatUi.reqBond', { name: esc(ult.axie?.name || i18n.t('combatUi.yourAxie')) }), ult.bond >= 100, `${formatBond(ult.bond)}%`],
+    [i18n.t('combatUi.reqRound'), round >= 2, i18n.t('combatUi.roundN', { n: round })],
+    [i18n.t('combatUi.reqPa'), (ult.sapidae?.currentPA || 0) >= 6, i18n.t('combatUi.paN', { n: ult.sapidae?.currentPA ?? 0 })],
+    [i18n.t('combatUi.reqOnce'), !ult.used, i18n.t('combatUi.usedLower')],
   ];
   return `<div class="lk-tooltip-tactical lk-ult-tip" style="--c:var(--lk-gilt-500)">
     <header><span class="lk-cb-tip-cls lk-ult-tip__ico">${esc(s.icon)}</span><div><small>Duo Ultimate · ${TRIAD_LABEL[s.triad] || ''}</small><b>${esc(s.name)}</b></div></header>
     <div class="lk-tt-body">
       <div class="lk-tt-stats">
-        <span class="lk-tt-stat"><i class="lk-tl"><img class="lk-ai" src="${ICON}pa.png" alt="">Coste</i><b>6 PA</b></span>
-        <span class="lk-tt-stat"><i class="lk-tl"><img class="lk-ai" src="${ICON}range.png" alt="">Alcance</i><b>AL ${range}</b></span>
+        <span class="lk-tt-stat"><i class="lk-tl"><img class="lk-ai" src="${ICON}pa.png" alt="">${i18n.t('combatUi.cost')}</i><b>${i18n.t('combatUi.paN', { n: 6 })}</b></span>
+        <span class="lk-tt-stat"><i class="lk-tl"><img class="lk-ai" src="${ICON}range.png" alt="">${i18n.t('combatUi.range')}</i><b>${i18n.t('combatUi.rangeShort')} ${range}</b></span>
       </div>
       <p>${esc(s.description)}</p>
       <ul class="lk-ult-req">${req.map(([t, ok, extra]) => `<li class="${ok ? 'lk-ok' : ''}">${ok ? '✓' : '·'} ${t}${!ok && extra ? ` <b>(${extra})</b>` : ''}</li>`).join('')}</ul>

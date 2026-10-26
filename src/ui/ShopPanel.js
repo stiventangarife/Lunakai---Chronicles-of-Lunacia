@@ -11,30 +11,31 @@ import { ShopService, itemOf, kindOf, EQ_SLOTS } from '../rpg/ShopService.js';
 import { ForgeService } from '../rpg/ForgeService.js';
 import { ITEMS_DB } from '../tactics/ItemDatabase.js';
 import { CRAFT_RECIPES, EVOLUTION_COST, nextEvolution, MATERIAL_RARITY_NAME } from '../tactics/data/EconomyCatalog.js';
-import { asset, esc, toast, sprite } from './lk.js';
+import { asset, esc, toast, sprite, curIcon } from './lk.js';
 import { BIOME, matSvg } from './ForgePanel.js';
-import { MerchantStall } from '../rpg/world/MerchantStall.js';
+import { loadRuneCharmArt, runeCharmArtReady } from './RuneCharmArt.js';
+import * as i18n from '../i18n/i18n.js';
 
 const I = (n) => asset(`assets/ui/icons/${n}.png`);
-const COIN = '<i class="lk-coin" aria-hidden="true"></i>';
-const STAT_ES = { hp: 'Vida', damage: 'Daño', pa: 'PA', pm: 'PM', initiative: 'Iniciativa', shield: 'Escudo' };
-const SLOT1 = { weapon: 'Arma', hat: 'Sombrero', shield: 'Escudo', body: 'Armadura', boots: 'Botas', material: 'Material', quest: 'Objeto de misión' };
-const RAR_NAME = { mystic: 'Místico', legendary: 'Místico', epic: 'Épico', rare: 'Raro', uncommon: 'Poco común', common: 'Común' };
+const COIN = `<img class="lk-coin" src="${curIcon('gold')}" alt="" aria-hidden="true">`;
+const STAT_ES = { hp: i18n.t('shop.statHp'), damage: i18n.t('shop.statDamage'), pa: i18n.t('shop.statPa'), pm: i18n.t('shop.statPm'), initiative: i18n.t('shop.statInitiative'), shield: i18n.t('shop.statShield') };
+const SLOT1 = { weapon: i18n.t('shop.slotWeapon'), hat: i18n.t('shop.slotHat'), shield: i18n.t('shop.slotShield'), body: i18n.t('shop.slotBody'), boots: i18n.t('shop.slotBoots'), material: i18n.t('shop.slotMaterial'), quest: i18n.t('shop.slotQuest') };
+const RAR_NAME = { mystic: i18n.t('shop.rarMystic'), legendary: i18n.t('shop.rarMystic'), epic: i18n.t('shop.rarEpic'), rare: i18n.t('shop.rarRare'), uncommon: i18n.t('shop.rarUncommon'), common: i18n.t('shop.rarCommon') };
 const RAR_ORDER = { mystic: 5, legendary: 5, epic: 4, rare: 3, uncommon: 2, common: 1 };
-const TABS = { buy: [['all', 'Todo'], ['res', 'Recursos'], ['gear', 'Equipo'], ['food', 'Comida'], ['potion', 'Pociones']], sell: [['all', 'Todo'], ['res', 'Recursos'], ['gear', 'Equipo'], ['food', 'Comida'], ['potion', 'Pociones'], ['other', 'Misión']] };
-const ORD = { res: 0, food: 1, potion: 2, gear: 3, other: 4 };
+const TABS = { buy: [['all', i18n.t('shop.tabAll')], ['res', i18n.t('shop.tabRes')], ['gear', i18n.t('shop.tabGear')], ['food', i18n.t('shop.tabFood')], ['potion', i18n.t('shop.tabPotion')]], sell: [['all', i18n.t('shop.tabAll')], ['res', i18n.t('shop.tabRes')], ['gear', i18n.t('shop.tabGear')], ['food', i18n.t('shop.tabFood')], ['potion', i18n.t('shop.tabPotion')], ['rc', i18n.t('shop.tabRc')], ['other', i18n.t('shop.tabQuest')]] };
+const ORD = { res: 0, food: 1, potion: 2, gear: 3, rc: 4, other: 5 };
 
-const fmt = (n) => Number(n).toLocaleString('es');
+const fmt = (n) => i18n.num(n);
 const fmtH = (h) => { const m = Math.max(1, Math.ceil(h * 60)); return m >= 60 ? `${Math.floor(m / 60)} h${m % 60 ? ` ${m % 60} min` : ''}` : `${m} min`; };
 const isImg = (s) => typeof s === 'string' && (/^(\.\/|\/|assets\/|http|data:image)/.test(s) || /\.(png|jpe?g|webp|svg)$/i.test(s));
 const rarVar = (r) => `var(--lk-rar-${['rare', 'epic', 'mystic', 'uncommon'].includes(r) ? r : r === 'legendary' ? 'mystic' : 'common'})`;
 const bg = (it) => rarVar(it.mat ? it.matRarity : it.rarity); // fondo = color de la rareza (también en materiales)
-const slotName = (it) => (it.mat ? 'Material' : SLOT1[it.slot] || (it.category === 'food' ? 'Comida' : (it.slot === 'consumable' ? 'Poción' : '')));
-const tierLabel = (it) => (it.mat ? (it.tier ? `${MATERIAL_RARITY_NAME[it.matRarity] || ''} · ${BIOME[it.biome]?.[0] || ''}` : 'Catalizador') : (EQ_SLOTS.includes(it.slot) && it.tier != null ? `Tier ${it.tier}` : ''));
+const slotName = (it) => (it.mat ? i18n.t('shop.slotMaterial') : it.runeCharm ? (it.runeCharm === 'runes' ? i18n.t('shop.rune') : i18n.t('shop.charm')) : SLOT1[it.slot] || (it.category === 'food' ? i18n.t('shop.food') : (it.category === 'bag' ? i18n.t('shop.bag') : it.slot === 'consumable' ? i18n.t('shop.potion') : '')));
+const tierLabel = (it) => (it.mat ? (it.tier ? `${MATERIAL_RARITY_NAME[it.matRarity] || ''} · ${BIOME[it.biome]?.[0] || ''}` : i18n.t('shop.catalyst')) : (EQ_SLOTS.includes(it.slot) && it.tier != null ? `Tier ${it.tier}` : ''));
 function art(it) {
   if (it.mat && !it.icon) return matSvg(it.glyph);
   if (isImg(it.icon)) return `<img class="${it.isT0 ? 'lk-is-t0' : ''}" src="${it.icon}" alt="" draggable="false">`;
-  return `<span class="lk-emoji">${esc(it.icon || '📦')}</span>`;
+  return it.icon ? `<span class="lk-emoji">${esc(it.icon)}</span>` : `<img class="lk-ai" src="./assets/ui/icons/resource.png" alt="">`;
 }
 const statRows = (it, cmp = null) => {
   const keys = [...new Set([...Object.keys(it.stats || {}), ...Object.keys(cmp?.stats || {})])].filter((k) => STAT_ES[k]);
@@ -46,12 +47,12 @@ const statRows = (it, cmp = null) => {
 /** Efecto de un consumible en una línea. */
 const effectTxt = (it) => {
   const e = it.effect || {};
-  return [e.bond && `+${e.bond}% de vínculo con tu axie`, e.heal && `Cura ${e.heal} de Vida`, e.shield && `+${e.shield} de Escudo`, e.pa && `+${e.pa} PA`, e.pm && `+${e.pm} PM`].filter(Boolean).join(' · ');
+  return [e.bond && i18n.t('shop.effBond', { n: e.bond }), e.heal && i18n.t('shop.effHeal', { n: e.heal }), e.shield && i18n.t('shop.effShield', { n: e.shield }), e.pa && i18n.t('shop.effPa', { n: e.pa }), e.pm && i18n.t('shop.effPm', { n: e.pm })].filter(Boolean).join(' · ');
 };
 function matUses(id) {
   const rec = CRAFT_RECIPES.filter((r) => r.mats[id]).map((r) => ITEMS_DB[r.result]?.name).filter(Boolean);
   const evo = Object.entries(EVOLUTION_COST).filter(([, c]) => c.mats[id] || (id === 'mat_lunar_shard' && c.shards)).map(([t]) => `T${t}`);
-  return [rec.length ? `Crear: ${rec.slice(0, 3).join(', ')}${rec.length > 3 ? '…' : ''}` : '', evo.length ? `evolucionar a ${evo.join(', ')}` : ''].filter(Boolean).join(' · ') || 'Recetas futuras.';
+  return [rec.length ? i18n.t('shop.useCraft', { list: `${rec.slice(0, 3).join(', ')}${rec.length > 3 ? '…' : ''}` }) : '', evo.length ? i18n.t('shop.useEvolve', { list: evo.join(', ') }) : ''].filter(Boolean).join(' · ') || i18n.t('shop.futureRecipes');
 }
 
 export function attachShop(game) {
@@ -66,13 +67,13 @@ export function attachShop(game) {
   modal.id = 'shop-modal';
   modal.className = 'lk-ui lk-backdrop lk-shop-layer hidden';
   modal.innerHTML = `
-    <div class="lk-panel-modal-window lk-shop" role="dialog" aria-label="Tienda">
+    <div class="lk-panel-modal-window lk-shop" role="dialog" aria-label="${i18n.t('shop.shop')}">
       <div class="lk-panel-head">
         <span class="lk-emblem"><img class="lk-ai" src="${I('resource')}" alt=""></span>
-        <h3><small data-ref="place">Tienda</small><span data-ref="name">Mercader</span></h3>
-        <div class="lk-segmented" data-ref="mode" role="tablist" aria-label="Modo de la tienda"><button type="button" aria-pressed="true" data-m="buy">Comprar</button><button type="button" aria-pressed="false" data-m="sell">Vender</button></div>
-        <div class="lk-wallet" aria-label="Monedas"><span class="lk-res-pill" title="Oro"><span class="lk-ico" style="background:var(--lk-gilt-300)"><img src="${I('resource')}" alt="" style="width:15px;height:15px"></span><span data-ref="gold">0</span></span><span class="lk-res-pill lk-cur" title="SLP · Smooth Love Potion (moneda de evolución)"><img class="lk-cur-ico" src="${asset('assets/currency/slp.png')}" alt="SLP"><span data-ref="slp">0</span></span><span class="lk-res-pill lk-cur" title="bAXS (comisión y rapidez de la forja)"><img class="lk-cur-ico" src="${asset('assets/currency/baxs.png')}" alt="bAXS"><span data-ref="baxs">0</span></span></div>
-        <button type="button" class="lk-btn-close-x" data-act="close" aria-label="Cerrar">${sprite('i-close')}</button>
+        <h3><small data-ref="place">${i18n.t('shop.shop')}</small><span data-ref="name">${i18n.t('shop.merchant')}</span></h3>
+        <div class="lk-segmented" data-ref="mode" role="tablist" aria-label="${i18n.t('shop.modeLabel')}"><button type="button" aria-pressed="true" data-m="buy">${i18n.t('shop.buy')}</button><button type="button" aria-pressed="false" data-m="sell">${i18n.t('shop.sell')}</button></div>
+        <div class="lk-wallet" aria-label="${i18n.t('shop.coins')}"><span class="lk-res-pill" title="${i18n.t('shop.gold')}"><img class="lk-cur-ico" src="${curIcon('gold')}" alt="${i18n.t('shop.gold')}"><span data-ref="gold">0</span></span><span class="lk-res-pill lk-cur" title="${i18n.t('shop.slpTitle')}"><img class="lk-cur-ico" src="${curIcon('slp')}" alt="SLP"><span data-ref="slp">0</span></span><span class="lk-res-pill lk-cur" title="${i18n.t('shop.baxsTitle')}"><img class="lk-cur-ico" src="${curIcon('baxs')}" alt="bAXS"><span data-ref="baxs">0</span></span></div>
+        <button type="button" class="lk-btn-close-x" data-act="close" aria-label="${i18n.t('shop.close')}">${sprite('i-close')}</button>
       </div>
       <div class="lk-shop-body">
         <div class="lk-shop-main">
@@ -98,15 +99,16 @@ export function attachShop(game) {
 
   function render() {
     if (!api.isOpen) return;
+    if (!runeCharmArtReady()) loadRuneCharmArt().then(() => render()); // arte de las runas y charms (pestaña Vender)
     const d = ShopService.def(SH.shop);
-    $('place').textContent = `Tienda · ${d.place}`; $('name').textContent = d.name;
+    $('place').textContent = i18n.t('shop.placeKicker', { place: d.place }); $('name').textContent = d.name;
     $('gold').textContent = fmt(ShopService.gold());
     const w = ForgeService.wallet();
-    $('slp').textContent = fmt(w.slp); $('baxs').textContent = (Math.round(w.baxs * 100) / 100).toLocaleString('es', { maximumFractionDigits: 2 });
+    $('slp').textContent = fmt(w.slp); $('baxs').textContent = (Math.round(w.baxs * 100) / 100).toLocaleString(i18n.lang() === 'es' ? 'es' : 'en', { maximumFractionDigits: 2 });
     $('mode').querySelectorAll('button').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.m === SH.mode)));
     const all = entries();
     $('tabs').innerHTML = TABS[SH.mode].map(([k, n]) => { const c = k === 'all' ? all.length : all.filter((e) => kindOf(e.it) === k).length; return c || k === 'all' ? `<button type="button" class="lk-fchip lk-no-ico" data-k="${k}" aria-pressed="${SH.tab === k}">${n} <span style="opacity:.55">${c}</span></button>` : ''; }).join('');
-    $('restock').innerHTML = SH.mode === 'buy' ? `<img class="lk-ai" src="${I('hourglass')}" alt="">Nuevas existencias en ${fmtH(ShopService.restockInHours(SH.shop))}` : 'Te paga el 30 % · materiales al 50 %';
+    $('restock').innerHTML = SH.mode === 'buy' ? `<img class="lk-ai" src="${I('hourglass')}" alt="">${i18n.t('shop.restock', { t: fmtH(ShopService.restockInHours(SH.shop)) })}` : i18n.t('shop.sellRate');
     const list = all.filter((e) => SH.tab === 'all' || kindOf(e.it) === SH.tab);
     const tierKey = (it) => (it.mat && !it.tier ? 9 : it.tier || 0);
     list.sort((a, b) => ORD[kindOf(a.it)] - ORD[kindOf(b.it)] || tierKey(a.it) - tierKey(b.it) || (RAR_ORDER[a.it.rarity] || 0) - (RAR_ORDER[b.it.rarity] || 0) || a.it.name.localeCompare(b.it.name));
@@ -116,9 +118,9 @@ export function attachShop(game) {
       const it = e.it, buy = SH.mode === 'buy';
       const out = buy && e.left === 0, poor = buy && !out && e.price > gold, locked = !buy && e.locked;
       const qty = buy ? ShopService.have(e.id) : e.qty;
-      const cap = locked ? (EQ_SLOTS.includes(it.slot) ? 'No lo compra' : 'No se vende') : `${COIN}${fmt(e.price)}`;
+      const cap = locked ? (EQ_SLOTS.includes(it.slot) ? i18n.t('shop.wontBuy') : i18n.t('shop.notForSale')) : `${COIN}${fmt(e.price)}`;
       return `<button type="button" class="lk-it ${e.key === SH.sel ? 'lk-is-sel' : ''} ${out ? 'lk-is-out' : ''} ${poor ? 'lk-is-poor' : ''} ${locked ? 'lk-is-locked' : ''}" data-k="${esc(e.key)}" style="--r:${bg(it)}" aria-label="${esc(it.name)}${qty > 1 ? ` ×${qty}` : ''}"><span class="lk-art">${art(it)}${EQ_SLOTS.includes(it.slot) && it.tier != null ? `<span class="lk-tier">T${it.tier}</span>` : ''}${qty > 1 ? `<span class="lk-qty">×${qty}</span>` : ''}</span><span class="lk-cap ${locked ? '' : 'lk-price'}">${cap}</span></button>`;
-    }).join('') || `<p class="lk-sp-empty" style="color:#8D97AF">${SH.mode === 'sell' ? 'No llevas nada que vender.' : 'No hay nada aquí.'}</p>`;
+    }).join('') || `<p class="lk-sp-empty" style="color:#8D97AF">${SH.mode === 'sell' ? i18n.t('shop.nothingToSell') : i18n.t('shop.nothingHere')}</p>`;
     renderBuyback();
     renderPage(list.find((e) => e.key === SH.sel));
   }
@@ -127,12 +129,12 @@ export function attachShop(game) {
     const el = $('buyback'); el.hidden = SH.mode !== 'sell';
     if (el.hidden) return;
     const bb = ShopService.buyback(SH.shop);
-    el.innerHTML = `<span class="lk-label">Recomprar</span>${bb.length ? `<div class="lk-bb-list">${bb.map((b, i) => `<button type="button" class="lk-bb" data-i="${i}" title="Recomprar ${b.qty > 1 ? `${b.qty} × ` : ''}${esc(b.it.name)} por ${fmt(b.paid)} de oro" style="--r:${bg(b.it)}"><span class="lk-bi">${art(b.it)}</span><span class="lk-bn">${b.qty > 1 ? `×${b.qty} ` : ''}${esc(b.it.name)}</span><span class="lk-bp">${COIN}${fmt(b.paid)}</span></button>`).join('')}</div>` : '<span class="lk-muted">Lo que vendas aparece aquí y puedes recuperarlo al mismo precio.</span>'}`;
+    el.innerHTML = `<span class="lk-label">${i18n.t('shop.buyback')}</span>${bb.length ? `<div class="lk-bb-list">${bb.map((b, i) => `<button type="button" class="lk-bb" data-i="${i}" title="${i18n.t('shop.buybackTitle', { qty: b.qty > 1 ? `${b.qty} × ` : '', item: esc(b.it.name), n: fmt(b.paid) })}" style="--r:${bg(b.it)}"><span class="lk-bi">${art(b.it)}</span><span class="lk-bn">${b.qty > 1 ? `×${b.qty} ` : ''}${esc(b.it.name)}</span><span class="lk-bp">${COIN}${fmt(b.paid)}</span></button>`).join('')}</div>` : `<span class="lk-muted">${i18n.t('shop.buybackEmpty')}</span>`}`;
   }
 
   function renderPage(e) {
     const pg = $('page');
-    if (!e) { pg.innerHTML = '<p class="lk-sp-empty">Elige un objeto para ver su ficha.</p>'; return; }
+    if (!e) { pg.innerHTML = `<p class="lk-sp-empty">${i18n.t('shop.pickOne')}</p>`; return; }
     const it = e.it, buy = SH.mode === 'buy', unit = e.price, gold = ShopService.gold();
     const isGear = EQ_SLOTS.includes(it.slot);
     const hid = heroId(), curId = isGear ? em.equipped?.[hid]?.[it.slot] : null, curIt = curId && ITEMS_DB[curId];
@@ -140,28 +142,28 @@ export function attachShop(game) {
     SH.qty = Math.max(1, Math.min(SH.qty, Math.max(1, max)));
     const total = unit * SH.qty;
     let why = '';
-    if (buy && e.left === 0) why = 'Agotado: vuelve cuando se renueven las existencias.';
-    else if (buy && unit > gold) why = `Te faltan ${fmt(unit - gold)} de oro.`;
+    if (buy && e.left === 0) why = i18n.t('shop.soldOut');
+    else if (buy && unit > gold) why = i18n.t('shop.needGold', { n: fmt(unit - gold) });
     else if (!buy && e.locked) why = e.lockWhy;
     const noSale = !buy && e.locked; // el mercader no lo compra: sin cantidad, sin resumen
     const valuable = !buy && !noSale && isGear && (RAR_ORDER[it.rarity] || 0) >= 3;
-    const compare = isGear ? `<div class="lk-sp-sec"><span class="lk-label">Frente a lo que lleva ${esc(heroName(hid))}</span><div class="lk-sp-stats">${statRows(it, curIt)}</div><small style="font-size:.7rem;font-weight:700;color:var(--lk-ink-600)">${curIt ? `Ahora: ${esc(curIt.name)} (T${curIt.tier})` : `${esc(heroName(hid))} no lleva ${SLOT1[it.slot].toLowerCase()}.`}</small></div>` : '';
-    const uses = it.mat ? `<div class="lk-sp-sec"><span class="lk-label">Se usa en</span><div class="lk-sp-note"><img class="lk-ai" src="${I('build')}" alt=""><span>${esc(matUses(it.id))}</span></div><div class="lk-sp-note"><img class="lk-ai" src="${I('map')}" alt=""><span><b>Dónde conseguirlo:</b> ${esc(it.source)}</span></div></div>` : '';
+    const compare = isGear ? `<div class="lk-sp-sec"><span class="lk-label">${i18n.t('shop.vsWorn', { hero: esc(heroName(hid)) })}</span><div class="lk-sp-stats">${statRows(it, curIt)}</div><small style="font-size:.7rem;font-weight:700;color:var(--lk-ink-600)">${curIt ? i18n.t('shop.nowWearing', { item: esc(curIt.name), tier: curIt.tier }) : i18n.t('shop.notWearing', { hero: esc(heroName(hid)), slot: SLOT1[it.slot].toLowerCase() })}</small></div>` : '';
+    const uses = it.mat ? `<div class="lk-sp-sec"><span class="lk-label">${i18n.t('shop.usedIn')}</span><div class="lk-sp-note"><img class="lk-ai" src="${I('build')}" alt=""><span>${esc(matUses(it.id))}</span></div><div class="lk-sp-note"><img class="lk-ai" src="${I('map')}" alt=""><span><b>${i18n.t('shop.whereGet')}</b> ${esc(it.source)}</span></div></div>` : '';
     const eff = !it.mat && !isGear && effectTxt(it) ? `<div class="lk-sp-note"><img class="lk-ai" src="${I('heart')}" alt=""><span>${esc(effectTxt(it))}</span></div>` : '';
     const nx = isGear && nextEvolution(it.id) && ITEMS_DB[nextEvolution(it.id)];
-    const evo = nx ? `<div class="lk-sp-note"><img class="lk-ai" src="${I('upgrade')}" alt=""><span>Evoluciona en la forja a <b>${esc(nx.name)}</b> (T${nx.tier}).</span></div>` : '';
+    const evo = nx ? `<div class="lk-sp-note"><img class="lk-ai" src="${I('upgrade')}" alt=""><span>${i18n.t('shop.evolvesTo', { item: esc(nx.name), tier: nx.tier })}</span></div>` : '';
     pg.innerHTML = `
-      <div class="lk-sp-head"><span class="lk-sp-art" style="--r:${bg(it)}">${art(it)}</span><div><small>${esc(slotName(it))}${tierLabel(it) ? ` · ${esc(tierLabel(it))}` : ''}</small><b>${esc(it.name)}</b>${((r) => `<span class="lk-rar-chip" data-r="${r === 'legendary' ? 'mystic' : r}">${RAR_NAME[r] || 'Común'}</span>`)((it.mat ? it.matRarity : it.rarity) || 'common')}</div></div>
+      <div class="lk-sp-head"><span class="lk-sp-art" style="--r:${bg(it)}">${art(it)}</span><div><small>${esc(slotName(it))}${tierLabel(it) ? ` · ${esc(tierLabel(it))}` : ''}</small><b>${esc(it.name)}</b>${((r) => `<span class="lk-rar-chip" data-r="${r === 'legendary' ? 'mystic' : r}">${RAR_NAME[r] || i18n.t('shop.rarCommon')}</span>`)((it.mat ? it.matRarity : it.rarity) || 'common')}</div></div>
       <p class="lk-sp-desc">${esc(it.description || '')}</p>
       ${compare}${uses}${eff}${evo}
-      ${!buy && e.locked ? '' : `<div class="lk-sp-qty"><span class="lk-step"><button type="button" data-q="-1" aria-label="Menos" ${SH.qty <= 1 ? 'disabled' : ''}>−</button><output>${SH.qty}</output><button type="button" data-q="1" aria-label="Más" ${SH.qty >= max ? 'disabled' : ''}>+</button></span>${max > 1 ? '<button type="button" class="lk-max" data-q="max">Máx</button>' : ''}<span class="lk-have">${buy ? `Tienes ${ShopService.have(it.id)}${e.left != null ? ` · quedan ${e.left}` : ''}` : `Tienes ${e.qty}`}</span></div>`}
+      ${!buy && e.locked ? '' : `<div class="lk-sp-qty"><span class="lk-step"><button type="button" data-q="-1" aria-label="${i18n.t('shop.less')}" ${SH.qty <= 1 ? 'disabled' : ''}>−</button><output>${SH.qty}</output><button type="button" data-q="1" aria-label="${i18n.t('shop.more')}" ${SH.qty >= max ? 'disabled' : ''}>+</button></span>${max > 1 ? `<button type="button" class="lk-max" data-q="max">${i18n.t('shop.max')}</button>` : ''}<span class="lk-have">${buy ? `${i18n.t('shop.have', { n: ShopService.have(it.id) })}${e.left != null ? ` · ${i18n.t('shop.left', { n: e.left })}` : ''}` : i18n.t('shop.have', { n: e.qty })}</span></div>`}
       ${noSale ? '' : `<div class="lk-sp-sum">
-        <div><span>Precio por unidad</span><b>${COIN}${fmt(unit)}</b></div>
-        <div class="lk-total"><span>${buy ? 'Total' : 'Recibes'}</span><b>${COIN}${fmt(total)}</b></div>
-        <div><span>${buy ? 'Te quedarán' : 'Tendrás'}</span><b class="${buy && total > gold ? 'lk-neg' : ''}">${COIN}${fmt(buy ? gold - total : gold + total)}</b></div>
+        <div><span>${i18n.t('shop.unitPrice')}</span><b>${COIN}${fmt(unit)}</b></div>
+        <div class="lk-total"><span>${buy ? i18n.t('shop.total') : i18n.t('shop.youGet')}</span><b>${COIN}${fmt(total)}</b></div>
+        <div><span>${buy ? i18n.t('shop.leftAfter') : i18n.t('shop.youllHave')}</span><b class="${buy && total > gold ? 'lk-neg' : ''}">${COIN}${fmt(buy ? gold - total : gold + total)}</b></div>
       </div>`}
       <div class="lk-sp-act">
-        <button type="button" class="lk-btn ${buy ? 'lk-btn-primary-gold' : 'lk-btn-secondary-wood'} ${valuable ? 'lk-hold' : ''}" data-act="go" ${why ? 'disabled' : ''}>${valuable ? '<span class="lk-fill"></span>' : ''}<span class="lk-b-ico"><img class="lk-ai" src="${I(buy ? 'add' : 'resource')}" alt=""></span>${buy ? `Comprar ×${SH.qty} · ${fmt(total)}` : noSale ? 'No se puede vender aquí' : valuable ? `Mantén para vender · ${fmt(total)}` : `Vender ×${SH.qty} · ${fmt(total)}`}</button>
+        <button type="button" class="lk-btn ${buy ? 'lk-btn-primary-gold' : 'lk-btn-secondary-wood'} ${valuable ? 'lk-hold' : ''}" data-act="go" ${why ? 'disabled' : ''}>${valuable ? '<span class="lk-fill"></span>' : ''}<span class="lk-b-ico">${buy ? `<img class="lk-ai" src="${I('add')}" alt="">` : `<img class="lk-cur-ico" src="${curIcon('gold')}" alt="">`}</span>${buy ? i18n.t('shop.buyBtn', { q: SH.qty, n: fmt(total) }) : noSale ? i18n.t('shop.cantSellHere') : valuable ? i18n.t('shop.holdSell', { n: fmt(total) }) : i18n.t('shop.sellBtn', { q: SH.qty, n: fmt(total) })}</button>
         <span class="lk-why">${esc(why)}</span>
       </div>`;
     pg.querySelectorAll('[data-q]').forEach((b) => b.addEventListener('click', () => { SH.qty = b.dataset.q === 'max' ? max : SH.qty + Number(b.dataset.q); renderPage(e); }));
@@ -183,9 +185,9 @@ export function attachShop(game) {
   function doShop(e) {
     const q = SH.qty;
     const r = SH.mode === 'buy' ? ShopService.buy(SH.shop, e.id, q) : ShopService.sell(SH.shop, e.id, q);
-    if (!r.ok) { toast(r.why || 'No se pudo', true); render(); return; }
+    if (!r.ok) { toast(r.why || i18n.t('shop.failed'), true); render(); return; }
     sfx(SH.mode === 'buy' ? 'playBuff' : 'playHover');
-    toast(SH.mode === 'buy' ? `Compraste ${q > 1 ? `${q} × ` : ''}${r.it.name}${r.it.mat ? ' · va a la bolsa de la forja' : ''}` : `Vendiste ${q > 1 ? `${q} × ` : ''}${r.it.name} por ${fmt(r.gain)} de oro`);
+    toast(SH.mode === 'buy' ? i18n.t('shop.bought', { qty: q > 1 ? `${q} × ` : '', item: r.it.name, extra: r.it.mat ? ` · ${i18n.t('shop.toPouch')}` : '' }) : i18n.t('shop.sold', { qty: q > 1 ? `${q} × ` : '', item: r.it.name, n: fmt(r.gain) }));
     if (SH.mode === 'sell') SH.qty = 1;
     render();
     const cell = modal.querySelector(`.lk-shop-grid .lk-it[data-k="${CSS.escape(SH.sel || '')}"]`);
@@ -199,8 +201,8 @@ export function attachShop(game) {
   $('buyback').addEventListener('click', (ev) => {
     const b = ev.target.closest('.lk-bb'); if (!b) return;
     const r = ShopService.rebuy(SH.shop, +b.dataset.i);
-    if (!r.ok) { toast(r.why || 'No se pudo recomprar', true); return; }
-    toast(`Recuperaste ${r.it.name}`); render();
+    if (!r.ok) { toast(r.why || i18n.t('shop.rebuyFail'), true); return; }
+    toast(i18n.t('shop.rebought', { item: r.it.name })); render();
   });
   modal.querySelector('[data-act="close"]').addEventListener('click', close);
   modal.addEventListener('pointerdown', (ev) => { if (ev.target === modal) close(); });
@@ -240,7 +242,6 @@ export function attachShop(game) {
   }
 
   ow.shopModal = api;
-  api.stall = new MerchantStall(ow); // puesto de mercado junto al Mercader Ochi
   window.lunakaiShop = { open, close, service: ShopService };
   return api;
 }

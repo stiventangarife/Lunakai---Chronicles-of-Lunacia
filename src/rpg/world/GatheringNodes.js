@@ -10,6 +10,7 @@ import * as THREE from 'three';
 import { GATHER_KINDS, GATHER_RULES, nodesForZone, promptFor } from '../../tactics/data/GatheringCatalog.js';
 import { canonicalZoneKey } from './islands/IslandWorldLayout.js';
 import { formatWait } from '../GatheringService.js';
+import * as i18n from '../../i18n/i18n.js';
 
 const TAG = 'gather_node';
 const mat = (color, o = {}) => new THREE.MeshStandardMaterial({ color, roughness: 0.85, metalness: 0, flatShading: true, ...o });
@@ -83,6 +84,27 @@ class Burst {
   }
 }
 
+/** Insignia del hacha (canvas compartido; cada sprite tiene su material, la textura no se libera al cambiar de isla). */
+let _axeTex = null;
+function axeBadgeTexture() {
+  if (_axeTex) return _axeTex;
+  const c = document.createElement('canvas'); c.width = c.height = 128;
+  const x = c.getContext('2d');
+  x.beginPath(); x.arc(64, 64, 54, 0, Math.PI * 2);
+  x.fillStyle = 'rgba(30, 24, 18, 0.78)'; x.fill();
+  x.lineWidth = 7; x.strokeStyle = '#E9B44C'; x.stroke();
+  // Hito 75: hacha dibujada (antes un emoji, que no casaba con el estilo del juego)
+  x.save(); x.translate(64, 66); x.rotate(-0.62);
+  x.lineCap = 'round'; x.lineWidth = 9; x.strokeStyle = '#8A5A2B'; x.beginPath(); x.moveTo(0, 34); x.lineTo(0, -30); x.stroke();
+  x.lineWidth = 3; x.strokeStyle = '#5B3A1A'; x.beginPath(); x.moveTo(0, 34); x.lineTo(0, 26); x.stroke();
+  x.beginPath(); x.moveTo(2, -30); x.lineTo(26, -38); x.quadraticCurveTo(34, -20, 26, -4); x.lineTo(2, -12); x.closePath();
+  x.fillStyle = '#E8EEF4'; x.fill(); x.lineWidth = 3; x.strokeStyle = '#E9B44C'; x.stroke();
+  x.restore();
+  _axeTex = new THREE.CanvasTexture(c);
+  _axeTex.colorSpace = THREE.SRGBColorSpace;
+  return _axeTex;
+}
+
 export class GatheringNodes {
   /**
    * @param {object} ow OverworldManager
@@ -151,11 +173,12 @@ export class GatheringNodes {
     for (const it of this.items) {
       const left = this.service.remainingMs(it.def.id);
       const available = left <= 0;
-      it.node.promptText = available ? promptFor(it.def) : `${it.def.name} · vuelve en ${formatWait(left)}`;
+      it.node.promptText = available ? promptFor(it.def) : i18n.t('notices.gather.backIn', { name: it.def.name, t: formatWait(left) });
       if (!force && available === it.available) continue;
       it.available = available;
       it.setAvailable?.(available);
       if (it.ring) it.ring.visible = available;
+      if (it.marker) it.marker.visible = available;
     }
   }
 
@@ -171,7 +194,8 @@ export class GatheringNodes {
       this.items.forEach((it) => { it.group.position.y = this._ground(it.def.x, it.def.z); });
     }
     for (const it of this.items) {
-      if (it.ring?.visible) it.ring.material.opacity = 0.28 + Math.sin(this._t * 2.2 + it.def.x) * 0.12;
+      if (it.ring?.visible) it.ring.material.opacity = it.def.highlight ? 0.62 + Math.sin(this._t * 2.2 + it.def.x) * 0.2 : 0.28 + Math.sin(this._t * 2.2 + it.def.x) * 0.12;
+      if (it.marker?.visible) it.marker.position.y = 8.4 + Math.sin(this._t * 1.8 + it.def.z) * 0.18;
       it.animate?.(dt, this._t);
     }
   }
@@ -188,9 +212,18 @@ export class GatheringNodes {
     // Anillo del color de la actividad: se puede usar
     const color = new THREE.Color(GATHER_KINDS[def.kind]?.color || '#D3AE6C');
     const r = def.kind === 'chop' ? 1.6 : 1.15;
-    const ring = new THREE.Mesh(new THREE.RingGeometry(r, r + 0.12, 40), new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.35, side: THREE.DoubleSide, depthWrite: false }));
+    const w = def.highlight ? 0.3 : 0.12;   // Hito 64: los puntos destacados (abetos del Ártico) llevan un anillo más ancho
+    const ring = new THREE.Mesh(new THREE.RingGeometry(r, r + w, 40), new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.35, side: THREE.DoubleSide, depthWrite: false }));
     ring.rotation.x = -Math.PI / 2; ring.position.y = 0.06; ring.renderOrder = 2;
     g.add(ring); it.ring = ring;
+    if (def.highlight) {
+      // Hacha flotante sobre la copa: se ve desde lejos entre los demás abetos (se oculta mientras rebrota)
+      const marker = new THREE.Sprite(new THREE.SpriteMaterial({ map: axeBadgeTexture(), transparent: true, depthWrite: false }));
+      marker.scale.set(1.5, 1.5, 1);
+      marker.position.y = def.kind === 'chop' ? 8.4 : 2.4;
+      marker.renderOrder = 3;
+      g.add(marker); it.marker = marker;
+    }
     g.traverse((c) => { if (c.isMesh && c !== ring) { c.castShadow = true; c.receiveShadow = true; } });
     return it;
   }

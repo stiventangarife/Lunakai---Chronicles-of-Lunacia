@@ -1,4 +1,5 @@
 import { BIOMES } from './Biomes.js';
+import * as i18n from '../i18n/i18n.js';
 import { ITEMS_DB, TIER_DROPS, ROLE_DROPS } from './ItemDatabase.js';
 import { MATERIALS } from './data/EconomyCatalog.js';
 import { ENEMY_ARCHETYPES } from '../rpg/world/BiomeEnemyCatalog.js';
@@ -121,51 +122,51 @@ export class DynamicCombatFactory {
     if (!members) {
       if (encounterData.monsterId === 'mob_bing_ambush') {
         members = [
-          { id: 'chimera_bing_1', name: 'Swift Chimera', type: 'wolf-aquatic', scale: 1.2, tintColor: null, maxHP: 180, maxPA: 5, maxPM: 4, initiative: 70, initialShield: 20, spellIds: ['wolf_aquatic_bite'], expValue: 80, role: 'pack_hunter' },
-          { id: 'chimera_bing_2', name: 'Spiked Chimera', type: 'slime-forest-a', scale: 1.1, tintColor: null, maxHP: 160, maxPA: 5, maxPM: 3, initiative: 60, initialShield: 25, spellIds: ['slime_forest_a_swipe', 'slime_forest_a_thorn'], expValue: 75, role: 'skirmisher' }
+          { id: 'chimera_bing_1', name: i18n.t('enemies.swiftChimera'), type: 'wolf-aquatic', scale: 1.2, tintColor: null, maxHP: 180, maxPA: 5, maxPM: 4, initiative: 70, initialShield: 20, spellIds: ['wolf_aquatic_bite'], expValue: 80, role: 'pack_hunter' },
+          { id: 'chimera_bing_2', name: i18n.t('enemies.spikedChimera'), type: 'slime-forest-a', scale: 1.1, tintColor: null, maxHP: 160, maxPA: 5, maxPM: 3, initiative: 60, initialShield: 25, spellIds: ['slime_forest_a_swipe', 'slime_forest_a_thorn'], expValue: 75, role: 'skirmisher' }
         ];
       } else if (encounterData.monsterId === 'mob_postman_bandits') {
         members = [
-          { id: 'bandit_post_1', name: 'Mail Raider', type: 'slime-attack', scale: 1.1, tintColor: 0x9333ea, maxHP: 130, maxPA: 6, maxPM: 3, initiative: 60, initialShield: 15, spellIds: ['slime_attack_spit', 'slime_attack_goo'], expValue: 65, role: 'ranged_piercer' },
-          { id: 'bandit_post_2', name: 'Satchel Thief', type: 'slime', scale: 1.15, tintColor: 0x6b21a8, maxHP: 150, maxPA: 5, maxPM: 3, initiative: 50, initialShield: 20, spellIds: ['slime_strike', 'slime_barrier'], expValue: 65, role: 'melee_brawler' }
+          { id: 'bandit_post_1', name: i18n.t('enemies.mailRaider'), type: 'slime-attack', scale: 1.1, tintColor: 0x9333ea, maxHP: 130, maxPA: 6, maxPM: 3, initiative: 60, initialShield: 15, spellIds: ['slime_attack_spit', 'slime_attack_goo'], expValue: 65, role: 'ranged_piercer' },
+          { id: 'bandit_post_2', name: i18n.t('enemies.satchelThief'), type: 'slime', scale: 1.15, tintColor: 0x6b21a8, maxHP: 150, maxPA: 5, maxPM: 3, initiative: 50, initialShield: 20, spellIds: ['slime_strike', 'slime_barrier'], expValue: 65, role: 'melee_brawler' }
         ];
       } else if (encounterData.monsterId === 'mob_rosalba_plant_guardian') {
         members = [
-          { id: 'guardian_plant_1', name: 'Moss Guardian', type: 'slime-forest-a', scale: 1.25, tintColor: 0x15803d, maxHP: 190, maxPA: 5, maxPM: 3, initiative: 65, initialShield: 35, spellIds: ['slime_forest_a_swipe', 'slime_forest_a_thorn', 'slime_forest_a_spit'], expValue: 95, role: 'skirmisher' }
+          { id: 'guardian_plant_1', name: i18n.t('enemies.mossGuardian'), type: 'slime-forest-a', scale: 1.25, tintColor: 0x15803d, maxHP: 190, maxPA: 5, maxPM: 3, initiative: 65, initialShield: 35, spellIds: ['slime_forest_a_swipe', 'slime_forest_a_thorn', 'slime_forest_a_spit'], expValue: 95, role: 'skirmisher' }
         ];
       } else if (encounterData.monsterId === 'mob_armored_chimera') {
         members = [
-          { id: 'armored_chimera_1', name: 'Armored Chimera', type: 'wolf-aquatic-alpha', scale: 1.65, tintColor: 0x78716c, maxHP: 280, maxPA: 6, maxPM: 3, initiative: 70, initialShield: 80, bonusDamage: 8, spellIds: ['wolf_aquatic_alpha_splash', 'wolf_aquatic_alpha_roar'], expValue: 150, role: 'apex_hunter' }
+          { id: 'armored_chimera_1', name: i18n.t('enemies.armoredChimera'), type: 'wolf-aquatic-alpha', scale: 1.65, tintColor: 0x78716c, maxHP: 280, maxPA: 6, maxPM: 3, initiative: 70, initialShield: 80, bonusDamage: 8, spellIds: ['wolf_aquatic_alpha_splash', 'wolf_aquatic_alpha_roar'], expValue: 150, role: 'apex_hunter' }
         ];
       } else if (encounterData.monsterId === 'mob_beaked_chimera') {
         members = [
           // sub-jefe (19-oct): antes era 'bird-early' (un Axie sin modelo de enemigo → primitiva) con habilidades antiguas sin VFX;
           // ahora es el alfa de la manada de lobos acuáticos, en ámbar, y más fuerte que la Armored Chimera
-          { id: 'beaked_alpha_1', name: 'Beaked Alpha Chimera', type: 'wolf-aquatic-alpha', scale: 1.7, tintColor: 0xf59e0b, maxHP: 330, maxPA: 7, maxPM: 4, initiative: 85, initialShield: 70, bonusDamage: 10, spellIds: ['wolf_aquatic_alpha_splash', 'wolf_aquatic_alpha_roar'], expValue: 180, role: 'apex_hunter' },
-          { id: 'beaked_flock_2', name: 'Winged Beaked Chimera', type: 'wolf-aquatic', scale: 1.25, tintColor: null, maxHP: 160, maxPA: 5, maxPM: 4, initiative: 70, initialShield: 20, bonusDamage: 3, spellIds: ['wolf_aquatic_bite', 'chimera_bite'], expValue: 70, role: 'pack_hunter' }
+          { id: 'beaked_alpha_1', name: i18n.t('enemies.alphaBeakedChimera'), type: 'wolf-aquatic-alpha', scale: 1.7, tintColor: 0xf59e0b, maxHP: 330, maxPA: 7, maxPM: 4, initiative: 85, initialShield: 70, bonusDamage: 10, spellIds: ['wolf_aquatic_alpha_splash', 'wolf_aquatic_alpha_roar'], expValue: 180, role: 'apex_hunter' },
+          { id: 'beaked_flock_2', name: i18n.t('enemies.wingedBeakedChimera'), type: 'wolf-aquatic', scale: 1.25, tintColor: null, maxHP: 160, maxPA: 5, maxPM: 4, initiative: 70, initialShield: 20, bonusDamage: 3, spellIds: ['wolf_aquatic_bite', 'chimera_bite'], expValue: 70, role: 'pack_hunter' }
         ];
       } else if (encounterData.monsterId === 'mob_shadow_mirror') {
         members = [
-          { id: 'shadow_mirror_1', name: 'Illusory Shadow', type: 'dryad-fighter', scale: 1.55, tintColor: 0x3b0764, maxHP: 260, maxPA: 6, maxPM: 3, initiative: 75, initialShield: 60, bonusDamage: 10, spellIds: ['dryad_fighter_blade', 'dryad_fighter_dance', 'dryad_fighter_slash'], expValue: 160, role: 'arcane_bruiser' }
+          { id: 'shadow_mirror_1', name: i18n.t('enemies.illusoryShadow'), type: 'dryad-fighter', scale: 1.55, tintColor: 0x3b0764, maxHP: 260, maxPA: 6, maxPM: 3, initiative: 75, initialShield: 60, bonusDamage: 10, spellIds: ['dryad_fighter_blade', 'dryad_fighter_dance', 'dryad_fighter_slash'], expValue: 160, role: 'arcane_bruiser' }
         ];
       } else if (encounterData.monsterId === 'mob_pomodoro_battle') {
         members = [
-          { id: 'frost_chimera_1', name: 'Glacial Chimera', type: 'wolf-alpha', scale: 1.35, tintColor: 0x38bdf8, maxHP: 210, maxPA: 5, maxPM: 3, initiative: 65, initialShield: 35, spellIds: ['wolf_alpha_bite', 'wolf_alpha_roar'], expValue: 110, role: 'pack_hunter' },
-          { id: 'frost_chimera_2', name: 'Polar Stalker', type: 'wolf-gray', scale: 1.25, tintColor: 0x93c5fd, maxHP: 180, maxPA: 5, maxPM: 4, initiative: 70, initialShield: 25, spellIds: ['wolf_gray_slash'], expValue: 90, role: 'skirmisher' }
+          { id: 'frost_chimera_1', name: i18n.t('enemies.glacialChimera'), type: 'wolf-alpha', scale: 1.35, tintColor: 0x38bdf8, maxHP: 210, maxPA: 5, maxPM: 3, initiative: 65, initialShield: 35, spellIds: ['wolf_alpha_bite', 'wolf_alpha_roar'], expValue: 110, role: 'pack_hunter' },
+          { id: 'frost_chimera_2', name: i18n.t('enemies.polarStalker'), type: 'wolf-gray', scale: 1.25, tintColor: 0x93c5fd, maxHP: 180, maxPA: 5, maxPM: 4, initiative: 70, initialShield: 25, spellIds: ['wolf_gray_slash'], expValue: 90, role: 'skirmisher' }
         ];
       } else if (encounterData.monsterId === 'mob_oracle_chimera') {
         members = [
-          { id: 'arcane_sapidae_1', name: 'Arcane Sapidae Chimera', type: 'dryad-mage', scale: 1.55, tintColor: 0x7e22ce, maxHP: 310, maxPA: 6, maxPM: 4, initiative: 80, initialShield: 70, bonusDamage: 12, spellIds: ['dryad_mage_spark', 'dryad_mage_heal', 'dryad_mage_burst'], expValue: 200, role: 'arcane_sorcerer' },
-          { id: 'void_sprout_2', name: 'Void Spectre', type: 'treant-flower', scale: 1.25, tintColor: 0x6b21a8, maxHP: 190, maxPA: 5, maxPM: 3, initiative: 65, initialShield: 30, bonusDamage: 6, spellIds: ['treant_flower_slam', 'treant_flower_nova'], expValue: 100, role: 'void_minion' }
+          { id: 'arcane_sapidae_1', name: i18n.t('enemies.arcaneSapidaeChimera'), type: 'dryad-mage', scale: 1.55, tintColor: 0x7e22ce, maxHP: 310, maxPA: 6, maxPM: 4, initiative: 80, initialShield: 70, bonusDamage: 12, spellIds: ['dryad_mage_spark', 'dryad_mage_heal', 'dryad_mage_burst'], expValue: 200, role: 'arcane_sorcerer' },
+          { id: 'void_sprout_2', name: i18n.t('enemies.voidSpectre'), type: 'treant-flower', scale: 1.25, tintColor: 0x6b21a8, maxHP: 190, maxPA: 5, maxPM: 3, initiative: 65, initialShield: 30, bonusDamage: 6, spellIds: ['treant_flower_slam', 'treant_flower_nova'], expValue: 100, role: 'void_minion' }
         ];
       } else if (encounterData.monsterId === 'mob_polar_golem') {
         members = [
-          { id: 'polar_golem_1', name: 'Armored Polar Golem', type: 'werewolf-boss', scale: 1.65, tintColor: 0x0284c7, maxHP: 360, maxPA: 6, maxPM: 3, initiative: 60, initialShield: 110, bonusDamage: 14, spellIds: ['werewolf_boss_bite', 'werewolf_boss_roar', 'werewolf_boss_cataclysm'], expValue: 240, role: 'armored_titan' }
+          { id: 'polar_golem_1', name: i18n.t('enemies.armoredPolarGolem'), type: 'werewolf-boss', scale: 1.65, tintColor: 0x0284c7, maxHP: 360, maxPA: 6, maxPM: 3, initiative: 60, initialShield: 110, bonusDamage: 14, spellIds: ['werewolf_boss_bite', 'werewolf_boss_roar', 'werewolf_boss_cataclysm'], expValue: 240, role: 'armored_titan' }
         ];
       } else {
         members = [{
           id: encounterData.monsterId || 'mob_default',
-          name: 'slime',
+          name: i18n.t('enemies.arch.slime.name'),
           type: 'slime',
           scale: 1.05,
           tintColor: null,
@@ -271,7 +272,7 @@ export class DynamicCombatFactory {
     const tierPool = (TIER_DROPS[tier] || TIER_DROPS[1]).filter(isLoot);
 
     // Check if encounter contains an apex boss or dangerous elite mob
-    const isApex = members.some(m => m.role === 'apex_boss' || (m.name && (m.name.includes('Señor') || m.name.includes('Jefe'))));
+    const isApex = members.some(m => m.role === 'apex_boss' || (m.name && (i18n.inLang(m.name, 'es').includes('Señor') || i18n.inLang(m.name, 'es').includes('Jefe'))));
 
     // Base drop probabilities tuned by Difficulty Tier
     // Tier 1 (Forest): 85% drop 1, 40% drop 2
@@ -340,9 +341,9 @@ export class DynamicCombatFactory {
     if (rewardItems.length < 2) rollSlot(chance2);
     if (rewardItems.length < 3) rollSlot(chance3);
 
-    const title = pack ? pack.packTitle : 'Feral Encounter';
-    const placeName = battleMap ? battleMap.name : biomeDef.name;
-    const subtitle = `Battle in ${placeName} (Tier ${tier})`;
+    const title = pack ? pack.packTitle : i18n.t('levels.feralEncounter');
+    const placeName = battleMap ? i18n.pick({ es: battleMap.nameEs, en: battleMap.name }) : biomeDef.name;
+    const subtitle = i18n.t('levels.battleIn', { place: placeName, tier });
 
     return {
       id: pack ? pack.packId : `combat_${Date.now()}`,

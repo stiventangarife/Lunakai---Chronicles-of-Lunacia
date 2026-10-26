@@ -1,11 +1,12 @@
 // Biomes.js - Stage Environments, Skybox Themes, Lighting & Tile Layouts
 import * as THREE from 'three';
+import * as i18n from '../i18n/i18n.js';
 
 export const BIOMES = {
   training_dojo: {
     id: 'training_dojo',
-    name: 'Training Dojo',
-    description: 'Training sanctuary in the forests of Lunacia. Wood and meadow surface.',
+    name: i18n.t('levels.place.trainingDojo'),
+    description: i18n.t('levels.biome.training_dojo.description'),
     tileTheme: 'wood_dojo', // wood center + grass borders
     skybox: {
       topColor: new THREE.Color(0x0284c7),
@@ -34,8 +35,8 @@ export const BIOMES = {
 
   lunacia_plains: {
     id: 'lunacia_plains',
-    name: 'Runic Valley of Lunacia',
-    description: 'Vast floating meadows with ancient monoliths and cobblestone paths.',
+    name: i18n.t('levels.place.runicValley'),
+    description: i18n.t('levels.biome.lunacia_plains.description'),
     tileTheme: 'plains_cobble', // grass with cobblestone crossing
     skybox: {
       topColor: new THREE.Color(0x0369a1),
@@ -64,8 +65,8 @@ export const BIOMES = {
 
   frozen_peaks: {
     id: 'frozen_peaks',
-    name: 'Glacier of Lunacia',
-    description: 'Eternal frozen peaks formed by brittle ice slabs and sheer rock.',
+    name: i18n.t('levels.place.glacier'),
+    description: i18n.t('levels.biome.frozen_peaks.description'),
     tileTheme: 'ice_rock', // ice tiles + slate rock borders
     skybox: {
       topColor: new THREE.Color(0x075985),
@@ -94,8 +95,8 @@ export const BIOMES = {
 
   mystic_grove: {
     id: 'mystic_grove',
-    name: 'Mystic Grove',
-    description: 'Sacred botanical sanctuary inhabited by sages and nature spirits.',
+    name: i18n.t('levels.place.mysticGrove'),
+    description: i18n.t('levels.biome.mystic_grove.description'),
     tileTheme: 'grass_water',
     skybox: {
       topColor: new THREE.Color(0x065f46),
@@ -124,8 +125,8 @@ export const BIOMES = {
 
   canyon_rock: {
     id: 'canyon_rock',
-    name: 'Rocky Canyon of Lunacia',
-    description: 'Rugged terrain of compacted earth and solid rock slabs.',
+    name: i18n.t('levels.place.rockyCanyon'),
+    description: i18n.t('levels.biome.canyon_rock.description'),
     tileTheme: 'dirt_rock',
     skybox: {
       topColor: new THREE.Color(0x78350f),
@@ -154,8 +155,8 @@ export const BIOMES = {
 
   boss_arena: {
     id: 'boss_arena',
-    name: 'Ceremonial Throne of Lunacia',
-    description: 'Ceremonial runic platform where the Primeval Chimera awaits.',
+    name: i18n.t('levels.place.ceremonialThrone'),
+    description: i18n.t('levels.biome.boss_arena.description'),
     tileTheme: 'rock_cobble_runic',
     skybox: {
       topColor: new THREE.Color(0x1e1b4b),

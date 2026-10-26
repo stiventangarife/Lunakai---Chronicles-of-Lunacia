@@ -11,6 +11,34 @@ import { MysticLandmarks, MYSTIC_SITES } from './MysticLandmarks.js';
 import { MysticLife, buildArcaneTreeVines } from './MysticLife.js';
 import { mergeStaticByMaterial } from '../../../../render/StaticMerge.js';
 
+// Hito 72 · colisiones de Mística. Sin colisión (se pisan): guijarros, enredaderas, flores, arbustos, setas (también
+// las rojas altas), cortinas del sauce e islas flotantes. Los arcos de raíces ya tienen colisión en sus pies.
+// Hito 72b: el pantano solo se baja y se sube por la entrada del noreste (la rampa suave junto a la nebulosa); el
+// resto del borde (la pared de las terrazas, r ≈ 29–31,5 m) no se cruza en ningún sentido.
+const SWAMP_FENCE = { r0: 28.8, r1: 31.6, gateAngle: -69 * Math.PI / 180, gateHalfWidth: 3.5 };
+function fenceSwamp(m) {
+  const { n, cell, minX, minZ, slope } = m;
+  const S = SWAMP, F = SWAMP_FENCE;
+  const i0 = Math.max(0, Math.floor((S.x - F.r1 - 1 - minX) / cell)), i1 = Math.min(n - 1, Math.ceil((S.x + F.r1 + 1 - minX) / cell));
+  const j0 = Math.max(0, Math.floor((S.z - F.r1 - 1 - minZ) / cell)), j1 = Math.min(n - 1, Math.ceil((S.z + F.r1 + 1 - minZ) / cell));
+  for (let j = j0; j <= j1; j++) for (let i = i0; i <= i1; i++) {
+    const x = minX + i * cell, z = minZ + j * cell;
+    const dx = x - S.x, dz = z - S.z, r = Math.hypot(dx, dz);
+    if (r < F.r0 || r > F.r1) continue;
+    let da = Math.atan2(dz, dx) - F.gateAngle;
+    da = Math.atan2(Math.sin(da), Math.cos(da));
+    if (Math.abs(da) * r < F.gateHalfWidth) continue; // la entrada
+    slope[j * n + i] = 60;
+  }
+}
+
+const MYSTIC_PROP_RULES = [
+  { test: /^IslandTreeTrunk_broad/, kind: 'tree', band: 0.8, rMin: 0.4, rMax: 0.9 },
+  { test: /^mystic_Rock/, kind: 'rock', band: 1.2, rMin: 0.4, rMax: 3, minH: 0.7 },
+  // (agujas, cúmulos y rocas de cristal: huella exacta en hullRules, Hito 72d)
+  { test: /^output_unwrapped/, kind: 'deco', band: 1.0, rMin: 0.4, rMax: 3, minH: 0.7 },
+];
+
 /**
  * Isla Mística (Hito 23) — "El Árbol Arcano de Lunacia".
  * Read from the Forest silhouette: a colossal tree with buttress roots and four canopy domes,
@@ -69,10 +97,7 @@ function mysticHeight(x, z) {
       h = h + (Math.max(h, top) - h) * smooth(ISLET.r + 1.5, ISLET.r - 1.0, di);
     }
   }
-  // Nebula fissure: a narrow trench
-  const fx = (x - NEBULA.x) * 0.8 + (z - NEBULA.z) * 0.6;
-  const fz = -(x - NEBULA.x) * 0.6 + (z - NEBULA.z) * 0.8;
-  if (Math.abs(fz) < 14) h -= 2.6 * (1 - smooth(0.8, 2.6, Math.abs(fx))) * (1 - smooth(9, 14, Math.abs(fz)));
+  // Nebula fissure: la zanja (2,6 m) se quitó en el Hito 72c; el polvo de estrellas y la luz de la nebulosa siguen
   // Flat pads for the sanctuary and the observatory
   const dsa = Math.hypot(x - SANCTUARY.x, z - SANCTUARY.z);
   if (dsa < 14) h = h + (6.4 - h) * smooth(14, 8, dsa);
@@ -202,9 +227,7 @@ function mysticProfile(zone) {
     water: [
       { shape: 'disc', center: [SWAMP.x, SWAMP.z], radius: SWAMP.r + 3, level: SWAMP.level, mode: 0, name: 'MysticLuminousSwamp',
         colors: { shallow: 0x2fb8b0, deep: 0x0c3f5a, foam: 0xc8f6ee, glow: 0x40ffd0 }, glow: 0.14, opacity: 0.6, depthRange: 0.7, foamAmount: 0.25 },
-      { shape: 'ribbon', points: [[NEBULA.x - 8 * 0.6, NEBULA.z - 8 * 0.8], [NEBULA.x, NEBULA.z], [NEBULA.x + 8 * 0.6, NEBULA.z + 8 * 0.8]],
-        width: 2.4, level: (t) => mysticHeight(NEBULA.x + (t - 0.5) * 16 * 0.6, NEBULA.z + (t - 0.5) * 16 * 0.8) + 0.25, mode: 2, flowSpeed: 0.6, name: 'MysticNebulaFissure',
-        colors: { shallow: 0xc9a2ff, deep: 0x6a3cf0, crust: 0x1a1033, glow: 0xe2c4ff } }
+      // (Hito 72c: sin la cinta brillante de la grieta: la zanja ya no existe)
     ],
     particles: [
       { mode: 'spores', count: 420, velocity: [0.05, 0.25, 0.05], size: 3.6, colorA: 0x9fffe0, colorB: 0xe0b0ff, intensity: 1.7, opacity: 0.85, sway: 0.9, box: [50, 14, 50] }
@@ -258,7 +281,7 @@ async function buildMystic(zone) {
       const a = rng() * Math.PI * 2, d = s.r * (0.9 + rng() * 0.8);
       spireList.push({ x: s.x + Math.cos(a) * d, y: y + 0.5, z: s.z + Math.sin(a) * d, r: s.r * (0.25 + rng() * 0.3), h: s.h * (0.2 + rng() * 0.35), ex: Math.cos(a) * 0.35, ez: Math.sin(a) * 0.35 });
     }
-    zone.addCollider(s.x, s.z, s.r * 1.3);
+    // (Hito 72d: colisión con la huella exacta del cristal: def.collision.hullRules)
   }
   const spires = new THREE.InstancedMesh(prism, amethyst, spireList.length);
   spireList.forEach((s, i) => {
@@ -287,7 +310,7 @@ async function buildMystic(zone) {
       const hh = (i === 0 ? 6 + rng() * 6 : 2 + rng() * 4) * big;
       clusterList.push({ x: x + Math.cos(a) * d, y, z: z + Math.sin(a) * d, r: rad, h: hh, ex: i ? Math.cos(a) * 0.4 : (rng() - 0.5) * 0.2, ez: i ? Math.sin(a) * 0.4 : (rng() - 0.5) * 0.2 });
     }
-    zone.addCollider(x, z, big * 1.4);
+    // (Hito 72d: colisión con la huella exacta del cúmulo: def.collision.hullRules)
   }
   const clusters = new THREE.InstancedMesh(prism, amethystDeep, clusterList.length);
   clusterList.forEach((s, i) => {
@@ -323,7 +346,7 @@ async function buildMystic(zone) {
         q.setFromEuler(new THREE.Euler((rng() - 0.5) * 0.3, rng() * 6.28, (rng() - 0.5) * 0.3));
         m4.compose(new THREE.Vector3(x, mysticHeight(x, z) - 0.4, z), q, new THREE.Vector3(s, s, s));
         list.push(m4.clone());
-        zone.addCollider(x, z, s * size * 0.4);
+        // (Hito 72d: colisión con la huella exacta de la roca de cristal: def.collision.hullRules)
       }
       if (!list.length) continue;
       const inst = new THREE.InstancedMesh(geo, amethyst, list.length);
@@ -408,13 +431,17 @@ async function buildMystic(zone) {
   starLight.position.set(SANCTUARY.x, sy + 3, SANCTUARY.z);
   g.add(starLight);
   zone.addCollider(SANCTUARY.x, SANCTUARY.z, 2.6);
+  // Hito 72c: los monolitos ya no giran alrededor del altar; cada uno flota en su sitio (solo sube y baja) y tiene
+  // colisión (la losa mide 1,4 × 0,5 m y su base queda a ~1 m del suelo: el personaje choca con ella)
+  monoliths.forEach((m, i) => {
+    const a = (i / 6) * Math.PI * 2;
+    m.position.set(SANCTUARY.x + Math.cos(a) * 7.5, sy + 3.2, SANCTUARY.z + Math.sin(a) * 7.5);
+    m.rotation.y = -a + Math.PI / 2;
+    zone.addCollider(m.position.x, m.position.z, 0.8);
+  });
   zone.updatables.push(() => {
     const t = time.value;
-    monoliths.forEach((m, i) => {
-      const a = (i / 6) * Math.PI * 2 + t * 0.08;
-      m.position.set(SANCTUARY.x + Math.cos(a) * 7.5, sy + 3.2 + Math.sin(t * 0.8 + i) * 0.35, SANCTUARY.z + Math.sin(a) * 7.5);
-      m.rotation.y = -a + Math.PI / 2;
-    });
+    monoliths.forEach((m, i) => { m.position.y = sy + 3.2 + Math.sin(t * 0.8 + i) * 0.35; });
     star.position.set(SANCTUARY.x, sy + 2.6 + Math.sin(t * 1.2) * 0.2, SANCTUARY.z);
     star.rotation.y = t * 0.6;
   });
@@ -541,7 +568,21 @@ export function createMysticIsland(om) {
     rocks: [],
     rockStyle: { base: 0x6a6f96, shadow: 0x3f4566, top: 0x2f8f7a, topAmount: 1.0, streaks: 0.7 },
     build: buildMystic,
-    profile: (zone) => mysticProfile(zone)
+    profile: (zone) => mysticProfile(zone),
+    // Hito 72: mar hasta la rodilla; el pantano luminoso se cruza entero con el agua a media pierna (hasta el islote
+    // del sauce); pendientes de más de 35° (algunos tramos de costa, borde del observatorio) no se suben
+    collision: {
+      propRules: MYSTIC_PROP_RULES, slopeMax: 35, wadeMax: 0.5,
+      // Hito 72d: los cristales (agujas, cúmulos y rocas de cristal) con su huella exacta: ningún extremo se atraviesa
+      hullRules: [
+        { test: /^MysticAmethystSpires/, kind: 'spire' },
+        { test: /^MysticAmethystClusters/, kind: 'amethyst', minH: 0.4 },
+        { test: /^MysticCrystalBoulders/, kind: 'boulder', minH: 0.4 },
+      ],
+      shallow: (x, z) => (Math.hypot(x - SWAMP.x, z - SWAMP.z) < SWAMP.r + 3 ? SWAMP.level : null),
+      shallowMax: 0.3,
+      adjust: (m) => fenceSwamp(m),
+    }
   });
 }
 

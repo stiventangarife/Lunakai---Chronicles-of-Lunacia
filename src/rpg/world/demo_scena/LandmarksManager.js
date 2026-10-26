@@ -24,7 +24,7 @@ export class LandmarksManager {
 
     this.buildElderTree();
     this.buildAncientShrine();
-    this.buildForestDojo();
+    // Dojō Secreto retirado (Hito 51): Paladill está en el dojo del pueblo del Bosque (ForestVillage)
     this.buildFloatingShrineMonoliths();
     // Puente de madera removido a petición del usuario
   }

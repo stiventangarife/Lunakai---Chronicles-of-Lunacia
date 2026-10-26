@@ -66,12 +66,17 @@ export class SavannaDistantIslands {
     const group = new THREE.Group();
     group.position.set(posX, posY, posZ);
 
-    // Colinas ondulantes de la isla
+    // Colinas ondulantes de la isla. La central es una meseta (cono truncado): el Gran Árbol se apoya en su
+    // cima plana en lugar de sobre una punta (antes parecía flotar). Hito 58.
+    const plateau = new THREE.CylinderGeometry(72, 240, 118, 12);
+    plateau.translate(0, 59, 0);
+    const plateauMesh = new THREE.Mesh(plateau, material);
+    plateauMesh.frustumCulled = false;
+    group.add(plateauMesh);
     const hills = [
-      { x: 0, z: 0, r: 240, h: 140 },
-      { x: -160, z: 40, r: 180, h: 165 }, // Colina del Dojo
-      { x: 170, z: -30, r: 170, h: 120 },
-      { x: -70, z: -80, r: 140, h: 105 }
+      { x: -160, z: 40, r: 180, h: 150 }, // Colina del Dojo
+      { x: 170, z: -30, r: 170, h: 112 },
+      { x: -70, z: -80, r: 140, h: 100 }
     ];
 
     hills.forEach(hill => {
@@ -85,12 +90,30 @@ export class SavannaDistantIslands {
       group.add(mesh);
     });
 
-    // Silueta Colosal del Gran Árbol Ancestral de Atia (Icono del Bosque)
-    const treeGroup = new THREE.Group();
-    treeGroup.position.set(0, 140, 0);
+    // Copas de bosque bajas sobre las laderas: el árbol no queda solo y la isla se lee como bosque
+    const clumps = [
+      { x: -95, y: 92, z: 40, r: 34 }, { x: -205, y: 80, z: 10, r: 30 }, { x: 110, y: 78, z: -20, r: 32 },
+      { x: 205, y: 58, z: -50, r: 26 }, { x: -40, y: 70, z: -110, r: 28 }, { x: 70, y: 96, z: 50, r: 30 }
+    ];
+    clumps.forEach(c => {
+      const m = new THREE.Mesh(new THREE.DodecahedronGeometry(c.r, 0), material);
+      m.position.set(c.x, c.y, c.z);
+      m.scale.set(1, 0.8, 1);
+      m.frustumCulled = false;
+      group.add(m);
+    });
 
-    // Tronco colosal
-    const trunkGeo = new THREE.CylinderGeometry(18, 38, 120, 8);
+    // Silueta del Gran Árbol Ancestral de Atia (icono del Bosque): un 15 % más pequeño, con el tronco hundido en
+    // la meseta y raíces anchas en la base para que se vea anclado
+    const treeGroup = new THREE.Group();
+    treeGroup.position.set(0, 110, 0);
+    treeGroup.scale.setScalar(0.85);
+
+    // Raíces (cono ancho y bajo) + tronco colosal
+    const rootGeo = new THREE.CylinderGeometry(30, 70, 34, 8);
+    rootGeo.translate(0, 17, 0);
+    treeGroup.add(new THREE.Mesh(rootGeo, material));
+    const trunkGeo = new THREE.CylinderGeometry(18, 36, 120, 8);
     trunkGeo.translate(0, 60, 0);
     const trunkMesh = new THREE.Mesh(trunkGeo, material);
     treeGroup.add(trunkMesh);

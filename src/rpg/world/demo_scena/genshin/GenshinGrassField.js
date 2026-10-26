@@ -3,6 +3,9 @@ import { GENSHIN_PALETTE, GLSL_NOISE, getGroundColorGLSL } from './GenshinArtDir
 import { GenshinTerrainData } from './GenshinTerrainData.js';
 import { createSeededRandom } from '../MathUtils.js';
 
+/** Claros sin hierba que admite el shader (edificios del pueblo del Bosque y sus farolas). */
+const MAX_CLEARINGS = 24;
+
 /**
  * GenshinGrassField — Lush, soft, painterly meadow that follows the player.
  *
@@ -56,7 +59,12 @@ export class GenshinGrassField {
         uHeightScale: { value: 1.0 },
         uSunTint: { value: new THREE.Color(GENSHIN_PALETTE.grassSun) },
         uShadowTint: { value: new THREE.Color(0.80, 0.90, 1.12) }, // linear: cool blue shift, not darkening
-        uBacklight: { value: new THREE.Color(0xf6ffa8) }
+        uBacklight: { value: new THREE.Color(0xf6ffa8) },
+        // Claros rectangulares sin hierba ni flores (bajo los edificios del pueblo): por claro x, z, giro y medio
+        // ancho en uClears[i] (xyz + w) y medio fondo en uClearDepth[i]; uClearCount = cuántos hay
+        uClears: { value: Array.from({ length: MAX_CLEARINGS }, () => new THREE.Vector4()) },
+        uClearDepth: { value: new Array(MAX_CLEARINGS).fill(0) },
+        uClearCount: { value: 0 }
       },
       terrainData.uniforms()
     ]);
@@ -259,6 +267,24 @@ export class GenshinGrassField {
   // Materials
   // -------------------------------------------------------------------------------------
 
+  /**
+   * Claros rectangulares sin hierba ni flores: lista de { x, z, yaw, halfW, halfD } (centro, giro en radianes, medio
+   * ancho y medio fondo en m). Sustituye a los anteriores; como mucho MAX_CLEARINGS.
+   */
+  setClearings(list = []) {
+    const n = Math.min(list.length, MAX_CLEARINGS);
+    if (list.length > MAX_CLEARINGS) console.warn(`[GenshinGrassField] ${list.length} claros: solo caben ${MAX_CLEARINGS}`);
+    for (let i = 0; i < n; i++) {
+      const c = list[i];
+      this.uniforms.uClears.value[i].set(c.x, c.z, c.yaw || 0, c.halfW);
+      this.uniforms.uClearDepth.value[i] = c.halfD;
+    }
+    this.uniforms.uClearCount.value = n;
+  }
+
+  /** Un solo claro (compatibilidad). */
+  setClearing(x, z, yaw, halfW, halfD) { this.setClearings([{ x, z, yaw, halfW, halfD }]); }
+
   _commonVertexHeader() {
     return /* glsl */ `
       #include <common>
@@ -277,6 +303,21 @@ export class GenshinGrassField {
         return clamp((keep - rank) / 0.08, 0.0, 1.0);
       }
       uniform vec3 uCenter, uPlayerPos, uCompanionPos;
+      uniform vec4 uClears[${MAX_CLEARINGS}];
+      uniform float uClearDepth[${MAX_CLEARINGS}];
+      uniform int uClearCount;
+      // Dentro de un claro (rectángulo girado uClears[i].z en torno a uClears[i].xy) no crece nada
+      bool inClearing(vec2 p) {
+        for (int i = 0; i < ${MAX_CLEARINGS}; i++) {
+          if (i >= uClearCount) break;
+          vec4 q = uClears[i];
+          vec2 d = p - q.xy;
+          float c = cos(q.z), s = sin(q.z);
+          vec2 l = vec2(c * d.x - s * d.y, s * d.x + c * d.y);
+          if (abs(l.x) < q.w && abs(l.y) < uClearDepth[i]) return true;
+        }
+        return false;
+      }
       ${GLSL_NOISE}
       ${GenshinTerrainData.glsl()}
       ${getGroundColorGLSL()}
@@ -321,7 +362,7 @@ export class GenshinGrassField {
         fade *= lodFade(camDist, aRank, uGrassFarKeep);
 
         // Cull: density test + outside the fade ring → degenerate (clipped) vertex
-        if (rnd > density * 1.08 || fade <= 0.001) {
+        if (rnd > density * 1.08 || fade <= 0.001 || inClearing(wxz)) {
           gl_Position = vec4(2.0, 2.0, 2.0, 1.0);
           vBaseColor = vec3(0.0); vT = 0.0; vRand = 0.0; vWorld = vec3(0.0); vWind = 0.0; vTerrainN = vec3(0.0, 1.0, 0.0);
           return;
@@ -468,7 +509,7 @@ export class GenshinGrassField {
         float fade = 1.0 - smoothstep(uFadeStart * 0.85, uFadeEnd * 0.85, camDist);
         fade *= lodFade(camDist, aRank, uFlowerFarKeep);
         fade *= 1.0 - smoothstep(uFlowerCut - 8.0, uFlowerCut, camDist);   // gone before tiles hide
-        if (rnd > m.b * 1.2 || fade <= 0.001) {
+        if (rnd > m.b * 1.2 || fade <= 0.001 || inClearing(wxz)) {
           gl_Position = vec4(2.0, 2.0, 2.0, 1.0);
           vUv = vec2(0.0); vPetal = vec3(0.0); vTop = 0.0; vWorld = vec3(0.0);
           return;

@@ -1,6 +1,7 @@
 // EquipmentManager.js - Party Inventory, 5-Slot Equipment Management and Stat Calculation
 import { ITEMS_DB } from './ItemDatabase.js';
-import { getHeroSpells, SAPIDAE_CLASSES } from '../rpg/SaveSlotManager.js';
+import * as i18n from '../i18n/i18n.js';
+import { getHeroSpells, SAPIDAE_CLASSES, heroDisplayText } from '../rpg/SaveSlotManager.js';
 import { portraitService } from './CharacterPortraitService.js';
 import { STARTER_DECKS } from './data/StarterCards.js';
 import { axieBaseStats, BASE_PA, BASE_PM } from './data/AxieBaseStats.js';
@@ -8,6 +9,10 @@ import { axieBaseStats, BASE_PA, BASE_PM } from './data/AxieBaseStats.js';
 /** Axies iniciales de apoyo (19-oct): Bing y Pomodoro no pueden ser el compañero principal. */
 export const SUPPORT_ONLY_AXIES = ['bing', 'pomodoro'];
 export const canBeMainAxie = (id) => Boolean(id) && !SUPPORT_ONLY_AXIES.includes(id);
+/** Hito 75: los demás Axies de la cuenta de Sky Mavis entran en la partida como héroes «ax_<id>». */
+export const ACCOUNT_AXIE_PREFIX = 'ax_';
+export const isAccountAxie = (id) => typeof id === 'string' && id.startsWith(ACCOUNT_AXIE_PREFIX);
+const EMPTY_GEAR = () => ({ weapon: null, hat: null, shield: null, body: null, boots: null });
 
 export class EquipmentManager {
   constructor() {
@@ -16,9 +21,9 @@ export class EquipmentManager {
         id: 'sapidae',
         isSapidae: true,
         modelType: 'sapidae-f-a',
-        name: 'Ema',
+        name: 'Lunara',
         class: 'Constructor Táctico',
-        archetype: 'Sapidae Adventurer (Líder)',
+        archetype: i18n.t('misc.archSapidaeLeader'),
         avatar: '👩‍🌾',
         baseHP: 360,
         basePA: 6,
@@ -31,9 +36,9 @@ export class EquipmentManager {
         id: 'sapidae_hero',
         isSapidae: true,
         modelType: 'sapidae-f-a',
-        name: 'Ema',
+        name: 'Lunara',
         class: 'Constructor Táctico',
-        archetype: 'Sapidae Adventurer (Líder)',
+        archetype: i18n.t('misc.archSapidaeLeader'),
         avatar: '👩‍🌾',
         baseHP: 360,
         basePA: 6,
@@ -49,7 +54,7 @@ export class EquipmentManager {
         modelType: 'axie',
         name: 'Shinji',
         class: 'Beast',
-        archetype: 'Beast Lunakai (Melee Duelist)',
+        archetype: i18n.t('misc.archBeastMelee'),
         avatar: '🦁',
         baseHP: 340,
         basePA: 6,
@@ -62,7 +67,7 @@ export class EquipmentManager {
         id: 'bing',
         name: 'Bing',
         class: 'Beast', // Axie inicial de Origins (Puppy · Toy Ball · Cone Shell · Shiba)
-        archetype: 'Beast Lunakai (Morale Support)',
+        archetype: i18n.t('misc.archBeastMorale'),
         avatar: '🐶',
         baseHP: 240,
         basePA: 6,
@@ -75,7 +80,7 @@ export class EquipmentManager {
         id: 'pomodoro',
         name: 'Pomodoro',
         class: 'Bug', // Axie inicial de Origins (Passion · Leaf Bug · Platypus · Lost Dream · Village Hero)
-        archetype: 'Bug Lunakai (Shield Guardian)',
+        archetype: i18n.t('misc.archBugShield'),
         avatar: '🍳',
         baseHP: 260,
         basePA: 6,
@@ -268,6 +273,9 @@ export class EquipmentManager {
 
   applySlotData(slotData) {
     this.squad = Array.isArray(slotData?.squad) ? [...slotData.squad] : null;
+    // Hito 75: los Axies de la cuenta son de cada partida (no se arrastran de otra ranura)
+    Object.keys(this.heroesBase).filter(isAccountAxie).forEach((id) => { delete this.heroesBase[id]; delete this.heroProgression[id]; delete this.equipped[id]; });
+    (Array.isArray(slotData?.accountAxies) ? slotData.accountAxies : []).forEach((h) => this.registerAccountAxie(h));
     if (!slotData || !slotData.hero) return;
 
     const h = slotData.hero;
@@ -289,7 +297,7 @@ export class EquipmentManager {
         base.modelType = h.modelType || 'axie';
       }
       base.class = h.class || base.class;
-      base.archetype = h.archetype || base.archetype;
+      base.archetype = heroDisplayText(h).archetype || base.archetype; // texto del idioma actual (Hito 61)
       base.avatar = h.avatar || base.avatar;
       base.spellIds = h.spellIds || getHeroSpells(base.heroKey || base.axieId);
       if (h.baseHP) base.baseHP = h.baseHP;
@@ -332,6 +340,7 @@ export class EquipmentManager {
     if (!this.equipped.sapidae) {
       this.equipped.sapidae = { weapon: null, hat: null, shield: null, body: null, boots: null };
     }
+    Object.keys(this.heroesBase).filter(isAccountAxie).forEach((id) => { if (!this.equipped[id]) this.equipped[id] = EMPTY_GEAR(); });
 
     let heroesList = [];
     if (slotData.unlockedHeroes && Array.isArray(slotData.unlockedHeroes)) {
@@ -347,7 +356,7 @@ export class EquipmentManager {
       }
     }
     // Sapidae is always the squad leader at index 0
-    this.unlockedHeroes = ['sapidae', ...Array.from(new Set(heroesList.filter(h => h !== 'sapidae')))];
+    this.unlockedHeroes = ['sapidae', ...Array.from(new Set(heroesList.filter(h => h !== 'sapidae' && (!isAccountAxie(h) || this.heroesBase[h]))))];
 
     if (slotData.progression) {
       if (slotData.progression.kotaro || slotData.progression.sapidae) {
@@ -435,6 +444,11 @@ export class EquipmentManager {
       equipped: JSON.parse(JSON.stringify(this.equipped)),
       unlockedHeroes: Array.from(new Set(this.unlockedHeroes || ['kotaro'])),
       squad: Array.isArray(this.squad) ? [...this.squad] : null,
+      // Hito 75: ficha de cada Axie de la cuenta (su progreso va en progression y su equipo en equipped)
+      accountAxies: Object.values(this.heroesBase).filter((h) => isAccountAxie(h.id)).map((h) => ({
+        axieId: h.axieId, name: h.name, class: h.class, genes: h.genes, heroKey: h.heroKey, image: h.image || null,
+        spellIds: h.spellIds || null, baseHP: h.baseHP, baseInitiative: h.baseInitiative, inAccount: h.inAccount !== false, byId: Boolean(h.byId),
+      })),
       progression: JSON.parse(JSON.stringify(this.heroProgression)),
       // Vida persistente: la vida actual de cada héroe se guarda en la partida
       currentHP: Object.fromEntries((this.unlockedHeroes || []).map((id) => [id, this.getCurrentHP(id)]))
@@ -516,14 +530,75 @@ export class EquipmentManager {
 
   unlockHero(heroId) {
     if (!this.unlockedHeroes.includes(heroId)) {
+      // Hito 75: Bing no entra solo en el escuadrón; el jugador lo coloca en el mini-tutorial del Escuadrón
+      if (heroId === 'bing' && !Array.isArray(this.squad)) this.squad = this.getSquad();
       this.unlockedHeroes.push(heroId);
       // Un axie nuevo ocupa el primer puesto libre del escuadrón, si lo hay
-      if (Array.isArray(this.squad) && heroId !== 'sapidae') {
+      if (Array.isArray(this.squad) && heroId !== 'sapidae' && heroId !== 'bing') {
         const free = this.squad.indexOf(null, 1);
         if (free > 0) this.squad[free] = heroId;
       }
       this._notifyChange();
     }
+  }
+
+  // ------------------------------------------------------------------ Axies de la cuenta (Hito 75)
+  /** Crea (o actualiza) el héroe de un Axie de la cuenta. Empieza en nivel 1 con su propio equipo. Devuelve su id. */
+  registerAccountAxie(h) {
+    if (!h || !h.axieId) return null;
+    const axieId = String(h.axieId);
+    const id = ACCOUNT_AXIE_PREFIX + axieId;
+    const prev = this.heroesBase[id] || {};
+    const cls = String(h.class || prev.class || 'Beast');
+    this.heroesBase[id] = {
+      ...prev,
+      id, isAccountAxie: true, axieId, modelType: 'axie',
+      genes: h.genes || prev.genes || null,
+      name: h.name || prev.name || `Axie #${axieId}`,
+      class: cls.charAt(0).toUpperCase() + cls.slice(1).toLowerCase(),
+      heroKey: h.heroKey || prev.heroKey || `axie_${axieId}`,
+      archetype: h.archetype || prev.archetype || `${cls} (Axie #${axieId})`,
+      avatar: '', image: h.image || prev.image || null,
+      spellIds: h.spellIds || prev.spellIds || null,
+      baseHP: h.baseHP || prev.baseHP || 300, basePA: BASE_PA, basePM: BASE_PM,
+      baseInitiative: h.baseInitiative || prev.baseInitiative || 80, baseShield: 0, baseDamage: 0,
+      axpInfo: h.axpInfo || prev.axpInfo || null,
+      inAccount: h.inAccount !== false,
+      byId: Boolean(h.byId || prev.byId), // cargado por ID (no es de la cuenta): no sale al sincronizar
+    };
+    if (!this.equipped[id]) this.equipped[id] = EMPTY_GEAR();
+    this.getProgression(id); // nivel 1
+    return id;
+  }
+
+  /**
+   * Pone en la partida los Axies que hay ahora en la cuenta (sin el compañero, que ya es «kotaro»).
+   * Los que ya no están salen de la colección y del escuadrón; su progreso se guarda por si vuelven.
+   * @returns {{ added: string[], removed: string[], total: number }}
+   */
+  syncAccountAxies(heroes = []) {
+    if (!Array.isArray(this.squad)) this.squad = this.getSquad(); // que los nuevos no entren solos al escuadrón
+    const companion = String(this.heroesBase.kotaro?.axieId || '');
+    const ids = heroes.filter((h) => h?.axieId && String(h.axieId) !== companion).map((h) => this.registerAccountAxie({ ...h, inAccount: true }));
+    const keep = new Set(ids);
+    const removed = this.unlockedHeroes.filter((id) => isAccountAxie(id) && !keep.has(id) && !this.heroesBase[id]?.byId);
+    removed.forEach((id) => { if (this.heroesBase[id]) this.heroesBase[id].inAccount = false; });
+    const added = ids.filter((id) => !this.unlockedHeroes.includes(id));
+    const gone = new Set(removed);
+    this.unlockedHeroes = this.unlockedHeroes.filter((id) => !gone.has(id)).concat(added);
+    this.squad = this.squad.map((id) => (id && gone.has(id) ? null : id));
+    this.squad = this.getSquad();
+    this._notifyChange();
+    return { added, removed, total: ids.length };
+  }
+
+  /** Añade a la colección un Axie cualquiera por su ID (no hace falta que sea de la cuenta). Devuelve su id de héroe. */
+  addAxieById(h) {
+    if (!Array.isArray(this.squad)) this.squad = this.getSquad(); // no entra solo al escuadrón
+    const id = this.registerAccountAxie({ ...h, byId: true, inAccount: false });
+    if (id && !this.unlockedHeroes.includes(id)) this.unlockedHeroes.push(id);
+    this._notifyChange();
+    return id;
   }
 
   isHeroUnlocked(heroId) {

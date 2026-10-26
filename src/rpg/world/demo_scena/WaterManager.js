@@ -31,14 +31,101 @@ export class WaterManager {
     this.createBulrushesAndRiverRocks();
   }
 
+  /**
+   * Hito 66: el río cruza la isla de lado a lado. Antes nacía en un manantial (z = -115); ahora llega hasta el mar
+   * del norte (empieza en RIVER_Z0, en la orilla) y baja en unos rápidos hasta el nivel del mar.
+   */
+  static RIVER_Z0 = -152;        // la malla del agua empieza ya sobre el mar del norte y se desvanece en él
+  static RIVER_Z1 = 150;         // y termina sobre el mar del sur
+  static RIVER_CARVE_Z0 = -190;  // el cauce se excava hasta el fondo del mar: sin lengua de arena en la boca
+  static MOUTH_FADE = 13;        // metros en los que el agua del río se funde con el mar en cada extremo
+  static RIVER_Z_SPRING = -115; // manantial antiguo (lo usa Terrain en modo «alturas antiguas»)
+
+  /**
+   * Vados (Hito 66): tramos donde el lecho sube y el agua cubre solo FORD_DEPTH m, así se cruzan a pie.
+   *   · norte: a lo largo del camino principal, que ya cruzaba el río en diagonal («Vado del Río», RoadManager);
+   *   · sur: un paso recto entre el puente y el mar.
+   */
+  static FORD_DEPTH = 0.28;
+  static FORDS = [
+    { id: 'north', road: 'main', zMin: -84, zMax: -42, halfWidth: 3.0 }, // solo donde el camino atraviesa el río
+    { id: 'south', a: { x: 14, z: 95 }, b: { x: 52, z: 95 }, halfWidth: 3.2 }
+  ];
+
+  /** 0–1: cuánto pertenece (x, z) a un vado (1 = centro del paso, 0 = fuera). Se suaviza 2 m en el borde. */
+  static getFordFactor(x, z, roadManager = null) {
+    let best = 0;
+    for (const f of WaterManager.FORDS) {
+      let d = Infinity;
+      if (f.road) {
+        if (z < f.zMin - 3 || z > f.zMax + 3 || !roadManager) continue;
+        const pts = WaterManager._roadSamples(roadManager, f.road);
+        for (let i = 0; i < pts.length; i++) {
+          const dx = pts[i].x - x, dz = pts[i].y - z;
+          const q = dx * dx + dz * dz;
+          if (q < d) d = q;
+        }
+        d = Math.sqrt(d);
+        d += Math.max(0, f.zMin - z, z - f.zMax); // fin del vado en sus extremos
+      } else {
+        const ax = f.a.x, az = f.a.z, bx = f.b.x - ax, bz = f.b.z - az;
+        const t = Math.max(0, Math.min(1, ((x - ax) * bx + (z - az) * bz) / (bx * bx + bz * bz)));
+        d = Math.hypot(x - (ax + bx * t), z - (az + bz * t));
+      }
+      if (d >= f.halfWidth + 2) continue;
+      const u = Math.min(1, Math.max(0, (f.halfWidth + 2 - d) / 2));
+      best = Math.max(best, u * u * (3 - 2 * u));
+    }
+    return best;
+  }
+
+  /** Puntos muestreados de una curva de RoadManager (en caché). */
+  static _roadSamples(rm, name) {
+    if (!rm) return [];
+    if (!rm._fordSamples) rm._fordSamples = {};
+    if (!rm._fordSamples[name]) {
+      const curve = name === 'main' ? rm.mainCurve : name === 'fork' ? rm.forkCurve : name === 'dojo' ? rm.dojoCurve : rm.elderCurve;
+      const pts = [];
+      if (curve) for (let i = 0; i <= 400; i++) pts.push(curve.getPoint(i / 400));
+      rm._fordSamples[name] = pts;
+    }
+    return rm._fordSamples[name];
+  }
+
   // Altura exacta de la superficie del agua en cualquier punto (x, z)
   static getRiverWaterHeight(z) {
+    if (z < -112) {
+      // Desembocadura norte (Hito 66): baja del nivel del río al del mar repartido en 35 m (corriente suave)
+      const t = Math.min(1, (-112 - z) / (147 - 112));
+      const s = t * t * (3 - 2 * t);
+      return THREE.MathUtils.lerp(2.0, 0.45, s);
+    }
     if (z <= 16) return 2.0;
     if (z >= 34) return 0.45;
     // Transición suave cúbica (Hermite) tipo rápidos / desnivel natural
     const t = (z - 16) / (34 - 16);
     const s = t * t * (3 - 2 * t);
     return THREE.MathUtils.lerp(2.0, 0.45, s);
+  }
+
+  /**
+   * Ensanche de la desembocadura norte (estuario): 1 en el río y hasta ×1,7 al llegar al mar. Lo usan el cauce
+   * (Terrain) y el agua (malla), así la orilla se curva hacia dentro en lugar de cruzar la boca.
+   * Solo se abre hacia el OESTE: la orilla este conserva el camino principal hasta el mirador del mar.
+   */
+  static getNorthMouthFactor(z) {
+    if (z >= -126) return 1;
+    const t = Math.min(1, (-126 - z) / 40);
+    return 1 + 0.7 * t * t * (3 - 2 * t);
+  }
+
+  /** 1 en el río, 0 en el extremo de la malla: el agua del río se desvanece sobre el mar en cada boca. */
+  static getMouthFade(z) {
+    const F = WaterManager.MOUTH_FADE;
+    const a = Math.min(1, Math.max(0, (z - WaterManager.RIVER_Z0) / F));
+    const b = Math.min(1, Math.max(0, (WaterManager.RIVER_Z1 - z) / F));
+    const f = Math.min(a, b);
+    return f * f * (3 - 2 * f);
   }
 
   // Centro X y semi-ancho del río en cualquier Z
@@ -49,8 +136,8 @@ export class WaterManager {
   }
 
   createRiver() {
-    // Río continuo orgánico desde el manantial norte (Z: -115) hasta la desembocadura sur en la bahía (Z: 148)
-    const riverGeo = this.generateContinuousRiverMeshGeometry(-115, 148);
+    // Río continuo de mar a mar (Hito 66): del mar del norte (RIVER_Z0) a la desembocadura sur en la bahía (Z: 148)
+    const riverGeo = this.generateContinuousRiverMeshGeometry(WaterManager.RIVER_Z0, WaterManager.RIVER_Z1);
     this.waterMaterialUpper = this.createWaterShaderMaterial();
     this.waterMaterialLower = this.waterMaterialUpper; // Comparten el mismo shader perfeccionado
 
@@ -220,12 +307,13 @@ export class WaterManager {
   }
 
   generateContinuousRiverMeshGeometry(zStart, zEnd) {
-    const segmentsZ = 240;
+    const segmentsZ = Math.round(240 * (zEnd - zStart) / 263); // misma densidad que el río original (263 m, 240 tramos)
     const segmentsX = 26;
     const geom = new THREE.BufferGeometry();
 
     const positions = [];
     const uvs = [];
+    const fades = []; // 1 = río, 0 = fundido con el mar (aFade, Hito 66)
     const indices = [];
 
     for (let i = 0; i <= segmentsZ; i++) {
@@ -235,20 +323,30 @@ export class WaterManager {
       const waterY = WaterManager.getRiverWaterHeight(z);
 
       let effectiveHalfWidth = riverHalfWidth;
-      if (tz < 0.08) {
+      let westHalfWidth = null;
+      if (zStart < -140 && z < -126) {
+        // Desembocadura norte: estuario que se abre hacia el mar por el oeste (mismo ensanche que el cauce)
+        westHalfWidth = effectiveHalfWidth * WaterManager.getNorthMouthFactor(z);
+      } else if (zStart >= -140 && tz < 0.08) {
         const t = tz / 0.08;
         effectiveHalfWidth *= (0.25 + 0.75 * Math.sin(t * Math.PI * 0.5));
       } else if (z > 120) {
-        const t = (z - 120) / (zEnd - 120);
+        const t = (z - 120) / (148 - 120);
         effectiveHalfWidth *= (1.0 + t * 0.40); // Apertura suave de la desembocadura hacia el mar
       }
 
       for (let j = 0; j <= segmentsX; j++) {
         const tx = j / segmentsX;
-        const x = riverCenterX - effectiveHalfWidth + tx * (effectiveHalfWidth * 2.0);
+        const wHW = westHalfWidth ?? effectiveHalfWidth;
+        const x = riverCenterX - wHW + tx * (wHW + effectiveHalfWidth);
 
         positions.push(x, waterY, z);
-        uvs.push(tx, tz * 20.0);
+        uvs.push(tx, ((z + 115) / 263) * 20.0); // mismo reparto que antes en el tramo original
+        // En las bocas el agua también se desvanece hacia los lados, para que el borde lateral no se vea sobre el mar
+        const mouth = Math.max(Math.min(1, Math.max(0, (-130 - z) / 15)), Math.min(1, Math.max(0, (z - 134) / 12)));
+        const lat = 1 - Math.abs(tx * 2 - 1);
+        const side = Math.min(1, lat / 0.35);
+        fades.push(WaterManager.getMouthFade(z) * (1 - mouth + mouth * side * side * (3 - 2 * side)));
       }
     }
 
@@ -266,6 +364,7 @@ export class WaterManager {
 
     geom.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
     geom.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
+    geom.setAttribute('aFade', new THREE.Float32BufferAttribute(fades, 1));
     geom.setIndex(indices);
     geom.computeVertexNormals();
 

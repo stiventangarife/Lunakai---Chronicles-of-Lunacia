@@ -3,6 +3,7 @@ import * as THREE from 'three';
 import { GLTFLoader } from '../../vendor/GLTFLoader.js';
 import { PlayerEntity } from './PlayerEntity.js';
 import { OverworldCamera } from './OverworldCamera.js';
+import { CameraOcclusion } from './CameraOcclusion.js';
 import { PlayerController } from './PlayerController.js';
 import { OverworldCollisions } from './OverworldCollisions.js';
 import { DialogSystem } from './DialogSystem.js';
@@ -42,6 +43,8 @@ import { DemoScenaDebugUI } from './world/demo_scena/DemoScenaDebugUI.js';
 import { SavannaZone } from './world/savanna/SavannaZone.js';
 import { createGrandIslands, getActiveGrandIsland, GRAND_ISLAND_ZONES } from './world/islands/GrandIslands.js';
 import { canonicalZoneId, FERRY_DOCKS, mergedBattleAnchor } from './world/islands/IslandWorldLayout.js';
+import { PALADILL_SPOT } from './world/ForestVillageLayout.js';
+import * as i18n from '../i18n/i18n.js';
 
 /**
  * The 80 m terrains of the demo 1.0.0 grid (9 macro-zones) are retired: every zone is now one of the
@@ -64,6 +67,8 @@ export class OverworldManager {
     this.collisions = new OverworldCollisions();
     this.cameraController = new OverworldCamera(this.container);
     this.cameraController.om = this;
+    // Hito 74: la cámara no se mete dentro de casas, rocas ni laderas; lo fino (árboles) se transparenta
+    this.cameraController.occlusion = new CameraOcclusion(this);
     this.camera = this.cameraController.camera;
     this.dialogSystem = new DialogSystem(this.audio);
     this.npcManager = new NPCManager(this.scene, this.dialogSystem, this.audio);
@@ -150,6 +155,7 @@ export class OverworldManager {
         }
       };
       this.inventoryModal.onItemEquipped = (heroId, slot, itemId) => {
+        if (slot === 'weapon') this._refreshCompanionWeapon(); // el Axie compañero también lleva su arma (Hito 52)
         if (this.player && typeof this.player.applyEquipment === 'function') {
           const currentEquipped = this.equipmentManager ? (this.equipmentManager.equipped.sapidae || this.equipmentManager.equipped.kotaro || {}) : {};
           this.player.applyEquipment(currentEquipped);
@@ -170,6 +176,7 @@ export class OverworldManager {
         }
       };
       this.inventoryModal.onItemUnequipped = (heroId, slot) => {
+        if (slot === 'weapon') this._refreshCompanionWeapon();
         if (this.player && typeof this.player.applyEquipment === 'function') {
           const currentEquipped = this.equipmentManager ? (this.equipmentManager.equipped.sapidae || this.equipmentManager.equipped.kotaro || {}) : {};
           this.player.applyEquipment(currentEquipped);
@@ -211,6 +218,12 @@ export class OverworldManager {
     this.questManager.onQuestUpdated(() => {
       if (this.questDescEl) {
         this.questDescEl.textContent = this.questManager.getActiveHUDTrackerText();
+      }
+      // Hito 74: en Genesis, al aceptar la misión de Kotaro o hablar con Tripp aparece su combate (sin salir de la isla)
+      const cm = this.worldMapManager?.currentMapDef;
+      if (cm && cm.gx === 2 && cm.gy === 3 && this.state !== 'COMBAT' && this.monsters?.isCombatEnabled && typeof this.monsters.ensureGenesisQuestMonsters === 'function') {
+        clearTimeout(this._genesisMobTimer);
+        this._genesisMobTimer = setTimeout(() => { this.monsters.ensureGenesisQuestMonsters().catch(() => {}); }, 300);
       }
     });
 
@@ -264,20 +277,20 @@ export class OverworldManager {
       el.innerHTML = `
         <div class="lk-intro__scrim" aria-hidden="true"></div>
         <div class="lk-intro__card" role="status">
-          <span class="lk-intro__kicker"><i></i>Comienza tu crónica</span>
+          <span class="lk-intro__kicker"><i></i>${i18n.t('overworld.introKicker')}</span>
           <h2 id="intro-hero-name" class="lk-intro__name">Lunakai</h2>
           <div class="lk-intro__line" aria-hidden="true"><i></i></div>
           <div class="lk-intro__meta">
             <span class="lk-intro__chip">
               <span class="lk-intro__cls"><img id="intro-hero-class-ico" src="./assets/classes/class_forjacubiles.jpg" alt=""></span>
-              <span class="lk-intro__txt"><small id="intro-hero-role">Sapidae · Nv. 1</small><b id="intro-hero-class">Forjacubiles</b></span>
+              <span class="lk-intro__txt"><small id="intro-hero-role">Sapidae · ${i18n.t('overworld.levelShort', { n: 1 })}</small><b id="intro-hero-class">Forjacubiles</b></span>
             </span>
             <span class="lk-intro__chip">
               <span class="lk-intro__med" id="intro-hero-avatar"></span>
-              <span class="lk-intro__txt"><small>Compañero</small><b id="intro-hero-companion">Shinji</b></span>
+              <span class="lk-intro__txt"><small>${i18n.t('overworld.companion')}</small><b id="intro-hero-companion">Shinji</b></span>
             </span>
           </div>
-          <div class="lk-intro__go"><span class="lk-intro__prog" aria-hidden="true"><i></i></span><span class="lk-intro__hint"><kbd>Espacio</kbd> Comenzar a explorar</span></div>
+          <div class="lk-intro__go"><span class="lk-intro__prog" aria-hidden="true"><i></i></span><span class="lk-intro__hint"><kbd>${i18n.t('overworld.keySpace')}</kbd> ${i18n.t('overworld.startExploring')}</span></div>
         </div>
       `;
       el.addEventListener('click', () => {
@@ -307,19 +320,19 @@ export class OverworldManager {
           <div class="lk-quest-widget" id="lk-quest-widget">
             <header>
               <span class="lk-ico">${MOON}</span>
-              <b><small id="hud-quest-cat">Misión</small><span id="hud-quest-title">Lunacia</span></b>
-              <button type="button" class="lk-min-btn" id="hud-quest-toggle" aria-label="Plegar misión" aria-expanded="true">–</button>
+              <b><small id="hud-quest-cat">${i18n.t('overworld.questCat')}</small><span id="hud-quest-title">Lunacia</span></b>
+              <button type="button" class="lk-min-btn" id="hud-quest-toggle" aria-label="${i18n.t('overworld.collapseQuest')}" aria-expanded="true">–</button>
             </header>
             <div class="lk-qbody">
               <div id="hud-quest-obj" class="lk-obj"></div>
-              <div id="overworld-quest-desc" class="lk-ow-src" hidden>Talk to Master Paladill at the Dojo [E]</div>
+              <div id="overworld-quest-desc" class="lk-ow-src" hidden>${i18n.t('story.talkToPaladillDojo')}</div>
               <div id="overworld-quest-navigator" class="lk-ow-nav hidden">
-                <span id="hud-nav-compass-arrow" class="lk-ow-nav__arrow">🧭</span>
-                <span id="hud-nav-direction-text" class="lk-ow-nav__txt">Calculando ruta…</span>
+                <span id="hud-nav-compass-arrow" class="lk-ow-nav__arrow">◆</span>
+                <span id="hud-nav-direction-text" class="lk-ow-nav__txt">${i18n.t('overworld.plottingRoute')}</span>
               </div>
               <div id="overworld-zone-coord-badge" class="lk-ow-zone">
                 <span class="hud-biome-dot" style="background:#22c55e"></span>
-                <span class="hud-zone-name">Dojo Valley</span>
+                <span class="hud-zone-name">${i18n.t('places.zone22Title')}</span>
                 <span class="hud-zone-coord">[3, 3]</span>
                 <span id="hud-subq-tag" class="hud-subq-badge">SE</span>
               </div>
@@ -328,17 +341,17 @@ export class OverworldManager {
         </div>
 
         <div class="lk-ow-menu">
-          ${circ('btn-open-inventory', 'inventory', 'Mochila', 'I')}
-          ${circ('btn-open-squad', 'team', 'Escuadrón', 'K')}
-          ${circ('btn-open-quest-book', 'mission', 'Crónica', 'J')}
-          ${circ('btn-open-world-map', 'map', 'Mapa', 'M')}
-          ${circ('btn-open-options', 'setting', 'Opciones', 'Esc')}
+          ${circ('btn-open-inventory', 'inventory', i18n.t('overworld.menuBackpack'), 'I')}
+          ${circ('btn-open-squad', 'team', i18n.t('overworld.menuSquad'), 'K')}
+          ${circ('btn-open-quest-book', 'mission', i18n.t('overworld.menuChronicle'), 'J')}
+          ${circ('btn-open-world-map', 'map', i18n.t('overworld.menuMap'), 'M')}
+          ${circ('btn-open-options', 'setting', i18n.t('overworld.menuOptions'), 'Esc')}
         </div>
 
         <div class="lk-ow-bottom" id="lk-ow-bottom"></div>
 
         <div class="lk-ow-keys">
-          <span><kbd>WASD</kbd> Moverse</span><span><kbd>E</kbd> Hablar</span><span><kbd>Espacio</kbd> Continuar</span><span><kbd>Q</kbd><kbd>R</kbd> Girar cámara</span><span><kbd>Rueda</kbd> Zoom</span>
+          <span><kbd>WASD</kbd> ${i18n.t('overworld.keyMove')}</span><span><kbd>E</kbd> ${i18n.t('overworld.keyTalk')}</span><span><kbd>${i18n.t('overworld.keySpace')}</kbd> ${i18n.t('overworld.keyContinue')}</span><span><kbd>Q</kbd><kbd>R</kbd> ${i18n.t('overworld.keyRotate')}</span><span><kbd>${i18n.t('overworld.keyWheel')}</kbd> ${i18n.t('overworld.keyZoom')}</span>
           <span id="hud-player-coord-display" class="lk-ow-coord" hidden></span>
         </div>
       `;
@@ -360,7 +373,7 @@ export class OverworldManager {
           if (this.isCombatActive()) return;
           if (this.tutorialManager && (this.tutorialManager.isCutsceneActive || this.tutorialManager.isOverlayActive)) return;
           if (this.tutorialManager && !this.tutorialManager.isFeatureUnlocked('worldMap')) {
-            this._showFeatureLockedFeedback(this.tutorialManager.lockMessage?.('worldMap') || 'El mapa se desbloquea al graduarte en el Dojo.');
+            this._showFeatureLockedFeedback(this.tutorialManager.lockMessage?.('worldMap') || i18n.t('overworld.lockMap'));
             return;
           }
           if (this.worldMapManager) this.worldMapManager.toggleWorldMap();
@@ -374,7 +387,7 @@ export class OverworldManager {
           if (this.tutorialManager && this.tutorialManager.isCutsceneActive) return;
           if (this.tutorialManager && this.tutorialManager.isOverlayActive && this.tutorialManager.activeOverlayStep !== 'EQUIP_SWORD') return;
           if (this.tutorialManager && !this.tutorialManager.isFeatureUnlocked('inventory')) {
-            this._showFeatureLockedFeedback('La Mochila se abre tras tu primer combate.');
+            this._showFeatureLockedFeedback(i18n.t('overworld.lockBackpack'));
             return;
           }
           if (this.inventoryModal) this.inventoryModal.toggle();
@@ -388,7 +401,7 @@ export class OverworldManager {
           if (this.tutorialManager && this.tutorialManager.isCutsceneActive) return;
           if (this.tutorialManager && this.tutorialManager.isOverlayActive && this.tutorialManager.activeOverlayStep !== 'OPEN_QUEST_BOOK') return;
           if (this.tutorialManager && !this.tutorialManager.isFeatureUnlocked('questBook')) {
-            this._showFeatureLockedFeedback('Habla primero con el Maestro Paladill [E].');
+            this._showFeatureLockedFeedback(i18n.t('overworld.lockChronicle'));
             return;
           }
           if (this.questBookModal) this.questBookModal.toggle();
@@ -398,7 +411,7 @@ export class OverworldManager {
       const trackerEl = el.querySelector('#lk-quest-widget');
       if (trackerEl) {
         trackerEl.style.cursor = 'pointer';
-        trackerEl.title = 'Abrir la Crónica [J]';
+        trackerEl.title = i18n.t('overworld.openChronicle');
         trackerEl.addEventListener('click', () => {
           if (this.isCombatActive()) return;
           if (this.tutorialManager && this.tutorialManager.isCutsceneActive) return;
@@ -416,7 +429,7 @@ export class OverworldManager {
           if (this.isCombatActive()) return;
           if (this.tutorialManager && (this.tutorialManager.isCutsceneActive || this.tutorialManager.isOverlayActive)) return;
           if (this.tutorialManager && !this.tutorialManager.isFeatureUnlocked('squad')) {
-            this._showFeatureLockedFeedback('El Escuadrón se desbloquea al terminar el entrenamiento.');
+            this._showFeatureLockedFeedback(i18n.t('overworld.lockSquad'));
             return;
           }
           if (this.inventoryModal && this.inventoryModal.isOpen) {
@@ -437,7 +450,7 @@ export class OverworldManager {
           qWidget.classList.toggle('lk-is-collapsed', collapsed);
           qToggle.textContent = collapsed ? '+' : '–';
           qToggle.setAttribute('aria-expanded', String(!collapsed));
-          qToggle.setAttribute('aria-label', collapsed ? 'Desplegar misión' : 'Plegar misión');
+          qToggle.setAttribute('aria-label', collapsed ? i18n.t('overworld.expandQuest') : i18n.t('overworld.collapseQuest'));
         };
         applyCollapse();
         qToggle.addEventListener('click', (e) => {
@@ -460,8 +473,13 @@ export class OverworldManager {
           let step = raw.replace(/^[^\p{L}\p{N}\[(]+/u, '');
           if (q && q.title && step.startsWith(q.title)) step = step.slice(q.title.length).replace(/^\s*:\s*/, '');
           if (titleEl) titleEl.textContent = q ? q.title : 'Lunacia';
-          if (catEl) catEl.textContent = q ? (q.category === 'Principal' ? 'Misión principal' : 'Encargo') : 'Exploración';
+          if (catEl) catEl.textContent = q ? (q.category === 'Principal' ? i18n.t('overworld.catMain') : i18n.t('overworld.catSide')) : i18n.t('overworld.catExplore');
           if (objEl) objEl.textContent = step || raw;
+          // Seguimiento desactivado (Hito 63): el panel deja solo la línea de la zona
+          const off = !!(this.questManager && typeof this.questManager.isTrackingOff === 'function' && this.questManager.isTrackingOff());
+          const head = document.querySelector('#lk-quest-widget > header');
+          if (head) head.style.display = off ? 'none' : '';
+          if (objEl) objEl.style.display = off ? 'none' : '';
         };
         syncQuest();
         new MutationObserver(syncQuest).observe(srcEl, { childList: true, characterData: true, subtree: true });
@@ -483,8 +501,8 @@ export class OverworldManager {
       pinEl.id = 'hud-3d-quest-pin';
       pinEl.className = 'hud-3d-quest-pin hidden';
       pinEl.innerHTML = `
-        <span class="hud-quest-pin-icon">🎯</span>
-        <span id="hud-quest-pin-title" class="hud-quest-pin-title">Target</span>
+        <span class="hud-quest-pin-icon">◆</span>
+        <span id="hud-quest-pin-title" class="hud-quest-pin-title">${i18n.t('overworld.pinTarget')}</span>
         <span id="hud-quest-pin-dist" class="hud-quest-pin-dist">0m</span>
       `;
       document.body.appendChild(pinEl);
@@ -509,7 +527,7 @@ export class OverworldManager {
     if (this.audio && typeof this.audio.playCollision === 'function') {
       this.audio.playCollision();
     }
-    this._showBannerMessage('🔒 FEATURE LOCKED', msg);
+    this._showBannerMessage(i18n.t('overworld.featureLocked'), msg);
   }
 
   // Escuadrón (tecla K) ⇄ mochila (tecla I): cada panel abre el otro y el HUD del escuadrón se refresca al cambiarlo
@@ -534,11 +552,21 @@ export class OverworldManager {
    * El Axie compañero del mundo abierto sigue al principal del escuadrón (squad[1]).
    * animate: el anterior desaparece en una nubecita de humo y aparece el nuevo (PlayerEntity.swapCompanion).
    */
+  /** El arma del Axie compañero es la que tenga equipada ese Axie en el inventario (Hito 52). */
+  _refreshCompanionWeapon() {
+    const em = this.equipmentManager;
+    if (!em || !this.player || typeof this.player.setCompanionWeapon !== 'function') return;
+    let w = null;
+    try { w = em.getEquipped(this._companionHeroId)?.weapon || null; } catch (_) { w = null; }
+    if (w === this.player.companionWeaponItem) return;
+    this.player.setCompanionWeapon(w);
+  }
+
   _syncCompanionToSquad(animate = true) {
     const em = this.equipmentManager;
     if (!em || !this.player || typeof em.getSquad !== 'function') return;
     const main = em.getSquad()[1] || 'kotaro';
-    if (main === this._companionHeroId) return;
+    if (main === this._companionHeroId) { this._refreshCompanionWeapon(); return; }
     const base = em.heroesBase?.[main];
     if (!base) return;
     this._companionHeroId = main;
@@ -551,6 +579,10 @@ export class OverworldManager {
       modelFile: base.axieId || base.genes ? null : main,
       modelScale: GLB[main] || 1,
     }, { animate });
+    // El arma del nuevo compañero: se guarda ya y se pone cuando termine de cargar su modelo
+    let w = null;
+    try { w = em.getEquipped(main)?.weapon || null; } catch (_) { w = null; }
+    this.player.companionWeaponItem = w;
   }
 
   isAnyModalOpen() {
@@ -665,7 +697,7 @@ export class OverworldManager {
           return;
         }
         if (this.tutorialManager && !this.tutorialManager.isFeatureUnlocked('inventory')) {
-          this._showFeatureLockedFeedback('La Mochila se abre tras tu primer combate.');
+          this._showFeatureLockedFeedback(i18n.t('overworld.lockBackpack'));
           e.preventDefault();
           return;
         }
@@ -682,7 +714,7 @@ export class OverworldManager {
           return;
         }
         if (this.tutorialManager && !this.tutorialManager.isFeatureUnlocked('squad')) {
-          this._showFeatureLockedFeedback('El Escuadrón se desbloquea al terminar el entrenamiento.');
+          this._showFeatureLockedFeedback(i18n.t('overworld.lockSquad'));
           e.preventDefault();
           return;
         }
@@ -703,7 +735,7 @@ export class OverworldManager {
           return;
         }
         if (this.tutorialManager && !this.tutorialManager.isFeatureUnlocked('questBook')) {
-          this._showFeatureLockedFeedback('Habla primero con el Maestro Paladill [E].');
+          this._showFeatureLockedFeedback(i18n.t('overworld.lockChronicle'));
           e.preventDefault();
           return;
         }
@@ -720,7 +752,7 @@ export class OverworldManager {
           return;
         }
         if (this.tutorialManager && !this.tutorialManager.isFeatureUnlocked('worldMap')) {
-          this._showFeatureLockedFeedback('El mapa se desbloquea al graduarte en el Dojo.');
+          this._showFeatureLockedFeedback(i18n.t('overworld.lockMap'));
           e.preventDefault();
           return;
         }
@@ -860,6 +892,12 @@ export class OverworldManager {
     }
 
     // Clean up previous hero model and companion if switching heroes or slots
+    // (Hito 50: también se liberan su controlador —escuchadores de teclado— y su memoria de GPU;
+    // antes cada partida cargada dejaba al jugador anterior entero en memoria)
+    if (this.playerController) {
+      this.playerController.dispose?.();
+      this.playerController = null;
+    }
     if (this.player) {
       if (this.player.companionGroup && this.player.companionGroup.parent) {
         this.scene.remove(this.player.companionGroup);
@@ -867,6 +905,7 @@ export class OverworldManager {
       if (this.player.group && this.player.group.parent) {
         this.scene.remove(this.player.group);
       }
+      this.player.dispose?.();
       this.player = null;
     }
 
@@ -915,16 +954,16 @@ export class OverworldManager {
       heroId: heroConfig.id || 'kotaro',
       isSapidae: true,
       sapidaeModel: slotData?.sapidaeModel || heroConfig.sapidaeModel || 'sapidae-f-a',
-      playerName: slotData?.playerName || heroConfig.playerName || 'Ema',
+      playerName: slotData?.playerName || heroConfig.playerName || 'Lunara',
       sapidaeClass: slotData?.sapidaeClass || heroConfig.sapidaeClass || 'crafter',
       customization: slotData?.customization || heroConfig.customization || null,
       equipped: this.equipmentManager ? (this.equipmentManager.equipped.kotaro || {}) : {},
       axieId: heroConfig.axieId || '10455',
       genes: heroConfig.genes || null,
       name: (heroConfig.name && heroConfig.name !== 'Kotaro') ? heroConfig.name : 'Shinji',
-      heroClass: 'Sapidae Adventurer',
-      archetype: `Sapidae Explorer (Companion: ${heroConfig.name || 'Shinji'})`,
-      avatar: (slotData?.sapidaeModel || heroConfig.sapidaeModel || 'sapidae-f-a').includes('f') ? '👩‍🌾' : '🧑‍🌾',
+      heroClass: i18n.t('misc.sapidaeAdventurer'),
+      archetype: i18n.t('misc.sapidaeExplorer', { name: heroConfig.name || 'Shinji' }),
+      avatar: '',
       scale: 1.0,
       x: spawnX,
       y: spawnY,
@@ -941,6 +980,7 @@ export class OverworldManager {
     if (initialEquipped) {
       this.player.applyEquipment(initialEquipped);
     }
+    this._refreshCompanionWeapon();
     this.scene.add(this.player.group);
     if (this.player.companionGroup && !this.player.companionGroup.parent) {
       this.scene.add(this.player.companionGroup);
@@ -965,11 +1005,18 @@ export class OverworldManager {
       }
     }
 
-    // Dialog context with dynamic hero details
+    // Dialog context with dynamic hero details: {heroName} = the Sapidae, {axieName} = main Axie of the squad
     this.dialogSystem.setHeroContext(this.player);
+    this.dialogSystem.axieNameFn = () => {
+      const em = this.equipmentManager;
+      const id = em && typeof em.getSquad === 'function' ? em.getSquad()[1] : null;
+      return (id && em.heroesBase && em.heroesBase[id] && em.heroesBase[id].name) || null;
+    };
 
     // Real-time dynamic Axie model swapper
-    window.addEventListener('heroAxieChanged', async (e) => {
+    // (Hito 50: se registra una sola vez. Antes se añadía uno nuevo en cada partida cargada y todos
+    // recargaban el modelo del jugador a la vez: N cargas → N modelos y Axies en memoria)
+    if (this._heroAxieListenerOn) { /* ya registrado */ } else window.addEventListener('heroAxieChanged', this._heroAxieListenerOn = async (e) => {
       const detail = e.detail;
       if (!this.player || !detail) return;
       if (this.player.heroId === detail.heroId || (!detail.heroId && this.player.heroId === 'kotaro')) {
@@ -979,7 +1026,14 @@ export class OverworldManager {
         if (detail.archetype) this.player.archetype = detail.archetype;
         this.player.modelType = 'axie';
         if (this.player.mesh) {
-          this.player.group.remove(this.player.mesh);
+          // Hito 50: el modelo que se sustituye se libera (geometrías clonadas propias y su animador);
+          // antes se quedaba en la memoria de la GPU en cada partida cargada
+          const old = this.player.mesh;
+          this.player.group.remove(old);
+          try {
+            if (this.player.mixer) { this.player.mixer.stopAllAction(); this.player.mixer.uncacheRoot(old); }
+            old.traverse((o) => { if (o.geometry) o.geometry.dispose(); if (o.isSkinnedMesh && o.skeleton) o.skeleton.dispose(); });
+          } catch (_) { /* nada */ }
           this.player.mesh = null;
         }
         await this.player.loadModel(this.renderer);
@@ -1011,7 +1065,7 @@ export class OverworldManager {
     await this.npcManager.init(initialMapDef);
     console.log('[DIAG] NPCManager OK');
     if (initialMapId === 'zone_2_2') {
-      this.collisions.addCircle(-90.3, 63.3, 1.2, 'npc_paladill');
+      this.collisions.addCircle(PALADILL_SPOT.x, PALADILL_SPOT.z, 1.2, 'npc_paladill');
     }
 
     // 5. Initialize Wandering Monsters
@@ -1032,7 +1086,11 @@ export class OverworldManager {
 
     // 7. Initialize Biome 3D Decoration Manager (Savannah cacti, desert trees, rocks)
     console.log('[DIAG] Iniciando BiomeDecorationManager...');
-    this.biomeDecorationManager = new BiomeDecorationManager(this.scene, this.collisions, this.renderer);
+    // Hito 50: se crea una sola vez. Antes, cada partida cargada creaba otro gestor y el anterior dejaba
+    // sus grupos en la escena (y sus modelos y texturas en memoria): la memoria crecía con cada carga.
+    if (!this.biomeDecorationManager) {
+      this.biomeDecorationManager = new BiomeDecorationManager(this.scene, this.collisions, this.renderer);
+    }
     await this.biomeDecorationManager.init();
     console.log('[DIAG] BiomeDecorationManager OK');
 
@@ -1073,7 +1131,7 @@ export class OverworldManager {
 
     if (this.worldMapManager.transitionManager) {
       this.worldMapManager.transitionManager.onPortalBlocked = (portal, reason, isPinned = false) => {
-        this._showBannerMessage('🚫 BARRERA DE ENTRENAMIENTO', reason, isPinned);
+        this._showBannerMessage(i18n.t('overworld.trainingBarrier'), reason, isPinned);
         if (this.audio && typeof this.audio.playCollision === 'function') {
           this.audio.playCollision();
         }
@@ -1179,7 +1237,7 @@ export class OverworldManager {
     const classEl = document.getElementById('intro-hero-class');
     if (classEl) classEl.textContent = cDef?.name || 'Sapidae';
     const roleEl = document.getElementById('intro-hero-role');
-    if (roleEl) roleEl.textContent = `Nv. ${lvl}${role ? ' · ' + role : ''}`;
+    if (roleEl) roleEl.textContent = `${i18n.t('overworld.levelShort', { n: lvl })}${role ? ' · ' + role : ''}`;
     const clsIco = document.getElementById('intro-hero-class-ico');
     if (clsIco && cDef?.icon) clsIco.src = cDef.icon;
     const compEl = document.getElementById('intro-hero-companion');
@@ -1268,7 +1326,7 @@ export class OverworldManager {
   /** Rótulo de la transición de combate: «Slime Espina ×3 · Valle del Dojō». */
   _encounterInfo(monster) {
     const raw = String(monster?.name || '').replace(/[\u{1F000}-\u{1FAFF}\u{2600}-\u{27BF}\u{FE0F}]/gu, '').replace(/\s*\(x(\d+)\)\s*$/i, ' ×$1').trim();
-    const foe = raw ? raw.charAt(0).toUpperCase() + raw.slice(1) : 'Quimeras salvajes';
+    const foe = raw ? raw.charAt(0).toUpperCase() + raw.slice(1) : i18n.t('overworld.wildChimeras');
     const place = this.worldMapManager?.currentMapDef?.name || '';
     return { subtitle: place ? `${foe} · ${place}` : foe };
   }
@@ -1417,7 +1475,7 @@ export class OverworldManager {
           if (monsterId === 'mob_rosalba_plant_guardian') {
             this.questManager.advanceStep('quest_forest_elixir', 'gather_moss', true);
             if (this.questInteractables) {
-              this.questInteractables.loadForZone('2_2');
+              this.questInteractables.refreshQuestNodes('2_2'); // solo objetos de misión (Hito 64)
             }
           }
           if (monsterId === 'mob_armored_chimera') {
@@ -1447,7 +1505,8 @@ export class OverworldManager {
             this.questManager.advanceStep('quest_forbidden_resonance', 'reach_sanctuary', true);
             this.questManager.advanceStep('quest_forbidden_resonance', 'defeat_sapidae', true);
           }
-          if (key === '2_3') {
+          // Hito 74: solo el combate de los Guardianes de Genesis cuenta para Kotaro (antes cualquiera de la isla)
+          if (monsterId === 'mob_genesis_guardians') {
             this.questManager.advanceStep('quest_sulfur_threshold', 'reach_threshold', true);
             this.questManager.advanceStep('quest_sulfur_threshold', 'defeat_sulfur_guards', true);
           }
@@ -1464,7 +1523,8 @@ export class OverworldManager {
             }
           }
           if (key === '1_1') this.questManager.advanceStep('quest_dark_frost_totems', 'purify_totems', true);
-          if (key === '2_3') this.questManager.advanceStep('quest_forgotten_miner_relic', 'find_golden_pickaxe', true);
+          // Hito 74: el pico de Tripp lo tiene el Guardián de Cristal de la cantera (antes cualquier combate de la isla)
+          if (monsterId === 'mob_crystal_guardian') this.questManager.advanceStep('quest_forgotten_miner_relic', 'find_golden_pickaxe', true);
         }
 
         if (this.questDescEl) {
@@ -1475,6 +1535,7 @@ export class OverworldManager {
         if (this.tutorialManager && typeof this.tutorialManager.onBattleReturn === 'function') {
           this.tutorialManager.onBattleReturn(battlingMonsterId, true);
         }
+        this.player?.releaseHiddenFace?.(); // memoria: las expresiones del combate vuelven a salir de la GPU
 
         this.overworldHudEl.classList.remove('hidden');
         if (this.squadHUD) {
@@ -1504,25 +1565,25 @@ export class OverworldManager {
         if (String(battlingMonsterId || '').startsWith('tut_')) {
           // tutorial: lo cuenta el Maestro Paladill
         } else if (battlingMonsterId === 'slime_garden_1') {
-          this._showBannerMessage('CHIMERA PURIFIED!', 'The garden is safe. Return to Master Paladill.');
+          this._showBannerMessage(i18n.t('story.chimeraPurified'), i18n.t('story.chimeraPurifiedDesc'));
         } else if (battlingMonsterId === 'mob_bing_ambush' || (battlingZoneKey === '3_2' && qBing?.status === 'active' && defendBingDone && !recruitBingDone)) {
-          this._showBannerMessage('VICTORY WITH BING!', 'Talk to Bing to seal his recruitment into your squad [E].');
+          this._showBannerMessage(i18n.t('story.victoryBing'), i18n.t('story.victoryBingDesc'));
         } else if (battlingMonsterId === 'mob_postman_bandits') {
-          this._showBannerMessage('MAILBAG RECOVERED!', 'Return it to the Postman at the Dojo [2, 2] [E].');
+          this._showBannerMessage(i18n.t('story.mailbagRecovered'), i18n.t('story.mailbagRecoveredDesc'));
         } else if (battlingMonsterId === 'mob_rosalba_plant_guardian') {
-          this._showBannerMessage('LUMINOUS MOSS OBTAINED!', 'Bring it to Herbalist Rosalba in [2, 2] [E].');
+          this._showBannerMessage(i18n.t('story.mossObtained'), i18n.t('story.mossObtainedDesc'));
         } else if (battlingMonsterId === 'mob_armored_chimera') {
-          this._showBannerMessage('MINERAL CARAPACE OBTAINED!', 'Bring the shards to Baruk the Blacksmith in [3, 1] [E].');
+          this._showBannerMessage(i18n.t('story.carapaceObtained'), i18n.t('story.carapaceObtainedDesc'));
         } else if (battlingMonsterId === 'mob_shadow_mirror') {
-          this._showBannerMessage('ILLUSORY SHADOW DISPELLED!', 'Talk to the Spirit Shaman in [1, 3] [E].');
+          this._showBannerMessage(i18n.t('story.shadowDispelled'), i18n.t('story.shadowDispelledDesc'));
         } else if (battlingMonsterId === 'mob_pomodoro_battle' || (battlingZoneKey === '2_1' && qPomo?.status === 'active' && defendPomoDone && !recruitPomoDone)) {
-          this._showBannerMessage('VICTORY WITH POMODORO!', 'Talk to Pomodoro to formalize his recruitment [E].');
+          this._showBannerMessage(i18n.t('story.victoryPomodoro'), i18n.t('story.victoryPomodoroDesc'));
         } else if (battlingMonsterId === 'mob_polar_golem' || battlingZoneKey === '1_1') {
-          this._showBannerMessage('🎉 BLIZZARD DISPELLED!', 'The Polar Golem has fallen. The path to Astral Nebula [1, 2] is clear.');
+          this._showBannerMessage(i18n.t('story.blizzardDispelled'), i18n.t('story.blizzardDispelledDesc'));
         } else if (battlingMonsterId === 'mob_oracle_chimera') {
-          this._showBannerMessage('DARK RESONANCE NEUTRALIZED!', 'Talk to the Astral Oracle in [1, 3] to consecrate victory [E].');
+          this._showBannerMessage(i18n.t('story.resonanceNeutralized'), i18n.t('story.resonanceNeutralizedDesc'));
         } else {
-          this._showBannerMessage('¡VICTORIA!', 'Las criaturas salvajes han sido derrotadas.');
+          this._showBannerMessage(i18n.t('overworld.victory'), i18n.t('overworld.victoryDesc'));
         }
       }
     );
@@ -1549,6 +1610,7 @@ export class OverworldManager {
         this.playerController?.setEnabled(true);
         this.audio?.playBiomeMusic?.(this.worldMapManager?.currentMapDef?.biome || 'forest');
         this.tutorialManager?.onBattleReturn?.(battlingMonsterId, false);
+        this.player?.releaseHiddenFace?.();
       }, () => {});
       return;
     }
@@ -1574,6 +1636,7 @@ export class OverworldManager {
         if (this.demoScenaZone && this.demoScenaZone.slimeCreaturesManager) {
           this.demoScenaZone.slimeCreaturesManager.resetCombatEncounter();
         }
+        this.player?.releaseHiddenFace?.();
 
         this.overworldHudEl.classList.remove('hidden');
         if (this.squadHUD) {
@@ -1592,7 +1655,7 @@ export class OverworldManager {
         }
       },
       () => {
-        this._showBannerMessage('DESCANSO EN EL DOJO', 'Tus héroes se recuperan en el Dojo. Prepárate y vuelve al combate.');
+        this._showBannerMessage(i18n.t('overworld.dojoRest'), i18n.t('overworld.dojoRestDesc'));
       }
     );
   }
@@ -1615,7 +1678,7 @@ export class OverworldManager {
     banner.className = 'turn-banner hidden';
     void banner.offsetWidth;
 
-    const isComplete = title.includes('COMPLETADA') || title.includes('PURIFICADA') || title.includes('VICTORIA');
+    const isComplete = title.includes('COMPLETADA') || title.includes('PURIFICADA') || title.includes('VICTORIA') || title.includes('COMPLETED') || title.includes('PURIFIED') || title.includes('VICTORY') || title === i18n.t('overworld.victory');
     banner.className = `turn-banner quest-notification ${isComplete ? 'quest-completed' : 'quest-accepted'}`;
 
     if (this._bannerTimeout) clearTimeout(this._bannerTimeout);
@@ -1740,7 +1803,7 @@ export class OverworldManager {
 
     if (this.state === 'CINEMATIC') {
       this.flythrough.update(dt);
-    } else if (this.state === 'HERO_PRESENTATION' || this.state === 'EXPLORING' || this.state === 'DIALOG') {
+    } else if ((this.state === 'HERO_PRESENTATION' || this.state === 'EXPLORING' || this.state === 'DIALOG') && this.playerController && this.player) {
       if (this.dialogSystem && this.dialogSystem.isActive) {
         if (this.playerController.enabled) this.playerController.setEnabled(false);
       } else if (this.state === 'EXPLORING') {
@@ -1842,7 +1905,7 @@ export class OverworldManager {
         if (t) { nav.targetWorldPos = { x: t.x, z: t.z }; nav.targetName = t.name || nav.targetName; }
         else nav.targetWorldPos = null;
       } else if (nav.quest.id === 'quest_slime_purification') {
-        const isSlimeStep = Boolean(nav.stepDesc && (nav.stepDesc.toLowerCase().includes('derrotar') || nav.stepDesc.toLowerCase().includes('slime')));
+        const isSlimeStep = Boolean(nav.stepDesc && (i18n.en(nav.stepDesc).toLowerCase().includes('derrotar') || i18n.en(nav.stepDesc).toLowerCase().includes('slime')));
         if (isSlimeStep) {
           const slime = this.monsters?.monsters?.find(m => m.id === 'slime_garden_1');
           if (slime && slime.group) {
@@ -1856,7 +1919,7 @@ export class OverworldManager {
           if (paladill && paladill.group) {
             nav.targetWorldPos = { x: paladill.group.position.x, z: paladill.group.position.z };
           } else {
-            nav.targetWorldPos = { x: -90.3, z: 63.3 };
+            nav.targetWorldPos = { x: PALADILL_SPOT.x, z: PALADILL_SPOT.z };
           }
         }
       } else if (nav.quest.id === 'quest_hunt_beaked_chimera') {
@@ -1867,40 +1930,40 @@ export class OverworldManager {
             this.questDescEl.textContent = this.questManager.getActiveHUDTrackerText();
           }
         }
-        const isReportStep = Boolean(nav.stepDesc && (nav.stepDesc.toLowerCase().includes('inform') || nav.stepDesc.toLowerCase().includes('centinela') || nav.stepDesc.toLowerCase().includes('sentinel') || nav.stepDesc.toLowerCase().includes('report')));
+        const isReportStep = Boolean(nav.stepDesc && (i18n.en(nav.stepDesc).toLowerCase().includes('inform') || i18n.en(nav.stepDesc).toLowerCase().includes('centinela') || i18n.en(nav.stepDesc).toLowerCase().includes('sentinel') || i18n.en(nav.stepDesc).toLowerCase().includes('report')));
         if (!isReportStep) {
           const beakedMob = this.monsters?.monsters?.find(m => m.id === 'mob_beaked_chimera');
           if (beakedMob && beakedMob.group) {
             nav.targetWorldPos = { x: beakedMob.group.position.x, z: beakedMob.group.position.z };
-            nav.targetName = 'Alpha Beaked Chimera';
+            nav.targetName = i18n.t('enemies.alphaBeakedChimera');
             if (beakedMob.questArrow) {
               hasAttachedMobArrow = true;
             }
           } else {
             nav.targetWorldPos = { x: -40.0, z: -8.0 };
-            nav.targetName = 'Alpha Beaked Chimera';
+            nav.targetName = i18n.t('enemies.alphaBeakedChimera');
           }
         }
       } else if (nav.quest.id === 'quest_nomad_steel') {
-        const isOreStep = Boolean(nav.stepDesc && (nav.stepDesc.toLowerCase().includes('mineral') || nav.stepDesc.toLowerCase().includes('ore') || nav.stepDesc.toLowerCase().includes('chimera') || nav.stepDesc.toLowerCase().includes('quimera') || nav.stepDesc.toLowerCase().includes('armored') || nav.stepDesc.toLowerCase().includes('acorazada')));
+        const isOreStep = Boolean(nav.stepDesc && (i18n.en(nav.stepDesc).toLowerCase().includes('mineral') || i18n.en(nav.stepDesc).toLowerCase().includes('ore') || i18n.en(nav.stepDesc).toLowerCase().includes('chimera') || i18n.en(nav.stepDesc).toLowerCase().includes('quimera') || i18n.en(nav.stepDesc).toLowerCase().includes('armored') || i18n.en(nav.stepDesc).toLowerCase().includes('acorazada')));
         if (isOreStep) {
           const armoredMob = this.monsters?.monsters?.find(m => m.id === 'mob_armored_chimera');
           if (armoredMob && armoredMob.group) {
             nav.targetWorldPos = { x: armoredMob.group.position.x, z: armoredMob.group.position.z };
-            nav.targetName = 'Armored Chimera';
+            nav.targetName = i18n.t('enemies.armoredChimera');
             if (armoredMob.questArrow) {
               hasAttachedMobArrow = true;
             }
           }
         }
       } else if (nav.quest.id === 'quest_blizzard_core') {
-        const isGolemStep = Boolean(nav.stepDesc && (nav.stepDesc.toLowerCase().includes('golem') || nav.stepDesc.toLowerCase().includes('gólem') || nav.stepDesc.toLowerCase().includes('defeat') || nav.stepDesc.toLowerCase().includes('derrotar')));
+        const isGolemStep = Boolean(nav.stepDesc && (i18n.en(nav.stepDesc).toLowerCase().includes('golem') || i18n.en(nav.stepDesc).toLowerCase().includes('gólem') || i18n.en(nav.stepDesc).toLowerCase().includes('defeat') || i18n.en(nav.stepDesc).toLowerCase().includes('derrotar')));
         if (isGolemStep) {
           const golemPack = this.monsters?.monsters?.find(m => m.logicalZone === '1_1');
           nav.targetWorldPos = golemPack && golemPack.group
             ? { x: golemPack.group.position.x, z: golemPack.group.position.z }
             : (mergedBattleAnchor('1_1') || { x: 18.0, z: -8.0 });
-          nav.targetName = 'Armored Polar Golem';
+          nav.targetName = i18n.t('enemies.armoredPolarGolem');
         }
       } else if (nav.quest.id === 'quest_frozen_seed') {
         const pomoNpc = this.npcManager?.npcs?.find(n => n.id === 'pomodoro_npc' || n.id === 'pomodoro');
@@ -1909,46 +1972,46 @@ export class OverworldManager {
           nav.targetName = 'Pomodoro';
         }
       } else if (nav.quest.id === 'quest_forbidden_resonance') {
-        const isDefeatStep = Boolean(nav.stepDesc && (nav.stepDesc.toLowerCase().includes('defeat') || nav.stepDesc.toLowerCase().includes('derrotar') || nav.stepDesc.toLowerCase().includes('sapidae') || nav.stepDesc.toLowerCase().includes('quimera') || nav.stepDesc.toLowerCase().includes('chimera')));
+        const isDefeatStep = Boolean(nav.stepDesc && (i18n.en(nav.stepDesc).toLowerCase().includes('defeat') || i18n.en(nav.stepDesc).toLowerCase().includes('derrotar') || i18n.en(nav.stepDesc).toLowerCase().includes('sapidae') || i18n.en(nav.stepDesc).toLowerCase().includes('quimera') || i18n.en(nav.stepDesc).toLowerCase().includes('chimera')));
         if (isDefeatStep) {
           const arcanePack = this.monsters?.monsters?.find(m => m.logicalZone === '1_3');
           nav.targetWorldPos = arcanePack && arcanePack.group
             ? { x: arcanePack.group.position.x, z: arcanePack.group.position.z }
             : (mergedBattleAnchor('1_3') || { x: -80.0, z: 16.0 });
-          nav.targetName = 'Arcane Chimera Pack';
+          nav.targetName = i18n.t('enemies.arcaneChimeraPack');
         } else {
           const oracleNpc = this.npcManager?.npcs?.find(n => n.id === 'oracle');
           if (oracleNpc && oracleNpc.group) {
             nav.targetWorldPos = { x: oracleNpc.group.position.x, z: oracleNpc.group.position.z };
-            nav.targetName = 'Astral Oracle';
+            nav.targetName = i18n.t('story.astralOracle');
           } else {
             nav.targetWorldPos = { x: 34.0, z: -36.0 };
-            nav.targetName = 'Astral Oracle';
+            nav.targetName = i18n.t('story.astralOracle');
           }
         }
       } else if (nav.quest.id === 'quest_astral_void_echoes') {
-        const isOracleStep = Boolean(nav.stepDesc && (nav.stepDesc.toLowerCase().includes('oracle') || nav.stepDesc.toLowerCase().includes('oráculo') || nav.stepDesc.toLowerCase().includes('oraculo') || nav.stepDesc.toLowerCase().includes('sanctuary') || nav.stepDesc.toLowerCase().includes('santurario')));
+        const isOracleStep = Boolean(nav.stepDesc && (i18n.en(nav.stepDesc).toLowerCase().includes('oracle') || i18n.en(nav.stepDesc).toLowerCase().includes('oráculo') || i18n.en(nav.stepDesc).toLowerCase().includes('oraculo') || i18n.en(nav.stepDesc).toLowerCase().includes('sanctuary') || i18n.en(nav.stepDesc).toLowerCase().includes('santurario')));
         if (isOracleStep) {
           const oracleNpc = this.npcManager?.npcs?.find(n => n.id === 'oracle');
           if (oracleNpc && oracleNpc.group) {
             nav.targetWorldPos = { x: oracleNpc.group.position.x, z: oracleNpc.group.position.z };
-            nav.targetName = 'Astral Oracle';
+            nav.targetName = i18n.t('story.astralOracle');
           } else {
             nav.targetWorldPos = { x: 34.0, z: -36.0 };
-            nav.targetName = 'Astral Oracle';
+            nav.targetName = i18n.t('story.astralOracle');
           }
         }
       } else if (nav.quest.id === 'quest_forest_elixir') {
-        const isGatherStep = Boolean(nav.stepDesc && (nav.stepDesc.toLowerCase().includes('moss') || nav.stepDesc.toLowerCase().includes('musgo') || nav.stepDesc.toLowerCase().includes('gather') || nav.stepDesc.toLowerCase().includes('harvest') || nav.stepDesc.toLowerCase().includes('recolectar')));
+        const isGatherStep = Boolean(nav.stepDesc && (i18n.en(nav.stepDesc).toLowerCase().includes('moss') || i18n.en(nav.stepDesc).toLowerCase().includes('musgo') || i18n.en(nav.stepDesc).toLowerCase().includes('gather') || i18n.en(nav.stepDesc).toLowerCase().includes('harvest') || i18n.en(nav.stepDesc).toLowerCase().includes('recolectar')));
         if (isGatherStep) {
           const mossNode = this.questInteractables?.nodes?.find(n => n.id === 'luminous_moss_plant');
           if (mossNode && mossNode.group) {
             nav.targetWorldPos = { x: mossNode.group.position.x, z: mossNode.group.position.z };
-            nav.targetName = 'Luminous Moss Sprout';
+            nav.targetName = i18n.t('story.mossSproutName');
           }
         }
       } else if (nav.quest.id === 'quest_blizzard_stew') {
-        const isGatherStep = Boolean(nav.stepDesc && (nav.stepDesc.toLowerCase().includes('mushroom') || nav.stepDesc.toLowerCase().includes('seta') || nav.stepDesc.toLowerCase().includes('hongo') || nav.stepDesc.toLowerCase().includes('gather')));
+        const isGatherStep = Boolean(nav.stepDesc && (i18n.en(nav.stepDesc).toLowerCase().includes('mushroom') || i18n.en(nav.stepDesc).toLowerCase().includes('seta') || i18n.en(nav.stepDesc).toLowerCase().includes('hongo') || i18n.en(nav.stepDesc).toLowerCase().includes('gather')));
         if (isGatherStep) {
           const mushNodes = this.questInteractables?.nodes?.filter(n => n.type === 'gathering_mushroom');
           if (mushNodes && mushNodes.length > 0) {
@@ -1961,11 +2024,11 @@ export class OverworldManager {
               if (d < minDist) { minDist = d; closest = m; }
             });
             nav.targetWorldPos = { x: closest.group.position.x, z: closest.group.position.z };
-            nav.targetName = closest.promptText || 'Polar Mushroom';
+            nav.targetName = closest.promptText || i18n.t('story.polarMushroom');
           }
         }
       } else if (nav.quest.id === 'quest_fallen_stardust') {
-        const isGatherStep = Boolean(nav.stepDesc && (nav.stepDesc.toLowerCase().includes('stardust') || nav.stepDesc.toLowerCase().includes('fragment') || nav.stepDesc.toLowerCase().includes('gather')));
+        const isGatherStep = Boolean(nav.stepDesc && (i18n.en(nav.stepDesc).toLowerCase().includes('stardust') || i18n.en(nav.stepDesc).toLowerCase().includes('fragment') || i18n.en(nav.stepDesc).toLowerCase().includes('gather')));
         if (isGatherStep) {
           const starNodes = this.questInteractables?.nodes?.filter(n => n.type === 'gathering_stardust');
           if (starNodes && starNodes.length > 0) {
@@ -1978,7 +2041,7 @@ export class OverworldManager {
               if (d < minDist) { minDist = d; closest = s; }
             });
             nav.targetWorldPos = { x: closest.group.position.x, z: closest.group.position.z };
-            nav.targetName = closest.promptText || 'Luminescent Stardust';
+            nav.targetName = closest.promptText || i18n.t('story.luminescentStardust');
           }
         }
       }
@@ -2082,9 +2145,9 @@ export class OverworldManager {
             const distEl = document.getElementById('hud-quest-pin-dist');
             const iconEl = this.questPinEl.querySelector('.hud-quest-pin-icon');
 
-            if (titleEl) titleEl.textContent = nav.targetName || 'Objective';
+            if (titleEl) titleEl.textContent = nav.targetName || i18n.t('overworld.pinObjective');
             if (distEl) distEl.textContent = `${Math.round(dist)}m`;
-            if (iconEl) iconEl.textContent = nav.isCurrentZone ? '🎯' : '⛵';
+            if (iconEl) iconEl.textContent = nav.isCurrentZone ? '◆' : '➔';
 
             this.questPinEl.style.left = `${screenX}px`;
             this.questPinEl.style.top = `${screenY}px`;
@@ -2106,7 +2169,7 @@ export class OverworldManager {
 
       if (this.navCompassArrowEl) {
         if (nav.isCurrentZone) {
-          this.navCompassArrowEl.textContent = '🎯';
+          this.navCompassArrowEl.textContent = '◆';
         } else {
           const dirSymbols = {
             NORTH: '▲',
@@ -2114,7 +2177,7 @@ export class OverworldManager {
             EAST: '►',
             WEST: '◄'
           };
-          this.navCompassArrowEl.textContent = dirSymbols[nav.portalDirection] || '🧭';
+          this.navCompassArrowEl.textContent = dirSymbols[nav.portalDirection] || '◆';
         }
       }
     }

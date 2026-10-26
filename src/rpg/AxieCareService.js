@@ -15,6 +15,7 @@
 
 import { BondService } from './BondService.js';
 import { saveSlotManager } from './SaveSlotManager.js';
+import * as i18n from '../i18n/i18n.js';
 
 export const PET_BOND = 5;
 export const PET_COOLDOWN_MS = 2 * 60 * 1000;   // 2 minutos (demo)
@@ -28,10 +29,10 @@ export const STARTER_FOOD = ['food_berry', 'food_berry', 'food_berry'];
 
 /** Estado emocional según el vínculo (GDD §2.1 B). */
 export function moodOf(bond) {
-  if (bond >= 76) return { id: 'soul', label: 'Resonancia del alma', icon: '💜' };
-  if (bond >= 51) return { id: 'loyal', label: 'Compañero fiel', icon: '💚' };
-  if (bond >= 26) return { id: 'neutral', label: 'Neutral', icon: '💛' };
-  return { id: 'neglected', label: 'Desatendido', icon: '💢' };
+  if (bond >= 76) return { id: 'soul', label: i18n.t('items.mood.soul'), icon: '💜' };
+  if (bond >= 51) return { id: 'loyal', label: i18n.t('items.mood.loyal'), icon: '💚' };
+  if (bond >= 26) return { id: 'neutral', label: i18n.t('items.mood.neutral'), icon: '💛' };
+  return { id: 'neglected', label: i18n.t('items.mood.neglected'), icon: '💢' };
 }
 
 export class AxieCareService {
@@ -105,7 +106,8 @@ export class AxieCareService {
     // cooldownFree (Hito 48): en el tutorial se puede acariciar sin esperar
     if (!s.petReady && !this.cooldownFree) return { ok: false, reason: 'cooldown', leftMs: s.petLeftMs };
     const before = s.bond;
-    const after = this.bond.add(heroId, PET_BOND);
+    // tutorialFill (Hito 54): en el tutorial la caricia sube el vínculo hasta la mitad de lo que falta
+    const after = this.bond.add(heroId, this.tutorialFill ? Math.max(PET_BOND, Math.ceil((100 - before) / 2)) : PET_BOND);
     this._state().petAt[heroId] = this.now();
     this._state().careAt[heroId] = this.now();
     this._persist();
@@ -136,7 +138,8 @@ export class AxieCareService {
     if (idx < 0) return { ok: false, reason: 'no_item' };
     inv.splice(idx, 1);
     const before = this.bond.get(heroId);
-    const after = this.bond.add(heroId, this.items[itemId].effect.bond);
+    // tutorialFill (Hito 54): en el tutorial la comida completa el vínculo al 100 %
+    const after = this.bond.add(heroId, this.tutorialFill ? Math.max(this.items[itemId].effect.bond, 100 - before) : this.items[itemId].effect.bond);
     this._state().careAt[heroId] = this.now();
     this._persist();
     const res = { ok: true, kind: 'feed', heroId, itemId, item: this.items[itemId], before, after, gained: after - before };

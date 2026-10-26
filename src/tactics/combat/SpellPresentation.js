@@ -5,6 +5,7 @@
 // esta clase (o desinstalarla con uninstall()) y suscribir el motor nuevo a los mismos eventos.
 
 import * as THREE from 'three';
+import * as i18n from '../../i18n/i18n.js';
 
 export class SpellPresentation {
   constructor({ sceneManager, gridManager, audio, combatText, vfx }) {
@@ -24,7 +25,7 @@ export class SpellPresentation {
 
     // --- Lanzamiento: texto de coste, orientación del lanzador y sonido
     on('spell:cast', ({ caster, spell, casterPos, targetPos, spent }) => {
-      this.combatText.spawn(casterPos, '-' + (spent ?? spell.paCost) + ' PA', 'pa'); // lo realmente pagado (descuentos de charms)
+      this.combatText.spawn(casterPos, i18n.t('combatFx.paMinus', { n: spent ?? spell.paCost }), 'pa'); // lo realmente pagado (descuentos de charms)
       const dirX = targetPos.x - casterPos.x;
       const dirZ = targetPos.z - casterPos.z;
       if (caster.mesh && (dirX !== 0 || dirZ !== 0)) {
@@ -36,13 +37,13 @@ export class SpellPresentation {
     // --- Mecánicas especiales de Sapidae
     on('spell:barricade', ({ pos }) => {
       this.spawnImpactVFX(pos, { id: 'barricade' });
-      this.combatText.spawn(pos, '🧱 BARRICADA', 'shield');
+      this.combatText.spawn(pos, i18n.t('combatFx.barricade'), 'shield');
     });
     on('spell:transpose', ({ casterPos, targetPos }) => {
       this.vfx.playHealPillar(casterPos);
       this.vfx.playHealPillar(targetPos);
-      this.combatText.spawn(casterPos, '🌌 TRANSPOSICIÓN', 'buff');
-      this.combatText.spawn(targetPos, '🌌 TRANSPOSICIÓN', 'buff');
+      this.combatText.spawn(casterPos, i18n.t('combatFx.transpose'), 'buff');
+      this.combatText.spawn(targetPos, i18n.t('combatFx.transpose'), 'buff');
     });
     on('spell:aura', ({ casterPos }) => {
       this.vfx.playSonicBellow(casterPos, casterPos);
@@ -77,34 +78,34 @@ export class SpellPresentation {
 
     // --- Resultados sobre unidades
     on('unit:healed', ({ unit, amount }) => {
-      this.combatText.spawn(this._posOf(unit), '+' + amount + ' HP', 'heal');
+      this.combatText.spawn(this._posOf(unit), i18n.t('combatFx.hpPlus', { n: amount }), 'heal');
     });
     on('unit:shielded', ({ unit, amount, pos, variant }) => {
       const p = pos || this._posOf(unit);
-      this.combatText.spawn(p, variant === 'jump' ? '+' + amount + ' SHIELD' : '🛡️ +' + amount, 'shield');
+      this.combatText.spawn(p, i18n.t('combatFx.shieldPlus', { n: amount }), 'shield');
     });
     on('unit:resourceGained', ({ unit, pa, pm }) => {
       const p = this._posOf(unit);
-      if (pa && pm) this.combatText.spawn(p, `+${pm} PM  +${pa} PA`, 'buff');
-      else if (pa) this.combatText.spawn(p, '+' + pa + ' PA', 'buff');
-      else if (pm) this.combatText.spawn(p, '+' + pm + ' PM', 'buff');
+      if (pa && pm) this.combatText.spawn(p, i18n.t('combatFx.pmPaPlus', { pm, pa }), 'buff');
+      else if (pa) this.combatText.spawn(p, i18n.t('combatFx.paPlus', { n: pa }), 'buff');
+      else if (pm) this.combatText.spawn(p, i18n.t('combatFx.pmPlus', { n: pm }), 'buff');
     });
     on('unit:resourceLost', ({ unit, pa, pm }) => {
       const p = this._posOf(unit);
-      if (pm) this.combatText.spawn(p, '-' + pm + ' PM', 'pm');
-      if (pa) this.combatText.spawn(p, '-' + pa + ' PA', 'pa');
+      if (pm) this.combatText.spawn(p, i18n.t('combatFx.pmMinus', { n: pm }), 'pm');
+      if (pa) this.combatText.spawn(p, i18n.t('combatFx.paMinus', { n: pa }), 'pa');
     });
     on('unit:damaged', ({ unit, actual, shieldAbsorbed, isCrit, plain }) => {
       const wPos = this._posOf(unit);
       if (plain) { this.combatText.spawn(wPos, '-' + actual, 'damage'); return; }
       if (shieldAbsorbed > 0 && actual === 0) {
-        this.combatText.spawn(wPos, '🛡️ -' + shieldAbsorbed, 'shield');
+        this.combatText.spawn(wPos, i18n.t('combatFx.shieldMinus', { n: shieldAbsorbed }), 'shield');
         this.sceneManager.shake(0.12);
       } else if (shieldAbsorbed > 0 && actual > 0) {
-        this.combatText.spawn(wPos, '🛡️ -' + shieldAbsorbed + '  -' + actual, 'damage');
+        this.combatText.spawn(wPos, i18n.t('combatFx.shieldMinus', { n: shieldAbsorbed }) + '  -' + actual, 'damage');
         this.sceneManager.shake(0.18);
       } else if (isCrit) {
-        this.combatText.spawn(wPos, 'CRITICAL! -' + actual, 'crit');
+        this.combatText.spawn(wPos, i18n.t('combatFx.critical', { n: actual }), 'crit');
         this.sceneManager.shake(0.32);
       } else {
         this.combatText.spawn(wPos, '-' + actual, 'damage');
@@ -121,43 +122,43 @@ export class SpellPresentation {
       }
       const p = this._posOf(unit);
       this.spawnImpactVFX(p, { id: 'collision' });
-      this.combatText.spawn(p, damage > 0 ? '💥 COLLISION! -' + damage : '💥 COLLISION! 🛡️', 'collision'); // 0 = inmune (Sturdy Fighter)
+      this.combatText.spawn(p, damage > 0 ? i18n.t('combatFx.collision', { n: damage }) : i18n.t('combatFx.collisionImmune'), 'collision'); // 0 = inmune (Sturdy Fighter)
     });
 
     // --- Fase 1: triángulo elemental, estados y objetos del tablero
     on('unit:damaged', ({ unit, elemental }) => {
       if (!elemental || elemental === 1) return;
-      this.combatText.spawn(this._posOf(unit), elemental > 1 ? '▲ EFICAZ' : '▼ RESISTIDO', elemental > 1 ? 'crit' : 'shield');
+      this.combatText.spawn(this._posOf(unit), elemental > 1 ? i18n.t('combatFx.effective') : i18n.t('combatFx.resisted'), elemental > 1 ? 'crit' : 'shield');
     });
     on('unit:healBlocked', ({ unit }) => {
-      this.combatText.spawn(this._posOf(unit), '🚫 SIN CURACIÓN', 'pm');
+      this.combatText.spawn(this._posOf(unit), i18n.t('combatFx.healBlocked'), 'pm');
     });
     on('status:applied', ({ unit, def, duration }) => {
       this.combatText.spawn(this._posOf(unit), `${def.icon} ${def.label.toUpperCase()} (${duration})`, def.kind === 'buff' ? 'buff' : 'pm');
     });
     on('status:resisted', ({ unit }) => {
-      this.combatText.spawn(this._posOf(unit), '🌟 INMUNE', 'buff');
+      this.combatText.spawn(this._posOf(unit), i18n.t('combatFx.immune'), 'buff');
     });
     on('status:expired', ({ unit, status, reason }) => {
-      if (reason === 'woke') this.combatText.spawn(this._posOf(unit), '💤 ¡DESPIERTA!', 'buff');
-      else if (reason === 'cleansed') this.combatText.spawn(this._posOf(unit), '✨ PURIFICADO', 'heal');
+      if (reason === 'woke') this.combatText.spawn(this._posOf(unit), i18n.t('combatFx.wokeUp'), 'buff');
+      else if (reason === 'cleansed') this.combatText.spawn(this._posOf(unit), i18n.t('combatFx.cleansed'), 'heal');
     });
     on('status:tick', ({ unit, damage, heal, def }) => {
       if (damage > 0) this.combatText.spawn(this._posOf(unit), `${def.icon} -${damage}`, 'damage');
-      if (heal > 0) this.combatText.spawn(this._posOf(unit), `${def.icon} +${heal} HP`, 'heal');
+      if (heal > 0) this.combatText.spawn(this._posOf(unit), `${def.icon} ` + i18n.t('combatFx.hpPlus', { n: heal }), 'heal');
     });
     on('unit:damaged', ({ unit, linked }) => {
-      if (linked) this.combatText.spawn(this._posOf(unit), '🔗 LAZO', 'shield');
+      if (linked) this.combatText.spawn(this._posOf(unit), i18n.t('combatFx.link'), 'shield');
     });
     on('status:skipTurn', ({ unit, def }) => {
-      this.combatText.spawn(this._posOf(unit), `${def.icon} PIERDE EL TURNO`, 'pm');
+      this.combatText.spawn(this._posOf(unit), `${def.icon} ` + i18n.t('combatFx.skipTurn'), 'pm');
     });
     on('unit:teleported', ({ pos }) => { this.spawnImpactVFX(pos, { id: 'jump_landing' }); });
     on('field:obstaclePlaced', ({ pos, rounds }) => {
       this.spawnImpactVFX(pos, { id: 'barricade' });
     });
     on('field:obstacleExpired', ({ pos }) => {
-      this.combatText.spawn(pos, '💨', 'buff');
+      this.combatText.spawn(pos, i18n.t('combatFx.obstacleGone'), 'buff');
     });
     on('ultimate:used', ({ caster, spell }) => {
       this.combatText.spawn(this._posOf(caster), `✦ ${String(spell.name).toUpperCase()} ✦`, 'crit');
@@ -165,13 +166,13 @@ export class SpellPresentation {
     });
     // --- Runas y charms (RuneCharmEffects)
     on('unit:evaded', ({ unit }) => {
-      this.combatText.spawn(this._posOf(unit), '💨 ¡ESQUIVA!', 'buff');
+      this.combatText.spawn(this._posOf(unit), i18n.t('combatFx.evaded'), 'buff');
     });
     on('runeCharm:proc', ({ unit, label }) => {
       if (unit && label) this.combatText.spawn(this._posOf(unit), `✦ ${label}`, 'buff');
     });
     on('field:zonePlaced', ({ positions }) => {
-      if (positions[0]) this.combatText.spawn(positions[0], '🌀 ZONA', 'buff');
+      if (positions[0]) this.combatText.spawn(positions[0], i18n.t('combatFx.zone'), 'buff');
     });
 
     return this;

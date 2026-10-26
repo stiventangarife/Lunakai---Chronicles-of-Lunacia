@@ -13,6 +13,7 @@ import { ITEMS_DB } from '../tactics/ItemDatabase.js';
 import {
   MATERIALS, TIER0_ITEMS, CRAFT_RECIPES, EVOLUTION_COST, FORGE_ANVILS, SPEEDUP_BAXS, SPEEDUP_TIER_MULT, evolutionQuote, nextEvolution,
 } from '../tactics/data/EconomyCatalog.js';
+import * as i18n from '../i18n/i18n.js';
 
 export const EQ_SLOTS = ['weapon', 'hat', 'shield', 'body', 'boots'];
 const HOUR_MS = 3600 * 1000;
@@ -81,7 +82,7 @@ class ForgeServiceImpl {
   }
 
   recipes() {
-    return CRAFT_RECIPES.map((r) => ({ recipe: r, item: ITEMS_DB[r.result], cost: this.check({ gold: r.gold, mats: r.mats }) }));
+    return CRAFT_RECIPES.map((r) => ({ recipe: r, item: ITEMS_DB[r.result], cost: this.check({ gold: r.gold || 0, slp: r.slp || 0, mats: r.mats }) }));
   }
 
   /**
@@ -159,8 +160,8 @@ class ForgeServiceImpl {
   }
 
   craft(recipeId) {
-    const r = CRAFT_RECIPES.find((x) => x.id === recipeId); if (!r || !ITEMS_DB[r.result]) return { ok: false, why: 'Receta desconocida' };
-    const c = this.check({ gold: r.gold, mats: r.mats }); if (!c.ok) return { ok: false, why: 'Te falta algo' };
+    const r = CRAFT_RECIPES.find((x) => x.id === recipeId); if (!r || !ITEMS_DB[r.result]) return { ok: false, why: i18n.t('notices.forge.unknownRecipe') };
+    const c = this.check({ gold: r.gold || 0, slp: r.slp || 0, mats: r.mats }); if (!c.ok) return { ok: false, why: i18n.t('notices.forge.missingSomething') };
     this._pay(c);
     this.em.inventory.push(r.result);
     this._commit();
@@ -168,19 +169,19 @@ class ForgeServiceImpl {
   }
 
   evolve(entry, speed = 1) {
-    if (this.anvilsFree() <= 0) return { ok: false, why: 'Los yunques están ocupados' };
-    const q = this.quote(entry.id, speed); if (!q) return { ok: false, why: 'Esta pieza ya está en lo más alto' };
-    if (!q.cost.ok) return { ok: false, why: 'Te falta algo' };
+    if (this.anvilsFree() <= 0) return { ok: false, why: i18n.t('notices.forge.anvilsBusy') };
+    const q = this.quote(entry.id, speed); if (!q) return { ok: false, why: i18n.t('notices.forge.maxed') };
+    if (!q.cost.ok) return { ok: false, why: i18n.t('notices.forge.missingSomething') };
     const em = this.em, f = this._store();
     const claimed = this._claimedSets();
     if (entry.hero) {
-      if (em.equipped?.[entry.hero]?.[entry.slot] !== entry.id) return { ok: false, why: 'La pieza ya no está equipada' };
-      if (claimed.e.has(`${entry.hero}:${entry.slot}`)) return { ok: false, why: 'Esa pieza ya está en la forja' };
+      if (em.equipped?.[entry.hero]?.[entry.slot] !== entry.id) return { ok: false, why: i18n.t('notices.forge.notEquipped') };
+      if (claimed.e.has(`${entry.hero}:${entry.slot}`)) return { ok: false, why: i18n.t('notices.forge.alreadyInForge') };
       em.equipped[entry.hero][entry.slot] = null; // la pieza se queda en el yunque hasta recoger la nueva
       if (entry.hero === 'sapidae' || em.heroesBase?.[entry.hero]?.isSapidae) em._updateSapidaePortrait?.();
     } else {
       const i = em.inventory.findIndex((id, n) => id === entry.id && !claimed.i.has(n));
-      if (i < 0) return { ok: false, why: 'La pieza ya no está en la Mochila' };
+      if (i < 0) return { ok: false, why: i18n.t('notices.forge.notInBackpack') };
       em.inventory.splice(i, 1);
     }
     this._pay(q.cost);
@@ -239,8 +240,8 @@ class ForgeServiceImpl {
   speedUp(uid, x) {
     const f = this._store(), j = f.jobs.find((y) => y.uid === uid);
     const o = this.speedOptions(uid).find((y) => y.x === x);
-    if (!j || !o) return { ok: false, why: 'Ya no se puede acelerar' };
-    if (o.baxs > (f.baxs || 0) + 1e-9) return { ok: false, why: `Te faltan ${+(o.baxs - (f.baxs || 0)).toFixed(2)} bAXS` };
+    if (!j || !o) return { ok: false, why: i18n.t('notices.forge.cantSpeedUp') };
+    if (o.baxs > (f.baxs || 0) + 1e-9) return { ok: false, why: i18n.t('notices.forge.needBaxs', { n: +(o.baxs - (f.baxs || 0)).toFixed(2) }) };
     const now = Date.now();
     f.baxs = +((f.baxs || 0) - o.baxs).toFixed(2);
     j.end = now + o.leftHours * HOUR_MS;

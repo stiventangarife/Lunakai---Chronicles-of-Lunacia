@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import * as i18n from '../i18n/i18n.js';
 
 // TutorialManager.js - Guided Duo Tactical Tutorial (Sapidae Protagonist + Companion Axie)
 export class TutorialManager {
@@ -14,76 +15,76 @@ export class TutorialManager {
     this.steps = [
       {
         id: 'step_intro',
-        title: 'Combate táctico en pareja',
-        text: 'Luchas como <b>Sapidae</b> junto a tu <b>Axie compañero</b>. Cada uno tiene su turno.',
+        title: i18n.t('tutorialCombat.step.intro.title'),
+        text: i18n.t('tutorialCombat.step.intro.text'),
         concepts: [
-          { k: 'pm', label: 'PM', text: 'Puntos de Movimiento: una casilla por PM.' },
-          { k: 'pa', label: 'PA', text: 'Puntos de Acción: lo que cuestan tus cartas.' },
+          { k: 'pm', label: i18n.t('tutorialCombat.concept.mp'), text: i18n.t('tutorialCombat.concept.mpText') },
+          { k: 'pa', label: i18n.t('tutorialCombat.concept.ap'), text: i18n.t('tutorialCombat.concept.apText') },
         ],
-        btnText: 'Comenzar batalla',
+        btnText: i18n.t('tutorialCombat.startBattle'),
         targetType: 'dialog'
       },
       {
         id: 'step_move_1',
-        kicker: 'Turno de tu Sapidae',
-        title: 'Muévete hacia la quimera',
-        text: 'Haz clic en la <b>casilla dorada</b> que marca la flecha. Gastarás 2 PM.',
+        kicker: i18n.t('tutorialCombat.kickerSapidae'),
+        title: i18n.t('tutorialCombat.step.move1.title'),
+        text: i18n.t('tutorialCombat.step.move1.text'),
         allowedCell: { x: 4, z: 5 },
         targetType: 'cell'
       },
       {
         id: 'step_select_spell_1',
-        kicker: 'Turno de tu Sapidae',
-        title: 'Elige tu primera carta',
-        text: 'Pulsa la carta <b>Habilidad de Clase [1]</b> en la barra de abajo, o la tecla <kbd>1</kbd>.',
+        kicker: i18n.t('tutorialCombat.kickerSapidae'),
+        title: i18n.t('tutorialCombat.step.selectSpell1.title'),
+        text: i18n.t('tutorialCombat.step.selectSpell1.text', { skill: i18n.t('tutorialCombat.classSkillSlot') }),
         allowedSpellIndex: 0,
         targetType: 'spell_slot'
       },
       {
         id: 'step_attack_1',
-        kicker: 'Turno de tu Sapidae',
-        title: 'Ataca a la Quimera Slime',
-        text: 'Haz clic sobre la quimera marcada para lanzar la carta.',
+        kicker: i18n.t('tutorialCombat.kickerSapidae'),
+        title: i18n.t('tutorialCombat.step.attack1.title'),
+        text: i18n.t('tutorialCombat.step.attack1.text'),
         allowedCell: { x: 4, z: 6 },
         targetType: 'cell'
       },
       {
         id: 'step_end_turn',
-        kicker: 'Turno de tu Sapidae',
-        title: 'Pasa el turno a tu Axie',
-        text: 'Pulsa <b>Pasar turno</b> o la tecla <kbd>Espacio</kbd>.',
+        kicker: i18n.t('tutorialCombat.kickerSapidae'),
+        title: i18n.t('tutorialCombat.step.endTurn.title'),
+        text: i18n.t('tutorialCombat.step.endTurn.text'),
         targetType: 'end_turn'
       },
       {
         id: 'step_move_2',
-        kicker: 'Turno de tu Axie',
-        title: 'Acerca a tu Axie',
-        text: 'Haz clic en la <b>casilla dorada</b> para ponerlo frente a la Quimera Guardián.',
+        kicker: i18n.t('tutorialCombat.kickerAxie'),
+        title: i18n.t('tutorialCombat.step.move2.title'),
+        text: i18n.t('tutorialCombat.step.move2.text'),
         allowedCell: { x: 4, z: 6 },
         allowedCells: [{ x: 4, z: 6 }, { x: 3, z: 6 }, { x: 3, z: 7 }],
         targetType: 'cell'
       },
       {
         id: 'step_select_spell_2',
-        kicker: 'Turno de tu Axie',
-        title: 'Elige la carta de tu Axie',
-        text: 'Pulsa su carta <b>[1]</b> en la barra de abajo, o la tecla <kbd>1</kbd>.',
+        kicker: i18n.t('tutorialCombat.kickerAxie'),
+        title: i18n.t('tutorialCombat.step.selectSpell2.title'),
+        text: i18n.t('tutorialCombat.step.selectSpell2.text'),
         allowedSpellIndex: 0,
         targetType: 'spell_slot'
       },
       {
         id: 'step_attack_2',
-        kicker: 'Turno de tu Axie',
-        title: 'Ataca a la Quimera Guardián',
-        text: 'Haz clic sobre ella para debilitar su defensa.',
+        kicker: i18n.t('tutorialCombat.kickerAxie'),
+        title: i18n.t('tutorialCombat.step.attack2.title'),
+        text: i18n.t('tutorialCombat.step.attack2.text'),
         allowedCell: { x: 4, z: 7 },
         targetType: 'cell'
       },
       {
         id: 'step_battle_flow',
-        title: '¡Buen trabajo en equipo!',
-        text: 'Ya sabes lo básico. Termina con la Quimera Guardián alternando los turnos de tu Sapidae y tu Axie, como prefieras.',
-        btnText: '¡A la carga!',
+        title: i18n.t('tutorialCombat.step.battleFlow.title'),
+        text: i18n.t('tutorialCombat.step.battleFlow.text'),
+        btnText: i18n.t('tutorialCombat.charge'),
         targetType: 'free_action'
       }
     ];
@@ -130,9 +131,9 @@ export class TutorialManager {
     const D = this.dynamic, g = this.game;
     const tm = g?.turnManager;
     const a = (tm && tm.getActiveUnit && tm.getActiveUnit()) || g?.activeUnit;
-    const free = { id: 'step_battle_flow', targetType: 'free_action', title: D.kind === 'ult' ? '¡Resonancia!' : '¡Ahora tú decides!', text: D.kind === 'ult' ? 'Ahora termina el combate como prefieras.' : 'Sigue el duelo a tu manera: termina cuando alguien baje al <b>30 %</b> de vida.', btnText: '¡A la carga!' };
-    if (!a) return { id: 'step_wait', targetType: 'waiting', title: 'Un momento…', text: '' };
-    if (a.team !== 'player') return { id: 'step_wait', targetType: 'waiting', kicker: 'Turno rival', title: `Turno de ${a.name}`, text: 'Mira cómo se mueve y prepárate para tu turno.' };
+    const free = { id: 'step_battle_flow', targetType: 'free_action', title: i18n.t('tutorialCombat.free.title'), text: D.kind === 'ult' ? i18n.t('tutorialCombat.free.ultText') : i18n.t('tutorialCombat.free.duelText'), btnText: i18n.t('tutorialCombat.charge') };
+    if (!a) return { id: 'step_wait', targetType: 'waiting', title: i18n.t('tutorialCombat.wait.title'), text: '' };
+    if (a.team !== 'player') return { id: 'step_wait', targetType: 'waiting', kicker: i18n.t('tutorialCombat.kickerRival'), title: i18n.t('tutorialCombat.rivalTurn.title', { name: a.name }), text: i18n.t('tutorialCombat.rivalTurn.text') };
     if (!D.cur || D.cur.unit !== a) D.cur = { unit: a, moved: false, cast: false };
     const C = D.cur;
     const endStep = (title, text) => ({ id: 'step_end_turn', targetType: 'end_turn', kicker: a.name, title, text });
@@ -145,40 +146,40 @@ export class TutorialManager {
       const ult = g.spellManager?.ultimates;
       if (!ult || ult.used) return free;
       const isSap = a === ult.sapidae || a.id === 'sapidae';
-      if (!isSap) return endStep('Pasa el turno', 'La Ultimate la lanza tu <b>Sapidae</b>. Pulsa <b>Pasar turno</b> o <kbd>Espacio</kbd>.');
+      if (!isSap) return endStep(i18n.t('tutorialCombat.passTurn'), i18n.t('tutorialCombat.ultPassText'));
       if (g.selectedSpell && g.selectedSpell.isUltimate) {
         const cells = g.validSpellCells || [];
         const foes = cells.filter((c) => g.gridManager.getTile(c.x, c.z)?.unit?.team === 'enemy');
-        if (foes.length) return { id: 'step_attack_1', targetType: 'cell', kicker: 'Duo Ultimate', title: 'Elige el objetivo', text: 'Haz clic en la <b>quimera marcada</b>.', allowedCell: foes[0], allowedCells: foes };
+        if (foes.length) return { id: 'step_attack_1', targetType: 'cell', kicker: i18n.t('tutorialCombat.kickerDuo'), title: i18n.t('tutorialCombat.pickTarget.title'), text: i18n.t('tutorialCombat.pickTarget.text'), allowedCell: foes[0], allowedCells: foes };
         // Ultimates sin objetivo enemigo (p. ej. Égida de Gaia, sobre tu propia casilla): cualquier casilla válida
-        if (cells.length) return { id: 'step_attack_1', targetType: 'cell', kicker: 'Duo Ultimate', title: 'Lanza la Ultimate', text: 'Haz clic en la <b>casilla marcada</b>.', allowedCell: cells[0], allowedCells: cells };
+        if (cells.length) return { id: 'step_attack_1', targetType: 'cell', kicker: i18n.t('tutorialCombat.kickerDuo'), title: i18n.t('tutorialCombat.castUlt.title'), text: i18n.t('tutorialCombat.castUlt.cellText'), allowedCell: cells[0], allowedCells: cells };
         return free; // ningún objetivo al alcance: no se bloquea el combate
       }
-      if (ult.canCast && ult.canCast(a)) return { id: 'step_ult', targetType: 'ult', allowUlt: true, kicker: 'Duo Ultimate', title: 'Lanza la Ultimate', text: 'Pulsa el <b>medallón dorado</b> o la tecla <kbd>7</kbd>.' };
+      if (ult.canCast && ult.canCast(a)) return { id: 'step_ult', targetType: 'ult', allowUlt: true, kicker: i18n.t('tutorialCombat.kickerDuo'), title: i18n.t('tutorialCombat.castUlt.title'), text: i18n.t('tutorialCombat.castUlt.btnText') };
       return free; // no se puede lanzar (caso raro): no se bloquea el combate
     }
 
     // duel: libre cuando todos tus aliados han hecho su primer turno guiado (o desde la ronda 2)
     const allies = (g.units || []).filter((u) => u.team === 'player' && !u.isDead);
     if ((tm?.round || 1) > 1 || allies.every((u) => D.guided.has(u))) return free;
-    if (D.guided.has(a)) return { id: 'step_wait', targetType: 'waiting', kicker: a.name, title: 'Turno terminado', text: '' };
+    if (D.guided.has(a)) return { id: 'step_wait', targetType: 'waiting', kicker: a.name, title: i18n.t('tutorialCombat.turnDone'), text: '' };
     const foe = this._dynEnemy();
     if (!foe) return free;
     const fc = { x: foe.gridX, z: foe.gridZ };
-    if (C.cast) return endStep('Pasa el turno', 'Bien hecho. Pulsa <b>Pasar turno</b> o <kbd>Espacio</kbd>.');
+    if (C.cast) return endStep(i18n.t('tutorialCombat.passTurn'), i18n.t('tutorialCombat.passDoneText'));
     if (g.selectedSpell && !g.selectedSpell.isUltimate) {
-      if ((g.validSpellCells || []).some((c) => c.x === fc.x && c.z === fc.z)) return { id: 'step_attack_1', targetType: 'cell', kicker: a.name, title: `Ataca a ${foe.name}`, text: 'Haz clic sobre él para lanzar la carta.', allowedCell: fc };
+      if ((g.validSpellCells || []).some((c) => c.x === fc.x && c.z === fc.z)) return { id: 'step_attack_1', targetType: 'cell', kicker: a.name, title: i18n.t('tutorialCombat.attackFoe.title', { name: foe.name }), text: i18n.t('tutorialCombat.attackFoe.text'), allowedCell: fc };
     }
     const hits = (sp) => (g.spellManager.getValidTargetCells(a, sp) || []).some((c) => c.x === fc.x && c.z === fc.z);
     const usable = slotsWhere(hits);
-    if (usable.length) return { id: 'step_select_spell_1', targetType: 'spell_slot', kicker: a.name, title: 'Elige una carta', text: 'Pulsa una de las <b>cartas iluminadas</b> (o su número).', allowedSpellIndexes: usable, allowedSpellIndex: usable[0] };
+    if (usable.length) return { id: 'step_select_spell_1', targetType: 'spell_slot', kicker: a.name, title: i18n.t('tutorialCombat.pickCard.title'), text: i18n.t('tutorialCombat.pickCard.text'), allowedSpellIndexes: usable, allowedSpellIndex: usable[0] };
     if (!C.moved && a.currentPM > 0) {
       const cells = (g.gridManager.getReachableCells(a.gridX, a.gridZ, a.currentPM, a) || []).filter((c) => !g.gridManager.getTile(c.x, c.z)?.unit);
       let best = null, bd = Infinity;
       for (const c of cells) { const d = Math.abs(c.x - fc.x) + Math.abs(c.z - fc.z); if (d < bd) { bd = d; best = c; } }
-      if (best) return { id: 'step_move_1', targetType: 'cell', kicker: a.name, title: `Acércate a ${foe.name}`, text: 'Haz clic en la <b>casilla dorada</b> que marca la flecha.', allowedCell: { x: best.x, z: best.z } };
+      if (best) return { id: 'step_move_1', targetType: 'cell', kicker: a.name, title: i18n.t('tutorialCombat.approach.title', { name: foe.name }), text: i18n.t('tutorialCombat.approach.text'), allowedCell: { x: best.x, z: best.z } };
     }
-    return endStep('Pasa el turno', `${foe.name} aún está lejos. Pulsa <b>Pasar turno</b> o <kbd>Espacio</kbd>.`);
+    return endStep(i18n.t('tutorialCombat.passTurn'), i18n.t('tutorialCombat.farText', { name: foe.name }));
   }
 
   /** Avanza la guía dinámica según lo que acaba de hacer el jugador y recalcula el paso. */
@@ -226,7 +227,7 @@ export class TutorialManager {
             <p id="tut-text" class="lk-ctut__text"></p>
             <div class="lk-ctut__concepts" data-ref="concepts"></div>
           </div>
-          <button id="tut-btn-next" type="button" class="lk-btn lk-btn-primary-gold lk-ctut__go"><span data-ref="goTxt">Comenzar</span><small>Intro</small></button>
+          <button id="tut-btn-next" type="button" class="lk-btn lk-btn-primary-gold lk-ctut__go"><span data-ref="goTxt">${i18n.t('tutorialCombat.start')}</span><small>${i18n.t('tutorialCombat.enterKey')}</small></button>
         </div>`;
       this.titleEl = this.overlay.querySelector('#tut-title');
       this.textEl = this.overlay.querySelector('#tut-text');
@@ -435,10 +436,10 @@ export class TutorialManager {
       if (this.dynamic) {
         // Duelo / prueba de la Ultimate: sin «Paso X de Y» (los pasos dependen del turno)
         if (phases) phases.innerHTML = '';
-        if (badge) badge.textContent = `${this.dynamic.kind === 'ult' ? 'Prueba de la Ultimate' : 'Duelo de entrenamiento'}${step.kicker ? ` · ${step.kicker}` : ''}`;
+        if (badge) badge.textContent = `${this.dynamic.kind === 'ult' ? i18n.t('tutorialCombat.badge.ultTrial') : i18n.t('tutorialCombat.badge.duel')}${step.kicker ? ` · ${step.kicker}` : ''}`;
       } else {
         if (phases) phases.innerHTML = step.targetType === 'dialog' ? '' : actionSteps.map((s, i) => `<i class="${step.targetType === 'free_action' || i < idx ? 'lk-is-full' : i === idx ? 'lk-is-half' : ''}"></i>`).join('');
-        if (badge) badge.textContent = step.targetType === 'dialog' ? 'Tutorial · Maestro Paladill' : step.targetType === 'free_action' ? 'Tutorial completado' : `Paso ${idx + 1} de ${actionSteps.length}${step.kicker ? ` · ${step.kicker}` : ''}`;
+        if (badge) badge.textContent = step.targetType === 'dialog' ? i18n.t('tutorialCombat.badge.intro') : step.targetType === 'free_action' ? i18n.t('tutorialCombat.badge.done') : `${i18n.t('tutorialCombat.badge.step', { n: idx + 1, total: actionSteps.length })}${step.kicker ? ` · ${step.kicker}` : ''}`;
       }
       const concepts = this.overlay.querySelector('[data-ref="concepts"]');
       if (concepts) concepts.innerHTML = (step.concepts || []).map((c) => `<span class="lk-ctut__concept lk-ctut__concept--${c.k}"><i aria-hidden="true"></i><b>${c.label}</b>${c.text}</span>`).join('');
@@ -448,8 +449,9 @@ export class TutorialManager {
       let text = step.text;
       const heroFirstSpellId = this.game?.activeUnit?.spellIds?.[0];
       const spell = heroFirstSpellId ? this.game?.spellManager?.getSpell(heroFirstSpellId) : null;
-      if (spell && text.includes('Habilidad de Clase [1]')) {
-        text = text.replace('Habilidad de Clase [1]', `[1] ${spell.name}`);
+      const classSlot = i18n.t('tutorialCombat.classSkillSlot');
+      if (spell && text.includes(classSlot)) {
+        text = text.replace(classSlot, `[1] ${spell.name}`);
       }
       if (this.textEl) this.textEl.innerHTML = text;
 
@@ -457,11 +459,11 @@ export class TutorialManager {
       const setGo = (t) => { if (goTxt) goTxt.textContent = t; else this.btnNext.textContent = t; };
       if (step.id === 'step_intro') {
         this.btnNext.classList.remove('hidden');
-        setGo(step.btnText || 'Comenzar batalla');
+        setGo(step.btnText || i18n.t('tutorialCombat.startBattle'));
         setTimeout(() => this.btnNext?.focus({ preventScroll: true }), 50);
       } else if (step.id === 'step_battle_flow' || step.targetType === 'free_action') {
         this.btnNext.classList.remove('hidden');
-        setGo(step.btnText || '¡A la carga!');
+        setGo(step.btnText || i18n.t('tutorialCombat.charge'));
       } else {
         this.btnNext.classList.add('hidden');
       }
@@ -471,7 +473,7 @@ export class TutorialManager {
     if (this.game) {
       this.game._refreshMovementHighlights();
       if ((step.id === 'step_attack_1' || step.id === 'step_attack_2') && step.allowedCell) {
-        this.game.gridManager.highlightSpellRange([step.allowedCell]);
+        this.game.gridManager.highlightSpellTargets([step.allowedCell]);
         this.showArrowAt(step.allowedCell.x, step.allowedCell.z);
       } else if ((step.id === 'step_move_1' || step.id === 'step_move_2') && step.allowedCell) {
         this.showArrowAt(step.allowedCell.x, step.allowedCell.z);

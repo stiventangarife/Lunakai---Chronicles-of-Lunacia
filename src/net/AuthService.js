@@ -8,6 +8,7 @@
 //                              NO se entra a la cuenta hasta poder verificarla.
 
 import { NET_CONFIG, getRedirectUri, isCloudConfigured, isSkyMavisConfigured } from './config.js';
+import * as i18n from '../i18n/i18n.js';
 
 const STORAGE_KEY = 'lunakai_auth_v1';
 const PKCE_KEY = 'lunakai_pkce_v1';
@@ -28,22 +29,22 @@ export class AuthError extends Error {
 export function describeAuthError(err) {
   const code = err?.code || 'unknown';
   const map = {
-    network: 'No hay conexión con el servidor de cuentas. Revisa tu internet y vuelve a intentarlo.',
-    server_unavailable: 'El servidor de cuentas no responde ahora mismo. Tu progreso está a salvo; inténtalo en unos minutos.',
-    session_expired: 'Tu sesión caducó. Inicia sesión de nuevo para continuar.',
-    access_denied: 'Cancelaste el inicio de sesión en Sky Mavis.',
-    state_mismatch: 'El inicio de sesión no se pudo validar (puede que abrieras otra pestaña). Vuelve a intentarlo.',
-    token_exchange_failed: 'Sky Mavis no aceptó el inicio de sesión. Vuelve a intentarlo.',
-    id_token_invalid: 'No pudimos verificar tu identidad de Sky Mavis. Vuelve a intentarlo.',
-    redirect_not_allowed: 'Esta dirección del juego no está autorizada para iniciar sesión.',
-    server_misconfigured: 'El servidor de cuentas no está configurado todavía.',
-    not_configured: 'Las cuentas en la nube aún no están configuradas en esta versión.',
-    invalid_email: 'Escribe un correo válido.',
-    invalid_code: 'El código no es correcto o ya caducó. Pide uno nuevo.',
-    link_expired: 'El enlace del correo caducó o ya se usó. Pide uno nuevo.',
-    rate_limited: 'Demasiados intentos. Espera un minuto y vuelve a probar.',
+    network: i18n.t('account.err.network'),
+    server_unavailable: i18n.t('account.err.serverUnavailable'),
+    session_expired: i18n.t('account.err.sessionExpired'),
+    access_denied: i18n.t('account.err.accessDenied'),
+    state_mismatch: i18n.t('account.err.stateMismatch'),
+    token_exchange_failed: i18n.t('account.err.tokenExchangeFailed'),
+    id_token_invalid: i18n.t('account.err.idTokenInvalid'),
+    redirect_not_allowed: i18n.t('account.err.redirectNotAllowed'),
+    server_misconfigured: i18n.t('account.err.serverMisconfigured'),
+    not_configured: i18n.t('account.err.notConfigured'),
+    invalid_email: i18n.t('account.err.invalidEmail'),
+    invalid_code: i18n.t('account.err.invalidCode'),
+    link_expired: i18n.t('account.err.linkExpired'),
+    rate_limited: i18n.t('account.err.rateLimited'),
   };
-  return map[code] || err?.message || 'Algo salió mal. Vuelve a intentarlo.';
+  return map[code] || err?.message || i18n.t('account.err.unknown');
 }
 
 // ---------------------------------------------------------------- utilidades
@@ -370,7 +371,7 @@ class AuthService {
     return {
       name,
       provider: this.getProvider(),
-      providerLabel: this.getProvider() === 'skymavis' ? 'Sky Mavis' : 'Correo',
+      providerLabel: this.getProvider() === 'skymavis' ? 'Sky Mavis' : i18n.t('account.providerEmail'),
       email: synthetic ? null : email,
       ronin,
       roninShort: short,

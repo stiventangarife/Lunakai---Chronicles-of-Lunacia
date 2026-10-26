@@ -4,6 +4,8 @@
 //   POST { op: 'axie', id }  → datos de un Axie por su ID (nombre, clase, genes, partes y axpInfo). Público (invitados).
 //   POST { op: 'owned' }     → todos los Axies del jugador con sesión iniciada. Las direcciones Ronin salen de SU
 //                              perfil (las guardó skymavis-auth al iniciar sesión), no de la petición.
+//   POST { op: 'items' }     → Hito 75: runas y charms NFT (ERC-1155, las «Ronin») de esas mismas direcciones.
+//                              Solo lectura: el juego da una copia jugable mientras sigan en la billetera.
 //
 // Secretos (supabase secrets set ...):
 //   SKYMAVIS_API_KEY        clave de API Gateway (Ronin Developer Console → tu app → «Clave»)
@@ -100,6 +102,40 @@ async function axiesOf(owner: string) {
   return out;
 }
 
+// Hito 75: runas y charms NFT (ERC-1155) de una dirección. Consulta fija del marketplace (erc1155Tokens).
+const MAX_ITEMS = 1000;
+const ITEMS_QUERY = `query OwnedItems($owner: String, $tokenType: Erc1155Type!, $from: Int, $size: Int) {
+  erc1155Tokens(owner: $owner, tokenType: $tokenType, from: $from, size: $size) { total results { tokenId tokenAddress total name description imageUrl } } }`;
+async function itemsOf(owner: string, tokenType: 'Rune' | 'Charm') {
+  const out: Array<Record<string, unknown>> = [];
+  for (let from = 0; from < MAX_ITEMS; from += PAGE_SIZE) {
+    const data = await gql(ITEMS_QUERY, { owner, tokenType, from, size: PAGE_SIZE });
+    const page = data?.erc1155Tokens?.results || [];
+    out.push(...page);
+    if (page.length < PAGE_SIZE || out.length >= (data?.erc1155Tokens?.total ?? 0)) break;
+  }
+  return out;
+}
+/** Suma por token las cantidades de todas las direcciones del jugador. */
+function mergeItems(lists: Array<Array<Record<string, unknown>>>) {
+  const by = new Map<string, Record<string, unknown>>();
+  for (const list of lists) for (const it of list) {
+    const k = `${it.tokenAddress}:${it.tokenId}`;
+    const prev = by.get(k);
+    if (prev) prev.total = Number(prev.total || 0) + Number(it.total || 0); else by.set(k, { ...it, total: Number(it.total || 0) });
+  }
+  return [...by.values()].filter((it) => Number(it.total) > 0);
+}
+
+/** Direcciones Ronin del jugador con sesión (de su perfil, nunca de la petición). */
+async function ownersOfRequest(req: Request) {
+  const token = (req.headers.get('authorization') || '').replace(/^Bearer\s+/i, '');
+  const user = await userFromToken(token);
+  if (!user?.id) throw new ApiError('session_expired', 'Inicia sesión para ver tu cuenta de Sky Mavis.', 401);
+  const p = await profileOf(user.id);
+  return [...new Set([p?.ronin_address, p?.ronin_secondary_address].filter(Boolean))] as string[];
+}
+
 /** Usuario de Supabase a partir del token del jugador (null si no hay sesión válida). */
 async function userFromToken(token: string) {
   if (!token) return null;
@@ -131,11 +167,7 @@ Deno.serve(async (req) => {
     if (body.op === 'axie') return json({ axie: await axieById(String(body.id ?? '').trim()) });
 
     if (body.op === 'owned') {
-      const token = (req.headers.get('authorization') || '').replace(/^Bearer\s+/i, '');
-      const user = await userFromToken(token);
-      if (!user?.id) throw new ApiError('session_expired', 'Inicia sesión para ver tus Axies.', 401);
-      const p = await profileOf(user.id);
-      const owners = [...new Set([p?.ronin_address, p?.ronin_secondary_address].filter(Boolean))] as string[];
+      const owners = await ownersOfRequest(req);
       const seen = new Set<string>();
       const axies: unknown[] = [];
       for (const owner of owners) {
@@ -144,6 +176,13 @@ Deno.serve(async (req) => {
         }
       }
       return json({ owners, axies });
+    }
+
+    if (body.op === 'items') {
+      const owners = await ownersOfRequest(req);
+      const runes = mergeItems(await Promise.all(owners.map((o) => itemsOf(o, 'Rune'))));
+      const charms = mergeItems(await Promise.all(owners.map((o) => itemsOf(o, 'Charm'))));
+      return json({ owners, runes, charms });
     }
 
     throw new ApiError('invalid_request', 'Consulta no válida.');

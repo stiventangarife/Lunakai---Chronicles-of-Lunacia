@@ -434,7 +434,8 @@ export class VfxBridge {
       for (const o of objs) o.traverse((m) => {
         for (const mat of [].concat(m.material || [])) {
           const texs = [mat.map, mat.alphaMap, ...Object.values(mat.uniforms || {}).map((u) => u && u.value)];
-          for (const t of texs) if (t && t.isTexture && !t.isRenderTargetTexture && !seen.has(t)) { seen.add(t); try { r.initTexture(t); } catch { /* opcional */ } }
+          // las que su dueño liberó a propósito (variantes ocultas del Sapidae) no se suben
+          for (const t of texs) if (t && t.isTexture && !t.isRenderTargetTexture && !t.userData?.lkNoPrewarm && !seen.has(t)) { seen.add(t); try { r.initTexture(t); } catch { /* opcional */ } }
         }
       });
     }

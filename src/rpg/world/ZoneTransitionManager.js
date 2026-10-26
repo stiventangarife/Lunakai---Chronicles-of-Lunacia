@@ -2,6 +2,7 @@
 import { showZoneBanner as showLkZoneBanner } from '../ui/ZoneBanner.js';
 import * as THREE from 'three';
 import { MAP_REGISTRY } from './MapRegistry.js';
+import * as i18n from '../../i18n/i18n.js';
 
 export function createQuestBeaconArrow3D(baseHeight = 2.0) {
   const root = new THREE.Group();
@@ -70,7 +71,7 @@ export class ZoneTransitionManager {
     this.activePortals = [];
     this.rawPortalsMap = null;
     this.portalsLocked = true; // Blocked by default until quest 1 is completed
-    this.lockMessage = 'The cardinal pass is sealed by Master Paladill! Complete your first quest before leaving the Dojo.';
+    this.lockMessage = i18n.t('story.passSealed');
     this.onPortalBlocked = null;
     this.onPortalUnblocked = null;
     this.isStandingOnLockedPortal = false;
@@ -100,12 +101,12 @@ export class ZoneTransitionManager {
             <div id="zone-loading-icon" class="zone-loading-icon"></div>
           </div>
           <div id="zone-loading-badge" class="zone-loading-badge">LUNAKAI</div>
-          <h2 id="zone-loading-title" class="zone-loading-title">Loading Biome...</h2>
-          <div id="zone-loading-subtitle" class="zone-loading-subtitle">Dojo Valley [2, 2]</div>
+          <h2 id="zone-loading-title" class="zone-loading-title">${i18n.t('story.loadingBiome')}</h2>
+          <div id="zone-loading-subtitle" class="zone-loading-subtitle">${i18n.t('places.zone22Title')} [2, 2]</div>
           <div class="zone-loading-bar-track">
             <div class="zone-loading-bar-fill"></div>
           </div>
-          <div id="zone-loading-hint" class="zone-loading-hint">Preparing 3D environment and textures...</div>
+          <div id="zone-loading-hint" class="zone-loading-hint">${i18n.t('story.loadingHint')}</div>
         </div>
       `;
     }
@@ -317,7 +318,7 @@ export class ZoneTransitionManager {
     }
   }
 
-  showLoading(zoneTitle = 'Dojo Valley [2, 2]', hint = 'Preparing 3D environment and textures...') {
+  showLoading(zoneTitle = `${i18n.t('places.zone22Title')} [2, 2]`, hint = i18n.t('story.loadingHint')) {
     if (!this.curtainEl) return;
     const badgeEl = document.getElementById('zone-loading-badge');
     const titleEl = document.getElementById('zone-loading-title');
@@ -326,7 +327,7 @@ export class ZoneTransitionManager {
     const hintEl = document.getElementById('zone-loading-hint');
 
     if (badgeEl) badgeEl.textContent = 'LUNAKAI';
-    if (titleEl) titleEl.textContent = 'Loading Biome...';
+    if (titleEl) titleEl.textContent = i18n.t('story.loadingBiome');
     if (subtitleEl) subtitleEl.textContent = zoneTitle;
     if (iconEl) iconEl.textContent = '';
     if (hintEl) hintEl.textContent = hint;
@@ -567,10 +568,10 @@ export class ZoneTransitionManager {
     }
 
     const targetDef = MAP_REGISTRY[portal.targetMap];
-    const targetName = targetDef?.name || portal.label || 'New Biome';
+    const targetName = targetDef?.name || portal.label || i18n.t('story.newBiome');
 
     // 1. Show loading screen with "Loading Biome..."
-    this.showLoading(targetName, 'Synchronizing 3D meshes and textures...');
+    this.showLoading(targetName, i18n.t('story.syncHint'));
 
     // Wait until the curtain has fully covered the viewport before starting heavy map rebuilding
     await new Promise((r) => setTimeout(r, 450));

@@ -3,13 +3,14 @@
  *
  * - The four corner macro-zones of the demo 1.0.0 grid (80 m terrains) no longer exist as places:
  *   their content (NPCs, quest battles) now lives inside the neighbouring island.
- * - Travel between islands is done by talking to Pomodoro the ferryman on each island's beach
+ * - Travel between islands is done by talking to Kawa the ferryman on each island's beach
  *   (the cardinal portal arrows are gone).
  * - Monster patrol anchors were validated against the real island terrains
  *   (above sea level, slope < 0.42, no water / lava, no rock colliders, ≥ 12 m from NPCs).
  *
  * This module has no imports so it can be used by MapRegistry, QuestManager and the managers alike.
  */
+import * as i18n from '../../../i18n/i18n.js'; // solo nombres de islas (no crea dependencias circulares)
 
 /** Retired corner zone → island that now hosts its content. */
 export const MERGED_ZONES = {
@@ -47,11 +48,11 @@ export const MERGED_NPC_POSITIONS = {
 
 /** Island display names used by the ferry and the quest compass. */
 export const ISLAND_NAMES = {
-  '2_2': 'Isla del Bosque',
-  '3_2': 'Isla de la Sabana',
-  '2_1': 'Isla del Ártico',
-  '1_2': 'Isla Mística',
-  '2_3': 'Isla Genesis'
+  '2_2': i18n.t('places.islandForest'),
+  '3_2': i18n.t('places.islandSavannah'),
+  '2_1': i18n.t('places.islandArctic'),
+  '1_2': i18n.t('places.islandMystic'),
+  '2_3': i18n.t('places.islandGenesis')
 };
 
 /** Island key → ISLANDS_REGISTRY id. */
@@ -64,7 +65,7 @@ export const ISLAND_IDS = {
 };
 
 /**
- * Ferry docks: where Pomodoro the ferryman stands on each beach and where the player lands
+ * Ferry docks: where Kawa the ferryman stands on each beach and where the player lands
  * when arriving by boat. Arctic, Mystic and Dungeon keep their original arrival points.
  */
 export const FERRY_DOCKS = {
@@ -75,7 +76,7 @@ export const FERRY_DOCKS = {
   zone_2_3: { npc: { x: 136.0, z: 18.0 }, arrive: { x: 130, z: 22, yaw: -Math.PI / 2 } }
 };
 
-export const FERRY_NPC_ID = 'ferry_pomodoro';
+export const FERRY_NPC_ID = 'ferry_pomodoro'; // id interno (partidas y misiones); el barquero es Kawa (Kappa en los Hitos 51–56); modelo y retrato siguen como kappa.*
 
 /** NPC definition of the ferryman for one island zone id (or null). */
 export function createFerryNpcDef(zoneId) {
@@ -87,11 +88,13 @@ export function createFerryNpcDef(zoneId) {
     type: 'ferry',
     position: { x, y: 0, z },
     rotation: Math.atan2(-x, -z),
-    name: 'Pomodoro',
-    model: 'pomodoro.glb',
-    title: '⛵ Barquero de Lunacia',
-    bubbleQuote: '¡Todos a bordo! ¿A qué isla navegamos hoy?',
-    avatar: 'pomodoro',
+    name: 'Kawa',
+    model: 'kappa.glb',
+    scale: 2.4,
+    matte: true,
+    title: i18n.t('misc.ferryTitle'),
+    bubbleQuote: i18n.t('misc.ferryBubble'),
+    avatar: './assets/portraits/kappa.png',
     collisionRadius: 0.75
   };
 }
@@ -127,7 +130,13 @@ export const ISLAND_MONSTER_LAYOUT = {
   },
   '2_3': {
     packs: [{ x: -96, z: 0 }, { x: 72, z: -24 }, { x: -40, z: 48 }, { x: 48, z: 88 }],
-    merged: { logicalZone: '3_3', biome: 'dungeon', anchor: { x: 14, z: 50 }, forcedLeader: 'werewolf_boss' }
+    // Hito 74: el Señor de las Quimeras espera a las puertas del Santuario del Origen (antes en 14, 50, a medio camino)
+    merged: { logicalZone: '3_3', biome: 'dungeon', anchor: { x: 0, z: 66 }, forcedLeader: 'werewolf_boss' },
+    // Hito 74: combates propios de las misiones de Genesis (antes cualquier combate de la isla las completaba)
+    questMobs: {
+      mob_genesis_guardians: { x: 62, z: 26 },   // Kotaro · en la avenida del este, entre la Puerta y la plaza
+      mob_crystal_guardian: { x: -58, z: -72 }   // Tripp · dentro de la cantera de cristal rosa
+    }
   }
 };
 

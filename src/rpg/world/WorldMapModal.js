@@ -8,6 +8,7 @@ import {
   MAP_REGISTRY
 } from './MapRegistry.js';
 import { IslandChart, startExplorationTracking } from './IslandChart.js';
+import * as i18n from '../../i18n/i18n.js';
 
 export class WorldMapModal {
   constructor(worldMapManager) {
@@ -41,15 +42,15 @@ export class WorldMapModal {
       modal.className = 'world-map-modal lk-ui lk-backdrop lk-wmap-layer hidden';
       modal.innerHTML = `
         <div class="world-map-backdrop" aria-hidden="true"></div>
-        <div class="world-map-container lk-panel-modal-window lk-wmap" role="dialog" aria-label="Mapa de Lunacia">
+        <div class="world-map-container lk-panel-modal-window lk-wmap" role="dialog" aria-label="${i18n.t('worldMap.dialogLabel')}">
           <div class="world-map-header lk-panel-head">
             <span class="lk-emblem"><img class="lk-ai" src="./assets/ui/icons/map.png" alt=""></span>
-            <h3><small>Mapa · tecla M</small><span id="world-map-main-title" class="world-map-title">Archipiélago de Lunacia</span></h3>
+            <h3><small>${i18n.t('worldMap.kicker')}</small><span id="world-map-main-title" class="world-map-title">${i18n.t('worldMap.archipelagoTitle')}</span></h3>
             <div class="world-map-tabs lk-segmented" role="tablist">
-              <button id="map-tab-world-btn" class="map-tab-btn active" type="button" role="tab" aria-pressed="true">Archipiélago</button>
-              <button id="map-tab-island-btn" class="map-tab-btn" type="button" role="tab" aria-pressed="false">Isla actual</button>
+              <button id="map-tab-world-btn" class="map-tab-btn active" type="button" role="tab" aria-pressed="true">${i18n.t('worldMap.tabArchipelago')}</button>
+              <button id="map-tab-island-btn" class="map-tab-btn" type="button" role="tab" aria-pressed="false">${i18n.t('worldMap.tabCurrentIsland')}</button>
             </div>
-            <button id="world-map-close-btn" class="world-map-close-btn lk-btn-close-x" type="button" aria-label="Cerrar" title="Cerrar (M)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+            <button id="world-map-close-btn" class="world-map-close-btn lk-btn-close-x" type="button" aria-label="${i18n.t('worldMap.close')}" title="${i18n.t('worldMap.closeM')}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
           </div>
 
           <div class="world-map-body lk-wmap__body">
@@ -67,7 +68,7 @@ export class WorldMapModal {
                 <div class="lk-wmap__compass" aria-hidden="true"><svg viewBox="0 0 64 64"><path d="M32 4l5 23 23 5-23 5-5 23-5-23-23-5 23-5z" fill="currentColor" opacity=".9"/><path d="M32 14l3 15 15 3-15 3-3 15-3-15-15-3 15-3z" fill="#0B0F1C" opacity=".55"/></svg><b>N</b></div>
                 <div class="islands-cross-grid lk-wmap__grid" id="islands-cross-grid"></div>
               </div>
-              <p class="lk-wmap__hint">Haz clic en una isla para ver su ficha · doble clic en la tuya para abrir su mapa</p>
+              <p class="lk-wmap__hint">${i18n.t('worldMap.hintWorld')}</p>
             </div>
 
             <!-- Vista 2: mapa detallado de la isla actual -->
@@ -77,49 +78,49 @@ export class WorldMapModal {
               <div class="island-canvas-wrapper lk-wmap__canvas" id="island-canvas-wrapper" hidden>
                 <canvas id="island-map-canvas" width="560" height="440"></canvas>
                 <div class="island-map-hud-controls lk-wmap__ctrl">
-                  <button id="btn-island-recenter" class="island-hud-btn lk-btn-circle-icon" type="button" title="Centrar en tu posición"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="12" cy="12" r="3.2" fill="currentColor" stroke="none"/><path d="M12 2v4M12 18v4M2 12h4M18 12h4"/></svg></button>
-                  <button id="btn-island-zoom-in" class="island-hud-btn lk-btn-circle-icon" type="button" title="Acercar">+</button>
-                  <button id="btn-island-zoom-out" class="island-hud-btn lk-btn-circle-icon" type="button" title="Alejar">−</button>
+                  <button id="btn-island-recenter" class="island-hud-btn lk-btn-circle-icon" type="button" title="${i18n.t('worldMap.recenter')}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="12" cy="12" r="3.2" fill="currentColor" stroke="none"/><path d="M12 2v4M12 18v4M2 12h4M18 12h4"/></svg></button>
+                  <button id="btn-island-zoom-in" class="island-hud-btn lk-btn-circle-icon" type="button" title="${i18n.t('worldMap.zoomIn')}">+</button>
+                  <button id="btn-island-zoom-out" class="island-hud-btn lk-btn-circle-icon" type="button" title="${i18n.t('worldMap.zoomOut')}">−</button>
                 </div>
                 <div id="island-map-tooltip" class="island-map-tooltip lk-wmap__tip hidden">
-                  <div id="tooltip-title" class="tooltip-title">Punto de interés</div>
+                  <div id="tooltip-title" class="tooltip-title">${i18n.t('worldMap.poi')}</div>
                   <div id="tooltip-desc" class="tooltip-desc"></div>
                   <div id="tooltip-coords" class="tooltip-coords"></div>
                 </div>
                 <div class="island-map-watermark lk-wmap__mark">
-                  <span id="island-watermark-title">Isla del Bosque · Lunacia</span>
+                  <span id="island-watermark-title">${i18n.t('places.islandForest')} · Lunacia</span>
                   <span id="island-cursor-coords"></span>
                 </div>
               </div>
-              <p class="lk-wmap__hint">Rueda para acercar · arrastra para moverte · clic en un lugar para seguirlo</p>
+              <p class="lk-wmap__hint">${i18n.t('worldMap.hintIsland')}</p>
             </div>
 
             <!-- Ficha de la isla (papel marfil) -->
             <aside id="world-map-detail" class="world-map-detail lk-wmap__page">
               <div class="detail-header lk-wmap__ph">
-                <span id="detail-biome-badge" class="detail-biome-badge lk-wmap__biome">Bosque</span>
-                <h3 id="detail-zone-name" class="detail-zone-name">Isla del Bosque</h3>
-                <span id="detail-zone-coord" class="detail-zone-coord">Centro</span>
+                <span id="detail-biome-badge" class="detail-biome-badge lk-wmap__biome">${i18n.t('worldMap.biomeForest')}</span>
+                <h3 id="detail-zone-name" class="detail-zone-name">${i18n.t('places.islandForest')}</h3>
+                <span id="detail-zone-coord" class="detail-zone-coord">${i18n.t('worldMap.dirCenter')}</span>
               </div>
               <div class="detail-meta-box lk-wmap__meta">
-                <div class="detail-meta-item"><span class="meta-label">Nivel recomendado</span><b id="detail-level-range" class="meta-val">1</b></div>
-                <div class="detail-meta-item"><span class="meta-label">Estado</span><b id="detail-status-badge" class="meta-val">Explorable</b></div>
+                <div class="detail-meta-item"><span class="meta-label">${i18n.t('worldMap.recLevel')}</span><b id="detail-level-range" class="meta-val">1</b></div>
+                <div class="detail-meta-item"><span class="meta-label">${i18n.t('worldMap.status')}</span><b id="detail-status-badge" class="meta-val">${i18n.t('worldMap.explorable')}</b></div>
               </div>
               <p id="detail-level-warn" class="lk-wmap__warn" hidden></p>
               <div id="detail-chart-track" class="lk-wmap__track" hidden></div>
               <div class="detail-section">
-                <div class="section-label lk-wmap__label">Descripción</div>
+                <div class="section-label lk-wmap__label">${i18n.t('worldMap.description')}</div>
                 <p id="detail-island-desc" class="detail-desc-text"></p>
               </div>
               <div class="detail-section">
-                <div class="section-label lk-wmap__label" id="detail-landmarks-header">Puntos de interés</div>
+                <div class="section-label lk-wmap__label" id="detail-landmarks-header">${i18n.t('worldMap.pois')}</div>
                 <div id="detail-landmarks-list" class="detail-landmarks-list"></div>
               </div>
-              <div id="detail-chart-explored" class="lk-wmap__explored" hidden><div class="lk-bar-read"><span>Explorado</span><b data-ref="pct">0 %</b></div><div class="lk-bar lk-bar--xp"><i data-ref="bar" style="width:0%"></i></div></div>
+              <div id="detail-chart-explored" class="lk-wmap__explored" hidden><div class="lk-bar-read"><span>${i18n.t('worldMap.explored')}</span><b data-ref="pct">0 %</b></div><div class="lk-bar lk-bar--xp"><i data-ref="bar" style="width:0%"></i></div></div>
               <div class="detail-action-container lk-wmap__actions" id="detail-action-container">
                 <p id="detail-travel-note" class="lk-wmap__travel" hidden></p>
               </div>
-              <div class="detail-footer-hint lk-wmap__keys"><kbd>M</kbd> o <kbd>Esc</kbd> para volver a la aventura</div>
+              <div class="detail-footer-hint lk-wmap__keys">${i18n.t('worldMap.footerKeys')}</div>
             </aside>
           </div>
         </div>
@@ -235,7 +236,7 @@ export class WorldMapModal {
       const worldZ = (mouseY - cy) / scale;
 
       if (cursorCoordsEl) {
-        cursorCoordsEl.textContent = `Cursor: X ${worldX.toFixed(1)} | Z ${worldZ.toFixed(1)}`;
+        cursorCoordsEl.textContent = i18n.t('worldMap.cursor', { x: worldX.toFixed(1), z: worldZ.toFixed(1) });
       }
 
       // Check hover on landmarks / NPCs
@@ -262,10 +263,10 @@ export class WorldMapModal {
         const distSq = (mouseX - ppx) * (mouseX - ppx) + (mouseY - ppy) * (mouseY - ppy);
         if (distSq < 16 * 16) {
           foundPoi = {
-            name: 'Tu Personaje (Héroe)',
-            desc: `Posición actual en la ${currentIsland?.name || 'Isla'}.`,
+            name: i18n.t('worldMap.yourHero'),
+            desc: i18n.t('worldMap.currentPosIn', { name: currentIsland?.name || i18n.t('worldMap.island') }),
             coords: { x: playerPos.x, z: playerPos.z },
-            icon: '⚔️',
+            icon: '◆',
             screenX: ppx,
             screenY: ppy
           };
@@ -281,7 +282,7 @@ export class WorldMapModal {
         const descEl = document.getElementById('tooltip-desc');
         const coordsEl = document.getElementById('tooltip-coords');
 
-        if (titleEl) titleEl.textContent = `${foundPoi.icon || '📍'} ${foundPoi.name}`;
+        if (titleEl) titleEl.textContent = `◆ ${foundPoi.name}`;
         if (descEl) descEl.textContent = foundPoi.desc || '';
         if (coordsEl) coordsEl.textContent = `X: ${foundPoi.coords.x.toFixed(1)} | Z: ${foundPoi.coords.z.toFixed(1)}`;
 
@@ -320,7 +321,7 @@ export class WorldMapModal {
       if (islandBtn) islandBtn.classList.remove('active');
       if (this.viewWorldEl) this.viewWorldEl.classList.remove('hidden');
       if (this.viewIslandEl) this.viewIslandEl.classList.add('hidden');
-      if (titleEl) titleEl.textContent = 'Archipiélago de Lunacia';
+      if (titleEl) titleEl.textContent = i18n.t('worldMap.archipelagoTitle');
       worldBtn?.setAttribute('aria-pressed', 'true'); islandBtn?.setAttribute('aria-pressed', 'false');
 
       const currentIslandKey = this._currentKey();
@@ -336,7 +337,7 @@ export class WorldMapModal {
       if (islandBtn) islandBtn.classList.add('active');
       if (this.viewWorldEl) this.viewWorldEl.classList.add('hidden');
       if (this.viewIslandEl) this.viewIslandEl.classList.remove('hidden');
-      if (titleEl) titleEl.textContent = currentIsland?.name || 'Isla actual';
+      if (titleEl) titleEl.textContent = currentIsland?.name || i18n.t('worldMap.tabCurrentIsland');
       worldBtn?.setAttribute('aria-pressed', 'false'); islandBtn?.setAttribute('aria-pressed', 'true');
 
       this.selectIsland(currentIslandKey);
@@ -364,7 +365,7 @@ export class WorldMapModal {
 
   /** «Isla de la Sabana» → «Sabana»: en las tarjetas basta con el bioma (la ficha mantiene el nombre completo). */
   _shortName(island) {
-    const n = String(island?.name || '').replace(/^isla\s+(?:de\s+la|de\s+los|de\s+las|del|de)?\s*/i, '').trim();
+    const n = String(island?.name || '').replace(/^isla\s+(?:de\s+la|de\s+los|de\s+las|del|de)?\s*/i, '').replace(/\s+island$/i, '').trim();
     return n ? n.charAt(0).toUpperCase() + n.slice(1) : (island?.name || '');
   }
 
@@ -385,11 +386,11 @@ export class WorldMapModal {
 
   _dirLabel(island) {
     const d = String(island?.direction || '').toUpperCase();
-    if (d.includes('NORTE')) return 'Norte';
-    if (d.includes('SUR')) return 'Sur';
-    if (d.includes('OESTE')) return 'Oeste'; // antes que «ESTE», que está contenido en «OESTE»
-    if (d.includes('ESTE')) return 'Este';
-    return 'Centro';
+    if (d.includes('NORTE')) return i18n.t('worldMap.dirNorth');
+    if (d.includes('SUR')) return i18n.t('worldMap.dirSouth');
+    if (d.includes('OESTE')) return i18n.t('worldMap.dirWest'); // antes que «ESTE», que está contenido en «OESTE»
+    if (d.includes('ESTE')) return i18n.t('worldMap.dirEast');
+    return i18n.t('worldMap.dirCenter');
   }
 
   renderIslandsCross() {
@@ -418,14 +419,14 @@ export class WorldMapModal {
         cell.className = `lk-isle biome-${island.biome} ${isCurrent ? 'lk-is-here' : ''} ${isSelected ? 'lk-is-sel' : ''} ${under ? 'lk-is-hard' : ''}`;
         cell.dataset.islandId = island.id;
         cell.style.setProperty('--ic', island.color);
-        cell.setAttribute('aria-label', `${island.name}, nivel ${li.label}${isCurrent ? ', estás aquí' : ''}`);
+        cell.setAttribute('aria-label', `${i18n.t('worldMap.cellAria', { name: island.name, lv: li.label })}${isCurrent ? ', ' + i18n.t('worldMap.youAreHereLower') : ''}`);
         cell.innerHTML = `
-          ${isCurrent ? '<span class="lk-isle__here"><i></i>Estás aquí</span>' : ''}
+          ${isCurrent ? `<span class="lk-isle__here"><i></i>${i18n.t('worldMap.youAreHere')}</span>` : ''}
           <span class="lk-isle__dir">${this._dirLabel(island)}</span>
           <span class="lk-isle__med">${this._biomeGlyph(island.biome)}</span>
           <b class="lk-isle__name">${this._shortName(island)}</b>
           <span class="lk-isle__tag">${island.tagline}</span>
-          <span class="lk-isle__lvl ${under ? 'lk-is-hard' : ''}">Nv. ${li.label}</span>`;
+          <span class="lk-isle__lvl ${under ? 'lk-is-hard' : ''}">${i18n.t('worldMap.lvN', { n: li.label })}</span>`;
 
         // Clic: ver la ficha. Doble clic en la isla actual: abrir su mapa
         cell.addEventListener('click', () => this.selectIsland(island.id));
@@ -461,21 +462,21 @@ export class WorldMapModal {
     const page = document.getElementById('world-map-detail');
     if (page) page.style.setProperty('--ic', island.color);
     if (badgeEl) {
-      badgeEl.textContent = ({ forest: 'Bosque', arctic: 'Ártico', savannah: 'Sabana', mystic: 'Místico', dungeon: 'Genesis' })[island.biome] || BIOME_LABELS[island.biome] || island.biome;
+      badgeEl.textContent = ({ forest: i18n.t('worldMap.biomeForest'), arctic: i18n.t('worldMap.biomeArctic'), savannah: i18n.t('worldMap.biomeSavannah'), mystic: i18n.t('worldMap.biomeMystic'), dungeon: 'Genesis' })[island.biome] || BIOME_LABELS[island.biome] || island.biome;
       badgeEl.style.removeProperty('color');
       badgeEl.style.removeProperty('border-color');
     }
     if (nameEl) nameEl.textContent = island.name;
     if (coordEl) coordEl.textContent = `${this._dirLabel(island)} · ${island.tagline}`;
-    if (levelRangeEl) levelRangeEl.textContent = `Nv. ${li.label}`;
+    if (levelRangeEl) levelRangeEl.textContent = i18n.t('worldMap.lvN', { n: li.label });
     if (statusEl) {
-      statusEl.textContent = island.isCurrent ? 'Estás aquí' : (under ? 'Peligrosa' : 'Explorable');
+      statusEl.textContent = island.isCurrent ? i18n.t('worldMap.youAreHere') : (under ? i18n.t('worldMap.dangerous') : i18n.t('worldMap.explorable'));
       statusEl.className = `meta-val ${island.isCurrent ? 'lk-is-here' : under ? 'lk-is-hard' : 'lk-is-ok'}`;
     }
     const warn = document.getElementById('detail-level-warn');
     if (warn) {
       warn.hidden = !under;
-      if (under) warn.textContent = `Tu Sapidae es nivel ${lvl}. Se recomienda nivel ${li.min} o más: las quimeras de esta isla serán muy duras.`;
+      if (under) warn.textContent = i18n.t('worldMap.levelWarn', { lvl, min: li.min });
     }
     if (descEl) descEl.textContent = island.description;
 
@@ -486,17 +487,17 @@ export class WorldMapModal {
         const row = document.createElement('div');
         row.className = 'landmark-row lk-wmap__poi';
         row.innerHTML = `
-          <div class="landmark-icon">${lm.icon}</div>
+          <div class="landmark-icon">◆</div>
           <div class="landmark-info">
             <span class="landmark-name">${lm.name}</span>
             <span class="landmark-desc">${lm.desc}</span>
           </div>
-          ${island.isCurrent && lm.coords ? '<span class="lk-wmap__poi-go" aria-hidden="true">Seguir</span>' : ''}
+          ${island.isCurrent && lm.coords ? `<span class="lk-wmap__poi-go" aria-hidden="true">${i18n.t('worldMap.follow')}</span>` : ''}
         `;
         row.dataset.chartId = 'poi_' + lm.id;
         if (island.isCurrent) {
           row.style.cursor = 'pointer';
-          row.title = 'Seguir en el mapa de la isla';
+          row.title = i18n.t('worldMap.followOnMap');
           row.addEventListener('click', () => {
             if (this.currentTab !== 'island') this.switchTab('island');
             if (lm.coords && this.chart) {
@@ -515,7 +516,7 @@ export class WorldMapModal {
     if (travelNote) {
       travelNote.hidden = island.isCurrent;
       if (!island.isCurrent) {
-        travelNote.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 17l2 3h14l2-3"/><path d="M12 3v11"/><path d="M12 4l6 9H12"/><path d="M2 21c2 0 2-1 4-1s2 1 4 1 2-1 4-1 2 1 4 1 2-1 4-1"/></svg><span>Para ir a <b>${island.name}</b> habla con el <b>barquero</b> en el muelle de tu isla.</span>`;
+        travelNote.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 17l2 3h14l2-3"/><path d="M12 3v11"/><path d="M12 4l6 9H12"/><path d="M2 21c2 0 2-1 4-1s2 1 4 1 2-1 4-1 2 1 4 1 2-1 4-1"/></svg><span>${i18n.t('worldMap.travelNote', { name: island.name })}</span>`;
       }
     }
     // Sin botón de cambio de vista: las pestañas Archipiélago / Isla actual ya cumplen esa función
@@ -546,15 +547,15 @@ export class WorldMapModal {
     if (!box || !this.chart) return;
     const t = this.chart.target();
     const p = this.wmm?.om?.player?.position;
-    if (!t) { box.innerHTML = '<small>Destino</small><b>Sin destino</b><span>Haz clic en un lugar del mapa para seguirlo.</span>'; }
+    if (!t) { box.innerHTML = `<small>${i18n.t('worldMap.destination')}</small><b>${i18n.t('worldMap.noDestination')}</b><span>${i18n.t('worldMap.clickToFollow')}</span>`; }
     else {
       const d = p ? Math.round(Math.hypot(t.x - p.x, t.z - p.z)) : null;
-      box.innerHTML = `<small>${t.label}</small><b>${t.title}</b><span>${d !== null ? `a ${d} m · ` : ''}sigue la ruta dorada</span>`;
+      box.innerHTML = `<small>${t.label}</small><b>${t.title}</b><span>${d !== null ? `${i18n.t('worldMap.distM', { n: d })} · ` : ''}${i18n.t('worldMap.followGolden')}</span>`;
     }
     document.querySelectorAll('#detail-landmarks-list .lk-wmap__poi').forEach((r) => {
       const on = Boolean(this.chart.follow) && r.dataset.chartId === this.chart.follow;
       r.classList.toggle('lk-is-follow', on);
-      const go = r.querySelector('.lk-wmap__poi-go'); if (go) go.textContent = on ? 'Siguiendo' : 'Seguir';
+      const go = r.querySelector('.lk-wmap__poi-go'); if (go) go.textContent = on ? i18n.t('worldMap.following') : i18n.t('worldMap.follow');
     });
   }
 
@@ -603,7 +604,7 @@ export class WorldMapModal {
 
     const watermarkTitleEl = document.getElementById('island-watermark-title');
     if (watermarkTitleEl) {
-      watermarkTitleEl.textContent = isSavannah ? 'Isla de la Sabana · Lunacia' : 'Isla del Bosque · Lunacia';
+      watermarkTitleEl.textContent = `${isSavannah ? i18n.t('places.islandSavannah') : i18n.t('places.islandForest')} · Lunacia`;
     }
 
     ctx.save();
@@ -714,7 +715,7 @@ export class WorldMapModal {
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
       [0, 1.25, 2.5, 3.75, 5.0].forEach(a => {
-        ctx.fillText('🌴', oasisX + Math.cos(a) * (oasisR + 3 * scale), oasisY + Math.sin(a) * (oasisR + 3 * scale));
+        ctx.fillStyle = '#4ade80'; ctx.fillText('●', oasisX + Math.cos(a) * (oasisR + 3 * scale), oasisY + Math.sin(a) * (oasisR + 3 * scale));
       });
 
       // Walkable canyon ramps
@@ -846,20 +847,7 @@ export class WorldMapModal {
     ctx.lineWidth = 4 * scale;
     ctx.setLineDash([6 * scale, 3 * scale]);
 
-    // Path 1: Central valley towards Dojo
-    ctx.beginPath();
-    const roadDojo = [
-      { x: -95, z: 25 },
-      { x: -90, z: 55 },
-      { x: -87.9, z: 74 }
-    ];
-    roadDojo.forEach((pt, i) => {
-      const px = cx + pt.x * scale;
-      const py = cy + pt.z * scale;
-      if (i === 0) ctx.moveTo(px, py);
-      else ctx.lineTo(px, py);
-    });
-    ctx.stroke();
+    // (El sendero al antiguo Dojō Secreto se retiró en el Hito 51: el dojo está ahora en el pueblo del camino)
 
     // Path 2: Valley to East Ridge & Shrine
     ctx.beginPath();
@@ -899,7 +887,7 @@ export class WorldMapModal {
       ctx.font = '12px sans-serif';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
-      ctx.fillText(lm.icon || '📍', px, py);
+      ctx.fillStyle = '#facc15'; ctx.fillText('◆', px, py);
 
       // Label below pin
       ctx.font = 'bold 10px sans-serif';
@@ -934,7 +922,7 @@ export class WorldMapModal {
       ctx.font = '12px sans-serif';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
-      ctx.fillText('🎯', qx, qy);
+      ctx.fillStyle = '#ffffff'; ctx.fillText('!', qx, qy);
     }
 
     // 9. Live Player Entity Pin
@@ -991,7 +979,7 @@ export class WorldMapModal {
       ctx.shadowColor = '#000000';
       ctx.shadowBlur = 4;
       ctx.textAlign = 'center';
-      ctx.fillText('⚔️ Tú', ppx, ppy - 14);
+      ctx.fillText(i18n.t('worldMap.you'), ppx, ppy - 14);
       ctx.shadowBlur = 0;
     }
 

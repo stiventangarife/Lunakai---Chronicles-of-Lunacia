@@ -2,28 +2,34 @@
 // {name} = nombre del Sapidae · {axie} = nombre del Axie compañero.
 // Cada paso: fase (para los rombos de la franja), tipo ('talk' = conversación con Paladill, 'task' = acción del jugador)
 // y la franja que se ve arriba (title + text). Las conversaciones están en DIALOGS.
+// Textos en i18n/{es,en}/tutorialScript.js.
+import * as i18n from '../../i18n/i18n.js';
 
-export const PHASES = ['Defensa', 'Mochila', 'Duelo', 'Forja', 'Vínculo', 'Runas', 'Graduación'];
+export const PHASES = [
+  i18n.t('tutorialScript.phase.defense'), i18n.t('tutorialScript.phase.backpack'), i18n.t('tutorialScript.phase.duel'), i18n.t('tutorialScript.phase.forge'),
+  i18n.t('tutorialScript.phase.bond'), i18n.t('tutorialScript.phase.runes'), i18n.t('tutorialScript.phase.graduation'),
+];
 
 export const STEPS = {
-  defend:        { phase: 0, kind: 'talk', dialog: 'alarm',      title: '¡Quimeras en el Dojo!', text: 'Habla con el Maestro Paladill <kbd>E</kbd>.' },
-  equip_talk:    { phase: 1, kind: 'talk', dialog: 'after_dojo', title: 'Habla con el Maestro Paladill', text: 'Acércate y pulsa <kbd>E</kbd>.' },
-  equip_sword:   { phase: 1, kind: 'task', title: 'Equipa la Espada de madera', text: 'Abre la Mochila <kbd>I</kbd> y ponla en la ranura de arma.' },
-  duel_talk:     { phase: 2, kind: 'talk', dialog: 'duel',       title: 'Duelo de entrenamiento', text: 'Habla con el Maestro Paladill <kbd>E</kbd>.' },
-  forge_talk:    { phase: 3, kind: 'talk', dialog: 'forge',      title: 'Mejora tu espada', text: 'Habla con el Maestro Paladill <kbd>E</kbd>.' },
-  chop:          { phase: 3, kind: 'task', title: 'Consigue madera', text: 'Tala el <b>Árbol de la Forja</b>: acércate y pulsa <kbd>E</kbd>.' },
-  forge_open:    { phase: 3, kind: 'task', title: 'Ve a la Forja', text: 'Acércate al yunque y pulsa <kbd>E</kbd>.' },
-  forge_evolve:  { phase: 3, kind: 'task', title: 'Evoluciona tu espada', text: 'Elige la <b>Espada de madera</b> y pulsa <b>Evolucionar</b>.' },
-  forge_speed:   { phase: 3, kind: 'task', title: 'Acelera ×4', text: 'Pulsa <b>×4</b> en el yunque. <b>Esta vez invita Paladill</b>: te devuelve los bAXS.' },
-  forge_collect: { phase: 3, kind: 'task', title: 'Recoge tu espada nueva', text: 'Espera unos segundos y pulsa <b>Recoger</b>.' },
-  bond_talk:     { phase: 4, kind: 'talk', dialog: 'bond',       title: 'El vínculo', text: 'Habla con el Maestro Paladill <kbd>E</kbd>.' },
-  pet:           { phase: 4, kind: 'task', title: 'Acaricia a {axie}', text: 'Haz <b>clic sobre {axie}</b> y pulsa <b>Acariciar</b>.' },
-  feed:          { phase: 4, kind: 'task', title: 'Dale de comer', text: 'En el mismo panel, dale una <b>fruta</b> a {axie}.' },
-  ult_talk:      { phase: 4, kind: 'talk', dialog: 'ultimate',   title: 'La Ultimate en pareja', text: 'Habla con el Maestro Paladill <kbd>E</kbd>.' },
-  runes_talk:    { phase: 5, kind: 'talk', dialog: 'runes',      title: 'Runas y charms', text: 'Habla con el Maestro Paladill <kbd>E</kbd>.' },
-  runes:         { phase: 5, kind: 'task', title: 'Equipa una runa y un charm', text: 'Pulsa <kbd>U</kbd> (Mochila › Runas) y equípalos en {axie}.' },
-  grad_talk:     { phase: 6, kind: 'talk', dialog: 'graduation', title: 'Graduación', text: 'Habla con el Maestro Paladill <kbd>E</kbd>.' },
-  done:          { phase: 7, kind: 'done', title: '¡Mundo abierto!', text: 'Pulsa <kbd>M</kbd> para ver el mapa. Bing te espera en la Sabana.' },
+  defend:        { phase: 0, kind: 'talk', dialog: 'alarm',      title: i18n.t('tutorialScript.step.defend.title'), text: i18n.t('tutorialScript.talkToPaladill') },
+  equip_talk:    { phase: 1, kind: 'talk', dialog: 'after_dojo', title: i18n.t('tutorialScript.step.equipTalk.title'), text: i18n.t('tutorialScript.step.equipTalk.text') },
+  equip_sword:   { phase: 1, kind: 'task', title: i18n.t('tutorialScript.step.equipSword.title'), text: i18n.t('tutorialScript.step.equipSword.text') },
+  duel_talk:     { phase: 2, kind: 'talk', dialog: 'duel',       title: i18n.t('tutorialScript.step.duelTalk.title'), text: i18n.t('tutorialScript.talkToPaladill') },
+  forge_talk:    { phase: 3, kind: 'talk', dialog: 'forge',      title: i18n.t('tutorialScript.step.forgeTalk.title'), text: i18n.t('tutorialScript.talkToPaladill') },
+  chop:          { phase: 3, kind: 'task', title: i18n.t('tutorialScript.step.chop.title'), text: i18n.t('tutorialScript.step.chop.text') },
+  forge_open:    { phase: 3, kind: 'task', title: i18n.t('tutorialScript.step.forgeOpen.title'), text: i18n.t('tutorialScript.step.forgeOpen.text') },
+  forge_evolve:  { phase: 3, kind: 'task', title: i18n.t('tutorialScript.step.forgeEvolve.title'), text: i18n.t('tutorialScript.step.forgeEvolve.text') },
+  forge_speed:   { phase: 3, kind: 'task', title: i18n.t('tutorialScript.step.forgeSpeed.title'), text: i18n.t('tutorialScript.step.forgeSpeed.text') },
+  forge_collect: { phase: 3, kind: 'task', title: i18n.t('tutorialScript.step.forgeCollect.title'), text: i18n.t('tutorialScript.step.forgeCollect.text') },
+  forge_close:   { phase: 3, kind: 'task', title: i18n.t('tutorialScript.step.forgeClose.title'), text: i18n.t('tutorialScript.step.forgeClose.text') },
+  bond_talk:     { phase: 4, kind: 'talk', dialog: 'bond',       title: i18n.t('tutorialScript.step.bondTalk.title'), text: i18n.t('tutorialScript.talkToPaladill') },
+  pet:           { phase: 4, kind: 'task', title: i18n.t('tutorialScript.step.pet.title'), text: i18n.t('tutorialScript.step.pet.text') },
+  feed:          { phase: 4, kind: 'task', title: i18n.t('tutorialScript.step.feed.title'), text: i18n.t('tutorialScript.step.feed.text') },
+  ult_talk:      { phase: 4, kind: 'talk', dialog: 'ultimate',   title: i18n.t('tutorialScript.step.ultTalk.title'), text: i18n.t('tutorialScript.talkToPaladill') },
+  runes_talk:    { phase: 5, kind: 'talk', dialog: 'runes',      title: i18n.t('tutorialScript.step.runesTalk.title'), text: i18n.t('tutorialScript.talkToPaladill') },
+  runes:         { phase: 5, kind: 'task', title: i18n.t('tutorialScript.step.runes.title'), text: i18n.t('tutorialScript.step.runes.text') },
+  grad_talk:     { phase: 6, kind: 'talk', dialog: 'graduation', title: i18n.t('tutorialScript.step.gradTalk.title'), text: i18n.t('tutorialScript.talkToPaladill') },
+  done:          { phase: 7, kind: 'done', title: i18n.t('tutorialScript.step.done.title'), text: i18n.t('tutorialScript.step.done.text') },
 };
 
 export const ORDER = Object.keys(STEPS);
@@ -31,69 +37,69 @@ export const ORDER = Object.keys(STEPS);
 /** Conversaciones (cada entrada es una línea de Paladill; `me` = respuesta del jugador como opción). */
 export const DIALOGS = {
   alarm: [
-    '¡{name}! ¡Las quimeras han llegado hasta el Dojo!',
-    'Tú y {axie} sois mi primera línea. ¡Ahora te toca a ti!',
+    i18n.t('tutorialScript.dialog.alarm.1'),
+    i18n.t('tutorialScript.dialog.alarm.2'),
   ],
   after_dojo: [
-    '¡Bien hecho! Has defendido el Dojo.',
-    'Esa <span class="lk-kw">Espada de madera</span> es tuya. Ábrela en la Mochila <span class="lk-kw">[I]</span> y equípala.',
+    i18n.t('tutorialScript.dialog.afterDojo.1'),
+    i18n.t('tutorialScript.dialog.afterDojo.2'),
   ],
   duel: [
-    'Te queda bien. Ahora, enséñame lo que sabes.',
-    'Es un entrenamiento: paramos cuando uno baje al <span class="lk-kw">30 %</span> de vida.',
+    i18n.t('tutorialScript.dialog.duel.1'),
+    i18n.t('tutorialScript.dialog.duel.2'),
   ],
-  duel_yield: ['¡Ja! Me rindo, me rindo. Tienes buen brazo.'],
-  duel_stop: ['Basta por hoy. Ya irás cogiendo el ritmo.'],
+  duel_yield: [i18n.t('tutorialScript.dialog.duelYield.1')],
+  duel_stop: [i18n.t('tutorialScript.dialog.duelStop.1')],
   forge: [
-    'Toma <span class="lk-kw">50 de oro</span>. Y esa espada se te queda pequeña: vamos a mejorarla.',
-    'En la <span class="lk-place">Forja</span> todo evoluciona con materiales, SLP y algo de tiempo.',
-    'Te doy un <span class="lk-kw">lote de aprendiz</span>. Falta madera: tala el árbol junto a la Forja.',
+    i18n.t('tutorialScript.dialog.forge.1'),
+    i18n.t('tutorialScript.dialog.forge.2'),
+    i18n.t('tutorialScript.dialog.forge.3'),
   ],
   bond: [
-    'Esa espada ya es otra cosa. Pero tu mayor fuerza es {axie}.',
-    'Con el <span class="lk-kw">vínculo al 100 %</span> lanzáis juntos vuestra <span class="lk-kw">Ultimate</span>. Haz clic en {axie} y acarícialo.',
+    i18n.t('tutorialScript.dialog.bond.1'),
+    i18n.t('tutorialScript.dialog.bond.2'),
   ],
   ultimate: [
-    'Así se cuida un vínculo: caricias, comida y paseos juntos.',
-    'Para la prueba te presto mi resonancia: <span class="lk-kw">vínculo al 100 %</span>.',
-    'Lanza la Ultimate con tu Sapidae. ¡Adelante!',
+    i18n.t('tutorialScript.dialog.ultimate.1'),
+    i18n.t('tutorialScript.dialog.ultimate.2'),
+    i18n.t('tutorialScript.dialog.ultimate.3'),
   ],
   runes: [
-    '¡Eso es resonancia! Mi préstamo termina aquí; el resto lo ganáis vosotros.',
-    'Toma una <span class="lk-kw">runa</span> y un <span class="lk-kw">charm</span> neutros. La runa mejora a tu Axie; el charm, una de sus partes.',
-    'Equípaselos a {axie} en Mochila › Runas <span class="lk-kw">[U]</span>.',
+    i18n.t('tutorialScript.dialog.runes.1'),
+    i18n.t('tutorialScript.dialog.runes.2'),
+    i18n.t('tutorialScript.dialog.runes.3'),
   ],
   graduation: [
-    'Ya estás listo, {name}. Las puertas del Dojo se abren para ti.',
-    'Bing te espera en la <span class="lk-place">Sabana</span>. Pulsa <span class="lk-kw">[M]</span> para ver el mapa. ¡Que Atia te guíe!',
+    i18n.t('tutorialScript.dialog.graduation.1'),
+    i18n.t('tutorialScript.dialog.graduation.2'),
   ],
   // Recordatorios cortos si el jugador habla con Paladill durante una tarea
-  remind_equip_sword: ['Abre la Mochila <span class="lk-kw">[I]</span> y equipa la espada.'],
-  remind_chop: ['El árbol está justo al lado de la Forja. Acércate y pulsa <span class="lk-kw">[E]</span>.'],
-  remind_forge: ['La Forja está a pocos pasos, en el patio.'],
-  remind_pet: ['Haz clic sobre {axie}. Te está esperando.'],
-  remind_runes: ['Pulsa <span class="lk-kw">[U]</span> y equipa la runa y el charm a {axie}.'],
-  ambient: ['Que el honor guíe cada movimiento en el tablero de Lunacia, {name}.'],
+  remind_equip_sword: [i18n.t('tutorialScript.dialog.remindEquipSword.1')],
+  remind_chop: [i18n.t('tutorialScript.dialog.remindChop.1')],
+  remind_forge: [i18n.t('tutorialScript.dialog.remindForge.1')],
+  remind_pet: [i18n.t('tutorialScript.dialog.remindPet.1')],
+  remind_runes: [i18n.t('tutorialScript.dialog.remindRunes.1')],
+  ambient: [i18n.t('tutorialScript.dialog.ambient.1')],
 };
 
 /** Consejos del maestro durante los combates del tutorial (franja «coach»). */
 export const COACH = {
-  duel: 'Entrenamiento: termina cuando alguien baje al <b>30 %</b> de vida.',
-  ult_wait: 'Con tu <b>Sapidae</b>, pulsa la <b>Ultimate</b> <kbd>7</kbd> y elige un objetivo.',
-  ult_axie: 'Turno de tu Axie: muévelo o pulsa <b>Pasar turno</b>. La Ultimate la lanza tu <b>Sapidae</b>.',
-  ult_done: '¡Resonancia! Ahora termina el combate.',
+  duel: i18n.t('tutorialScript.coach.duel'),
+  ult_wait: i18n.t('tutorialScript.coach.ultWait'),
+  ult_axie: i18n.t('tutorialScript.coach.ultAxie'),
+  ult_done: i18n.t('tutorialScript.coach.ultDone'),
 };
 
 /** Mensajes al intentar usar algo que el tutorial aún no ha enseñado. */
 export const LOCKED = {
-  inventory: 'La Mochila se abre tras tu primer combate.',
-  squad: 'El Escuadrón se desbloquea al terminar el entrenamiento.',
-  worldMap: 'El mapa se desbloquea al graduarte en el Dojo.',
-  forge: 'El Maestro Paladill te enseñará la Forja enseguida.',
-  care: 'Paladill te enseñará a cuidar a tu Axie un poco más adelante.',
-  runes: 'Las runas y los charms llegan al final del entrenamiento.',
-  shop: 'La tienda abre cuando termines el entrenamiento del Dojo.',
-  gather: 'Termina el entrenamiento del Dojo para recolectar aquí.',
+  inventory: i18n.t('tutorialScript.locked.inventory'),
+  squad: i18n.t('tutorialScript.locked.squad'),
+  worldMap: i18n.t('tutorialScript.locked.worldMap'),
+  forge: i18n.t('tutorialScript.locked.forge'),
+  care: i18n.t('tutorialScript.locked.care'),
+  runes: i18n.t('tutorialScript.locked.runes'),
+  shop: i18n.t('tutorialScript.locked.shop'),
+  gather: i18n.t('tutorialScript.locked.gather'),
 };
 
 /** Recompensas que da el tutorial (también las da «Saltar tutorial» si faltan). */

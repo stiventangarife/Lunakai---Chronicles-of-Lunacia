@@ -19,6 +19,7 @@
 
 import { RUNE_BY_ID, CHARM_BY_ID, runeFits, charmFits, ppCanSet } from '../data/RunesCharms.js';
 import { STATUS_DEFS } from './StatusSystem.js';
+import * as i18n from '../../i18n/i18n.js';
 
 // ─────────────────────────────────────────────────────────────── Runas (63)
 // Campos: hp · init · pm · crit · critDmg (% extra sobre el ×1,5) · startShield · support (% curas y escudos dados)
@@ -242,40 +243,40 @@ export function buildCardOverride(spell, cardFx = [], profile = null) {
 
   for (const { fx, name } of cardFx) {
     // Coste y alcance
-    if (fx.costDown && typeof s.paCost === 'number' && s.paCost > 1) { s.paCost = Math.max(1, s.paCost - fx.costDown); notes.push(`${name}: −${fx.costDown} PA`); changed = true; }
-    if (fx.range && s.maxRange >= 1) { s.maxRange += fx.range; notes.push(`${name}: +${fx.range} AL`); changed = true; }
-    if (fx.rangeIfRanged && s.maxRange >= 2) { s.maxRange += fx.rangeIfRanged; notes.push(`${name}: +${fx.rangeIfRanged} AL`); changed = true; }
-    if (fx.rangeProjectile && s.maxRange > 1) { s.maxRange += fx.rangeProjectile; notes.push(`${name}: +${fx.rangeProjectile} AL`); changed = true; }
-    if (fx.noLoS && s.requiresLoS) { s.requiresLoS = false; notes.push(`${name}: sin línea de visión`); changed = true; }
+    if (fx.costDown && typeof s.paCost === 'number' && s.paCost > 1) { s.paCost = Math.max(1, s.paCost - fx.costDown); notes.push(i18n.t('runeEffects.costDown', { name, n: fx.costDown })); changed = true; }
+    if (fx.range && s.maxRange >= 1) { s.maxRange += fx.range; notes.push(i18n.t('runeEffects.range', { name, n: fx.range })); changed = true; }
+    if (fx.rangeIfRanged && s.maxRange >= 2) { s.maxRange += fx.rangeIfRanged; notes.push(i18n.t('runeEffects.range', { name, n: fx.rangeIfRanged })); changed = true; }
+    if (fx.rangeProjectile && s.maxRange > 1) { s.maxRange += fx.rangeProjectile; notes.push(i18n.t('runeEffects.range', { name, n: fx.rangeProjectile })); changed = true; }
+    if (fx.noLoS && s.requiresLoS) { s.requiresLoS = false; notes.push(i18n.t('runeEffects.noLos', { name })); changed = true; }
 
     if (!Array.isArray(s.effects)) continue; // las cartas antiguas (sin effects) solo admiten coste y alcance
 
     // Daño de la carta
     if (dmgCard) {
       const dmgFx = s.effects.filter((e) => e.type === 'damage');
-      if (fx.dmg) { dmgFx.forEach((e) => addToDamage(e, fx.dmg)); notes.push(`${name}: +${fx.dmg} de daño`); changed = true; }
-      if (fx.dmgFar) { dmgFx.forEach((e) => { e.bonus = [...(e.bonus || []), { if: { distAtLeast: fx.dmgFar.dist }, add: fx.dmgFar.add }]; }); notes.push(`${name}: +${fx.dmgFar.add} de daño a ${fx.dmgFar.dist}+ casillas`); changed = true; }
-      if (fx.crit) { dmgFx.forEach((e) => { e.critBonus = (e.critBonus || 0) + fx.crit; }); notes.push(`${name}: +${fx.crit} % de crítico`); changed = true; }
-      if (fx.critDmg) { dmgFx.forEach((e) => { e.critDmgBonus = (e.critDmgBonus || 0) + fx.critDmg; }); notes.push(`${name}: +${fx.critDmg} % de daño crítico`); changed = true; }
+      if (fx.dmg) { dmgFx.forEach((e) => addToDamage(e, fx.dmg)); notes.push(i18n.t('runeEffects.dmg', { name, n: fx.dmg })); changed = true; }
+      if (fx.dmgFar) { dmgFx.forEach((e) => { e.bonus = [...(e.bonus || []), { if: { distAtLeast: fx.dmgFar.dist }, add: fx.dmgFar.add }]; }); notes.push(i18n.t('runeEffects.dmgFar', { name, n: fx.dmgFar.add, d: fx.dmgFar.dist })); changed = true; }
+      if (fx.crit) { dmgFx.forEach((e) => { e.critBonus = (e.critBonus || 0) + fx.crit; }); notes.push(i18n.t('runeEffects.crit', { name, n: fx.crit })); changed = true; }
+      if (fx.critDmg) { dmgFx.forEach((e) => { e.critDmgBonus = (e.critDmgBonus || 0) + fx.critDmg; }); notes.push(i18n.t('runeEffects.critDmg', { name, n: fx.critDmg })); changed = true; }
       if (fx.shieldBreak) {
         const i = s.effects.findIndex((e) => e.type === 'damage');
         s.effects.splice(i, 0, { type: 'shieldBreak', amount: fx.shieldBreak, fromCharm: true });
-        notes.push(`${name}: destruye ${fx.shieldBreak} de escudo`); changed = true;
+        notes.push(i18n.t('runeEffects.shieldBreak', { name, n: fx.shieldBreak })); changed = true;
       }
       if (fx.push) {
         const pushes = s.effects.filter((e) => e.type === 'push');
         if (pushes.length) pushes.forEach((e) => { e.distance = (e.distance || 1) + fx.push; });
         else s.effects.push({ type: 'push', distance: fx.push, fromCharm: true });
-        notes.push(`${name}: empuje +${fx.push}`); changed = true;
+        notes.push(i18n.t('runeEffects.push', { name, n: fx.push })); changed = true;
       }
-      if (fx.pull) { s.effects.push({ type: 'pull', distance: fx.pull, fromCharm: true }); notes.push(`${name}: atrae ${fx.pull} casilla`); changed = true; }
-      if (fx.bleed) { s.effects.push({ type: 'status', status: 'bleed', value: fx.bleed.value, duration: fx.bleed.duration, fromCharm: true }); notes.push(`${name}: Sangrado ${fx.bleed.value} (${fx.bleed.duration} turnos)`); changed = true; }
-      if (fx.poison) { s.effects.push({ type: 'status', status: 'poison', value: fx.poison.value, duration: fx.poison.duration, fromCharm: true }); notes.push(`${name}: Veneno ${fx.poison.value} (${fx.poison.duration} turnos)`); changed = true; }
-      if (fx.weak) { s.effects.push({ type: 'status', status: 'weak', value: fx.weak, duration: 1, fromCharm: true }); notes.push(`${name}: el objetivo hace −${fx.weak} % de daño (1 turno)`); changed = true; }
-      if (fx.slow) { s.effects.push({ type: 'resource', pm: -fx.slow, when: 'nextTurn', fromCharm: true }); notes.push(`${name}: −${fx.slow} PM en su próximo turno`); changed = true; }
-      if (fx.slowMelee) { s.effects.push({ type: 'resource', pm: -fx.slowMelee, when: 'nextTurn', if: { distAtMost: 1 }, fromCharm: true }); notes.push(`${name}: −${fx.slowMelee} PM si golpea a 1 casilla`); changed = true; }
-      if (fx.dispel) { s.effects.push({ type: 'dispel', count: fx.dispel, fromCharm: true }); notes.push(`${name}: quita ${fx.dispel} beneficio`); changed = true; }
-      if (fx.selfDamage) { s.effects.push({ type: 'selfDamage', amount: fx.selfDamage, fromCharm: true }); notes.push(`${name}: el lanzador pierde ${fx.selfDamage} HP`); changed = true; }
+      if (fx.pull) { s.effects.push({ type: 'pull', distance: fx.pull, fromCharm: true }); notes.push(i18n.t('runeEffects.pull', { name, n: fx.pull })); changed = true; }
+      if (fx.bleed) { s.effects.push({ type: 'status', status: 'bleed', value: fx.bleed.value, duration: fx.bleed.duration, fromCharm: true }); notes.push(i18n.t('runeEffects.bleed', { name, v: fx.bleed.value, d: fx.bleed.duration })); changed = true; }
+      if (fx.poison) { s.effects.push({ type: 'status', status: 'poison', value: fx.poison.value, duration: fx.poison.duration, fromCharm: true }); notes.push(i18n.t('runeEffects.poison', { name, v: fx.poison.value, d: fx.poison.duration })); changed = true; }
+      if (fx.weak) { s.effects.push({ type: 'status', status: 'weak', value: fx.weak, duration: 1, fromCharm: true }); notes.push(i18n.t('runeEffects.weak', { name, n: fx.weak })); changed = true; }
+      if (fx.slow) { s.effects.push({ type: 'resource', pm: -fx.slow, when: 'nextTurn', fromCharm: true }); notes.push(i18n.t('runeEffects.slow', { name, n: fx.slow })); changed = true; }
+      if (fx.slowMelee) { s.effects.push({ type: 'resource', pm: -fx.slowMelee, when: 'nextTurn', if: { distAtMost: 1 }, fromCharm: true }); notes.push(i18n.t('runeEffects.slowMelee', { name, n: fx.slowMelee })); changed = true; }
+      if (fx.dispel) { s.effects.push({ type: 'dispel', count: fx.dispel, fromCharm: true }); notes.push(i18n.t('runeEffects.dispel', { name, n: fx.dispel })); changed = true; }
+      if (fx.selfDamage) { s.effects.push({ type: 'selfDamage', amount: fx.selfDamage, fromCharm: true }); notes.push(i18n.t('runeEffects.selfDamage', { name, n: fx.selfDamage })); changed = true; }
     }
 
     // Escudo y curación de la carta
@@ -285,7 +286,7 @@ export function buildCardOverride(spell, cardFx = [], profile = null) {
         if (e.type === 'shield' && (fx.faith || fx.sh)) { e.amount = (e.amount || 0) + (fx.faith || 0) + (fx.sh || 0); touched = true; }
         if (e.type === 'heal' && fx.faith) { addToDamage(e, fx.faith); touched = true; }
       }
-      if (touched) { notes.push(`${name}: +${(fx.faith || 0) + (fx.sh || 0)} de escudo${fx.faith ? ' o curación' : ''}`); changed = true; }
+      if (touched) { notes.push(i18n.t(fx.faith ? 'runeEffects.shieldOrHeal' : 'runeEffects.shield', { name, n: (fx.faith || 0) + (fx.sh || 0) })); changed = true; }
     }
   }
 
@@ -293,11 +294,11 @@ export function buildCardOverride(spell, cardFx = [], profile = null) {
   const collision = cardFx.reduce((a, c) => a + (c.fx.collision || 0), 0);
   if (collision && Array.isArray(s.effects)) {
     const pushes = s.effects.filter((e) => e.type === 'push');
-    if (pushes.length) { pushes.forEach((e) => { e.collisionBonus = (e.collisionBonus || 0) + collision; }); notes.push(`+${collision} de daño de colisión`); changed = true; }
+    if (pushes.length) { pushes.forEach((e) => { e.collisionBonus = (e.collisionBonus || 0) + collision; }); notes.push(i18n.t('runeEffects.collision', { n: collision })); changed = true; }
   }
 
   // Runa: +AL a las habilidades de disparo a distancia
-  if (profile?.rangeRanged && s.maxRange > 1) { s.maxRange += profile.rangeRanged; notes.push(`Runa: +${profile.rangeRanged} AL`); changed = true; }
+  if (profile?.rangeRanged && s.maxRange > 1) { s.maxRange += profile.rangeRanged; notes.push(i18n.t('runeEffects.runeRange', { n: profile.rangeRanged })); changed = true; }
 
   if (!changed) return null;
 
@@ -733,7 +734,7 @@ export class RuneCharmSystem {
     // La iniciativa se fija al empezar el combate (GDD): bajarla no cambia el orden de turnos ya decidido.
     unit.initiative = (unit.initiative || 0) - amount;
     this._initDowns.push({ unit, amount, until: this.round + 1 });
-    this._proc(unit, `${label}: −${amount} iniciativa`);
+    this._proc(unit, i18n.t('combatFx.initDown', { label, n: amount }));
   }
 
   // ------------------------------------------------ turnos y rondas

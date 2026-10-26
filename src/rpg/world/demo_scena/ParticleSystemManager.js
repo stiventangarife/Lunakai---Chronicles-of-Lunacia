@@ -7,7 +7,6 @@ import * as THREE from 'three';
  * - Mirador y Riscos: Ráfagas de viento y estelas aerodinámicas
  * - Árbol Vital: Partículas mágicas verdes y luciérnagas titilantes
  * - Santuario Atia: Partículas de energía verde ascendentes
- * - Templo Dojō: Pétalos de cerezo (Sakura)
  */
 export class ParticleSystemManager {
   constructor(scene, terrain) {
@@ -33,7 +32,6 @@ export class ParticleSystemManager {
     this.initWindGusts();
     this.initElderTreeParticles();
     this.initAtiaShrineParticles();
-    this.initDojoSakuraPetals();
   }
 
   // ==========================================
@@ -430,78 +428,6 @@ export class ParticleSystemManager {
     this.group.add(this.shrineParticles);
   }
 
-  // ==========================================
-  // 8. TEMPLO DOJŌ: Hojas / Pétalos tipo Cerezo (Sakura)
-  // ==========================================
-  initDojoSakuraPetals() {
-    const dojoX = -87.9;
-    const dojoZ = 74.0;
-    const dojoY = this.terrain.getHeight(dojoX, dojoZ);
-
-    const count = 200;
-    const petalGeo = this.createSakuraPetalGeometry();
-
-    const petalMat = new THREE.MeshBasicMaterial({
-      side: THREE.DoubleSide,
-      forceSinglePass: true, // lámina fina: una pasada en lugar de dos (mismo aspecto)
-      transparent: true,
-      opacity: 0.95
-    });
-
-    this.sakuraMesh = new THREE.InstancedMesh(petalGeo, petalMat, count);
-    this.sakuraMesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
-    this.group.add(this.sakuraMesh);
-
-    this.sakuraData = [];
-    const colors = [
-      new THREE.Color(0xff9ebd),
-      new THREE.Color(0xff80a6),
-      new THREE.Color(0xffb8cf),
-      new THREE.Color(0xffe0eb)
-    ];
-
-    const dummy = this._dummy;
-
-    for (let i = 0; i < count; i++) {
-      const rad = 3.0 + Math.random() * 26.0;
-      const ang = Math.random() * Math.PI * 2;
-      const x = dojoX + Math.cos(ang) * rad;
-      const z = dojoZ + Math.sin(ang) * rad;
-      const y = dojoY + 2.5 + Math.random() * 14.0;
-
-      this.sakuraData.push({
-        centerX: dojoX,
-        centerZ: dojoZ,
-        rad: rad,
-        ang: ang,
-        x: x,
-        y: y,
-        z: z,
-        groundH: dojoY,
-        fallSpeed: 0.9 + Math.random() * 0.8,
-        swaySpeed: 1.8 + Math.random() * 2.2,
-        rotSpeedX: (Math.random() - 0.5) * 4.5,
-        rotSpeedY: (Math.random() - 0.5) * 3.5,
-        rotSpeedZ: (Math.random() - 0.5) * 5.0,
-        rotX: Math.random() * Math.PI,
-        rotY: Math.random() * Math.PI,
-        rotZ: Math.random() * Math.PI,
-        scale: 0.85 + Math.random() * 0.6,
-        phase: Math.random() * Math.PI * 2
-      });
-
-      dummy.position.set(x, y, z);
-      dummy.updateMatrix();
-      this.sakuraMesh.setMatrixAt(i, dummy.matrix);
-      this.sakuraMesh.setColorAt(i, colors[i % colors.length]);
-    }
-
-    this.sakuraMesh.instanceMatrix.needsUpdate = true;
-    if (this.sakuraMesh.instanceColor) {
-      this.sakuraMesh.instanceColor.needsUpdate = true;
-    }
-  }
-
   createLeafGeometry(length = 0.35, width = 0.20) {
     const shape = new THREE.Shape();
     shape.moveTo(0, 0);
@@ -513,19 +439,6 @@ export class ParticleSystemManager {
     return geom;
   }
 
-  createSakuraPetalGeometry() {
-    const shape = new THREE.Shape();
-    shape.moveTo(0, 0);
-    shape.bezierCurveTo(0.14, 0.10, 0.18, 0.26, 0.05, 0.38);
-    shape.quadraticCurveTo(0.0, 0.32, -0.05, 0.38);
-    shape.bezierCurveTo(-0.18, 0.26, -0.14, 0.10, 0, 0);
-
-    const geom = new THREE.ShapeGeometry(shape, 4);
-    geom.center();
-    return geom;
-  }
-
-  /** Caja que envuelve las partículas de un sistema; se recalcula cada 0.5 s (con 4 m de margen). */
   _boxFor(key, count, getXYZ) {
     let e = this._boxes.get(key);
     if (!e) { e = { box: new THREE.Box3(), t: -1 }; this._boxes.set(key, e); }
@@ -708,35 +621,6 @@ export class ParticleSystemManager {
         posAttr.setXYZ(i, x, d.y, z);
       }
       posAttr.needsUpdate = true;
-    }
-
-    // 8. Templo Dojō: Pétalos de cerezo (Sakura)
-    if (this.sakuraMesh && this._inView('sakura', this.sakuraData.length, fromData(this.sakuraData))) {
-      for (let i = 0; i < this.sakuraData.length; i++) {
-        const d = this.sakuraData[i];
-        d.y -= d.fallSpeed * delta;
-        d.x += Math.sin(this.time * d.swaySpeed + d.phase) * delta * 1.8 + delta * 0.8;
-        d.z += Math.cos(this.time * d.swaySpeed * 0.7 + d.phase) * delta * 1.5 + delta * 0.6;
-
-        d.rotX += d.rotSpeedX * delta;
-        d.rotY += d.rotSpeedY * delta;
-        d.rotZ += d.rotSpeedZ * delta;
-
-        if (d.y < d.groundH + 0.2) {
-          d.y = d.groundH + 9.5 + Math.random() * 6.5;
-          const rad = 3.0 + Math.random() * 26.0;
-          const ang = Math.random() * Math.PI * 2;
-          d.x = d.centerX + Math.cos(ang) * rad;
-          d.z = d.centerZ + Math.sin(ang) * rad;
-        }
-
-        dummy.position.set(d.x, d.y, d.z);
-        dummy.rotation.set(d.rotX, d.rotY, d.rotZ);
-        dummy.scale.set(d.scale, d.scale, d.scale);
-        dummy.updateMatrix();
-        this.sakuraMesh.setMatrixAt(i, dummy.matrix);
-      }
-      this.sakuraMesh.instanceMatrix.needsUpdate = true;
     }
   }
 

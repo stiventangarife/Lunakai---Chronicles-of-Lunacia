@@ -1,4 +1,6 @@
 // OverworldTutorialManager.js - Comprehensive Guided Tutorial Coordinator
+import * as i18n from '../i18n/i18n.js';
+
 export class OverworldTutorialManager {
   constructor(overworldManager) {
     this.om = overworldManager;
@@ -22,45 +24,45 @@ export class OverworldTutorialManager {
 
     this.steps = {
       TALK_TO_PALADILL: {
-        badge: '🥋 STEP 1 OF 5',
-        title: 'Talk to Master Paladill',
-        text: 'Follow the golden arrow using <kbd>W A S D</kbd> to Master Paladill and press <kbd>E</kbd> to receive your training.',
+        badge: i18n.t('tutorialOverworld.talkPaladill.badge'),
+        title: i18n.t('tutorialOverworld.talkPaladill.title'),
+        text: i18n.t('tutorialOverworld.talkPaladill.text'),
         requiredAction: 'talk_paladill'
       },
       OPEN_QUEST_BOOK: {
-        badge: '📖 STEP 2 OF 5',
-        title: 'Open your Quest Book',
-        text: 'Press <kbd>J</kbd> or click <b>Quests</b> to check the mission assigned by the master.',
+        badge: i18n.t('tutorialOverworld.openQuestBook.badge'),
+        title: i18n.t('tutorialOverworld.openQuestBook.title'),
+        text: i18n.t('tutorialOverworld.openQuestBook.text'),
         requiredAction: 'open_quest_book'
       },
       DEFEAT_SLIME: {
-        badge: '⚔️ STEP 3 OF 5',
-        title: 'Face the Slime Chimera',
-        text: 'A Slime Chimera has appeared in the east garden! Cross the bridge and defeat it in tactical combat <kbd>E</kbd>.',
+        badge: i18n.t('tutorialOverworld.defeatSlime.badge'),
+        title: i18n.t('tutorialOverworld.defeatSlime.title'),
+        text: i18n.t('tutorialOverworld.defeatSlime.text'),
         requiredAction: 'defeat_slime'
       },
       RETURN_TO_PALADILL: {
-        badge: '🏆 STEP 4 OF 5',
-        title: 'Report your Victory to Master Paladill',
-        text: 'Chimera purified! Return to Master Paladill <kbd>E</kbd> to turn in the quest and claim your first reward.',
+        badge: i18n.t('tutorialOverworld.returnPaladill.badge'),
+        title: i18n.t('tutorialOverworld.returnPaladill.title'),
+        text: i18n.t('tutorialOverworld.returnPaladill.text'),
         requiredAction: 'return_paladill'
       },
       EQUIP_SWORD: {
-        badge: '🗡️ STEP 5: EQUIP YOUR WEAPON',
-        title: 'Open your Inventory and Equip your Sword',
-        text: 'Press <kbd>I</kbd> or click <b>Inventory</b>, open your backpack, and equip the Wooden Sword to {heroName}.',
+        badge: i18n.t('tutorialOverworld.equipSword.badge'),
+        title: i18n.t('tutorialOverworld.equipSword.title'),
+        text: i18n.t('tutorialOverworld.equipSword.text'),
         requiredAction: 'equip_sword'
       },
       TALK_PALADILL_DEPARTURE: {
-        badge: '🗺️ DOJO GRADUATION',
-        title: 'Talk to the Master to Leave the Dojo',
-        text: 'Sword equipped! Speak with Paladill <kbd>E</kbd> to dispel the gate seals and receive the World Map.',
+        badge: i18n.t('tutorialOverworld.departure.badge'),
+        title: i18n.t('tutorialOverworld.departure.title'),
+        text: i18n.t('tutorialOverworld.departure.text'),
         requiredAction: 'talk_paladill_departure'
       },
       COMPLETED: {
-        badge: '🎉 OPEN WORLD UNLOCKED!',
-        title: 'Lunacia Graduation Completed!',
-        text: 'Cardinal barriers have fallen. Press <kbd>M</kbd> to open the World Map and freely explore the 49 macro-zones.',
+        badge: i18n.t('tutorialOverworld.completed.badge'),
+        title: i18n.t('tutorialOverworld.completed.title'),
+        text: i18n.t('tutorialOverworld.completed.text'),
         requiredAction: 'none'
       }
     };
@@ -81,10 +83,10 @@ export class OverworldTutorialManager {
       banner.innerHTML = `
         <div class="lk-tut__head">
           <span class="lk-tut__phases" id="tut-step-phases" aria-hidden="true"></span>
-          <span id="tut-step-badge" class="lk-tut__badge">Paso 1 de 5</span>
-          <h3 id="tut-step-title" class="lk-tut__title">Talk to Master Paladill</h3>
+          <span id="tut-step-badge" class="lk-tut__badge">${i18n.t('tutorialOverworld.label.step', { n: 1 })}</span>
+          <h3 id="tut-step-title" class="lk-tut__title">${i18n.t('tutorialOverworld.talkPaladill.title')}</h3>
         </div>
-        <p id="tut-step-text" class="lk-tut__text">Walk using <kbd>W A S D</kbd> to Master Paladill and press <kbd>E</kbd>.</p>
+        <p id="tut-step-text" class="lk-tut__text">${i18n.t('tutorialOverworld.bannerText')}</p>
       `;
       document.body.appendChild(banner);
     }
@@ -104,8 +106,8 @@ export class OverworldTutorialManager {
         <div class="tutorial-overlay-backdrop"></div>
         <div id="tutorial-spotlight-box" class="tutorial-spotlight-highlight-box hidden"></div>
         <div id="tutorial-spotlight-pointer" class="tutorial-spotlight-pointer hidden">
-          <div class="pointer-hand">👇</div>
-          <div id="pointer-text" class="pointer-text">Press [J] or click here</div>
+          <div class="pointer-hand">◆</div>
+          <div id="pointer-text" class="pointer-text">${i18n.t('tutorialOverworld.pointerDefault')}</div>
         </div>
         <div id="tutorial-cutscene-alert" class="tutorial-cutscene-alert hidden"></div>
       `;
@@ -267,7 +269,7 @@ export class OverworldTutorialManager {
 
   _formatText(str) {
     if (!str || typeof str !== 'string') return str;
-    const heroName = this.om?.player?.name || 'Hero';
+    const heroName = this.om?.player?.name || i18n.t('tutorialOverworld.heroFallback');
     return str.replace(/{heroName}/g, heroName);
   }
 
@@ -282,9 +284,9 @@ export class OverworldTutorialManager {
     if (this.phasesEl) {
       this.phasesEl.innerHTML = ORDER.map((_, i) => `<i class="${i < idx ? 'lk-is-full' : i === idx ? 'lk-is-half' : ''}"></i>`).join('');
     }
-    const label = stepId === 'COMPLETED' ? 'Mundo abierto'
-      : stepId === 'TALK_PALADILL_DEPARTURE' ? 'Graduación'
-      : `Paso ${idx + 1} de 5`;
+    const label = stepId === 'COMPLETED' ? i18n.t('tutorialOverworld.label.openWorld')
+      : stepId === 'TALK_PALADILL_DEPARTURE' ? i18n.t('tutorialOverworld.label.graduation')
+      : i18n.t('tutorialOverworld.label.step', { n: idx + 1 });
     if (this.badgeEl) this.badgeEl.textContent = label;
     if (this.titleEl) this.titleEl.innerHTML = this._formatText(step.title);
     if (this.textEl) this.textEl.innerHTML = this._formatText(step.text);
@@ -347,13 +349,13 @@ export class OverworldTutorialManager {
       const btn = document.getElementById('btn-open-quest-book');
       if (btn) {
         btn.classList.add('tutorial-spotlight-target');
-        this._showSpotlight(btn, 'Press <kbd>J</kbd> or click to open Quests');
+        this._showSpotlight(btn, i18n.t('tutorialOverworld.spot.questBook'));
       }
     } else if (stepId === 'EQUIP_SWORD') {
       const btn = document.getElementById('btn-open-inventory');
       if (btn) {
         btn.classList.add('tutorial-spotlight-target');
-        this._showSpotlight(btn, 'Press <kbd>I</kbd> or click to open Inventory');
+        this._showSpotlight(btn, i18n.t('tutorialOverworld.spot.inventory'));
       }
     }
   }
@@ -475,10 +477,10 @@ export class OverworldTutorialManager {
     if (this.cutsceneAlertEl) {
       this.cutsceneAlertEl.innerHTML = `
         <div style="font-size: 16px; font-weight: 900; color: #facc15; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 4px;">
-          👾 A Slime Chimera has appeared in the East Garden!
+          ${i18n.t('tutorialOverworld.alert.title')}
         </div>
         <div style="font-size: 13px; color: #e2e8f0;">
-          Follow the golden arrow above its head to reach and purify it.
+          ${i18n.t('tutorialOverworld.alert.text')}
         </div>
       `;
       this.cutsceneAlertEl.classList.remove('hidden');

@@ -49,7 +49,7 @@ const PATHS = [
   // Royal square ring around the plaza
   { points: squareLoop(0, 0, HALF), width: 5.2 },
   // East avenue: ferry → Sanctuary Gate → plaza
-  { points: [[136, 22], [112, 20], [84, 14], [58, 8], [HALF, 4]], width: 5.4 },
+  { points: GENESIS_SITES.eastAvenue, width: 5.4 },   // shared with the processional obelisks
   // North avenue into the Ancestral Grove
   { points: [[0, -HALF], [0, -62], [-6, -92]], width: 4.6 },
   // West avenue to the lavender columns
@@ -104,7 +104,8 @@ function patrolPoints() {
   return out;
 }
 
-const NPC_SPOTS = [GENESIS_SITES.npcs.kotaro, GENESIS_SITES.npcs.tripp, GENESIS_SITES.npcs.atia];
+// { x: 104, z: 13 }: Kotaro's old spot by the Gate, kept clear so the scenery there does not change
+const NPC_SPOTS = [GENESIS_SITES.npcs.kotaro, { x: 104, z: 13 }, GENESIS_SITES.npcs.tripp, GENESIS_SITES.npcs.atia];
 
 function freeSpot(x, z, clear = 4) {
   if (pathDist(x, z) < clear) return false;
@@ -283,7 +284,19 @@ export function createDungeonIsland(om) {
     rocks: [],
     rockStyle: { base: 0x9d92d8, shadow: 0x5f5694, top: 0xd2c4fa, topAmount: 0.6, streaks: 0.5 },
     build: buildGenesis,
-    profile: () => genesisProfile()
+    profile: () => genesisProfile(),
+    // Hito 73: árboles con colisión en el tronco; cristales de la cantera con su huella exacta; mar hasta la rodilla;
+    // pendientes de más de 35° (el desnivel tras el gran arco del santuario) no se suben. Se pisan: piedrecitas de
+    // lavanda, ramitas, flores y hierba
+    collision: {
+      propRules: [
+        { test: /^IslandTreeTrunk_broad/, kind: 'tree', band: 0.8, rMin: 0.4, rMax: 0.9 },
+        { test: /^IslandTreeTrunk_dead/, kind: 'dead', band: 0.8, rMin: 0.3, rMax: 1.0 },
+        { test: /^output_unwrapped/, kind: 'deco', band: 1.0, rMin: 0.4, rMax: 3, minH: 0.7 },
+      ],
+      hullRules: [{ test: /^GenesisQuarryCrystals/, kind: 'quarry', minH: 0.3 }],
+      slopeMax: 35, wadeMax: 0.5,
+    }
   });
 }
 

@@ -13,6 +13,9 @@
 
 import * as THREE from 'three';
 import { GATHER_KINDS, GATHER_RULES } from '../tactics/data/GatheringCatalog.js';
+import { equipAxieWeapon } from './WeaponVisuals.js';
+import { formatWait } from './GatheringService.js';
+import * as i18n from '../i18n/i18n.js';
 
 const _v = new THREE.Vector3();
 const _q = new THREE.Quaternion();
@@ -133,7 +136,7 @@ class Session {
   _collect() {
     if (this.loot) return true;
     const r = this.ctx.service.gather(this.def.id);
-    if (!r.ok) { this.ctx.hud.toast(r.why || 'No se pudo recolectar', true); return false; }
+    if (!r.ok) { this.ctx.hud.toast(!r.why ? i18n.t('notices.gather.failed') : r.node ? i18n.t('notices.gather.backInShort', { t: formatWait(this.ctx.service.remainingMs(this.def.id)) }) : i18n.t('notices.gather.noNode'), true); return false; }
     this.loot = r.loot;
     return true;
   }
@@ -221,7 +224,7 @@ export class AxieSession extends Session {
     this.phase = 'approach';
     // el arma se va cargando mientras corre
     this.equipReady = false;
-    Promise.resolve(this.ax.equipWeapon(this.weapon)).then((ok) => { this.equipReady = true; this.equipOk = ok !== false; }).catch(() => { this.equipReady = true; this.equipOk = false; });
+    Promise.resolve(equipAxieWeapon(this.ax, this.ctx.player.companionMesh, this.weapon)).then((ok) => { this.equipReady = true; this.equipOk = ok !== false; }).catch(() => { this.equipReady = true; this.equipOk = false; });
   }
 
   _play(name, opts = {}) { try { return this.ax.playAnimation(name, opts); } catch { return false; } }
@@ -267,7 +270,7 @@ export class AxieSession extends Session {
     } else if (this.phase === 'ready') {
       p.companionYaw = lerpAngle(p.companionYaw || 0, this.yaw, Math.min(1, 10 * dt));
       if (this.equipReady && Math.abs(lerpAngle(p.companionYaw, this.yaw, 1) - p.companionYaw) < 0.05) {
-        if (!this.equipOk) { this.ctx.hud.toast('Tu Axie no puede usar esa herramienta', true); this._finish(true); return; }
+        if (!this.equipOk) { this.ctx.hud.toast(i18n.t('notices.gather.cantUseTool'), true); this._finish(true); return; }
         this.phase = 'work'; this.workT = 0; this._step = -1;
         this.ctx.hud.begin(this);
       } else if (this.t > 8) { this._finish(true); return; } // el arma no carga
@@ -326,7 +329,7 @@ export class AxieSession extends Session {
     if (step !== this._step) {
       this._step = step;
       if (step === 1) { this._bobber(true); this.item.splash?.(false, tipPos); }
-      if (step === 2) { this.item.splash?.(true, tipPos); this.ctx.hud.flash('¡Pica!'); }
+      if (step === 2) { this.item.splash?.(true, tipPos); this.ctx.hud.flash(i18n.t('notices.gather.bite')); }
     }
     if (this.bobber) {
       if (step === 3) this.bobber.position.copy(tipPos);
@@ -370,7 +373,7 @@ export class AxieSession extends Session {
     if (!this._collect()) { this._finish(true); return; }
     this._bobber(false);
     this.phase = 'return'; this._returnT = this.t; this._far = null;
-    Promise.resolve(this.ax.equipWeapon(null)).catch(() => {});
+    Promise.resolve(equipAxieWeapon(this.ax, this.ctx.player.companionMesh, null)).catch(() => {});
     if (this.def.kind === 'chop') this.item.shake?.(null);
     this.carry = buildCarryItem(this.def.kind);
     (this.ctx.ow.questInteractables?.scene || this.ctx.ow.scene).add(this.carry);
@@ -379,7 +382,7 @@ export class AxieSession extends Session {
 
   cancel() {
     if (!this.cancellable) return false;
-    this.ctx.hud.toast(`${this.kind.label}: cancelado`, true);
+    this.ctx.hud.toast(i18n.t('notices.gather.cancelled', { label: this.kind.label }), true);
     this._finish(true);
     return true;
   }
@@ -388,11 +391,13 @@ export class AxieSession extends Session {
     const { player: p, ow } = this.ctx;
     this._bobber(false);
     if (this.carry) { this.carry.parent?.remove(this.carry); this.carry.traverse((c) => { c.geometry?.dispose?.(); c.material?.dispose?.(); }); this.carry = null; }
+    p.companionHold = false;
     if (p.companionAxie === this.ax) {
-      Promise.resolve(this.ax.equipWeapon(null)).then(() => { if (!p.companionHold) { this._play('Default.Idle', { loop: true, transition: 0.2 }); p.companionAnim = 'idle'; } }).catch(() => {});
+      // Vuelve el arma que tenía equipada (o ninguna) y su animación de reposo (Hito 52)
+      const restore = typeof p._applyCompanionWeapon === 'function' ? p._applyCompanionWeapon() : equipAxieWeapon(this.ax, p.companionMesh, null);
+      Promise.resolve(restore).then(() => { if (!p.companionHold) { this._play(p.companionClip ? p.companionClip('Idle') : 'Default.Idle', { loop: true, transition: 0.2 }); p.companionAnim = 'idle'; } }).catch(() => {});
       this._play('Default.Idle', { loop: true, transition: 0.2 });
     }
-    p.companionHold = false;
     p.companionAnim = null;      // el seguidor vuelve a elegir animación
     p.companionState = 'idle';
     p.companionVel?.set?.(0, 0, 0);
@@ -524,7 +529,7 @@ export class SapidaeSession extends Session {
 
   cancel() {
     if (!this.cancellable) return false;
-    this.ctx.hud.toast(`${this.kind.label}: cancelado`, true);
+    this.ctx.hud.toast(i18n.t('notices.gather.cancelled', { label: this.kind.label }), true);
     this._finish(true);
     return true;
   }

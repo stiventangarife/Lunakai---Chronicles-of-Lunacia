@@ -1,9 +1,9 @@
 # PROJECT_CONTEXT.md — Lunakai: Chronicles of Lunacia
 ## Guía Integral de Arquitectura, Estado y Continuidad Técnica
 
-> **Última actualización:** 2026-10-22 (Hito 49: optimización de rendimiento de las islas, la memoria y los combates)  
+> **Última actualización:** 2026-10-23 (Hitos 51–54: pueblo del Bosque, armas del mixer, memoria y rendimiento, runas y charms como objetos)  
 > **Nombre del Proyecto:** Lunakai: Chronicles of Lunacia (anteriormente Axie Tactics / Axie Adventures)  
-> **Estado actual:** mundo abierto 3D con **5 Grandes Islas** de 480 m y dirección de arte Genshin (cel-shading suave, pictórico, con bruma): Bosque (Hito 22), Sabana, Ártico, Mística (Hito 23) y **Genesis**, la antigua Mazmorra rediseñada (Hito 24). El Hito 24 añade también un plan de mejora por bioma (puente del Bosque; lugares de la Sabana, el Ártico y la Mística; *Fade LOD* de árboles en el Ártico). Las islas nuevas se construyen la primera vez que se visitan. El viaje entre islas se hace con el **barquero Pomodoro**, en la playa de cada isla; los portales cardinales están retirados. Los terrenos del mundo demo 1.0.0 (cuadrícula de macro-zonas de 80 m) ya no se construyen y su contenido de misiones vive en las islas. NPC, monstruos y nodos de misión están validados sobre el terreno real. Se mantienen la auditoría WebGL anti-NaN, el sistema dual de mapas, el minimapa radar y el determinismo Mulberry32. Desde el Hito 25 hay cuentas con Sky Mavis y guardado en Supabase. Los Hitos 26–32 rehacen el motor de combate en 6 fases (0–5): eventos, estados, habilidades de Sapidae, Ultimates, cartas de partes reales, pronóstico de daño y equilibrio. Ver la sección 5.19. Los Hitos 33–48 añaden VFX propios, mapas de combate por bioma, la economía (Forja, Tienda, runas y charms, recolección, lista de ítems), los modelos Ema y Kai, y una partida nueva que empieza con la cinemática del prólogo y el tutorial en 7 fases. Ver la sección 5.21. El Hito 49 optimiza el rendimiento (islas, memoria de texturas y combates) sin cambiar la imagen; ver la sección 5.22. El Hito 50 convierte el tutorial en una guía paso a paso que bloquea todo lo demás; ver la sección 5.23.  
+> **Estado actual:** mundo abierto 3D con **5 Grandes Islas** de 480 m y dirección de arte Genshin (cel-shading suave, pictórico, con bruma): Bosque (Hito 22), Sabana, Ártico, Mística (Hito 23) y **Genesis**, la antigua Mazmorra rediseñada (Hito 24). El Hito 24 añade también un plan de mejora por bioma (puente del Bosque; lugares de la Sabana, el Ártico y la Mística; *Fade LOD* de árboles en el Ártico). Las islas nuevas se construyen la primera vez que se visitan. El viaje entre islas se hace con el **barquero Kawa** (Pomodoro hasta el Hito 51, Kappa hasta el Hito 56), en la playa de cada isla; los portales cardinales están retirados. Los terrenos del mundo demo 1.0.0 (cuadrícula de macro-zonas de 80 m) ya no se construyen y su contenido de misiones vive en las islas. NPC, monstruos y nodos de misión están validados sobre el terreno real. Se mantienen la auditoría WebGL anti-NaN, el sistema dual de mapas, el minimapa radar y el determinismo Mulberry32. Desde el Hito 25 hay cuentas con Sky Mavis y guardado en Supabase. Los Hitos 26–32 rehacen el motor de combate en 6 fases (0–5): eventos, estados, habilidades de Sapidae, Ultimates, cartas de partes reales, pronóstico de daño y equilibrio. Ver la sección 5.19. Los Hitos 33–48 añaden VFX propios, mapas de combate por bioma, la economía (Forja, Tienda, runas y charms, recolección, lista de ítems), los modelos Ema y Kai, y una partida nueva que empieza con la cinemática del prólogo y el tutorial en 7 fases. Ver la sección 5.21. El Hito 49 optimiza el rendimiento (islas, memoria de texturas y combates) sin cambiar la imagen; ver la sección 5.22. El Hito 50 convierte el tutorial en una guía paso a paso que bloquea todo lo demás; ver la sección 5.23. Los Hitos 51–53 añaden el pueblo del Bosque, las armas del mixer y mejoras de memoria y FPS; ver la sección 5.24. El Hito 54 convierte las runas y los charms en objetos (sección 5.25) el Hito 55 pone modelos GLB en la Sabana (sección 5.26) el Hito 56 en el Ártico (sección 5.27) el Hito 57 en la Mística (sección 5.28) y el Hito 58 en Genesis (sección 5.29).  
 > **Idioma de comunicación con el usuario:** **Siempre en español**.
 
 ---
@@ -146,7 +146,8 @@ axie-tactics-web/
 │       │   │   ├── SavannaWaterManager.js ← Mar abierto turquesa 360°, rompientes marinas y oasis con peces a Y=11.2m
 │       │   │   ├── SavannaVegetationManager.js ← 45.000 briznas de hierba dorada instanciada con viento y pisadas
 │       │   │   ├── SavannaPropsManager.js ← Palmeras del desierto y rocas de arenisca roja instanciadas
-│       │   │   ├── SavannaLandmarksManager.js ← Campamento de Bing, Altar del Sol Naciente y Fragua de Baruk
+│       │   │   ├── SavannaLandmarksManager.js ← Campamento de Bing (hoguera, diana, estandarte); altar y fragua antiguos ocultos
+│       │   │   ├── SavannaGenshinLandmarks.js ← Modelos GLB (kit IslandProps): casas, altar de Atia, tótem, tabla de surf y balsa (Hito 55)
 │       │   │   ├── SavannaParticles.js  ← Ráfagas de viento y polvo de arena del desierto en suspensión
 │       │   │   ├── SavannaDistantIslands.js ← Siluetas panorámicas 360° vistas desde la cima de la meseta
 │       │   │   └── SavannaAssetManager.js ← Carga y gestión de recursos 3D y texturas de la Sabana
@@ -501,8 +502,52 @@ Detalle, mediciones y reglas en `docs/HITO_49_OPTIMIZACION_DE_RENDIMIENTO.md`.
 - **Combate:** `TutorialManager` tiene pasos fijos (Dojo) y una guía calculada por turno para el duelo y la Ultimate (`startDynamic('duel' | 'ult')`, `_dynStep`). `main.js` consulta `isSpellAllowed`, `isUltAllowed` y las casillas permitidas antes de pintar o actuar, y llama a `nudge()` si se intenta otra cosa.
 - **Mientras dura el tutorial:** solo Paladill habla (`NPCManager.tryInteract`) y los slimes del Bosque están ocultos (`SlimeCreaturesManager._tutorialRunning`).
 - **Paso nuevo con ventana:** añadir su caso en `_computeGuide()` con un selector estable (`data-*`), no con textos.
+- **Memoria al cargar partida:** lo que se crea en `OverworldManager.init()` y registra escuchadores en `window` o se añade a la escena necesita `dispose()` (como `PlayerController` y `PlayerEntity`), o crearse una sola vez. Los Axies de la librería del mixer se devuelven con `axie.dispose()` (también en `Unit.dispose()`).
 
 Detalle y pruebas en `docs/HITO_50_TUTORIAL_GUIADO_Y_AJUSTES.md`.
+
+### 5.24 Pueblo del Bosque, armas del mixer, memoria y rendimiento (Hitos 51–53)
+
+- **Pueblo (Hito 51):** `world/ForestVillageLayout.js` (posiciones y puntos derivados, sin imports) y `world/ForestVillage.js` (`InstancedMesh` por modelo, claros en la hierba, colisiones, se libera al salir con `ModelCache.evictGLTF`). Ochi, Paladill, la Forja, su árbol y el Guardián de los Pergaminos leen sus puntos del layout. El barquero es **Kawa** (id interno `ferry_pomodoro`). Los NPC animados necesitan `skeleton.dispose()` al retirarse y los de luz horneada `matte: true`.
+- **Armas (Hito 52):** `rpg/WeaponVisuals.js` decide el modelo por objeto (`WEAPON_VISUALS`) y el agarre del Sapidae (`SAPIDAE_GRIP`, hueso `Weapon_R`; el tamaño se compensa en cada fotograma porque las animaciones de Kai escalan el hueso). El Axie usa `equipAxieWeapon`, que libera el esqueleto del arma anterior.
+- **Memoria (Hito 53):** la cinemática suelta las texturas de sus modelos; `SapidaeModularController.releaseHiddenFace` libera las variantes ocultas al aplicar el equipo y al volver de un combate, y el precalentado de efectos respeta `lkNoPrewarm`.
+- **Rendimiento (Hito 53):** en `EnvironmentSystem.render` las sombras se recalculan uno de cada dos fotogramas y `_trimSmallShadows` quita la sombra a la vegetación pequeña y las farolas; el bloom va a media resolución; `PlayerEntity` comparte un solo esqueleto entre las piezas del Sapidae (`shareSkeletons`).
+
+Detalle en `docs/HITO_51_PUEBLO_DEL_BOSQUE.md`, `docs/HITO_52_ARMAS_DEL_MIXER.md` y `docs/HITO_53_MEMORIA_TUTORIAL.md`.
+
+### 5.25 Runas y charms como objetos (Hito 54)
+
+- `RuneCharmService` guarda también la bolsa (`slot.runeCharmBag`): solo se equipa lo libre (`available`); `openBag(kind)` da una de clase al azar y `rollNeutral(kind)` una neutra (botín en `main.js`, `EconomyCatalog.RUNE_CHARM_DROP`).
+- Bolsas `rune_bag` y `charm_bag` (ItemDatabase, recetas de la Forja) se abren en la Mochila (`InventoryModal._openBag`).
+- La Tienda vende runas y charms con ids `rune:<id>` / `charm:<id>` (`ShopService.itemOf`, `EconomyCatalog.RUNE_CHARM_SELL`).
+- Arte compartido en `ui/RuneCharmArt.js`; tarjeta de recompensa en `ui/RewardCard.js`.
+- Tutorial: paso `forge_close`, `AxieCareService.tutorialFill` (caricia + comida = 100 %), sin préstamo de vínculo. Detalle en `docs/HITO_54_TUTORIAL_Y_RUNAS_COMO_OBJETOS.md`.
+
+### 5.26 Modelos GLB en la Sabana (Hito 55)
+
+- `SavannaGenshinLandmarks` carga `house.glb` (campamento de Bing y casa de Baruk), `altar_atia.glb`, `totem_2.glb`, `table_surf.glb` y `balsa.glb` con la clave `'<url>#sabana'`: el pueblo del Bosque descarga sus modelos al salir (`evictGLTF`) y no debe compartir caché con la Sabana. La Sabana no descarga los suyos (`WorldMapManager` libera las texturas de islas inactivas).
+- Ya no hay fragua ni altar del Sol con primitivas (ni sus luces puntuales). Las colisiones se conocen al construir; solo la balsa se mueve. Detalle en `docs/HITO_55_MODELOS_DE_LA_SABANA.md`.
+
+### 5.27 Modelos GLB en el Ártico (Hito 56)
+
+- Kit compartido `rpg/world/islands/kit/IslandProps.js`: `ISLAND_PROPS` + `placeIslandProps()` (colisiones al momento, modelos al cargar, caché `'<url>#islas'` compartida por Sabana y Ártico, zócalo de piedra en pendientes > 25 cm). Para añadir una pieza a una isla: una entrada en `ISLAND_PROPS` y una línea en la lista de la isla.
+- Ártico: casas `house.glb` (Pomodoro, Ermitaño y la del Campamento Boreal, junto a la de Pomodoro para dejar el lago despejado; `house_artic.glb` ya no se carga en la isla), `shop.glb` del Chef, `totem_ice` en el valle (sitio `altar`), `altar_atia` en el sitio nuevo `atia` (19, 76), banderas y `totem`. Detalle en `docs/HITO_56_MODELOS_DEL_ARTICO.md`.
+
+### 5.28 Modelos GLB en la Isla Mística (Hito 57)
+
+- `MysticLandmarks._buildModels()` usa el kit `IslandProps` (grupo `MysticProps`, fuera del `mergeStaticByMaterial`): `house.glb` para el astrólogo y `statue_mystic` en el islote (antes pilar de runas) y el Observatorio.
+- La flor `herb_mystic_2` pasa a la orilla del pantano (−46, 33). Detalle en `docs/HITO_57_MODELOS_DE_LA_MISTICA.md`.
+
+### 5.29 Estatuas GLB en Genesis (Hito 58)
+
+- `GenesisLandmarks._buildPlazaStatues()` (kit `IslandProps`): `peluche.glb` en el centro del Jardín Real y siete estatuas de armas (`lanza`, `hacha`, `doble`, `mando`, `baston`, `arco`, `mana`) en el círculo de 17 m, mirando al centro. El NPC `atia_spirit` usa `assets/models/atias.glb` (`matte: true`). Detalle en `docs/HITO_58_ESTATUAS_DE_GENESIS.md`.
+
+### 5.30 Dos idiomas (Hito 59)
+
+- `src/i18n/i18n.js` + diccionarios `src/i18n/{es,en}/*.js`. Todo texto visible nuevo va por `i18n.t('modulo.clave')` con la clave en **los dos** idiomas (revisar con `check_i18n.py`). Idioma por defecto inglés; se lee una vez al cargar (`axie_lk_prefs.lang`) y cambiarlo guarda y recarga. Nombres de personajes y cartas no se traducen; lugares sí. Ids, variables y datos guardados no cambian. Detalle en `docs/HITO_59_DOS_IDIOMAS.md`.
+- Hito 60 (historia): módulos `quests`, `npc`, `npcDefs`, `tutorial*`, `prologue`, `story`. El código que decide buscando palabras en un texto visible debe usar `i18n.en(texto)` (versión inglesa) para comportarse igual en los dos idiomas. Detalle en `docs/HITO_60_IDIOMAS_HISTORIA.md`.
+- Hito 61 (datos): listas grandes de datos se traducen con `i18n.applyText(lista, prefijo, campos)` justo después de definirlas (claves `prefijo.<id>.<campo>`); si un archivo de datos se regenera, conserva esa línea. `i18n.inLang(texto, lang)` para analizar textos visibles en un idioma fijo. Nombres oficiales de Axie (cartas, runas, charms) no se traducen. Detalle en `docs/HITO_61_IDIOMAS_DATOS.md`.
+- Hito 62 (sistema): el juego queda completo en los dos idiomas (3597 claves). Números con decimales siempre con `i18n.num` (o el idioma activo), nunca `replace('.', ',')` fijo. Lo que queda sin traducir a propósito está listado en `docs/HITO_62_IDIOMAS_SISTEMA.md` §3.
 
 ---
 
@@ -566,7 +611,7 @@ Para garantizar la estabilidad del proyecto, cualquier persona o agente que trab
 Para comprobar que el proyecto está saludable tras realizar cambios:
 
 ```bash
-# 1. Iniciar servidor local:
+# 1. Iniciar servidor local (o doble clic en iniciar_servidor.bat, en la raíz del proyecto):
 node server.js 8082
 
 # 2. Verificar servidor en otra terminal:

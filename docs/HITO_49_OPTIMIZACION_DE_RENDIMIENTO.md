@@ -3,6 +3,12 @@
 > **Estado:** completado (21–22 oct 2026).
 > **Pedido:** optimizar el juego (three.js r160, sin bundler) isla por isla y después los tableros de combate, sin cambiar la composición visual en calidad Alta, sin agrupar los árboles y sin tocar la vegetación. Cada tanda empezó con una revisión y un plan aprobado, y terminó con capturas de antes y después y una revisión independiente del código.
 
+> **Actualización (23-oct, Hito 53):**
+> - Mundo abierto: el mapa de sombras se recalcula uno de cada dos fotogramas, la vegetación pequeña y las farolas no proyectan sombra, el Sapidae del jugador usa un solo esqueleto y el brillo (bloom) va a media resolución.
+> - Las variantes ocultas del Sapidae (`lkNoPrewarm`) ya no las vuelve a subir el precalentado de efectos de combate (`VfxBridge._precompile`), y se liberan otra vez al volver de cada combate.
+>
+> Ver `HITO_53_MEMORIA_TUTORIAL.md`.
+
 ## 1. Resumen de resultados
 
 | Área | Antes | Después |

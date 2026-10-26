@@ -2,9 +2,11 @@
 import * as THREE from 'three';
 import { GLTFLoader } from '../../vendor/GLTFLoader.js';
 import { axieMixerService } from '../rpg/AxieMixerService.js';
+import { weaponVisual, equipAxieWeapon, disposeAxieWeapons } from '../rpg/WeaponVisuals.js';
 import { applyToonOutline } from '../rpg/stylized/ToonOutline.js';
 import { sapidaeModularController } from '../rpg/SapidaeModularController.js';
 import { sapidaeModelUrl } from '../rpg/SapidaeModels.js';
+import * as i18n from '../i18n/i18n.js';
 import { cloneGLTF } from '../render/ModelCache.js'; // caché de GLB compartida con el mundo abierto
 
 /**
@@ -96,6 +98,9 @@ export class Unit {
     if (tile) tile.unit = this;
   }
 
+  /** Animación del Axie: la de su arma si la lleva ('Sword.Run') o la normal ('Default.Run'). */
+  clip(base) { return this.weaponFamily ? `${this.weaponFamily}.${base}` : `Default.${base}`; }
+
   getSkillLevel(spellId) {
     return (this.skillLevels && this.skillLevels[spellId]) || 1;
   }
@@ -113,6 +118,13 @@ export class Unit {
 
         this.axie = res.axie;
         this.mesh = res.wrapper;
+        // Arma equipada: modelo del mixer en su mano y sus animaciones (Sword.Idle…). Hito 52
+        this.weaponFamily = null;
+        const wv = weaponVisual(this.config.equipped?.weapon);
+        if (wv && typeof this.axie.equipWeapon === 'function') {
+          if (await equipAxieWeapon(this.axie, this.mesh, wv.variant)) this.weaponFamily = wv.family;
+          if (this.weaponFamily) this.axie.playAnimation(this.clip('Idle'));
+        }
         this.mesh.position.set(0, 0, 0);
         this.baseScale = this.config.scale || 0.88;
         this.group.add(this.mesh);
@@ -380,6 +392,9 @@ export class Unit {
     if (this._disposed) return;
     this._disposed = true;
     try {
+      // Axie de la librería del mixer (una instancia por unidad): su dispose() devuelve las piezas
+      // compartidas por recuento y lo saca del registro de la librería, que si no lo guardaba para siempre
+      if (this.axie && typeof this.axie.dispose === 'function') { disposeAxieWeapons(this.mesh); this.axie.dispose(); }
       if (this.mixer) {
         this.mixer.stopAllAction();
         if (this.mesh) this.mixer.uncacheRoot(this.mesh);
@@ -395,6 +410,13 @@ export class Unit {
         if (c.isMesh && c.geometry && c.geometry.type === 'CircleGeometry') c.geometry.dispose();
       }
       if (this._ownedGeometries) for (const g of this._ownedGeometries) g.dispose();
+      // Esqueletos de esta unidad (clon propio): cada uno tiene una textura de huesos en la GPU
+      // que no se liberaba al terminar el combate (+12 texturas por combate)
+      if (this.mesh) {
+        const skels = new Set();
+        this.mesh.traverse((o) => { if (o.isSkinnedMesh && o.skeleton) skels.add(o.skeleton); });
+        skels.forEach((s) => s.dispose());
+      }
       this._ownedGeometries = null;
       // Texturas de expresión de la cara del Sapidae (SapidaeModularController._ownMap): son copias
       // creadas para los materiales de ESTA unidad (sus materiales son clones propios)
@@ -554,15 +576,15 @@ export class Unit {
 
     ctx.fillStyle = '#ffffff';
     ctx.font = 'bold 13px monospace';
-    const hpText = this.shield > 0 ? `${safeHP}+${this.shield}🛡️ / ${safeMaxHP}` : `${safeHP} / ${safeMaxHP}`;
+    const hpText = this.shield > 0 ? `${safeHP} (+${this.shield}) / ${safeMaxHP}` : `${safeHP} / ${safeMaxHP}`;
     ctx.fillText(hpText, w / 2, barY + 12);
 
     ctx.font = 'bold 15px system-ui, sans-serif';
     ctx.fillStyle = '#38bdf8';
-    ctx.fillText('★ ' + this.currentPA + ' PA', w / 2 - 46, 96);
+    ctx.fillText('★ ' + i18n.t('combatFx.paN', { n: this.currentPA }), w / 2 - 46, 96);
 
     ctx.fillStyle = '#4ade80';
-    ctx.fillText('👟 ' + this.currentPM + ' PM', w / 2 + 46, 96);
+    ctx.fillText('◆ ' + i18n.t('combatFx.pmN', { n: this.currentPM }), w / 2 + 46, 96);
 
     // Estados alterados (icono + turnos restantes) bajo el panel
     if (this.statuses && this.statuses.length) {
@@ -626,7 +648,7 @@ export class Unit {
 
     // Trigger run animation if available
     if (this.axie && typeof this.axie.playAnimation === 'function') {
-      this.axie.playAnimation('Default.Run');
+      this.axie.playAnimation(this.clip('Run'));
     } else if (this.hasRunAnimation && this.runClip) {
       this.runClip.timeScale = 1.35;
       this.runClip.reset().fadeIn(0.12).play();
@@ -687,7 +709,7 @@ export class Unit {
 
     // Return to idle animation
     if (this.axie && typeof this.axie.playAnimation === 'function') {
-      this.axie.playAnimation('Default.Idle');
+      this.axie.playAnimation(this.clip('Idle'));
     } else if (this.hasRunAnimation && this.runClip) {
       if (this.idleClip) this.idleClip.reset().fadeIn(0.15).play();
       this.runClip.fadeOut(0.15);
@@ -1236,10 +1258,10 @@ export class Unit {
   playAttackAnimation() {
     if (this.axie && typeof this.axie.playAnimation === 'function') {
       try {
-        this.axie.playAnimation('Action.AttackCombo');
+        this.axie.playAnimation(this.weaponFamily ? `${this.weaponFamily}.Attack` : 'Action.AttackCombo');
         setTimeout(() => {
           if (this.axie && !this.isDead && !this.isMoving) {
-            this.axie.playAnimation('Default.Idle');
+            this.axie.playAnimation(this.clip('Idle'));
           }
         }, 550);
       } catch (e) {

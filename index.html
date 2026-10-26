@@ -46,15 +46,15 @@
     var $ = function (id) { return document.getElementById(id); };
     function fail(html) {
       if (done) return; failed = true;
-      $('lk-boot-txt').textContent = 'No se pudo iniciar el juego';
-      $('lk-boot-msg').innerHTML = html + '<br><small style="opacity:.8">Recarga con Ctrl + Shift + R. Si se repite, revisa la consola (F12) y que el servidor local siga abierto.</small>';
+      $('lk-boot-txt').textContent = BT('failTitle');
+      $('lk-boot-msg').innerHTML = html + '<br><small style="opacity:.8">' + BT('failHint') + '</small>';
       $('lk-boot-retry').hidden = false;
     }
     var short = function (u) { return String(u || '').replace(location.origin + '/', ''); };
     // Fallo al descargar un archivo (script, módulo o estilo) o error de JavaScript al arrancar.
     addEventListener('error', function (e) {
       var t = e.target;
-      if (t && t !== window && (t.tagName === 'SCRIPT' || t.tagName === 'LINK')) fail('No cargó <code>' + short(t.src || t.href) + '</code>.');
+      if (t && t !== window && (t.tagName === 'SCRIPT' || t.tagName === 'LINK')) fail(BT('notLoaded').replace('{file}', '<code>' + short(t.src || t.href) + '</code>'));
       else if (e.message && !done) fail('Error: ' + e.message + (e.filename ? ' <small>(' + short(e.filename) + ':' + e.lineno + ')</small>' : ''));
     }, true);
     addEventListener('unhandledrejection', function (e) { if (!done && !window.game) fail('Error: ' + (e.reason && e.reason.message || e.reason)); });
@@ -68,11 +68,40 @@
       var n = performance.getEntriesByType('resource').filter(function (r) { return /\.js(\?|$)/.test(r.name); }).length;
       $('lk-boot-bar').style.width = Math.min(95, 8 + n / 2.4) + '%';
       if (!failed && Date.now() - t0 > 20000) {
-        $('lk-boot-txt').textContent = 'Está tardando más de lo normal…';
-        $('lk-boot-msg').innerHTML = n + ' archivos cargados. Puede que el servidor local esté ocupado o una extensión del navegador bloquee algún archivo.';
+        $('lk-boot-txt').textContent = BT('slowTitle');
+        $('lk-boot-msg').innerHTML = BT('slowMsg').replace('{n}', n);
         $('lk-boot-retry').hidden = false;
       }
     }, 200);
+
+    // Idioma de la pantalla de arranque (i18n · Hito 59): el juego aún no ha cargado su módulo de traducción, así que
+    // aquí se lee la preferencia (axie_lk_prefs.lang, por defecto 'en') y se usa un mapa propio {es,en}.
+    var BOOT_TXT = {
+      es: {
+        loading: 'Cargando Lunakai…', reload: 'Recargar', failTitle: 'No se pudo iniciar el juego',
+        failHint: 'Recarga con Ctrl + Shift + R. Si se repite, revisa la consola (F12) y que el servidor local siga abierto.',
+        notLoaded: 'No cargó {file}.', slowTitle: 'Está tardando más de lo normal…',
+        slowMsg: '{n} archivos cargados. Puede que el servidor local esté ocupado o una extensión del navegador bloquee algún archivo.',
+        title: 'Lunakai: Crónicas de Lunacia | RPG táctico por turnos en 3D'
+      },
+      en: {
+        loading: 'Loading Lunakai…', reload: 'Reload', failTitle: "Couldn't start the game",
+        failHint: 'Reload with Ctrl + Shift + R. If it happens again, check the console (F12) and make sure the local server is still running.',
+        notLoaded: 'Failed to load {file}.', slowTitle: 'This is taking longer than usual…',
+        slowMsg: '{n} files loaded. The local server may be busy, or a browser extension may be blocking a file.',
+        title: 'Lunakai: Chronicles of Lunacia | 3D Turn-Based Tactical RPG'
+      }
+    };
+    function bootLang() {
+      try { var p = JSON.parse(localStorage.getItem('axie_lk_prefs') || '{}'); if (p.lang === 'es' || p.lang === 'en') return p.lang; } catch (_) { /* sin almacenamiento */ }
+      return 'en';
+    }
+    var BOOT_LANG = bootLang();
+    function BT(k) { return BOOT_TXT[BOOT_LANG][k]; }
+    document.documentElement.lang = BOOT_LANG;
+    document.title = BT('title');
+    $('lk-boot-txt').textContent = BT('loading');
+    $('lk-boot-retry').textContent = BT('reload');
   })();
   </script>
   <!-- 3D Canvas Container -->
@@ -479,6 +508,72 @@
     </div>
   </div>
 
+  <script>
+  // Textos fijos de la ayuda de combate y del botón «Reintentar» en el idioma elegido (i18n · Hito 59).
+  // Lee axie_lk_prefs.lang (por defecto 'en'); el resto del HUD lo traduce el JS del juego al pintarlo.
+  (function () {
+    var lang = 'en';
+    try { var p = JSON.parse(localStorage.getItem('axie_lk_prefs') || '{}'); if (p.lang === 'es' || p.lang === 'en') lang = p.lang; } catch (_) { /* sin almacenamiento */ }
+    // [selector, modo ('html' | 'text' = último nodo de texto | nombre de atributo), [textos es], [textos en]] — un texto por elemento encontrado
+    var T = [
+      ['#lk-rules-title', 'html', ['<small>Combate · Ayuda</small>Reglas y controles'], ['<small>Combat · Help</small>Rules &amp; controls']],
+      ['#btn-close-help', 'aria-label', ['Cerrar'], ['Close']],
+      ['#help-modal .lk-rules__card > div', 'html', [
+        '<h4>Tu turno no acaba al actuar</h4><p>Gasta <b class="lk-pa">PA</b> en cartas y <b class="lk-pm">PM</b> en moverte, en el orden que quieras: muévete 1, ataca, muévete 2 y vuelve a atacar mientras te queden puntos.</p>',
+        '<h4>Empuje y choque</h4><p>Algunas cartas empujan al objetivo. Si choca con una roca, un árbol u otra unidad, se detiene y <b>ambos reciben daño de colisión</b>.</p>',
+        '<h4>Estados</h4><p>Veneno, sangrado, provocación, frágil, débil, escudos, barreras… Se ven sobre cada unidad: pasa el ratón para ver cuántos turnos les quedan. Si un enemigo con <b>Provocación</b> está a tu alcance, debes atacarlo.</p>',
+        '<h4>Previsión de daño</h4><p>Con una carta elegida, pasa el ratón por un objetivo: verás el <b>daño exacto</b> (con clase, estados, escudos y barreras), la probabilidad de crítico y si el golpe es <b>letal</b>. Las de área muestran a todos los que alcanzan.</p>'
+      ], [
+        '<h4>Your turn doesn\'t end when you act</h4><p>Spend <b class="lk-pa">AP</b> on cards and <b class="lk-pm">MP</b> on moving, in any order: move 1, attack, move 2 and attack again while you have points left.</p>',
+        '<h4>Push and collision</h4><p>Some cards push the target. If it hits a rock, a tree or another unit, it stops and <b>both take collision damage</b>.</p>',
+        '<h4>Status effects</h4><p>Poison, bleed, taunt, fragile, weakened, shields, barriers… They show above each unit: hover to see how many turns are left. If an enemy with <b>Taunt</b> is in range, you must attack it.</p>',
+        '<h4>Damage forecast</h4><p>With a card selected, hover over a target to see the <b>exact damage</b> (with class, statuses, shields and barriers), the crit chance and whether the hit is <b>lethal</b>. Area cards show everyone they reach.</p>'
+      ]],
+      ['#help-modal .lk-rules__tri', 'aria-label', ['Triángulo de clases'], ['Class triangle']],
+      ['#help-modal .lk-rules__tri .lk-label', 'text', ['Triángulo de clases'], ['Class triangle']],
+      ['#help-modal .lk-rules__cls', 'text', ['Bestia', 'Bicho', 'Mech', 'Planta', 'Reptil', 'Dusk', 'Acuático', 'Pájaro', 'Dawn'], ['Beast', 'Bug', 'Mech', 'Plant', 'Reptile', 'Dusk', 'Aquatic', 'Bird', 'Dawn']],
+      ['#help-modal .lk-rules__beats', 'aria-label', ['vence a', 'vence a', 'y vuelve a vencer al primer grupo'], ['beats', 'beats', 'and beats the first group again']],
+      ['#help-modal .lk-rules__note', 'html', ['Cada grupo vence al siguiente: <b class="lk-up">+15 %</b> de daño al que tiene ventaja y <b class="lk-down">−15 %</b> al revés.'], ['Each group beats the next: <b class="lk-up">+15%</b> damage with the advantage and <b class="lk-down">−15%</b> the other way round.']],
+      ['#help-modal .lk-rules__controls .lk-label', 'text', ['En combate', 'Cámara'], ['In combat', 'Camera']],
+      ['#help-modal .lk-rules__controls li', 'html', [
+        '<span class="lk-rules__keys"><kbd>Clic izq.</kbd></span><span>Moverte a la casilla o lanzar la carta elegida</span>',
+        '<span class="lk-rules__keys"><kbd>1</kbd>–<kbd>6</kbd></span><span>Elegir carta (las 6 partes del Axie)</span>',
+        '<span class="lk-rules__keys"><kbd>7</kbd></span><span>Vínculo Supremo (100 % de vínculo, desde la ronda 2, una vez)</span>',
+        '<span class="lk-rules__keys"><kbd>Esc</kbd></span><span>Cancelar la carta y volver a moverte</span>',
+        '<span class="lk-rules__keys"><kbd>Espacio</kbd></span><span>Pasar turno</span>',
+        '<span class="lk-rules__keys"><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd></span><span>Desplazar la cámara (también con las flechas)</span>',
+        '<span class="lk-rules__keys"><kbd>Q</kbd><kbd>E</kbd></span><span>Girar la vista 45°</span>',
+        '<span class="lk-rules__keys"><kbd>R</kbd></span><span>Centrar en el héroe activo</span>',
+        '<span class="lk-rules__keys"><kbd>Rueda</kbd></span><span>Acercar y alejar</span>',
+        '<span class="lk-rules__keys"><kbd>Clic der.</kbd>+ arrastrar</span><span>Orbitar e inclinar</span>',
+        '<span class="lk-rules__keys"><kbd>Clic central</kbd>+ arrastrar</span><span>Mover el tablero</span>'
+      ], [
+        '<span class="lk-rules__keys"><kbd>Left click</kbd></span><span>Move to the tile or cast the selected card</span>',
+        '<span class="lk-rules__keys"><kbd>1</kbd>–<kbd>6</kbd></span><span>Select a card (the Axie\'s 6 parts)</span>',
+        '<span class="lk-rules__keys"><kbd>7</kbd></span><span>Duo Ultimate (100% Bond, from round 2, once)</span>',
+        '<span class="lk-rules__keys"><kbd>Esc</kbd></span><span>Cancel the card and go back to moving</span>',
+        '<span class="lk-rules__keys"><kbd>Space</kbd></span><span>End turn</span>',
+        '<span class="lk-rules__keys"><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd></span><span>Pan the camera (arrow keys work too)</span>',
+        '<span class="lk-rules__keys"><kbd>Q</kbd><kbd>E</kbd></span><span>Rotate the view 45°</span>',
+        '<span class="lk-rules__keys"><kbd>R</kbd></span><span>Center on the active hero</span>',
+        '<span class="lk-rules__keys"><kbd>Wheel</kbd></span><span>Zoom in and out</span>',
+        '<span class="lk-rules__keys"><kbd>Right click</kbd>+ drag</span><span>Orbit and tilt</span>',
+        '<span class="lk-rules__keys"><kbd>Middle click</kbd>+ drag</span><span>Pan the board</span>'
+      ]],
+      ['#btn-ok-help', 'text', ['Entendido'], ['Got it']],
+      ['#btn-restart', 'text', ['Reintentar'], ['Retry']]
+    ];
+    T.forEach(function (row) {
+      var list = document.querySelectorAll(row[0]), txt = lang === 'es' ? row[2] : row[3];
+      for (var i = 0; i < list.length && i < txt.length; i++) {
+        var el = list[i];
+        if (row[1] === 'html') el.innerHTML = txt[i];
+        else if (row[1] === 'text') { var n = el.lastChild; if (n && n.nodeType === 3) n.nodeValue = txt[i]; else el.appendChild(document.createTextNode(txt[i])); }
+        else el.setAttribute(row[1], txt[i]);
+      }
+    });
+  })();
+  </script>
   <script type="module" src="./src/main.js"></script>
 </body>
 </html>

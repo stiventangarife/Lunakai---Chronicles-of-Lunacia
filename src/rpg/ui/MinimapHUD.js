@@ -1,6 +1,7 @@
 // MinimapHUD.js - Sleek Real-Time Overworld Minimap / Tactical Radar (Top-Right HUD)
 import { ISLANDS_REGISTRY } from '../world/MapRegistry.js';
 import { ISLAND_NAMES, canonicalZoneId } from '../world/islands/IslandWorldLayout.js';
+import * as i18n from '../../i18n/i18n.js';
 
 export class MinimapHUD {
   constructor(overworldManager) {
@@ -33,16 +34,16 @@ export class MinimapHUD {
       el.id = 'overworld-minimap-hud';
       el.className = 'lk-ow-minimap';
       el.innerHTML = `
-        <div class="lk-minimap" id="minimap-radar-frame" title="Mapa de la isla [M]">
+        <div class="lk-minimap" id="minimap-radar-frame" title="${i18n.t('hud.islandMapM')}">
           <canvas id="minimap-canvas" width="${this.size}" height="${this.size}"></canvas>
           <span class="lk-n">N</span>
           <div class="lk-minimap__zoom minimap-zoom-controls">
-            <button type="button" id="minimap-zoom-in" title="Acercar">+</button>
-            <button type="button" id="minimap-zoom-out" title="Alejar">−</button>
+            <button type="button" id="minimap-zoom-in" title="${i18n.t('hud.zoomIn')}">+</button>
+            <button type="button" id="minimap-zoom-out" title="${i18n.t('hud.zoomOut')}">−</button>
           </div>
         </div>
         <div class="lk-minimap__meta">
-          <span id="minimap-zone-title" class="lk-minimap__zone">Isla del Bosque</span>
+          <span id="minimap-zone-title" class="lk-minimap__zone">${i18n.t('places.islandForest')}</span>
           <span id="minimap-target-dist" class="lk-minimap__dist hidden">0 m</span>
           <button type="button" id="minimap-map-btn" hidden></button>
           <span id="minimap-coords-text" class="lk-minimap__coords">X 0.0 · Z 0.0</span>
@@ -140,7 +141,7 @@ export class MinimapHUD {
     // Nombre de la isla en la que está el jugador (las cinco); si el mapa no es de ninguna, como antes.
     const mapId = canonicalZoneId(this.om?.worldMapManager?.currentMapId);
     const islandName = typeof mapId === 'string' ? ISLAND_NAMES[mapId.replace(/^zone_/, '')] : null;
-    const titleTxt = islandName || (isSavannah ? 'Isla de la Sabana' : 'Isla del Bosque');
+    const titleTxt = islandName || (isSavannah ? i18n.t('places.islandSavannah') : i18n.t('places.islandForest'));
     if (this._titleEl && this._titleTxt !== titleTxt) {
       this._titleEl.textContent = titleTxt;
       this._titleTxt = titleTxt;

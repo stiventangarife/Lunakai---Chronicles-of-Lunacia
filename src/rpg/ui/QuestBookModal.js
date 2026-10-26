@@ -8,18 +8,19 @@ import { portraitService } from '../../tactics/CharacterPortraitService.js';
 import { ITEMS_DB } from '../../tactics/ItemDatabase.js';
 import { MATERIALS } from '../../tactics/data/EconomyCatalog.js';
 import { matSvg, matIcon } from '../../ui/MaterialIcons.js';
-import { asset, sprite, bindSwitch } from '../../ui/lk.js';
+import { asset, sprite, bindSwitch, curIcon } from '../../ui/lk.js';
+import * as i18n from '../../i18n/i18n.js';
 
 const I = (n) => asset(`assets/ui/icons/${n}.png`);
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const isImg = (s) => typeof s === 'string' && (/^(\.\/|\/|assets\/|http|data:image)/.test(s) || /\.(png|jpe?g|webp|svg)$/i.test(s));
 const RAR = { common: 'common', uncommon: 'uncommon', rare: 'rare', epic: 'epic', legendary: 'mystic', mystic: 'mystic' };
 const CATS = [
-  ['all', 'Todas las misiones', 'list'],
-  ['Principal', 'Historia principal', 'mission'],
-  ['Secundaria', 'Encargos', 'browse']
+  ['all', i18n.t('questBook.catAll'), 'list'],
+  ['Principal', i18n.t('questBook.catMain'), 'mission'],
+  ['Secundaria', i18n.t('questBook.catSide'), 'browse']
 ];
-const CAT_ES = { Principal: 'Historia principal', Secundaria: 'Encargo' };
+const CAT_ES = { Principal: i18n.t('questBook.catMain'), Secundaria: i18n.t('questBook.catSideOne') };
 const RECRUIT = { bing: 'Bing', pomodoro: 'Pomodoro' };
 
 export class QuestBookModal {
@@ -52,12 +53,12 @@ export class QuestBookModal {
     m.id = 'quest-book-modal';
     m.className = 'lk-ui lk-backdrop lk-chron-layer hidden';
     m.innerHTML = `
-      <div class="lk-panel-modal-window lk-chron" role="dialog" aria-label="Crónica de misiones">
+      <div class="lk-panel-modal-window lk-chron" role="dialog" aria-label="${i18n.t('questBook.dialogLabel')}">
         <div class="lk-panel-head">
           <span class="lk-emblem"><img class="lk-ai" src="${I('mission')}" alt=""></span>
-          <h3><small>Crónica · tecla J</small>Misiones</h3>
-          <label class="lk-chron__hide"><span>Ocultar completadas</span><button type="button" class="lk-switch" role="switch" aria-checked="true" data-ref="hide" aria-label="Ocultar misiones completadas"></button></label>
-          <button type="button" class="lk-btn-close-x" data-ref="close" aria-label="Cerrar">${sprite('i-close')}</button>
+          <h3><small>${i18n.t('questBook.kicker')}</small>${i18n.t('questBook.title')}</h3>
+          <label class="lk-chron__hide"><span>${i18n.t('questBook.hideCompleted')}</span><button type="button" class="lk-switch" role="switch" aria-checked="true" data-ref="hide" aria-label="${i18n.t('questBook.hideCompletedAria')}"></button></label>
+          <button type="button" class="lk-btn-close-x" data-ref="close" aria-label="${i18n.t('questBook.close')}">${sprite('i-close')}</button>
         </div>
         <div class="lk-journal">
           <div class="lk-j-rail" data-ref="rail">
@@ -155,21 +156,21 @@ export class QuestBookModal {
     const tracked = this.questManager.getTrackedQuest()?.id;
     const item = (q) => {
       const cls = q.status === 'completed' ? 'lk-done' : 'lk-active';
-      const tag = q.status === 'ready_to_turn_in' ? '<span class="lk-q-tag lk-turn">Entregar</span>'
-        : q.id === tracked ? `<span class="lk-q-tag" title="Misión seguida en el HUD"><img src="${I('mission')}" alt=""></span>` : '';
+      const tag = q.status === 'ready_to_turn_in' ? `<span class="lk-q-tag lk-turn">${i18n.t('questBook.turnIn')}</span>`
+        : q.id === tracked ? `<span class="lk-q-tag" title="${i18n.t('questBook.trackedTitle')}"><img src="${I('mission')}" alt=""></span>` : '';
       return `<button type="button" class="lk-q-item ${cls} ${q.id === this.selectedQuestId ? 'lk-is-active' : ''}" data-id="${q.id}"><span class="lk-seal"></span><span class="lk-q-name">${esc(q.title)}</span>${tag}</button>`;
     };
     const mains = active.filter((q) => q.category === 'Principal');
     const sides = active.filter((q) => q.category !== 'Principal');
     let html = '';
-    if (mains.length) html += `<h5>Historia principal</h5>${mains.map(item).join('')}`;
-    if (sides.length) html += `<h5>Encargos</h5>${sides.map(item).join('')}`;
-    if (!active.length) html += '<p class="lk-j-empty">No tienes misiones en curso aquí. Habla con los habitantes de Lunacia <kbd>E</kbd> para aceptar nuevas.</p>';
+    if (mains.length) html += `<h5>${i18n.t('questBook.catMain')}</h5>${mains.map(item).join('')}`;
+    if (sides.length) html += `<h5>${i18n.t('questBook.catSide')}</h5>${sides.map(item).join('')}`;
+    if (!active.length) html += `<p class="lk-j-empty">${i18n.t('questBook.emptyActive')}</p>`;
     if (!this.hideCompleted) {
-      html += `<h5>Completadas · ${done.length}</h5>`;
-      html += done.length ? done.map(item).join('') : '<p class="lk-j-empty">Aún no has completado misiones en esta categoría.</p>';
+      html += `<h5>${i18n.t('questBook.completedN', { n: done.length })}</h5>`;
+      html += done.length ? done.map(item).join('') : `<p class="lk-j-empty">${i18n.t('questBook.emptyDone')}</p>`;
     } else if (done.length) {
-      html += `<p class="lk-j-foot">${done.length} ${done.length === 1 ? 'misión completada oculta' : 'misiones completadas ocultas'}</p>`;
+      html += `<p class="lk-j-foot">${done.length === 1 ? i18n.t('questBook.hiddenOne', { n: done.length }) : i18n.t('questBook.hiddenMany', { n: done.length })}</p>`;
     }
     list.innerHTML = html;
   }
@@ -181,13 +182,13 @@ export class QuestBookModal {
     const discovered = q && (q.status === 'active' || q.status === 'ready_to_turn_in' || q.status === 'completed');
     const visible = discovered && !(this.hideCompleted && q.status === 'completed') && (this.activeCategory === 'all' || q.category === this.activeCategory);
     if (!visible) {
-      page.innerHTML = `<div class="lk-j-blank"><img class="lk-ai" src="${I('mission')}" alt=""><h4>Diario de aventura</h4><p>Explora Lunacia y habla con sus habitantes <kbd>E</kbd> para descubrir nuevas misiones.</p></div>`;
+      page.innerHTML = `<div class="lk-j-blank"><img class="lk-ai" src="${I('mission')}" alt=""><h4>${i18n.t('questBook.blankTitle')}</h4><p>${i18n.t('questBook.blankText')}</p></div>`;
       return;
     }
     const done = q.status === 'completed';
     const ready = q.status === 'ready_to_turn_in';
     const tracked = this.questManager.getTrackedQuest()?.id === q.id;
-    const status = done ? 'Completada' : ready ? 'Lista para entregar' : 'En curso';
+    const status = done ? i18n.t('questBook.stCompleted') : ready ? i18n.t('questBook.stReady') : i18n.t('questBook.stActive');
     // Una misión completada muestra todos sus pasos cumplidos
     const steps = (q.objective?.steps || []).map((st) => (done ? { ...st, done: true } : st));
     const nDone = steps.filter((s) => s.done).length;
@@ -195,8 +196,8 @@ export class QuestBookModal {
 
     // Recompensas en casillas del sistema (slot-item): oro, EXP, objetos y reclutas
     const slots = [];
-    if (q.rewards?.gold) slots.push(`<div class="lk-slot-item" style="--r:var(--lk-rar-common)" title="Oro"><span class="lk-art"><img class="lk-ai" src="${I('resource')}" alt=""></span><span class="lk-cap">${q.rewards.gold}</span></div>`);
-    if (q.rewards?.exp) slots.push(`<div class="lk-slot-item" style="--r:var(--lk-rar-rare)" title="Experiencia"><span class="lk-art"><img class="lk-ai" src="${I('upgrade')}" alt=""></span><span class="lk-cap">${q.rewards.exp} EXP</span></div>`);
+    if (q.rewards?.gold) slots.push(`<div class="lk-slot-item" style="--r:var(--lk-rar-common)" title="${i18n.t('questBook.gold')}"><span class="lk-art"><img class="lk-ai" src="${curIcon('gold')}" alt=""></span><span class="lk-cap">${q.rewards.gold}</span></div>`);
+    if (q.rewards?.exp) slots.push(`<div class="lk-slot-item" style="--r:var(--lk-rar-rare)" title="${i18n.t('questBook.experience')}"><span class="lk-art"><img class="lk-ai" src="${I('upgrade')}" alt=""></span><span class="lk-cap">${i18n.t('questBook.exp', { n: q.rewards.exp })}</span></div>`);
     (q.rewards?.items || []).forEach((it) => {
       const mat = it.id ? MATERIALS[it.id] : null;
       if (mat) { // material de la Forja (20-oct): dibujo SVG y cantidad
@@ -207,28 +208,28 @@ export class QuestBookModal {
       const db = it.id ? ITEMS_DB[it.id] : null;
       const icon = isImg(it.icon) ? it.icon : db && isImg(db.icon) ? db.icon : null;
       const r = RAR[db?.rarity || it.rarity] || 'common';
-      const stats = it.stats ? Object.entries(it.stats).map(([k, v]) => `+${v} ${{ hp: 'Vida', shield: 'Escudo', damage: 'Daño', initiative: 'Iniciativa', pa: 'PA', pm: 'PM' }[k] || k}`).join(' · ') : '';
-      slots.push(`<div class="lk-slot-item" style="--r:var(--lk-rar-${r})" title="${esc(it.name)}${stats ? ' · ' + esc(stats) : ''}${it.desc ? '\n' + esc(it.desc) : ''}"><span class="lk-art">${icon ? `<img src="${icon}" alt="">` : `<span class="lk-emoji">${esc(it.icon || '🎁')}</span>`}</span><span class="lk-cap">${esc(it.name)}</span></div>`);
+      const stats = it.stats ? Object.entries(it.stats).map(([k, v]) => `+${v} ${{ hp: i18n.t('questBook.statHp'), shield: i18n.t('questBook.statShield'), damage: i18n.t('questBook.statDamage'), initiative: i18n.t('questBook.statInitiative'), pa: i18n.t('questBook.statAp'), pm: i18n.t('questBook.statMp') }[k] || k}`).join(' · ') : '';
+      slots.push(`<div class="lk-slot-item" style="--r:var(--lk-rar-${r})" title="${esc(it.name)}${stats ? ' · ' + esc(stats) : ''}${it.desc ? '\n' + esc(it.desc) : ''}"><span class="lk-art">${icon ? `<img src="${icon}" alt="">` : `<span class="lk-emoji">${esc(it.icon || '✦')}</span>`}</span><span class="lk-cap">${esc(it.name)}</span></div>`);
     });
     (q.rewards?.recruits || []).forEach((id) => {
       const url = portraitService.getPortraitSync(id) || `./assets/portraits/${id}.png`;
-      slots.push(`<div class="lk-slot-item lk-recruit" style="--r:var(--lk-rar-epic)" title="Se une a tu expedición"><span class="lk-art"><img src="${url}" alt=""></span><span class="lk-cap">${esc(RECRUIT[id] || id)}</span></div>`);
+      slots.push(`<div class="lk-slot-item lk-recruit" style="--r:var(--lk-rar-epic)" title="${i18n.t('questBook.recruitTitle')}"><span class="lk-art"><img src="${url}" alt=""></span><span class="lk-cap">${esc(RECRUIT[id] || id)}</span></div>`);
     });
 
     page.innerHTML = `
-      <span class="lk-label" style="color:var(--lk-gilt-700)">${esc(CAT_ES[q.category] || q.category)} · ${status}${q.zoneCoords ? ` · Zona [${q.zoneCoords.join(', ')}]` : ''}</span>
+      <span class="lk-label" style="color:var(--lk-gilt-700)">${esc(CAT_ES[q.category] || q.category)} · ${status}${q.zoneCoords ? i18n.t('questBook.zone', { c: q.zoneCoords.join(', ') }) : ''}</span>
       <h4>${esc(q.title)}</h4>
       <div class="lk-giver"><span class="lk-face">${this._renderGiverAvatar(q.giver)}</span><div><b>${esc(q.giver?.name || 'Lunacia')}</b><br><small>${esc(q.giver?.title || '')}</small></div>
-        ${!done ? `<button type="button" class="lk-btn ${tracked ? 'lk-btn-primary-gold' : 'lk-btn-secondary-wood'} lk-btn--sm lk-j-track" data-ref="track"><span class="lk-b-ico"><img class="lk-ai" src="${I('mission')}" alt=""></span>${tracked ? 'Siguiendo' : 'Seguir en el HUD'}</button>` : ''}</div>
+        ${!done ? `<button type="button" class="lk-btn ${tracked ? 'lk-btn-primary-gold' : 'lk-btn-secondary-wood'} lk-btn--sm lk-j-track" data-ref="track"${tracked && this.questManager.canDisableTracking?.() ? ` title="${esc(i18n.t('questBook.untrackHint'))}"` : ''}><span class="lk-b-ico"><img class="lk-ai" src="${I('mission')}" alt=""></span>${tracked ? i18n.t('questBook.tracking') : i18n.t('questBook.track')}</button>` : ''}</div>
       ${q.npcQuote ? `<p class="lk-j-quote">“${esc(q.npcQuote)}”</p>` : ''}
       ${q.lore ? `<p>${esc(q.lore)}</p>` : ''}
       <div class="lk-j-objs">
-        <span class="lk-label">Objetivos · ${nDone}/${steps.length}</span>
+        <span class="lk-label">${i18n.t('questBook.objectives', { done: nDone, total: steps.length })}</span>
         ${q.objective?.summary ? `<p class="lk-j-sum">${esc(q.objective.summary)}</p>` : ''}
         ${steps.map((s) => `<div class="lk-obj ${s.done ? 'lk-is-done' : s === next ? 'lk-is-next' : ''}"><i></i>${esc(s.desc)}</div>`).join('')}
       </div>
-      ${slots.length ? `<div class="lk-j-rew"><span class="lk-label">Recompensas${done || q.rewardClaimed ? ' · recibidas' : ' · al completarla'}</span><div class="lk-rewards">${slots.join('')}</div></div>` : ''}
-      ${done ? `<div class="lk-seal-stamp"><div>${sprite('i-moon', { fill: true })}COMPLETADA</div></div>` : ''}`;
+      ${slots.length ? `<div class="lk-j-rew"><span class="lk-label">${i18n.t('questBook.rewards')}${done || q.rewardClaimed ? i18n.t('questBook.rewardsReceived') : i18n.t('questBook.rewardsOnComplete')}</span><div class="lk-rewards">${slots.join('')}</div></div>` : ''}
+      ${done ? `<div class="lk-seal-stamp"><div>${sprite('i-moon', { fill: true })}${i18n.t('questBook.stamp')}</div></div>` : ''}`;
     page.scrollTop = 0;
     this.$('track')?.addEventListener('click', () => {
       if (this.audio && typeof this.audio.playBuff === 'function') this.audio.playBuff();

@@ -1178,6 +1178,9 @@ img.lk-part-ico--dusk { --lk-ico-tint: grayscale(1) sepia(1) hue-rotate(130deg) 
 .lk-bag-runes__kind button { padding: 6px 14px; }
 .lk-bag-runes__kind .lk-ai { width: 18px; height: 18px; }
 .lk-bag-runes .lk-slot-item.lk-is-poor { opacity: .55; }
+/* Hito 54: cuántas tienes libres de una runa o charm */
+.lk-bag-runes .lk-slot-item { position: relative; }
+.lk-rc-qty { position: absolute; top: 3px; right: 4px; font-style: normal; font-size: 11px; font-weight: 700; line-height: 16px; padding: 0 5px; border-radius: 8px; color: #fff; background: rgba(10, 14, 28, .78); pointer-events: none; }
 .lk-bag-runes .lk-slot-item[draggable="true"] { cursor: grab; }
 .lk-bag-runes__tt-on { margin: 0 0 6px; font-size: .74rem; color: var(--lk-lumen-300); }
 .lk-bag-runes__pick { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; margin-top: 6px; }
@@ -1510,3 +1513,7 @@ body:has(#help-modal:not(.hidden)) #turn-banner { visibility: hidden; }
 .lk-opt-img--look { width: 60px; height: 60px; }
 .lk-opt-img--eyes { width: 68px; height: 34px; }
 .lk-opt-img--mouth { width: 34px; height: 34px; }
+
+/* Oro con el ícono de moneda (assets/currency/gold.png) en lugar de la bolita dibujada */
+img.lk-coin { width: 15px; height: 15px; object-fit: contain; background: none; box-shadow: none; border-radius: 0; vertical-align: -3px; filter: drop-shadow(0 1px 1px rgba(0,0,0,.35)); }
+.lk-btn .lk-b-ico .lk-cur-ico { width: 22px; height: 22px; object-fit: contain; }

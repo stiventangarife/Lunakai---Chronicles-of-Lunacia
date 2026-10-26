@@ -8,6 +8,7 @@
 // Se dibuja en el botón «Pasar turno»: barra que se vacía, segundos y notas (aviso de inactividad, −10 s, +X s). Consola: lunakaiTurnTimer, lkDebug.timer(false|true).
 
 import { TurnTimer } from '../tactics/combat/TurnTimer.js';
+import * as i18n from '../i18n/i18n.js';
 
 const R = 15.5;
 const CIRC = 2 * Math.PI * R;
@@ -31,14 +32,14 @@ export function attachTurnTimer(game) {
     if (b === btn && timeEl?.isConnected) return btn;
     btn = b;
     const small = btn.querySelector('small');
-    if (small && !small.querySelector('.lk-et-time')) small.innerHTML = '<span class="lk-et-time" aria-hidden="true"></span><span class="lk-et-sep" aria-hidden="true"> · </span>Espacio';
+    if (small && !small.querySelector('.lk-et-time')) small.innerHTML = `<span class="lk-et-time" aria-hidden="true"></span><span class="lk-et-sep" aria-hidden="true"> · </span>${i18n.t('combatUi.keySpace')}`;
     if (!btn.querySelector('.lk-et-bar')) btn.insertAdjacentHTML('beforeend', '<span class="lk-et-bar" aria-hidden="true"><i></i></span><span class="lk-et-note" role="status" aria-live="polite"></span>');
     timeEl = btn.querySelector('.lk-et-time');
     barEl = btn.querySelector('.lk-et-bar > i');
     noteEl = btn.querySelector('.lk-et-note');
     return btn;
   }
-  const RULES = 'Tiempo de tu turno: lo que te sobre se suma al siguiente (máx. 45 s). Si en 10 s no te mueves ni lanzas una carta, pierdes 10 s. A 0 el turno pasa solo.';
+  const RULES = i18n.t('combatUi.timerRules');
   let lastSec = -1;
   function paint() {
     if (!ensureEl()) return;
@@ -46,8 +47,8 @@ export function attachTurnTimer(game) {
     const secs = Math.ceil(rem);
     if (secs !== lastSec) {
       lastSec = secs;
-      timeEl.textContent = `${secs} s`;
-      btn.setAttribute('aria-label', `Pasar turno (Espacio). Te quedan ${secs} segundos`);
+      timeEl.textContent = i18n.t('combatUi.secs', { n: secs });
+      btn.setAttribute('aria-label', i18n.t('combatUi.endTurnLeft', { n: secs }));
     }
     const frac = timer.duration ? Math.max(0, Math.min(1, rem / timer.duration)) : 0;
     barEl.style.transform = `scaleX(${frac})`;
@@ -56,7 +57,7 @@ export function attachTurnTimer(game) {
     // Aviso previo al castigo: los 5 s anteriores al límite de inactividad
     const c = timer.config, idleLeft = c.idleLimit - (timer.elapsed || 0);
     if (timer.running && !timer.acted && !timer.penalized && idleLeft <= 5 && idleLeft > 0) {
-      note(`Actúa en ${Math.ceil(idleLeft)} s o pierdes ${c.idlePenalty} s`, 'warn', 0);
+      note(i18n.t('combatUi.idleWarn', { n: Math.ceil(idleLeft), p: c.idlePenalty }), 'warn', 0);
     } else if (noteEl?.dataset.kind === 'warn') hideNote();
   }
   let noteTimer = null;
@@ -74,24 +75,24 @@ export function attachTurnTimer(game) {
     if (!ensureEl()) return;
     btn.classList.toggle('lk-has-timer', on);
     btn.title = on ? RULES : '';
-    if (!on) { btn.classList.remove('lk-is-low', 'lk-is-critical', 'lk-is-penalized'); btn.setAttribute('aria-label', 'Pasar turno (Espacio)'); if (noteEl?.dataset.kind === 'warn') hideNote(); lastSec = -1; }
+    if (!on) { btn.classList.remove('lk-is-low', 'lk-is-critical', 'lk-is-penalized'); btn.setAttribute('aria-label', i18n.t('combatUi.endTurnAria')); if (noteEl?.dataset.kind === 'warn') hideNote(); lastSec = -1; }
   };
   // Compatibilidad con el código que ocultaba el medallón (`el.hidden = true`)
   const el = { set hidden(v) { if (v) show(false); }, classList: { add() {}, remove() {} } };
 
   timer.on('start', ({ duration }) => {
     show(true); btn?.classList.remove('lk-is-penalized'); paint();
-    if (duration > timer.config.base) pop(`Reserva: +${duration - timer.config.base} s este turno`, 'good');
+    if (duration > timer.config.base) pop(i18n.t('combatUi.reserve', { n: duration - timer.config.base }), 'good');
   });
   timer.on('penalty', ({ amount }) => {
-    pop(`−${amount} s por no actuar`, 'bad');
+    pop(i18n.t('combatUi.idlePenalty', { n: amount }), 'bad');
     btn?.classList.add('lk-is-penalized');
     game.audio?.playCollision?.();
     paint();
   });
   timer.on('finish', ({ leftover, nextDuration, expired }) => {
-    if (!expired && nextDuration > timer.config.base) pop(`+${nextDuration - timer.config.base} s para tu próximo turno`, 'good');
-    else if (expired) pop('¡Tiempo!', 'bad');
+    if (!expired && nextDuration > timer.config.base) pop(i18n.t('combatUi.carryOver', { n: nextDuration - timer.config.base }), 'good');
+    else if (expired) pop(i18n.t('combatUi.timeUp'), 'bad');
   });
 
   // ── ¿Hay reloj en este combate?

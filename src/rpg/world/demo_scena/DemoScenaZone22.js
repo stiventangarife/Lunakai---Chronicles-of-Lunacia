@@ -13,8 +13,14 @@ import { SlimeCreaturesManager } from './SlimeCreaturesManager.js';
 import { DistantIsland } from './DistantIsland.js';
 import { FootstepEffectsManager } from './FootstepEffectsManager.js';
 import { GenshinForestArt } from './genshin/GenshinForestArt.js';
-import { ForestBridge } from './ForestBridge.js';
+import { ForestBridge, FOREST_BRIDGE_VILLAGE } from './ForestBridge.js';
+import { RiverFords } from './RiverFords.js';
 import { mergeStaticByMaterial } from '../../../render/StaticMerge.js';
+import { buildForestColliders, FOREST_COLLIDER_TAG } from './ForestColliders.js';
+import { WaterDepthMask } from '../WaterDepthMask.js';
+
+/** Se camina por el agua mientras cubra hasta la rodilla (m). Más honda, el personaje no pasa (Hito 66). */
+export const WADE_MAX_DEPTH = 0.5;
 
 /**
  * DemoScenaZone22 - Master Coordinator for Macro-Zone [2, 2] (Dojo / Valle de Lunacia)
@@ -107,7 +113,8 @@ export class DemoScenaZone22 {
     this.particleManager = new ParticleSystemManager(this.group, this.terrain);
 
     // 8b. Sistema de Game Feel para huellas y polvo al caminar (Sapidae & Axie)
-    this.footstepManager = new FootstepEffectsManager(this.group, this.terrain, (x, z) => this.getHeight(x, z)); // huellas sobre puentes y hielo
+    this.footstepManager = new FootstepEffectsManager(this.group, this.terrain, (x, z) => this.getHeight(x, z), // huellas sobre puentes y hielo
+      (x, z) => (this.waterMask ? this.waterMask.depthAt(x, z) : null)); // ondas en el agua poco profunda (Hito 66)
 
     // 8c. Slimes auténticos del juego con combate táctico y comportamiento saltarín
     this.slimeCreaturesManager = new SlimeCreaturesManager(this.group, this.terrain, this.assetManager, this.om);
@@ -134,7 +141,10 @@ export class DemoScenaZone22 {
 
     // 10b. Footbridge over the rapids joining the two paths
     this.bridge = new ForestBridge(this);
-    await this.bridge.loading;
+    // 10c. Puente del pueblo y piedras de los vados (Hito 66: el río ya no se cruza a pie salvo en los vados)
+    this.bridgeVillage = new ForestBridge(this, FOREST_BRIDGE_VILLAGE, { name: 'ForestBridgeVillage', railTag: 'forest_bridge_village_rail' });
+    try { this.riverFords = new RiverFords(this); } catch (e) { console.warn('[DemoScenaZone22] vados', e); }
+    await Promise.all([this.bridge.loading, this.bridgeVillage.loading]);
 
     const presetData = this.lightingManager.applyPreset(this.genshinArt ? 'genshin_golden' : 'sunset');
     if (presetData) {
@@ -146,13 +156,58 @@ export class DemoScenaZone22 {
 
     this.isLoaded = true;
     console.log('[DemoScenaZone22] ✨ Mapa Demo_Scena cargado e instanciado al 100%');
+    if (this.isActive) this.refreshForestColliders();
+    this._bakeWaterMask();
+  }
+
+  /**
+   * Profundidad del agua (mar y río) en una cuadrícula de 1 m, calculada por trozos tras la carga (Hito 66).
+   * La usan las colisiones (agua honda = no se pasa) y las huellas (ondas al vadear).
+   */
+  _bakeWaterMask() {
+    if (!this.waterMask) this.waterMask = new WaterDepthMask({ minX: -160, minZ: -160, size: 320, cell: 1 });
+    const t0 = performance.now();
+    this.waterMask.bake((x, z) => this.getWaterDepthRaw(x, z)).then(() => {
+      if (this.waterMask.ready) console.log(`[DemoScenaZone22] Agua: profundidades listas (${(performance.now() - t0).toFixed(0)} ms repartidos)`);
+    });
+    if (this.isActive) this.om?.collisions?.setWaterMask?.(this.waterMask, WADE_MAX_DEPTH);
+  }
+
+  /** Superficie del agua − suelo en (x, z), evaluando el terreno; null donde no puede haber agua. */
+  getWaterDepthRaw(x, z) {
+    const r = Math.hypot(x, z);
+    let surf = -Infinity;
+    if (r > 105) surf = this.waterManager?.oceanMesh ? this.waterManager.oceanMesh.position.y : 0.45;
+    const b = WaterManager.getRiverBounds(z);
+    if (z >= WaterManager.RIVER_Z0 && Math.abs(x - b.riverCenterX) <= b.riverHalfWidth * 1.4 * WaterManager.getNorthMouthFactor(z) + 1) surf = Math.max(surf, WaterManager.getRiverWaterHeight(z));
+    if (surf === -Infinity) return null;
+    return surf - this.getHeight(x, z);
+  }
+
+  /**
+   * Colisiones de troncos, rocas y monumentos de la isla (Hito 66, ver ForestColliders.js). Se recalculan aquí y
+   * cuando el pueblo retira árboles o rocas de sus claros; solo se dan de alta mientras la isla está activa.
+   */
+  refreshForestColliders() {
+    if (!this.isLoaded) return;
+    try { this._forestColliders = buildForestColliders(this); } catch (e) { console.warn('[DemoScenaZone22] colisiones', e); this._forestColliders = []; }
+    this._syncForestColliders(this.isActive);
+  }
+
+  _syncForestColliders(active) {
+    const col = this.om && this.om.collisions;
+    if (!col || typeof col.addCircle !== 'function') return;
+    col.removeCirclesByTag(FOREST_COLLIDER_TAG);
+    if (!active || !this._forestColliders) return;
+    this._forestColliders.forEach(([x, z, r, kind], i) => col.addCircle(x, z, r, `${FOREST_COLLIDER_TAG}${kind}_${i}`));
   }
 
   getHeight(x, z) {
     if (!this.terrain) return 0;
     const h = this.terrain.getHeight(x, z);
-    if (this.bridge) {
-      const deck = this.bridge.getDeckHeight(x, z);
+    for (const br of [this.bridge, this.bridgeVillage]) {
+      if (!br) continue;
+      const deck = br.getDeckHeight(x, z);
       if (deck !== null && deck > h) return deck;
     }
     return h;
@@ -214,6 +269,15 @@ export class DemoScenaZone22 {
   setActive(active) {
     this.isActive = active;
     this.group.visible = active;
+    if (this.isLoaded) {
+      if (active && !this._forestColliders) this.refreshForestColliders();
+      else this._syncForestColliders(active);
+    }
+    const col = this.om && this.om.collisions;
+    if (col && typeof col.setWaterMask === 'function') {
+      if (active && this.waterMask) col.setWaterMask(this.waterMask, WADE_MAX_DEPTH);
+      else if (!active && col._water === this.waterMask) col.setWaterMask(null);
+    }
 
     if (this.terrain && this.terrain.mesh) {
       this.terrain.mesh.visible = active;
@@ -255,6 +319,8 @@ export class DemoScenaZone22 {
     if (this.bridge) {
       this.bridge.setActive(active);
     }
+    if (this.bridgeVillage) this.bridgeVillage.setActive(active);
+    if (this.riverFords) this.riverFords.setActive(active);
 
     if (active) {
       this.setLightingPreset(this.lightingManager?.currentPreset || (this.genshinArt ? 'genshin_golden' : 'sunset'));

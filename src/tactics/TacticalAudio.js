@@ -127,6 +127,34 @@ export class TacticalAudio {
     osc.stop(t + 0.08);
   }
 
+  /** Paso en agua poco profunda (Hito 66): chapoteo de ruido filtrado, más grave cuanto más honda (depth01 0–1). */
+  playWaterStep(depth01 = 0.5) {
+    if (!this.initialized || this.isMuted) return;
+    this.resume();
+    const t = this.ctx.currentTime;
+    if (!this._splashBuf) {
+      const len = Math.floor(this.ctx.sampleRate * 0.22);
+      this._splashBuf = this.ctx.createBuffer(1, len, this.ctx.sampleRate);
+      const d = this._splashBuf.getChannelData(0);
+      for (let i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / len, 2.2);
+    }
+    const src = this.ctx.createBufferSource();
+    src.buffer = this._splashBuf;
+    src.playbackRate.value = 0.85 + Math.random() * 0.3;
+    const bp = this.ctx.createBiquadFilter();
+    bp.type = 'bandpass';
+    bp.frequency.setValueAtTime(1500 - depth01 * 600, t);
+    bp.frequency.exponentialRampToValueAtTime(500, t + 0.18);
+    bp.Q.value = 1.2;
+    const gain = this.ctx.createGain();
+    gain.gain.setValueAtTime(0.0001, t);
+    gain.gain.exponentialRampToValueAtTime(0.16 + depth01 * 0.08, t + 0.015);
+    gain.gain.exponentialRampToValueAtTime(0.001, t + 0.2);
+    src.connect(bp); bp.connect(gain); gain.connect(this.masterGain);
+    src.start(t);
+    src.stop(t + 0.22);
+  }
+
   playAttackMelee() {
     if (!this.initialized || this.isMuted) return;
     this.resume();

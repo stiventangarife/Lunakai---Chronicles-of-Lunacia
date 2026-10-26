@@ -752,109 +752,136 @@ export class GridManager {
     return null;
   }
 
-  // ── Casillas resaltadas ──────────────────────────────────────────────────────────────────
-  // Antes cada llamada creaba geometría y material nuevos y clearHighlights() los destruía; al
-  // pasar el ratón (y al arrastrar la cámara) eso ocurría decenas de veces por segundo y el shader
-  // del camino se compilaba y borraba una y otra vez. Ahora las piezas son fijas: geometrías y
-  // materiales compartidos que nunca se destruyen y una reserva de mallas que se encienden y se
-  // apagan. Mismos tamaños, colores, opacidades y alturas que antes.
+  // ── Casillas resaltadas (Hito 65) ─────────────────────────────────────────────────────────
+  // Una baldosa con relleno suave y borde nítido (textura de canvas creada una vez) y UNA malla instanciada
+  // por capa: cada capa se dibuja en una sola llamada, se vean 5 casillas o 80. Nada se crea ni se destruye
+  // al mover el ratón: solo se rellenan matrices y se cambia el número de instancias.
+  //   reach   alcance de movimiento (azul)          path   camino elegido (puntos verdes)
+  //   spell   alcance de la habilidad (rojo)        hover  casilla bajo el cursor (color por llamada)
+  //   blocked a tiro pero sin línea de visión (apagado)
+  //   target  objetivo válido: donde el clic lanza (rojo intenso con pulso)
+  //   aoe     área de efecto (naranja)
+  static HL_STYLE = {
+    reach:   { color: 0x2f7dff, opacity: 1.00, y: 0.020, order: 2, size: 0.94 },
+    blocked: { color: 0x6b5a66, opacity: 0.55, y: 0.021, order: 2, size: 0.94 },
+    spell:   { color: 0xff1f3d, opacity: 0.95, y: 0.022, order: 3, size: 0.94 },
+    target:  { color: 0xff2020, opacity: 1.00, y: 0.026, order: 4, size: 0.94 },
+    aoe:     { color: 0xff9a1f, opacity: 0.95, y: 0.032, order: 5, size: 0.96 },
+    hover:   { color: 0xffffff, opacity: 1.00, y: 0.036, order: 6, size: 0.98 },
+    path:    { color: 0x39e75f, opacity: 1.00, y: 0.040, order: 7 }
+  };
+
+  /** Textura de la baldosa: relleno translúcido + borde opaco con un brillo interior (blanco, se tiñe con el color). */
+  static _tileTexture() {
+    if (GridManager._tileTex) return GridManager._tileTex;
+    const N = 128, c = document.createElement('canvas'); c.width = c.height = N;
+    const x = c.getContext('2d');
+    const rr = (p, r) => { x.beginPath(); x.moveTo(p + r, p); x.arcTo(N - p, p, N - p, N - p, r); x.arcTo(N - p, N - p, p, N - p, r); x.arcTo(p, N - p, p, p, r); x.arcTo(p, p, N - p, p, r); x.closePath(); };
+    rr(6, 16); x.fillStyle = 'rgba(255,255,255,0.42)'; x.fill();                       // relleno
+    const g = x.createRadialGradient(N / 2, N / 2, N * 0.18, N / 2, N / 2, N * 0.62); // brillo hacia el borde
+    g.addColorStop(0, 'rgba(255,255,255,0)'); g.addColorStop(1, 'rgba(255,255,255,0.35)');
+    rr(6, 16); x.fillStyle = g; x.fill();
+    rr(8, 14); x.lineWidth = 7; x.strokeStyle = 'rgba(255,255,255,1)'; x.stroke();     // borde nítido
+    const t = new THREE.CanvasTexture(c);
+    t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 4; t.generateMipmaps = true;
+    GridManager._tileTex = t;
+    return t;
+  }
+
   _hl() {
-    if (this._hlRes) return this._hlRes;
-    const plane = (k) => new THREE.PlaneGeometry(TILE_SIZE * k, TILE_SIZE * k);
-    const tileMat = (color, opacity) => new THREE.MeshBasicMaterial({ color, transparent: true, opacity, side: THREE.DoubleSide });
-    this._hlRes = {
-      geo: { reach: plane(0.9), spell: plane(0.9), aoe: plane(0.92), hover: plane(0.94), path: new THREE.CylinderGeometry(0.12, 0.12, 0.08, 12) },
-      mat: { reach: tileMat(0x00d2ff, 0.45), spell: tileMat(0xff4d4d, 0.42), aoe: tileMat(0xffaa00, 0.6), path: new THREE.MeshBasicMaterial({ color: 0x00f3ff }) },
-      hoverMats: new Map(),
-      pools: { reach: [], spell: [], aoe: [], hover: [], path: [] },
-      used: { reach: 0, spell: 0, aoe: 0, hover: 0, path: 0 }
-    };
+    const cap = Math.max(100, this.width * this.height);
+    if (this._hlRes && this._hlRes.cap >= cap) return this._hlRes;
+    if (this._hlRes) { for (const k in this._hlRes.layers) this.highlightGroup.remove(this._hlRes.layers[k]); } // tablero más grande: se rehacen
+    const S = GridManager.HL_STYLE, tex = GridManager._tileTexture();
+    const layers = {};
+    for (const k of ['reach', 'blocked', 'spell', 'target', 'aoe', 'hover', 'path']) {
+      const st = S[k];
+      let geo, mat;
+      if (k === 'path') {
+        geo = new THREE.CylinderGeometry(0.16, 0.16, 0.06, 16);
+        mat = new THREE.MeshBasicMaterial({ color: st.color, toneMapped: false });
+      } else {
+        geo = new THREE.PlaneGeometry(TILE_SIZE * st.size, TILE_SIZE * st.size); geo.rotateX(-Math.PI / 2);
+        mat = new THREE.MeshBasicMaterial({ map: tex, color: st.color, transparent: true, opacity: st.opacity, depthWrite: false, toneMapped: false,
+          polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 });
+      }
+      mat.name = `GridHL_${k}`;
+      const m = new THREE.InstancedMesh(geo, mat, k === 'hover' ? 4 : cap);
+      m.name = `GridHL_${k}`; m.count = 0; m.renderOrder = st.order; m.frustumCulled = false;
+      if (k === 'hover') m.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(4 * 3), 3);
+      this.highlightGroup.add(m);
+      layers[k] = m;
+    }
+    this._hlRes = { cap, layers, m4: new THREE.Matrix4(), col: new THREE.Color() };
     return this._hlRes;
   }
 
-  _hoverMat(color) {
-    const r = this._hl();
-    let m = r.hoverMats.get(color);
-    if (!m) {
-      m = new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.65, side: THREE.DoubleSide });
-      r.hoverMats.set(color, m);
-    }
-    return m;
-  }
-
-  /** Siguiente malla libre de la reserva `kind` (se crea si hace falta), ya encendida y colocada. */
-  _hlMesh(kind, x, y, z, material = null) {
-    const r = this._hl();
-    const pool = r.pools[kind];
-    let mesh = pool[r.used[kind]];
-    if (!mesh) {
-      mesh = new THREE.Mesh(r.geo[kind], material || r.mat[kind]);
-      if (kind !== 'path') mesh.rotation.x = -Math.PI / 2;
-      pool.push(mesh);
-      this.highlightGroup.add(mesh);
-    }
-    r.used[kind]++;
-    if (material) mesh.material = material;
-    mesh.position.set(x, y, z);
-    mesh.visible = true;
-    return mesh;
+  /** Añade una instancia a la capa `kind` en la casilla (gx, gz). */
+  _hlAdd(kind, gx, gz, color = null) {
+    const r = this._hl(), m = r.layers[kind];
+    if (m.count >= m.instanceMatrix.count) return;
+    const w = this.gridToWorld(gx, gz);
+    r.m4.makeTranslation(w.x, GridManager.HL_STYLE[kind].y, w.z);
+    m.setMatrixAt(m.count, r.m4);
+    if (color !== null && m.instanceColor) { r.col.setHex(color); m.setColorAt(m.count, r.col); m.instanceColor.needsUpdate = true; }
+    m.count++;
+    m.instanceMatrix.needsUpdate = true;
   }
 
   clearHighlights() {
     this.highlightVersion = (this.highlightVersion || 0) + 1;
     const r = this._hlRes;
-    if (r) {
-      for (const k in r.pools) {
-        const pool = r.pools[k];
-        for (let i = 0; i < r.used[k]; i++) pool[i].visible = false;
-        r.used[k] = 0;
-      }
-    }
+    if (r) for (const k in r.layers) r.layers[k].count = 0;
     this.highlightMeshes.clear();
   }
 
   highlightReachable(cells) {
     this.highlightVersion = (this.highlightVersion || 0) + 1;
-    cells.forEach(c => {
-      const wPos = this.gridToWorld(c.x, c.z);
-      const mesh = this._hlMesh('reach', wPos.x, 0.02, wPos.z);
-      this.highlightMeshes.set(c.x + ',' + c.z, mesh);
-    });
+    cells.forEach(c => { this._hlAdd('reach', c.x, c.z); this.highlightMeshes.set(c.x + ',' + c.z, true); });
   }
 
+  /** Alcance de la habilidad: todas las casillas a tiro, haya o no unidades (estilo Dofus). */
   highlightSpellRange(cells) {
     this.highlightVersion = (this.highlightVersion || 0) + 1;
-    cells.forEach(c => {
-      const wPos = this.gridToWorld(c.x, c.z);
-      const mesh = this._hlMesh('spell', wPos.x, 0.025, wPos.z);
-      this.highlightMeshes.set('spell_' + c.x + ',' + c.z, mesh);
-    });
+    cells.forEach(c => { this._hlAdd('spell', c.x, c.z); this.highlightMeshes.set('spell_' + c.x + ',' + c.z, true); });
+  }
+
+  /** Dentro de la distancia pero tapadas por un obstáculo (sin línea de visión). */
+  highlightSpellBlocked(cells) {
+    this.highlightVersion = (this.highlightVersion || 0) + 1;
+    cells.forEach(c => this._hlAdd('blocked', c.x, c.z));
+  }
+
+  /** Objetivos válidos: donde un clic lanza la habilidad (rojo intenso, con pulso). */
+  highlightSpellTargets(cells) {
+    this.highlightVersion = (this.highlightVersion || 0) + 1;
+    cells.forEach(c => this._hlAdd('target', c.x, c.z));
   }
 
   highlightAoE(cells) {
     this.highlightVersion = (this.highlightVersion || 0) + 1;
-    cells.forEach(c => {
-      if (!this.isValidCoord(c.x, c.z)) return;
-      const wPos = this.gridToWorld(c.x, c.z);
-      this._hlMesh('aoe', wPos.x, 0.035, wPos.z);
-    });
+    cells.forEach(c => { if (this.isValidCoord(c.x, c.z)) this._hlAdd('aoe', c.x, c.z); });
   }
 
   highlightHover(gx, gz, color = 0xffffff) {
     if (!this.isValidCoord(gx, gz)) return;
     this.highlightVersion = (this.highlightVersion || 0) + 1;
-    const wPos = this.gridToWorld(gx, gz);
-    this._hlMesh('hover', wPos.x, 0.03, wPos.z, this._hoverMat(color));
+    this._hlAdd('hover', gx, gz, color);
   }
 
   highlightPath(path) {
     if (!path || path.length <= 1) return;
     this.highlightVersion = (this.highlightVersion || 0) + 1;
-    for (let i = 1; i < path.length; i++) {
-      const step = path[i];
-      const wPos = this.gridToWorld(step.x, step.z);
-      this._hlMesh('path', wPos.x, 0.04, wPos.z);
-    }
+    for (let i = 1; i < path.length; i++) this._hlAdd('path', path[i].x, path[i].z);
+  }
+
+  /** Pulso de los objetivos válidos y del camino (un valor por capa y fotograma; sin coste si no se ven). */
+  tickHighlights(time) {
+    const r = this._hlRes;
+    if (!r) return;
+    const t = r.layers.target, h = r.layers.hover;
+    if (t.count) t.material.opacity = 0.78 + Math.sin(time * 5.0) * 0.22;
+    if (h.count) h.material.opacity = 0.85 + Math.sin(time * 6.0) * 0.15;
   }
 
 }

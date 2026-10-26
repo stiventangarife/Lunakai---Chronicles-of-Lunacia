@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { WaterWadeEffects } from './WaterWadeEffects.js';
 
 /**
  * FootstepEffectsManager.js - Sistema de Game Feel para Huellas y Polvo al Caminar
@@ -139,10 +140,13 @@ export class FootstepEffectsManager {
    * @param {{getHeight, getNormal}} terrain  terreno de la zona
    * @param {(x:number, z:number) => number} [surfaceHeight]  altura por la que camina el jugador (puentes, hielo…).
    *        Si queda por encima del terreno, las huellas se estampan sobre esa superficie y no debajo.
+   * @param {(x:number, z:number) => number|null} [waterDepth]  profundidad del agua (Hito 66). Dentro del agua no hay
+   *        huellas ni polvo: salen ondas y salpicaduras.
    */
-  constructor(parentGroup, terrain, surfaceHeight = null) {
+  constructor(parentGroup, terrain, surfaceHeight = null, waterDepth = null) {
     this.terrain = terrain;
     this.surfaceHeight = typeof surfaceHeight === 'function' ? surfaceHeight : null;
+    this.waterDepth = typeof waterDepth === 'function' ? waterDepth : null;
 
     this.group = new THREE.Group();
     this.group.name = 'FootstepEffects_Group';
@@ -191,6 +195,11 @@ export class FootstepEffectsManager {
     this._initBootMesh();
     this._initPawMesh();
     this._initDustMesh();
+
+    // Agua poco profunda: ondas y salpicaduras (Hito 66)
+    this.wade = this.waterDepth ? new WaterWadeEffects(this.group) : null;
+    this._wadeP = { trail: 0, idle: 0 };
+    this._wadeA = { trail: 0, idle: 0 };
 
     console.log('[FootstepEffectsManager] 👣 Sistema de Huellas y Polvo inicializado correctamente.');
   }
@@ -547,8 +556,44 @@ export class FootstepEffectsManager {
   // -----------------------------------------------------------------------
   // Ciclo de Actualización por Frame
   // -----------------------------------------------------------------------
+  /** Superficie del agua bajo (x, z) si cubre algo (> 3 cm), o null en seco. */
+  _waterSurface(x, z) {
+    if (!this.wade) return null;
+    const d = this.waterDepth(x, z);
+    if (d === null || !(d > 0.03)) return null;
+    return this._groundAt(x, z).groundY + d;
+  }
+
+  /**
+   * Ondas continuas mientras se está en el agua: una estela al avanzar y una onda lenta parado.
+   * @returns {boolean} si (x, z) está en el agua
+   */
+  _wadeTick(st, x, z, moved, delta, small) {
+    const y = this._waterSurface(x, z);
+    if (y === null) { st.trail = 0; st.idle = 0; return false; }
+    const k = small ? 0.7 : 1;
+    // Al avanzar, las ondas salen solo con cada paso (ver update); parado, una onda lenta cada 2,2 s
+    if (moved > 0.001) {
+      st.idle = 0;
+    } else {
+      st.idle += delta;
+      if (st.idle >= 2.2) { st.idle = 0; this.wade.ring(x, y, z, 0.2 * k, 0.85 * k, 1.6, 0.35); }
+    }
+    return true;
+  }
+
   update(delta, player) {
     if (!player) return;
+    if (this.wade) {
+      const pm = this.lastPlayerPos.x === -9999 ? 0 : Math.hypot(player.position.x - this.lastPlayerPos.x, player.position.z - this.lastPlayerPos.z);
+      this._wadeTick(this._wadeP, player.position.x, player.position.z, pm, delta, false);
+      if (player.companionGroup) {
+        const cp = player.companionGroup.position;
+        const am = this.lastAxiePos.x === -9999 ? 0 : Math.hypot(cp.x - this.lastAxiePos.x, cp.z - this.lastAxiePos.z);
+        this._wadeTick(this._wadeA, cp.x, cp.z, am, delta, true);
+      }
+      this.wade.update(delta);
+    }
 
     // =====================================================================
     // 1. DETECCIÓN DE ZANCADA PARA SAPIDAE
@@ -582,12 +627,20 @@ export class FootstepEffectsManager {
         const footX = player.position.x + rightX * sideOffset;
         const footZ = player.position.z + rightZ * sideOffset;
 
+        const waterY = this._waterSurface(footX, footZ);
+        if (waterY !== null) {
+          // En el agua: salpicadura y onda en lugar de huella y polvo
+          const run = player.currentAnim === 'run';
+          this.wade.splash(footX, waterY, footZ, fwdX, fwdZ, run ? 4 : 3, run ? 0.9 : 0.65);
+          this.wade.ring(footX, waterY, footZ, 0.12, run ? 0.9 : 0.7, 0.85, 1.0);
+        } else {
         // Estampar huella orientada al frente con inclinación natural de pie
         this.addBootPrint(footX, footZ, player.yaw, this.playerLeftFoot);
 
         // Levantar polvo más discreto y proporcionado
         const dustScale = player.currentAnim === 'run' ? 1.10 : 0.60;
         this.addDustPuff(footX, player.position.y, footZ, fwdX, fwdZ, dustScale);
+        }
       }
     } else if (!isMovingPlayer) {
       this.playerStepAccum = 0;
@@ -627,12 +680,21 @@ export class FootstepEffectsManager {
           const pawX = player.companionGroup.position.x + rightCX * sideOffset;
           const pawZ = player.companionGroup.position.z + rightCZ * sideOffset;
 
+          const waterY = this._waterSurface(pawX, pawZ);
+          if (waterY !== null) {
+            // Compañero: onda y gotas una de cada dos pisadas
+            if (this.axieLeftPaw) {
+              this.wade.splash(pawX, waterY, pawZ, fwdCX, fwdCZ, 2, 0.5);
+              this.wade.ring(pawX, waterY, pawZ, 0.1, 0.55, 0.75, 0.8);
+            }
+          } else {
           // Estampar huellita
           this.addPawPrint(pawX, pawZ, cYaw);
 
           // Polvito pequeño para el Axie
           const axieDustScale = player.companionState === 'run' ? 0.65 : 0.38;
           this.addDustPuff(pawX, player.companionGroup.position.y, pawZ, fwdCX, fwdCZ, axieDustScale);
+          }
         }
       } else if (!isMovingAxie) {
         this.axieStepAccum = 0;

@@ -3,6 +3,8 @@
 //   .btn → .lk-btn · .b-ico → .lk-b-ico · .is-on → .lk-is-on · .panel-modal-window → .lk-panel-modal-window
 // Uso: import { icon, sprite, portrait, toast, tooltip, skillTip, h } from './ui/lk.js';
 
+import * as i18n from '../i18n/i18n.js';
+
 const BASE = new URL('../../', import.meta.url); // raíz del juego (axie-tactics-web/)
 export const asset = (path) => new URL(path, BASE).href;
 
@@ -24,6 +26,8 @@ export const sprite = (id, { fill = false } = {}) => `<svg class="lk-ic ${fill ?
 
 /** Ícono de clase de axie (assets/classes/<cls>.png). */
 const CLASS_FILE = { dusk: 'dust' }; // los PNG están en minúsculas; el de Dusk se llama dust.png
+/** Ícono de moneda (assets/currency/<k>.webp, 64 px): gold · slp · baxs. Cambiar aquí la extensión para todo el juego. */
+export const curIcon = (k) => asset(`assets/currency/${k}.webp`);
 export const classIcon = (cls) => `<img src="${asset(`assets/classes/${CLASS_FILE[cls] || cls}.png`)}" alt="${esc(cls)}">`;
 
 /**
@@ -94,16 +98,16 @@ export const tooltip = (() => {
  * Ficha de habilidad para el tooltip, con la misma estructura que el sistema de diseño (.lk-tooltip-tactical).
  * { name, kind, cost, range, los, fx: 'dmg'|'heal'|'shield'|otro, value, effectLabel, desc, art (url), color, iconHtml }
  */
-export function skillTip({ name, kind = 'Habilidad', cost, range, los = true, fx, value, effectLabel = 'Efecto', desc = '', art = null, color = 'var(--lk-gilt-500)', iconHtml = '' }) {
-  const eff = fx === 'dmg' ? ['Daño', value] : fx === 'heal' ? ['Curación', `+${value}`] : fx === 'shield' ? ['Escudo', `+${value}`] : [effectLabel, value];
+export function skillTip({ name, kind = i18n.t('common.skill'), cost, range, los = true, fx, value, effectLabel = i18n.t('common.effect'), desc = '', art = null, color = 'var(--lk-gilt-500)', iconHtml = '' }) {
+  const eff = fx === 'dmg' ? [i18n.t('common.damage'), value] : fx === 'heal' ? [i18n.t('common.healing'), `+${value}`] : fx === 'shield' ? [i18n.t('common.shield'), `+${value}`] : [effectLabel, value];
   const losIcon = los ? icon('vision') : `<span class="lk-nolos-ai">${icon('vision')}</span>`;
   const artAbs = art ? new URL(art, document.baseURI).href : null; // url() en variables CSS se resuelve contra la hoja de estilos: se usa la ruta absoluta
   return `<div class="lk-tooltip-tactical" style="--c:${color}${artAbs ? `;--art:url('${artAbs}')` : ''}">`
     + `<header class="${art ? 'lk-has-art' : ''}">${iconHtml ? `<span class="lk-sigil">${iconHtml}</span>` : ''}<div><small>${esc(kind)}</small><b>${esc(name)}</b></div></header>`
     + `<div class="lk-tt-body"><div class="lk-tt-stats">`
-    + (cost != null ? `<span class="lk-tt-stat"><i class="lk-tl">${icon('pa')}Coste</i><b>${cost} PA</b></span>` : '')
-    + (range != null ? `<span class="lk-tt-stat"><i class="lk-tl">${icon('range')}Alcance</i><b>AL ${esc(range)}</b></span>` : '')
-    + `<span class="lk-tt-stat"><i class="lk-tl">${losIcon}Visión</i><b>${los ? 'Requiere' : 'No requiere'}</b></span>`
+    + (cost != null ? `<span class="lk-tt-stat"><i class="lk-tl">${icon('pa')}${i18n.t('common.cost')}</i><b>${i18n.t('common.paN', { n: cost })}</b></span>` : '')
+    + (range != null ? `<span class="lk-tt-stat"><i class="lk-tl">${icon('range')}${i18n.t('common.range')}</i><b>${i18n.t('common.rangeShort')} ${esc(range)}</b></span>` : '')
+    + `<span class="lk-tt-stat"><i class="lk-tl">${losIcon}${i18n.t('common.vision')}</i><b>${los ? i18n.t('common.required') : i18n.t('common.notRequired')}</b></span>`
     + (eff[1] != null ? `<span class="lk-tt-stat">${esc(eff[0])}<b>${esc(eff[1])}</b></span>` : '')
     + `</div>${desc ? `<p>${desc}</p>` : ''}</div></div>`;
 }

@@ -4,6 +4,8 @@ import { getSoftToonRamp } from '../../demo_scena/genshin/GenshinMaterials.js';
 import { createSeededRandom } from '../../demo_scena/MathUtils.js';
 import { crystalMaterial, crystalPrismGeometry } from '../kit/IslandMaterials.js';
 import { IslandParticles } from '../kit/IslandParticles.js';
+import { placeIslandProps } from '../kit/IslandProps.js';
+import { GenesisAtiaFlame } from './GenesisAtiaFlame.js';
 
 /**
  * GenesisLandmarks — the places of Genesis ("Los Jardines Reales del Origen"), built with
@@ -11,22 +13,25 @@ import { IslandParticles } from '../kit/IslandParticles.js';
  *   1. Puerta del Santuario : monumental gate on the east avenue (lavender pillars, gold lintel,
  *                             crest, shimmering aurora veil you walk through), flanking walls,
  *                             braziers and a processional row of obelisks. Kotaro guards it.
- *   2. Jardín Real          : central plaza with a turquoise horned totem, a campfire, six
- *                             abstract monuments on pedestals and a pink crystal cluster.
+ *   2. Jardín Real          : central plaza with peluche.glb in the centre and seven weapon statues
+ *                             around it (GLB, Hito 58: lanza, hacha, doble, mando, bastón, arco, maná),
+ *                             a campfire and a pink crystal cluster.
  *   3. Cantera de cristal   : pink crystal quarry (Tripp's camp) with mining frames and a cart.
  *   4. Santuario del Origen : southern terrace with a ring of ancient columns (some broken),
  *                             fallen drums, a great arch with an aurora veil, the stepped
  *                             Throne of Origin and blue-violet braziers; the Spirit of Atia
- *                             stands in its centre.
+ *                             stands in its centre with the Atia Flame in front of it (GenesisAtiaFlame).
  * One merged vertex-coloured mesh (+ one glow mesh) per landmark.
  */
 export const GENESIS_SITES = {
   gate: { x: 112, z: 20, yaw: Math.PI / 2 },
+  // East avenue (ferry → Sanctuary Gate → plaza): DungeonIsland paints it, the processional obelisks follow it
+  eastAvenue: [[136, 22], [112, 20], [84, 14], [58, 8], [30, 4]],
   plaza: { x: 0, z: 0, half: 30 },
   quarry: { x: -60, z: -60, r: 12 },
   sanctuary: { x: 0, z: 92, r: 26, floor: 8.6 },
   npcs: {
-    kotaro: { x: 104, z: 13, rotation: 1.24 },
+    kotaro: { x: 15.0, z: 4.2, rotation: Math.PI / 2 },   // Jardín Real, mirando a la avenida del este (antes en la Puerta, 104, 13)
     tripp: { x: -50, z: -50, rotation: 0.785 },
     atia: { x: 0, z: 92, rotation: Math.PI }
   }
@@ -131,6 +136,7 @@ export class GenesisLandmarks {
     this._buildPlaza();
     this._buildQuarry();
     this._buildSanctuary();
+    this._buildAtiaFlame();
     zone.updatables.push(() => this.update());
   }
 
@@ -226,69 +232,44 @@ export class GenesisLandmarks {
     this.lights.push({ light, base: 5 });
     for (const [lx, lz, r] of [[-X, 0, 1.6], [X, 0, 1.6], [-3.4, 3.4, 0.7], [3.4, 3.4, 0.7]]) { const [wx, wz] = this._toWorld(G.x, G.z, G.yaw, lx, lz); this.zone.addCollider(wx, wz, r); }
     for (const s of [-1, 1]) for (let k = 0; k <= 4; k++) { const [wx, wz] = this._toWorld(G.x, G.z, G.yaw, s * (X + 1.8 + k * 1.6), -0.2); this.zone.addCollider(wx, wz, 0.8); }
-    // Processional obelisks along the avenue (west of the gate)
+    // Processional obelisks along the avenue (west of the gate): pairs every 9 m, 5.5 m to each side of the
+    // avenue's centre line, turned with it (the avenue bends south-west, so a straight row drifted off it)
     const obs = [], obsGlow = [];
+    const pts = GENESIS_SITES.eastAvenue.slice(1);           // from the gate westwards
+    const along = (d) => {                                   // point + direction at distance d along the avenue
+      for (let k = 0; k < pts.length - 1; k++) {
+        const [ax, az] = pts[k], [bx, bz] = pts[k + 1];
+        const len = Math.hypot(bx - ax, bz - az);
+        if (d <= len || k === pts.length - 2) { const t = d / len; return [ax + (bx - ax) * t, az + (bz - az) * t, (bx - ax) / len, (bz - az) / len]; }
+        d -= len;
+      }
+      return null;
+    };
     for (let i = 0; i < 4; i++) {
+      const [cx, cz, dx, dz] = along(8 + i * 9);
+      const rot = Math.atan2(dx, dz);
       for (const s of [-1, 1]) {
-        const lx = s * 5.5, lz = -8 - i * 9;
-        obs.push([box(1.1, 0.4, 1.1, lx, 0.2, lz), C.lavDark]);
-        obs.push([cyl(0.32, 0.55, 3.6, 4, lx, 2.2, lz).rotateY(0), C.lav]);
-        obsGlow.push([new THREE.OctahedronGeometry(0.26, 0).translate(lx, 4.3, lz), i % 2 ? C.glowCyan : C.glowViolet]);
-        const [wx, wz] = this._toWorld(G.x, G.z, G.yaw, lx, lz);
+        const wx = cx - dz * 5.5 * s, wz = cz + dx * 5.5 * s; // perpendicular offset
+        const y = this.height(wx, wz) - 0.08;
+        const base = box(1.1, 0.4, 1.1, 0, 0.2, 0); base.rotateY(rot); base.translate(wx, y, wz);
+        const shaft = cyl(0.32, 0.55, 3.6, 4, 0, 2.2, 0); shaft.rotateY(rot + Math.PI / 4); shaft.translate(wx, y, wz);
+        obs.push([base, C.lavDark], [shaft, C.lav]);
+        obsGlow.push([new THREE.OctahedronGeometry(0.26, 0).translate(wx, y + 4.3, wz), i % 2 ? C.glowCyan : C.glowViolet]);
         this.zone.addCollider(wx, wz, 0.7);
       }
     }
     const og = new THREE.Group();
-    og.position.set(G.x, 0, G.z);
-    og.rotation.y = G.yaw;
     og.name = 'Genesis_ProcessionObelisks';
-    // Obelisks follow the ground individually: bake per obelisk height via a vertex offset
-    const solid = bakeParts(obs);
-    const glowG = bakeParts(obsGlow);
-    const fixY = (geo) => {
-      const p = geo.attributes.position;
-      const c = Math.cos(G.yaw), s = Math.sin(G.yaw);
-      for (let i = 0; i < p.count; i++) {
-        const lx = Math.round(p.getX(i) / 5.5) * 5.5, lz = Math.round((p.getZ(i) + 8) / 9) * 9 - 8;
-        const wx = G.x + lx * c + lz * s, wz = G.z - lx * s + lz * c;
-        p.setY(i, p.getY(i) + this.height(wx, wz) - 0.08);
-      }
-      geo.computeBoundingSphere();
-    };
-    fixY(solid); fixY(glowG);
-    const sm = new THREE.Mesh(solid, this.solidMat); sm.castShadow = true; sm.receiveShadow = true;
-    og.add(sm, new THREE.Mesh(glowG, this.glowMat));
+    const sm = new THREE.Mesh(bakeParts(obs), this.solidMat); sm.castShadow = true; sm.receiveShadow = true;
+    og.add(sm, new THREE.Mesh(bakeParts(obsGlow), this.glowMat));
     this.root.add(og);
   }
 
   // 2. Jardín Real: totem + campfire + six abstract monuments on pedestals + crystal cluster
   _buildPlaza() {
     const P = GENESIS_SITES.plaza;
-    // Totem (abstract horned guardian pillar, turquoise)
-    const t = [], tg = [];
-    t.push([box(2.6, 0.5, 2.6, 0, 0.25, 0), C.lavDark]);
-    t.push([box(2.1, 1.7, 2.1, 0, 1.35, 0), C.tealDark]);
-    for (let i = 0; i < 4; i++) {
-      const a = (i / 4) * Math.PI * 2;
-      for (let k = 0; k < 3; k++) {
-        const tri = new THREE.ConeGeometry(0.28, 0.5, 3);
-        tri.rotateZ(k % 2 ? Math.PI : 0);
-        tri.translate(-0.6 + k * 0.6, 1.35, 1.07);
-        tri.rotateY(a);
-        t.push([tri, C.gold]);
-      }
-    }
-    t.push([box(1.8, 1.6, 1.8, 0, 3.0, 0), C.teal]);
-    t.push([box(1.95, 0.18, 1.95, 0, 3.85, 0), C.gold]);
-    t.push([ball(1, 0, 4.75, 0, 1.15, 0.85, 1.0, 1), C.tealLight]);
-    for (const s of [-1, 1]) {
-      t.push([rod(0.16, [s * 0.7, 5.2, 0], [s * 1.25, 6.1, -0.1], 6), C.tealLight]);
-      t.push([rod(0.11, [s * 1.25, 6.1, -0.1], [s * 1.05, 6.8, -0.2], 6), C.tealLight]);
-      tg.push([ball(0.16, s * 0.42, 4.85, 0.82, 1, 1, 0.5, 1), C.glowCyan]);
-    }
-    tg.push([ball(0.55, 0, 6.15, 0, 1, 1, 1, 1), 0xffa04a]);
-    this._place(t, tg, P.x, P.z, 0.2, 'Genesis_RoyalTotem', 1.4, 0.05);
-    this.zone.addCollider(P.x, P.z, 1.6);
+    // Central statue (peluche) and the ring of weapon statues: GLB, see _buildPlazaStatues (Hito 58)
+    this._buildPlazaStatues();
     // Campfire
     const fx = P.x + 7, fz = P.z + 5;
     const f = [];
@@ -307,59 +288,7 @@ export class GenesisLandmarks {
     const smoke = new IslandParticles(this.root, { mode: 'sand', count: 40, seed: 77, velocity: [0.1, 1.0, 0.05], size: 8, colorA: 0xc8c0e8, colorB: 0x9a90c8, opacity: 0.28, sway: 0.25, box: [3, 9, 3], additive: false });
     const sc = new THREE.Vector3(fx, fg.position.y + 3.4, fz);
     this.zone.updatables.push((dt) => smoke.update(dt, sc));
-    // Six monuments around the plaza (abstract sculptures on stepped pedestals)
-    const pastel = [C.pink, C.lavLight, C.tealLight, C.gold, C.marble, 0xffb88a];
-    for (let i = 0; i < 6; i++) {
-      const a = (i / 6) * Math.PI * 2 + Math.PI / 6;
-      const x = P.x + Math.cos(a) * 17, z = P.z + Math.sin(a) * 17;
-      const m = [], mg = [];
-      m.push([box(3.2, 0.5, 3.2, 0, 0.25, 0), C.lavDark]);
-      m.push([box(2.5, 0.6, 2.5, 0, 0.8, 0), C.marbleShade]);
-      m.push([box(1.8, 1.5, 1.8, 0, 1.85, 0), C.marble]);
-      m.push([box(2.05, 0.2, 2.05, 0, 2.7, 0), C.gold]);
-      const col = pastel[i];
-      const y0 = 2.8;
-      switch (i) {
-        case 0:   // ringed orb
-          mg.push([ball(0.8, 0, y0 + 1.3, 0, 1, 1, 1, 2), C.glowGold]);
-          m.push([new THREE.TorusGeometry(1.25, 0.08, 6, 32).rotateX(1.2).translate(0, y0 + 1.3, 0), C.gold]);
-          m.push([new THREE.TorusGeometry(1.45, 0.06, 6, 32).rotateZ(0.7).translate(0, y0 + 1.3, 0), C.goldDark]);
-          m.push([cyl(0.12, 0.2, 0.6, 8, 0, y0 + 0.3, 0), C.gold]);
-          break;
-        case 1:   // crystal cluster (pink)
-          for (let k = 0; k < 6; k++) {
-            const p = crystalPrismGeometry(0.22 + (k === 0 ? 0.12 : 0), 0.9 + (k === 0 ? 1.0 : 0.3 * (k % 3)), 6);
-            p.rotateZ((k === 0 ? 0 : 0.45) * ((k % 2) ? 1 : -1));
-            p.rotateY(k * 1.05);
-            p.translate(0, y0, 0);
-            mg.push([p, C.glowPink]);
-          }
-          break;
-        case 2:   // crescent
-          m.push([new THREE.TorusGeometry(1.1, 0.32, 10, 28, Math.PI * 1.3).rotateZ(-0.6).translate(0, y0 + 1.5, 0), col]);
-          mg.push([new THREE.OctahedronGeometry(0.3, 0).translate(0.3, y0 + 1.4, 0), C.glowCyan]);
-          break;
-        case 3:   // cairn of rounded stones
-          m.push([ball(0.85, 0, y0 + 0.55, 0, 1, 0.65, 1, 1), C.pink]);
-          m.push([ball(0.65, 0.1, y0 + 1.35, 0, 1, 0.7, 1, 1), C.tealLight]);
-          m.push([ball(0.45, -0.05, y0 + 2.0, 0, 1, 0.75, 1, 1), C.lavLight]);
-          mg.push([ball(0.18, 0, y0 + 2.45, 0, 1, 1, 1, 1), C.glowGold]);
-          break;
-        case 4:   // four-pointed star
-          mg.push([new THREE.OctahedronGeometry(0.9, 0).scale(0.6, 1.5, 0.6).translate(0, y0 + 1.6, 0), C.glowGold]);
-          m.push([new THREE.TorusGeometry(0.95, 0.07, 5, 28).translate(0, y0 + 1.6, 0), C.gold]);
-          break;
-        default:  // spiral of tilted cubes
-          for (let k = 0; k < 5; k++) {
-            const b = box(0.9 - k * 0.12, 0.45, 0.9 - k * 0.12, 0, y0 + 0.3 + k * 0.5, 0, k * 0.35);
-            m.push([b, k % 2 ? col : C.marble]);
-          }
-          mg.push([new THREE.OctahedronGeometry(0.22, 0).translate(0, y0 + 2.9, 0), C.glowViolet]);
-      }
-      this._place(m, mg, x, z, -a + Math.PI / 2, `Genesis_Monument_${i}`, 1.8, 0.08);
-      this.zone.addCollider(x, z, 1.9);
-    }
-    // Pink crystal cluster near the totem + glowing rune circle on the ground
+    // Pink crystal cluster near the central statue + glowing rune circle on the ground
     const cg = [];
     for (let k = 0; k < 7; k++) {
       const p = crystalPrismGeometry(0.2 + (k === 0 ? 0.1 : 0), 0.7 + (k === 0 ? 0.7 : 0.25 * (k % 3)), 6);
@@ -374,6 +303,25 @@ export class GenesisLandmarks {
       [new THREE.TorusGeometry(10.0, 0.035, 4, 72).rotateX(Math.PI / 2).translate(0, 0.06, 0), C.glowViolet]];
     const rg = this._place(null, ring, P.x, P.z, 0, 'Genesis_PlazaRunes', 0.1, 0);
     rg.position.y = this.height(P.x, P.z);
+  }
+
+  /**
+   * Jardín Real statues (Hito 58, islands/kit/IslandProps.js, shared `#islas` cache): peluche in the centre facing
+   * the east avenue (the way in from the Gate) and seven weapon statues evenly spaced on the old monuments' 17 m
+   * ring, facing the centre. They bring their own stone bases. Colliders now, models when loaded.
+   */
+  _buildPlazaStatues() {
+    const P = GENESIS_SITES.plaza;
+    const weapons = ['lanza', 'hacha', 'doble', 'mando', 'baston', 'arco', 'mana'];
+    const list = [{ model: 'peluche', x: P.x, z: P.z, yaw: Math.PI / 2, name: 'Genesis_PlushStatue' }];
+    weapons.forEach((model, i) => {
+      const a = Math.PI / 2 + (i / weapons.length) * Math.PI * 2;
+      const x = P.x + Math.cos(a) * 17, z = P.z + Math.sin(a) * 17;
+      list.push({ model, x, z, yaw: Math.atan2(P.x - x, P.z - z), name: `Genesis_WeaponStatue_${model}` });
+    });
+    const res = placeIslandProps(this.root, list, { height: this.height, plinthColor: C.lavDark });
+    res.colliders.forEach(([x, z, r]) => this.zone.addCollider(x, z, r));
+    this.ready = res.ready;
   }
 
   // 3. Pink crystal quarry (Tripp's camp)
@@ -398,7 +346,7 @@ export class GenesisLandmarks {
         m4.compose(new THREE.Vector3(x, this.height(x, z) - 0.3, z), q, new THREE.Vector3(r, h, r));
         list.push(m4.clone());
       }
-      this.zone.addCollider(cx, cz, big * 1.3);
+      // (Hito 73: colisión con la huella exacta de los cristales: def.collision.hullRules)
     }
     const inst = new THREE.InstancedMesh(prism, pinkMat, list.length);
     list.forEach((mm, i) => inst.setMatrixAt(i, mm));
@@ -510,6 +458,19 @@ export class GenesisLandmarks {
       const [wx, wz] = this._toWorld(S.x, S.z, yaw, lx, lz);
       this.zone.addCollider(wx, wz, r);
     }
+  }
+
+  /**
+   * Atia Flame (Hito 58): floating in front of the chest of the Spirit of Atia (atias.glb, ~10 m, sitting in
+   * meditation; its front faces −Z, towards the plaza). The statue itself is an NPC (NPCManager), so the flame
+   * lives here with the sanctuary and only needs the statue's spot.
+   */
+  _buildAtiaFlame() {
+    const A = GENESIS_SITES.npcs.atia;
+    const fx = A.x + Math.sin(A.rotation) * 2.6, fz = A.z + Math.cos(A.rotation) * 2.6;
+    this.atiaFlame = new GenesisAtiaFlame(this.root, {
+      x: fx, y: this.height(A.x, A.z) + 5.0, z: fz, size: 2.2, time: this.time, updatables: this.zone.updatables
+    });
   }
 
   update() {

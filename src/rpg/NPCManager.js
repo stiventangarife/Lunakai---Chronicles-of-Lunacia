@@ -1,9 +1,12 @@
 // NPCManager.js - Master Paladill & Dynamic Overworld NPCs with Speech Bubbles & Quests
 import * as THREE from 'three';
 import { GLTFLoader } from '../../vendor/GLTFLoader.js';
+import { DRACO_LOADER } from '../render/ModelCache.js';
 import { applyToonOutline } from './stylized/ToonOutline.js';
 import { portraitService } from '../tactics/CharacterPortraitService.js';
 import { FerryTravelUI } from './ui/FerryTravelUI.js';
+import { PALADILL_SPOT } from './world/ForestVillageLayout.js';
+import * as i18n from '../i18n/i18n.js';
 
 export class NPCManager {
   constructor(scene, dialogSystem, audioSystem) {
@@ -19,6 +22,7 @@ export class NPCManager {
     this.speechBubbleEl = null;
     this.modelCache = {};
     this.gltfLoader = new GLTFLoader();
+    this.gltfLoader.setDRACOLoader(DRACO_LOADER); // modelos con geometría Draco (Kawa, Guardián de los Pergaminos)
 
     this.questState = {
       talkedToPaladill: false,
@@ -48,7 +52,7 @@ export class NPCManager {
       el.className = 'lk-ui lk-interact-prompt hidden';
       el.innerHTML = `
         <span class="lk-ip__key">E</span>
-        <span id="prompt-npc-action" class="lk-ip__text">Talk to Master Paladill</span>
+        <span id="prompt-npc-action" class="lk-ip__text">${i18n.t('npc.talkToPaladill')}</span>
       `;
       document.body.appendChild(el);
     }
@@ -65,7 +69,7 @@ export class NPCManager {
       el.innerHTML = `
         <div class="lk-npc-bubble__plate"><i></i><b id="npc-bubble-speaker">NPC</b></div>
         <span id="npc-bubble-badge" class="lk-npc-mark" data-mark="talk" aria-hidden="true"></span>
-        <p id="npc-bubble-text" class="lk-npc-bubble__text">Hello, traveler!</p>
+        <p id="npc-bubble-text" class="lk-npc-bubble__text">${i18n.t('npc.bubbleTextDefault')}</p>
       `;
       document.body.appendChild(el);
     }
@@ -88,14 +92,14 @@ export class NPCManager {
     }
 
     const paladillGroup = new THREE.Group();
-    let px = -90.3;
+    let px = PALADILL_SPOT.x; // delante del dojo del pueblo del Bosque (ForestVillageLayout)
     let py = 0.0;
-    let pz = 63.3;
+    let pz = PALADILL_SPOT.z;
     if (this.overworldManager && typeof this.overworldManager.getGroundHeight === 'function') {
       py = this.overworldManager.getGroundHeight(px, pz);
     }
     paladillGroup.position.set(px, py, pz);
-    paladillGroup.rotation.y = Math.PI;
+    paladillGroup.rotation.y = PALADILL_SPOT.rotation;
     paladillGroup.visible = Boolean(initialVisible);
 
 
@@ -160,10 +164,10 @@ export class NPCManager {
 
     const npc = {
       id: 'paladill',
-      name: 'Master Paladill',
-      title: 'Dojo Mentor',
+      name: i18n.t('npc.paladill.name'),
+      title: i18n.t('npc.paladill.title'),
       avatar: './assets/portraits/paladill.png',
-      bubbleQuote: 'The discipline of the dojo forges the spirit!',
+      bubbleQuote: i18n.t('npc.paladill.bubble'),
       bubbleHeight: 4.2,
       group: paladillGroup,
       mixer: mixer,
@@ -242,6 +246,11 @@ export class NPCManager {
       if (npc.group.parent) {
         npc.group.parent.remove(npc.group);
       }
+      // Cada esqueleto guarda la pose de sus huesos en una textura de la GPU que solo libera skeleton.dispose()
+      // (sin esto quedaban ~7 texturas huérfanas por viaje entre islas)
+      const skeletons = new Set();
+      npc.group.traverse(child => { if (child.isSkinnedMesh && child.skeleton) skeletons.add(child.skeleton); });
+      skeletons.forEach((sk) => sk.dispose());
       npc.group.traverse(child => {
         if (child.isMesh || child.isSkinnedMesh || child.isSprite) {
           if (child.geometry) child.geometry.dispose();
@@ -287,14 +296,14 @@ export class NPCManager {
     for (const npc of this.npcs) {
       if (npc.id === 'paladill') {
         npc.group.visible = isDojo;
-        const targetX = -90.3;
-        const targetZ = 63.3;
+        const targetX = PALADILL_SPOT.x;
+        const targetZ = PALADILL_SPOT.z;
         const targetY = (this.overworldManager && this.overworldManager.demoScenaZone && typeof this.overworldManager.demoScenaZone.getHeight === 'function')
           ? this.overworldManager.demoScenaZone.getHeight(targetX, targetZ)
           : (npc.group.position.y || 0);
         npc.group.position.set(targetX, targetY, targetZ);
         const paladillDef = npcsInZone.find(d => d.id === 'paladill');
-        const defaultRot = (paladillDef && paladillDef.rotation !== undefined) ? paladillDef.rotation : Math.PI;
+        const defaultRot = (paladillDef && paladillDef.rotation !== undefined) ? paladillDef.rotation : PALADILL_SPOT.rotation;
         npc.defaultRotation = defaultRot;
         npc.group.rotation.y = defaultRot;
         if (this.collisions) {
@@ -371,14 +380,19 @@ export class NPCManager {
     // Holy spirit radiance light for statues channeling divine presence
     let spiritLight = null;
     if (isStatue) {
-      spiritLight = new THREE.PointLight(0x7df9ff, 1.8, 6.0);
-      spiritLight.position.set(0, 1.8, 0.4);
+      // Grows with big statues (scale = height in m; 2.8 m is the base size) so it is not buried inside them
+      const k = def.scale && def.scale > 2.8 ? def.scale / 2.8 : 1;
+      spiritLight = new THREE.PointLight(def.lightColor ?? 0x7df9ff, 1.8 * Math.sqrt(k), 6.0 * k);
+      if (def.lightOffset) spiritLight.position.set(...def.lightOffset);   // local to the NPC (front = +Z)
+      else spiritLight.position.set(0, 1.8 * k, 0.4 + (k - 1) * 3.0);
+      spiritLight.userData.base = spiritLight.intensity;
       group.add(spiritLight);
     }
 
 
     // Load Model or Stylized Mesh
     let mixer = null;
+    let staticModel = null; // modelos sin animaciones: respiran con un balanceo suave (update)
     let idleAction = null;
     const actions = {};
     let scaledBox = null;
@@ -424,6 +438,7 @@ export class NPCManager {
       }
       model.scale.set(s, s, s);
       model.updateMatrixWorld(true);
+      if (!isStatue && !(gltf.animations && gltf.animations.length)) { staticModel = model; model.userData.baseScale = s; }
 
       // Ground feet at y = 0
       scaledBox = new THREE.Box3().setFromObject(model);
@@ -434,6 +449,8 @@ export class NPCManager {
         if (c.isMesh) {
           c.castShadow = true;
           c.receiveShadow = true;
+          // Luz horneada en la textura y sin mapa de metal/rugosidad (Kawa, Guardián): sin esto se ven negros
+          if (def.matte) (Array.isArray(c.material) ? c.material : [c.material]).forEach((m) => { if (m) { m.metalness = 0; m.roughness = 0.85; } });
         }
       });
       group.add(model);
@@ -478,7 +495,7 @@ export class NPCManager {
     const npcObj = {
       id: def.id,
       name: def.name,
-      title: def.title || 'Inhabitant',
+      title: def.title || i18n.t('npc.inhabitant'),
       avatar: def.avatar || def.portrait || (def.heroId ? `./assets/portraits/${def.heroId}.png` : (def.model ? def.model.replace('.glb', '') : def.id)),
       questId: def.questId || null,
       heroId: def.heroId || null,
@@ -486,6 +503,7 @@ export class NPCManager {
       bubbleHeight: def.bubbleHeight ? (def.bubbleHeight >= 3.8 ? def.bubbleHeight : def.bubbleHeight * (2.80 / 1.55)) : (scaledBox ? Math.max(4.0, scaledBox.max.y + 0.95) : 4.0),
       group: group,
       mixer: mixer,
+      staticModel: staticModel,
       actions: actions,
       idleAction: idleAction,
       auraMesh: null,
@@ -493,8 +511,8 @@ export class NPCManager {
       isStatic: isStatue || !!def.isStatic,
       spiritLight: spiritLight,
       radius: def.collisionRadius !== undefined ? (def.collisionRadius >= 1.2 ? def.collisionRadius : def.collisionRadius * (2.80 / 1.55)) : (isFox ? 0.65 : (isStatue ? 1.5 : 1.15)),
-      interactRadius: 4.0,
-      calloutRadius: 7.5,
+      interactRadius: def.interactRadius || 4.0,   // big statues (Spirit of Atia) need a wider talk range
+      calloutRadius: def.calloutRadius || 7.5,
       zoneId: zoneId,
       defaultRotation: initialRot,
       onInteract: () => {
@@ -503,6 +521,9 @@ export class NPCManager {
         }
         if (def.type === 'merchant') {
           return this._handleMerchantInteraction(npcObj, def.shopId);
+        }
+        if (def.type === 'forge_keeper') {
+          return this._handleForgeKeeperInteraction(npcObj);
         }
         if (def.id === 'sentinel') {
           return this._handleSentinelInteraction(npcObj);
@@ -537,7 +558,7 @@ export class NPCManager {
         speaker: npc.name,
         title: npc.title,
         avatar: npc.avatar,
-        text: '¡Todavía no podemos zarpar! El Maestro Paladill quiere que termines tu primer entrenamiento antes de dejar la isla.'
+        text: i18n.t('npc.ferry.locked')
       }]);
       return;
     }
@@ -545,7 +566,7 @@ export class NPCManager {
       speaker: npc.name,
       title: npc.title,
       avatar: npc.avatar,
-      text: '¡Hola, viajero! Mi barca conoce todas las corrientes de Lunacia. Dime a qué isla quieres ir y zarpamos.'
+      text: i18n.t('npc.ferry.greet')
     }], () => {
       this.hideAllOverlays();
       if (!this.ferryTravelUI) this.ferryTravelUI = new FerryTravelUI(om);
@@ -564,10 +585,32 @@ export class NPCManager {
       speaker: npc.name,
       title: npc.title,
       avatar: npc.avatar,
-      text: '¡Bienvenido a mi puesto! Tengo materiales para la forja, comida para tu axie, pociones y algo de equipo. Y si te sobra algo, te lo compro.'
+      text: i18n.t('npc.merchant.greet')
     }], () => {
       this.hideAllOverlays();
       shop?.open(shopId);
+    });
+  }
+
+  /** Guardián de los Pergaminos (junto a la Forja): explica la Forja en tres frases y ofrece abrirla. */
+  _handleForgeKeeperInteraction(npc) {
+    if (this.dialogSystem.isActive) return;
+    if (this.audio && typeof this.audio.playHover === 'function') {
+      this.audio.playHover();
+    }
+    const who = { speaker: npc.name, title: npc.title, avatar: npc.avatar };
+    let openForge = false;
+    this.dialogSystem.startDialogue([
+      { ...who, html: i18n.t('npc.forgeKeeper.line1') },
+      { ...who, html: i18n.t('npc.forgeKeeper.line2') },
+      { ...who, html: i18n.t('npc.forgeKeeper.line3'), choices: [
+        { text: i18n.t('npc.forgeKeeper.open'), leave: true, onSelect: () => { openForge = true; } },
+        { text: i18n.t('npc.forgeKeeper.notNow'), leave: true }
+      ] }
+    ], () => {
+      if (!openForge) return;
+      this.hideAllOverlays();
+      window.lunakaiForge?.open?.();
     });
   }
 
@@ -594,8 +637,8 @@ export class NPCManager {
         // LINEARITY CHECK: If recruit's quest is locked or predecessor main quest not completed, block recruitment!
         if (quest.status === 'locked' || (this.questManager && !this.questManager.isMainQuestUnlocked(quest.id))) {
           const lockedText = npc.heroId === 'pomodoro'
-            ? 'Brrr! The polar cold and blizzard are relentless. You must first secure the Savannah and complete your deeds alongside the Sentinel before we can face this ice together.'
-            : 'Greetings! Master Paladill awaits you at the Dojo. Complete your initial training before fighting in the forest.';
+            ? i18n.t('npc.recruit.pomodoroLocked')
+            : i18n.t('npc.recruit.bingLocked');
           const dialog = [
             {
               speaker: npc.name,
@@ -614,19 +657,19 @@ export class NPCManager {
 
         // Condition A: Battle in this zone is already won AND intro completed -> Complete recruitment dialogue!
         if (battleStep && battleStep.done && (!findStep || findStep.done)) {
-          const heroBadge = npc.heroId === 'bing' ? '🐶 BING HAS JOINED THE SQUAD!' : '🍳 POMODORO HAS JOINED THE SQUAD!';
+          const heroBadge = npc.heroId === 'bing' ? i18n.t('npc.recruit.joinedBing') : i18n.t('npc.recruit.joinedPomodoro');
           const dialog = [
             {
               speaker: npc.name,
               title: npc.title,
               avatar: npc.avatar,
-              text: `We fought with great courage! Those chimeras stood no chance against our combined tactics.`
+              text: i18n.t('npc.recruit.won1')
             },
             {
               speaker: npc.name,
               title: npc.title,
               avatar: npc.avatar,
-              text: `As I promised, I officially join your squad. From now on I will travel with you across all of Lunacia.`
+              text: i18n.t('npc.recruit.won2')
             }
           ];
 
@@ -648,7 +691,7 @@ export class NPCManager {
               }
             }
             this.hideAllOverlays();
-            this._showBannerMessage(heroBadge, `${npc.name} will now fight permanently by your side across all regions.`);
+            this._showBannerMessage(heroBadge, i18n.t('npc.recruit.joinedDesc', { name: npc.name }));
           });
           return;
         }
@@ -661,7 +704,7 @@ export class NPCManager {
                 speaker: npc.name,
                 title: npc.title,
                 avatar: npc.avatar,
-                text: 'The savannah chimeras are back for my ice cream! Cover my flank with your cards, I\'ll bounce my Toy Ball at them and keep everyone\'s spirits up!'
+                text: i18n.t('npc.recruit.bingRetry')
               }
             ];
             this.dialogSystem.startDialogue(dialog, () => {
@@ -678,7 +721,7 @@ export class NPCManager {
                 speaker: npc.name,
                 title: npc.title,
                 avatar: npc.avatar,
-                text: 'The cold is biting and the ice chimeras are attacking again! Hold the frontline, I\'ll raise my frying pan and shield the whole squad!'
+                text: i18n.t('npc.recruit.pomodoroRetry')
               }
             ];
             this.dialogSystem.startDialogue(dialog, () => {
@@ -689,7 +732,7 @@ export class NPCManager {
             return;
           }
 
-          const reminderText = 'The cold is biting! The ice chimeras surround us. Enter combat and I\'ll shield your squad!';
+          const reminderText = i18n.t('npc.recruit.genericRetry');
           const dialog = [
             {
               speaker: npc.name,
@@ -709,7 +752,7 @@ export class NPCManager {
               speaker: npc.name,
               title: npc.title,
               avatar: npc.avatar,
-              text: 'Woof! Reinforcements at last! WATCH OUT BEHIND YOU! A chimera ambush is after my ice cream! Let\'s fight shoulder to shoulder, I\'ll cheer you on!'
+              text: i18n.t('npc.recruit.bingAmbush')
             }
           ];
           this.dialogSystem.startDialogue(dialog, () => {
@@ -729,7 +772,7 @@ export class NPCManager {
               speaker: npc.name,
               title: npc.title,
               avatar: npc.avatar,
-              text: 'By the leaves of Atia! WATCH OUT, THEY\'RE ATTACKING! A pack of glacial chimeras surrounds us in the ice! Let\'s join forces, I will shield your squad!'
+              text: i18n.t('npc.recruit.pomodoroAmbush')
             }
           ];
           this.dialogSystem.startDialogue(dialog, () => {
@@ -754,7 +797,7 @@ export class NPCManager {
             speaker: npc.name,
             title: npc.title,
             avatar: npc.avatar,
-            text: 'You are not yet ready for this challenge, traveler. Check your Quest Book [J] and complete your current main quest first.'
+            text: i18n.t('npc.quest.notReady')
           }
         ];
         this.dialogSystem.startDialogue(dialog);
@@ -768,12 +811,12 @@ export class NPCManager {
             speaker: npc.name,
             title: npc.title,
             avatar: npc.avatar,
-            text: `Extraordinary work, {heroName}! You have fulfilled all objectives. Here is your well-deserved reward.`
+            text: i18n.t('npc.quest.turnIn')
           }
         ];
         this.dialogSystem.startDialogue(dialog, () => {
           const res = this.questManager.completeQuest(quest.id);
-          this._showBannerMessage('🎉 QUEST COMPLETED!', `${quest.title} — Rewards claimed.`);
+          this._showBannerMessage(i18n.t('npc.quest.bannerCompleted'), i18n.t('npc.quest.bannerCompletedDesc', { title: quest.title }));
         });
         return;
       }
@@ -788,7 +831,7 @@ export class NPCManager {
                 speaker: npc.name,
                 title: npc.title,
                 avatar: npc.avatar,
-                text: 'The raiders are still lurking with my bags of royal letters! Please face them once again!'
+                text: i18n.t('npc.quest.postmanRetry')
               }
             ];
             this.dialogSystem.startDialogue(dialog, () => {
@@ -809,7 +852,7 @@ export class NPCManager {
                 speaker: npc.name,
                 title: npc.title,
                 avatar: npc.avatar,
-                text: 'The illusory shadow still lurks at the mirror threshold... Would you like to enter combat again?'
+                text: i18n.t('npc.quest.shamanRetry')
               }
             ];
             this.dialogSystem.startDialogue(dialog, () => {
@@ -830,39 +873,39 @@ export class NPCManager {
                                  pendingStep.id.startsWith('return_') ||
                                  pendingStep.id.startsWith('purify_') ||
                                  pendingStep.id.startsWith('restore_') ||
-                                 pendingStep.desc.toLowerCase().includes('hablar') ||
-                                 pendingStep.desc.toLowerCase().includes('reportar') ||
-                                 pendingStep.desc.toLowerCase().includes('entregar') ||
-                                 pendingStep.desc.toLowerCase().includes('devolver') ||
-                                 pendingStep.desc.toLowerCase().includes('llevar') ||
-                                 pendingStep.desc.toLowerCase().includes('demostrar') ||
-                                 pendingStep.desc.toLowerCase().includes('probar') ||
-                                 pendingStep.desc.toLowerCase().includes('reunirte') ||
-                                 pendingStep.desc.toLowerCase().includes('informar') ||
-                                 pendingStep.desc.toLowerCase().includes('consagrar') ||
-                                 pendingStep.desc.toLowerCase().includes('talk') ||
-                                 pendingStep.desc.toLowerCase().includes('speak') ||
-                                 pendingStep.desc.toLowerCase().includes('report') ||
-                                 pendingStep.desc.toLowerCase().includes('deliver') ||
-                                 pendingStep.desc.toLowerCase().includes('return') ||
-                                 pendingStep.desc.toLowerCase().includes('purify') ||
-                                 pendingStep.desc.toLowerCase().includes('restore') ||
-                                 pendingStep.desc.toLowerCase().includes('bring') ||
-                                 pendingStep.desc.toLowerCase().includes('prove') ||
-                                 pendingStep.desc.toLowerCase().includes('meet') ||
-                                 pendingStep.desc.toLowerCase().includes('consecrate');
+                                 i18n.en(pendingStep.desc).toLowerCase().includes('hablar') ||
+                                 i18n.en(pendingStep.desc).toLowerCase().includes('reportar') ||
+                                 i18n.en(pendingStep.desc).toLowerCase().includes('entregar') ||
+                                 i18n.en(pendingStep.desc).toLowerCase().includes('devolver') ||
+                                 i18n.en(pendingStep.desc).toLowerCase().includes('llevar') ||
+                                 i18n.en(pendingStep.desc).toLowerCase().includes('demostrar') ||
+                                 i18n.en(pendingStep.desc).toLowerCase().includes('probar') ||
+                                 i18n.en(pendingStep.desc).toLowerCase().includes('reunirte') ||
+                                 i18n.en(pendingStep.desc).toLowerCase().includes('informar') ||
+                                 i18n.en(pendingStep.desc).toLowerCase().includes('consagrar') ||
+                                 i18n.en(pendingStep.desc).toLowerCase().includes('talk') ||
+                                 i18n.en(pendingStep.desc).toLowerCase().includes('speak') ||
+                                 i18n.en(pendingStep.desc).toLowerCase().includes('report') ||
+                                 i18n.en(pendingStep.desc).toLowerCase().includes('deliver') ||
+                                 i18n.en(pendingStep.desc).toLowerCase().includes('return') ||
+                                 i18n.en(pendingStep.desc).toLowerCase().includes('purify') ||
+                                 i18n.en(pendingStep.desc).toLowerCase().includes('restore') ||
+                                 i18n.en(pendingStep.desc).toLowerCase().includes('bring') ||
+                                 i18n.en(pendingStep.desc).toLowerCase().includes('prove') ||
+                                 i18n.en(pendingStep.desc).toLowerCase().includes('meet') ||
+                                 i18n.en(pendingStep.desc).toLowerCase().includes('consecrate');
 
           const otherStepsDone = quest.objective.steps.filter(s => s.id !== pendingStep.id).every(s => s.done);
 
           if (isTalkOrReport && otherStepsDone) {
-            let customFinishText = `Excellent work, {heroName}! You have accomplished your task. Here is your reward.`;
-            if (quest.id === 'quest_lost_mail') customFinishText = 'My letters! You recovered them all! You saved my job, adventurer! Take this reward for your bravery.';
-            else if (quest.id === 'quest_forest_elixir') customFinishText = 'Oh, what pure glow this luminous moss has! I will prepare a revitalizing salve at once. Here, this is for you.';
-            else if (quest.id === 'quest_nomad_steel') customFinishText = 'By fire and hammer! This carapace ore is of the highest quality. Take your well-deserved obsidian dagger!';
-            else if (quest.id === 'quest_keen_eye_trial') customFinishText = 'I observed your combat in the savannah! Flawless aim and composure. Take this precision sight.';
-            else if (quest.id === 'quest_blizzard_stew') customFinishText = 'It smells wonderful! With these 3 polar mushrooms, the stew will keep everyone warm on the glacier. Take this thermal cauldron!';
-            else if (quest.id === 'quest_fallen_stardust') customFinishText = 'The cosmic glow of these 3 fragments is wondrous! You have tuned with the stars. Receive this prism.';
-            else if (quest.id === 'quest_shadow_mirror') customFinishText = 'You shattered the dark mirror illusion! Your mind and spirit are now incorruptible. Receive this talisman.';
+            let customFinishText = i18n.t('npc.quest.finishDefault');
+            if (quest.id === 'quest_lost_mail') customFinishText = i18n.t('npc.quest.finish.lostMail');
+            else if (quest.id === 'quest_forest_elixir') customFinishText = i18n.t('npc.quest.finish.forestElixir');
+            else if (quest.id === 'quest_nomad_steel') customFinishText = i18n.t('npc.quest.finish.nomadSteel');
+            else if (quest.id === 'quest_keen_eye_trial') customFinishText = i18n.t('npc.quest.finish.keenEye');
+            else if (quest.id === 'quest_blizzard_stew') customFinishText = i18n.t('npc.quest.finish.blizzardStew');
+            else if (quest.id === 'quest_fallen_stardust') customFinishText = i18n.t('npc.quest.finish.fallenStardust');
+            else if (quest.id === 'quest_shadow_mirror') customFinishText = i18n.t('npc.quest.finish.shadowMirror');
 
             const dialog = [
               {
@@ -875,7 +918,7 @@ export class NPCManager {
             this.dialogSystem.startDialogue(dialog, () => {
               this.questManager.advanceStep(quest.id, pendingStep.id, true);
               this.questManager.completeQuest(quest.id);
-              this._showBannerMessage('🎉 QUEST COMPLETED!', `${quest.title} — Rewards claimed.`);
+              this._showBannerMessage(i18n.t('npc.quest.bannerCompleted'), i18n.t('npc.quest.bannerCompletedDesc', { title: quest.title }));
             });
             return;
           }
@@ -884,18 +927,18 @@ export class NPCManager {
         // Specific reminder dialogues with clear location instructions
         let reminderText = null;
         if (quest.id === 'quest_forest_elixir') {
-          reminderText = 'Look for the glowing sprout by the stream in this forest [2, 2] to obtain the luminous moss.';
+          reminderText = i18n.t('npc.quest.remind.forestElixir');
         } else if (quest.id === 'quest_nomad_steel') {
-          reminderText = 'The Armored Chimera roams east of the canyon in this savannah [3, 1]. Defeat it and bring me its carapace!';
+          reminderText = i18n.t('npc.quest.remind.nomadSteel');
         } else if (quest.id === 'quest_keen_eye_trial') {
-          reminderText = 'Triumph in tactical combat against any group of savannah chimeras in this territory [3, 1].';
+          reminderText = i18n.t('npc.quest.remind.keenEye');
         } else if (quest.id === 'quest_blizzard_stew') {
-          reminderText = 'Collect the 3 polar mushrooms in the snow of this quadrant [2, 1] and bring them to my cauldron.';
+          reminderText = i18n.t('npc.quest.remind.blizzardStew');
         } else if (quest.id === 'quest_fallen_stardust') {
-          reminderText = 'Gather the 3 stardust fragments among the arcane mists of this region [1, 2].';
+          reminderText = i18n.t('npc.quest.remind.fallenStardust');
         }
 
-        const desc = reminderText || (pendingStep ? pendingStep.desc : 'Check your Quest Book [J]');
+        const desc = reminderText || (pendingStep ? pendingStep.desc : i18n.t('npc.quest.checkBook'));
         const dialog = [
           {
             speaker: npc.name,
@@ -916,13 +959,13 @@ export class NPCManager {
               speaker: npc.name,
               title: npc.title,
               avatar: npc.avatar,
-              text: 'Please help me! I was ambushed by lesser chimeras and they stole my sacks of royal mail!'
+              text: i18n.t('npc.quest.postmanOffer1')
             },
             {
               speaker: npc.name,
               title: npc.title,
               avatar: npc.avatar,
-              text: 'Wait a second... WATCH OUT, HERE THEY COME TO RAID US AGAIN!'
+              text: i18n.t('npc.quest.postmanOffer2')
             }
           ];
           this.dialogSystem.startDialogue(dialog, () => {
@@ -942,13 +985,13 @@ export class NPCManager {
               speaker: npc.name,
               title: npc.title,
               avatar: npc.avatar,
-              text: 'In this mystical fog, your own shadow will hunt you... Only by tempering your spirit will you dispel the illusion of the dark mirror.'
+              text: i18n.t('npc.quest.shamanOffer1')
             },
             {
               speaker: npc.name,
               title: npc.title,
               avatar: npc.avatar,
-              text: 'Focus your energy! Look how your shadowy reflection crosses the astral threshold into combat!'
+              text: i18n.t('npc.quest.shamanOffer2')
             }
           ];
           this.dialogSystem.startDialogue(dialog, () => {
@@ -967,7 +1010,7 @@ export class NPCManager {
             speaker: npc.name,
             title: npc.title,
             avatar: npc.avatar,
-            text: quest.npcQuote || `Greetings, {heroName}! I need your help with a matter of vital importance.`
+            text: quest.npcQuote || i18n.t('npc.quest.offerGreeting')
           },
           {
             speaker: npc.name,
@@ -979,22 +1022,22 @@ export class NPCManager {
             speaker: npc.name,
             title: npc.title,
             avatar: npc.avatar,
-            text: `I have logged this quest in your Quest Book [J]! Best of luck, adventurer.`
+            text: i18n.t('npc.quest.offerLogged')
           }
         ];
         this.dialogSystem.startDialogue(dialog, () => {
           this.questManager.activateQuest(quest.id);
           // If the quest has a first step of talking to this NPC, mark it done!
           const firstStep = quest.objective?.steps?.[0];
-          if (firstStep && (firstStep.id.startsWith('talk_') || firstStep.desc.toLowerCase().includes('hablar') || firstStep.desc.toLowerCase().includes('aceptar') || firstStep.desc.toLowerCase().includes('talk') || firstStep.desc.toLowerCase().includes('accept'))) {
+          if (firstStep && (firstStep.id.startsWith('talk_') || i18n.en(firstStep.desc).toLowerCase().includes('hablar') || i18n.en(firstStep.desc).toLowerCase().includes('aceptar') || i18n.en(firstStep.desc).toLowerCase().includes('talk') || i18n.en(firstStep.desc).toLowerCase().includes('accept'))) {
             this.questManager.advanceStep(quest.id, firstStep.id, true);
           }
           if (this.overworldManager && this.overworldManager.questInteractables) {
             const curMap = this.overworldManager.worldMapManager?.currentMapDef;
             const zoneKey = curMap ? `${curMap.gx}_${curMap.gy}` : '2_2';
-            this.overworldManager.questInteractables.loadForZone(zoneKey);
+            this.overworldManager.questInteractables.refreshQuestNodes(zoneKey); // solo objetos de misión (Hito 64)
           }
-          this._showBannerMessage('📜 NEW QUEST!', `${quest.title} logged in your Quest Book.`);
+          this._showBannerMessage(i18n.t('npc.quest.bannerNew'), i18n.t('npc.quest.bannerNewDesc', { title: quest.title }));
         });
         return;
       }
@@ -1005,7 +1048,7 @@ export class NPCManager {
             speaker: npc.name,
             title: npc.title,
             avatar: npc.avatar,
-            text: `Thank you again for your invaluable aid, {heroName}! May the light of the Atia Tree illuminate your path.`
+            text: i18n.t('npc.quest.thanks')
           }
         ];
         this.dialogSystem.startDialogue(dialog);
@@ -1019,7 +1062,7 @@ export class NPCManager {
         speaker: npc.name,
         title: npc.title,
         avatar: npc.avatar,
-        text: npc.bubbleQuote || `Greetings! May the wisdom of Atia accompany your journey.`
+        text: npc.bubbleQuote || i18n.t('npc.ambient')
       }
     ];
     this.dialogSystem.startDialogue(ambientDialog);
@@ -1039,10 +1082,10 @@ export class NPCManager {
     if (!q3 || q3.status === 'locked' || !this.questManager.isMainQuestUnlocked('quest_hostile_sands')) {
       const dialogue = [
         {
-          speaker: 'Desert Sentinel',
-          title: 'Dune Watcher',
+          speaker: i18n.t('npc.sentinel.name'),
+          title: i18n.t('npc.sentinel.title'),
           avatar: 'kibo',
-          text: 'Halt, traveler! The Savannah dunes blaze with danger and ferocious chimeras. You must forge your squad and prove your worth in the Forest before crossing into this territory.'
+          text: i18n.t('npc.sentinel.locked')
         }
       ];
       this.dialogSystem.startDialogue(dialogue);
@@ -1057,22 +1100,22 @@ export class NPCManager {
 
       const dialogue = [
         {
-          speaker: 'Desert Sentinel',
-          title: 'Dune Watcher',
+          speaker: i18n.t('npc.sentinel.name'),
+          title: i18n.t('npc.sentinel.title'),
           avatar: 'kibo',
-          text: 'Reinforcements from the Lunacia Dojo at last! I see you bring Bing, that cheerful pup, with you. The heat of the Savannah and the dune chimeras are relentless.'
+          text: i18n.t('npc.sentinel.sands1')
         },
         {
-          speaker: 'Desert Sentinel',
-          title: 'Dune Watcher',
+          speaker: i18n.t('npc.sentinel.name'),
+          title: i18n.t('npc.sentinel.title'),
           avatar: 'kibo',
-          text: 'You have secured this border outpost. Take this Arid Wind Turban as a decoration from the nomad guard.'
+          text: i18n.t('npc.sentinel.sands2')
         },
         {
-          speaker: 'Desert Sentinel',
-          title: 'Dune Watcher',
+          speaker: i18n.t('npc.sentinel.name'),
+          title: i18n.t('npc.sentinel.title'),
           avatar: 'kibo',
-          text: 'But we cannot rest: a dangerous pack of Beaked Chimeras led by an alpha male dominates the Arid Wastes in [3, 1], cutting off the route to the frozen north. You must travel to [3, 1] and defeat the alpha male to clear the path to the Arctic!'
+          text: i18n.t('npc.sentinel.sands3')
         }
       ];
 
@@ -1081,7 +1124,7 @@ export class NPCManager {
         this.questManager.completeQuest('quest_hostile_sands');
         // Player is already on Savannah Island, advance reach_wastes so the hunt begins immediately
         this.questManager.advanceStep('quest_hunt_beaked_chimera', 'reach_wastes', true);
-        this._showBannerMessage('🎉 QUEST COMPLETED!', 'Hostile Sands — Rewards claimed.');
+        this._showBannerMessage(i18n.t('npc.quest.bannerCompleted'), i18n.t('npc.sentinel.sandsDone'));
         if (this.overworldManager) {
           if (this.overworldManager.monsters && typeof this.overworldManager.monsters.ensureSavannahQuestMonsters === 'function') {
             this.overworldManager.monsters.ensureSavannahQuestMonsters();
@@ -1110,10 +1153,10 @@ export class NPCManager {
         // Battle not won yet -> Sentinel marks and directs player to the Beaked Chimera pack
         const dialogue = [
           {
-            speaker: 'Desert Sentinel',
-            title: 'Dune Watcher',
+            speaker: i18n.t('npc.sentinel.name'),
+            title: i18n.t('npc.sentinel.title'),
             avatar: 'kibo',
-            text: 'I have marked the Beaked Chimera territory in the western canyon plateau on your compass! Track down the pack at [-40, -8] and defeat the alpha male in tactical combat!'
+            text: i18n.t('npc.sentinel.hunt')
           }
         ];
         this.dialogSystem.startDialogue(dialogue, () => {
@@ -1134,23 +1177,23 @@ export class NPCManager {
         // Battle is won -> Turn in quest #4!
         const dialogue = [
           {
-            speaker: 'Desert Sentinel',
-            title: 'Dune Watcher',
+            speaker: i18n.t('npc.sentinel.name'),
+            title: i18n.t('npc.sentinel.title'),
             avatar: 'kibo',
-            text: 'By the dunes of Lunacia, you have triumphed! I can feel calm returning to the Savannah following the fall of the alpha Beaked Chimera.'
+            text: i18n.t('npc.sentinel.huntWon1')
           },
           {
-            speaker: 'Desert Sentinel',
-            title: 'Dune Watcher',
+            speaker: i18n.t('npc.sentinel.name'),
+            title: i18n.t('npc.sentinel.title'),
             avatar: 'kibo',
-            text: 'Here is your promised Reinforced Leather Shield. The northern route toward Polar Frost Ridge in [4, 1] is now fully open. March to the snow and seek Pomodoro!'
+            text: i18n.t('npc.sentinel.huntWon2')
           }
         ];
 
         this.dialogSystem.startDialogue(dialogue, () => {
           this.questManager.advanceStep('quest_hunt_beaked_chimera', 'report_hunt', true);
           this.questManager.completeQuest('quest_hunt_beaked_chimera');
-          this._showBannerMessage('🎉 QUEST COMPLETED!', 'Hunt of the Beaked Chimera — Rewards claimed.');
+          this._showBannerMessage(i18n.t('npc.quest.bannerCompleted'), i18n.t('npc.sentinel.huntDone'));
           if (this.overworldManager) {
             if (this.overworldManager.questDescEl) {
               this.overworldManager.questDescEl.textContent = this.questManager.getActiveHUDTrackerText();
@@ -1168,10 +1211,10 @@ export class NPCManager {
     if (q4 && q4.status === 'completed') {
       const dialogue = [
         {
-          speaker: 'Desert Sentinel',
-          title: 'Dune Watcher',
+          speaker: i18n.t('npc.sentinel.name'),
+          title: i18n.t('npc.sentinel.title'),
           avatar: 'kibo',
-          text: 'Caravans cross the Savannah once again thanks to your courage! Pomodoro awaits you at Polar Frost Ridge in [4, 1]. May Atia guide your path!'
+          text: i18n.t('npc.sentinel.after')
         }
       ];
       this.dialogSystem.startDialogue(dialogue);
@@ -1207,10 +1250,10 @@ export class NPCManager {
     if (!q7 || q7.status === 'locked' || !this.questManager.isMainQuestUnlocked('quest_astral_void_echoes')) {
       const dialogue = [
         {
-          speaker: 'Astral Oracle',
-          title: 'Voice of the Constellations',
+          speaker: i18n.t('npc.oracle.name'),
+          title: i18n.t('npc.oracle.title'),
           avatar: 'sapidae-f-d',
-          text: 'The constellations are not yet aligned for you, travelers. You must overcome the challenges of the Forest, the Savannah, and the Polar Valley before the veil of the void can be opened.'
+          text: i18n.t('npc.oracle.locked')
         }
       ];
       this.dialogSystem.startDialogue(dialogue);
@@ -1226,29 +1269,29 @@ export class NPCManager {
 
       const dialogue = [
         {
-          speaker: 'Astral Oracle',
-          title: 'Voice of the Constellations',
+          speaker: i18n.t('npc.oracle.name'),
+          title: i18n.t('npc.oracle.title'),
           avatar: 'sapidae-f-d',
-          text: '{heroName}, Bing, Pomodoro! The stars foretold your arrival. The ether of Lunacia trembles under a strange dimensional distortion.'
+          text: i18n.t('npc.oracle.echoes1')
         },
         {
-          speaker: 'Astral Oracle',
-          title: 'Voice of the Constellations',
+          speaker: i18n.t('npc.oracle.name'),
+          title: i18n.t('npc.oracle.title'),
           avatar: 'sapidae-f-d',
-          text: 'Take this Seer Astral Robe as a cosmic blessing for your journey across the Nebula.'
+          text: i18n.t('npc.oracle.echoes2')
         },
         {
-          speaker: 'Astral Oracle',
-          title: 'Voice of the Constellations',
+          speaker: i18n.t('npc.oracle.name'),
+          title: i18n.t('npc.oracle.title'),
           avatar: 'sapidae-f-d',
-          text: 'WATCH OUT! In this very Void Sanctuary [1, 3], an Arcane Sapidae Chimera has awakened. It channels a dark resonance and lunges toward us! To arms!'
+          text: i18n.t('npc.oracle.echoes3')
         }
       ];
 
       this.dialogSystem.startDialogue(dialogue, () => {
         this.questManager.advanceStep('quest_astral_void_echoes', 'talk_oracle', true);
         this.questManager.completeQuest('quest_astral_void_echoes');
-        this._showBannerMessage('🎉 QUEST COMPLETED!', 'Echoes of the Astral Void — Rewards claimed.');
+        this._showBannerMessage(i18n.t('npc.quest.bannerCompleted'), i18n.t('npc.oracle.echoesDone'));
         if (this.questManager) {
           this.questManager.advanceStep('quest_forbidden_resonance', 'reach_sanctuary', true);
         }
@@ -1272,10 +1315,10 @@ export class NPCManager {
         // Battle not won yet -> Direct re-try combat!
         const dialogue = [
           {
-            speaker: 'Astral Oracle',
-            title: 'Voice of the Constellations',
+            speaker: i18n.t('npc.oracle.name'),
+            title: i18n.t('npc.oracle.title'),
             avatar: 'sapidae-f-d',
-            text: 'The void resonance intensifies! The Arcane Sapidae Chimera strikes with distorting bursts. Let us face it at once!'
+            text: i18n.t('npc.oracle.retry')
           }
         ];
         this.dialogSystem.startDialogue(dialogue, () => {
@@ -1288,29 +1331,29 @@ export class NPCManager {
         // Battle is won -> Turn in quest #8 and unlock quest #9!
         const dialogue = [
           {
-            speaker: 'Astral Oracle',
-            title: 'Voice of the Constellations',
+            speaker: i18n.t('npc.oracle.name'),
+            title: i18n.t('npc.oracle.title'),
             avatar: 'sapidae-f-d',
-            text: 'The void resonance has dissipated! Starlight and the ether of Lunacia flow in harmony through this sanctuary once more.'
+            text: i18n.t('npc.oracle.won1')
           },
           {
-            speaker: 'Astral Oracle',
-            title: 'Voice of the Constellations',
+            speaker: i18n.t('npc.oracle.name'),
+            title: i18n.t('npc.oracle.title'),
             avatar: 'sapidae-f-d',
-            text: 'As a reward from the stars, I grant you the Thread of Fate Ring. It bestows supreme vitality and tactical agility.'
+            text: i18n.t('npc.oracle.won2')
           },
           {
-            speaker: 'Astral Oracle',
-            title: 'Voice of the Constellations',
+            speaker: i18n.t('npc.oracle.name'),
+            title: i18n.t('npc.oracle.title'),
             avatar: 'sapidae-f-d',
-            text: 'My visions have revealed the primeval origin of this plague: in the south of Lunacia lie the Royal Gardens of Genesis [2, 3], the forbidden sanctuary of the elite. Cross the Sanctuary Gate, defeat its wardens, and unlock the final seal with the Genesis Sanctum Key.'
+            text: i18n.t('npc.oracle.won3')
           }
         ];
 
         this.dialogSystem.startDialogue(dialogue, () => {
           this.questManager.advanceStep('quest_forbidden_resonance', 'purify_resonance', true);
           this.questManager.completeQuest('quest_forbidden_resonance');
-          this._showBannerMessage('🎉 QUEST COMPLETED!', 'The Forbidden Resonance — Rewards claimed.');
+          this._showBannerMessage(i18n.t('npc.quest.bannerCompleted'), i18n.t('npc.oracle.resonanceDone'));
         });
         return;
       }
@@ -1320,10 +1363,10 @@ export class NPCManager {
     if (q8 && q8.status === 'completed') {
       const dialogue = [
         {
-          speaker: 'Astral Oracle',
-          title: 'Voice of the Constellations',
+          speaker: i18n.t('npc.oracle.name'),
+          title: i18n.t('npc.oracle.title'),
           avatar: 'sapidae-f-d',
-          text: 'The constellations watch over you, {heroName}, Bing, and Pomodoro. Head to the Sanctuary Gate of Genesis in [3, 5]. The fate of the continent rests on your shoulders.'
+          text: i18n.t('npc.oracle.after')
         }
       ];
       this.dialogSystem.startDialogue(dialogue);
@@ -1344,10 +1387,10 @@ export class NPCManager {
     if (!q7 || q7.status === 'locked' || !this.questManager.isMainQuestUnlocked('quest_astral_void_echoes')) {
       const dialogue = [
         {
-          speaker: 'Polar Sage',
-          title: 'Guardian of Ley Lines',
+          speaker: i18n.t('npc.sage.name'),
+          title: i18n.t('npc.sage.title'),
           avatar: 'sapidae-f-c',
-          text: 'The constellations tremble before the advance of the void... You must first complete your journey through the Forest and the Arctic before the ley lines permit passage to the Astral Nebula.'
+          text: i18n.t('npc.sage.locked')
         }
       ];
       this.dialogSystem.startDialogue(dialogue);
@@ -1361,30 +1404,30 @@ export class NPCManager {
 
       const dialogue = [
         {
-          speaker: 'Polar Sage',
-          title: 'Guardian of Ley Lines',
+          speaker: i18n.t('npc.sage.name'),
+          title: i18n.t('npc.sage.title'),
           avatar: 'sapidae-f-c',
-          text: '{heroName}, Bing, Pomodoro! You have arrived at the threshold of the Astral Nebula [1, 2]. Celestial energies are out of sync and the fabric of reality wears thin.'
+          text: i18n.t('npc.sage.active1')
         },
         {
-          speaker: 'Polar Sage',
-          title: 'Guardian of Ley Lines',
+          speaker: i18n.t('npc.sage.name'),
+          title: i18n.t('npc.sage.title'),
           avatar: 'sapidae-f-c',
-          text: 'You must travel south to the Astral Void Sanctuary in [1, 4] and meet urgently with the Astral Oracle. Only their cosmic vision can reveal how to restore balance.'
+          text: i18n.t('npc.sage.active2')
         }
       ];
       this.dialogSystem.startDialogue(dialogue);
-      npc.bubbleQuote = 'Seek the Astral Oracle in the Sanctuary [1, 4]!';
+      npc.bubbleQuote = i18n.t('npc.sage.bubbleSeek');
       return;
     }
 
     // Quest 7 completed
     const dialogue = [
       {
-        speaker: 'Polar Sage',
-        title: 'Guardian of Ley Lines',
+        speaker: i18n.t('npc.sage.name'),
+        title: i18n.t('npc.sage.title'),
         avatar: 'sapidae-f-c',
-        text: 'The ley lines in this nebula have begun to heal thanks to your bravery. May the Oracle\'s blessing guide you southward.'
+        text: i18n.t('npc.sage.after')
       }
     ];
     this.dialogSystem.startDialogue(dialogue);
@@ -1429,28 +1472,28 @@ export class NPCManager {
       // Step 1: Welcome & Mission Assignment
       const dialogue = [
         {
-          speaker: 'Master Paladill',
-          title: 'Dojo Mentor',
+          speaker: i18n.t('npc.paladill.name'),
+          title: i18n.t('npc.paladill.title'),
           avatar: './assets/portraits/paladill.png',
-          text: 'May the blessing of Atia be with you, young {heroName}!'
+          text: i18n.t('npc.paladill.welcome1')
         },
         {
-          speaker: 'Master Paladill',
-          title: 'Dojo Mentor',
+          speaker: i18n.t('npc.paladill.name'),
+          title: i18n.t('npc.paladill.title'),
           avatar: './assets/portraits/paladill.png',
-          text: 'For millennia, Lunacia flourished under mystic light. But the Abyss has stirred in the shadows, and its dark energies have corrupted the wildlife, transforming them into dangerous Chimeras.'
+          text: i18n.t('npc.paladill.welcome2')
         },
         {
-          speaker: 'Master Paladill',
-          title: 'Dojo Mentor',
+          speaker: i18n.t('npc.paladill.name'),
+          title: i18n.t('npc.paladill.title'),
           avatar: './assets/portraits/paladill.png',
-          text: 'A Slime Chimera has slipped through the mist and now prowls the eastern garden, just across the stone bridge.'
+          text: i18n.t('npc.paladill.welcome3')
         },
         {
-          speaker: 'Master Paladill',
-          title: 'Dojo Mentor',
+          speaker: i18n.t('npc.paladill.name'),
+          title: i18n.t('npc.paladill.title'),
           avatar: './assets/portraits/paladill.png',
-          text: 'As a Dojo apprentice of the {heroClass} class, your duty is to protect this sanctuary. To begin, check your Quest Book [J]. There you will find the details of your quest!'
+          text: i18n.t('npc.paladill.welcome4')
         }
       ];
 
@@ -1467,10 +1510,10 @@ export class NPCManager {
       // Step 2: Reminder during mission
       const dialogue = [
         {
-          speaker: 'Master Paladill',
-          title: 'Dojo Mentor',
+          speaker: i18n.t('npc.paladill.name'),
+          title: i18n.t('npc.paladill.title'),
           avatar: './assets/portraits/paladill.png',
-          text: 'Haste, {heroName}! Cross the wooden bridge toward the east garden. The Slime Chimera will strike as soon as you approach its territory. Maintain tactical composure.'
+          text: i18n.t('npc.paladill.reminder')
         }
       ];
       this.dialogSystem.startDialogue(dialogue);
@@ -1478,28 +1521,28 @@ export class NPCManager {
       // Step 3: Victorious return & Reward Handout (Wood Sword + Gold)
       const dialogue = [
         {
-          speaker: 'Master Paladill',
-          title: 'Dojo Mentor',
+          speaker: i18n.t('npc.paladill.name'),
+          title: i18n.t('npc.paladill.title'),
           avatar: './assets/portraits/paladill.png',
-          text: 'A magnificent display of tactical power, {heroName}!'
+          text: i18n.t('npc.paladill.reward1')
         },
         {
-          speaker: 'Master Paladill',
-          title: 'Dojo Mentor',
+          speaker: i18n.t('npc.paladill.name'),
+          title: i18n.t('npc.paladill.title'),
           avatar: './assets/portraits/paladill.png',
-          text: 'The corrupt core of the Slime Chimera has been purified, and the flow of the Atia Tree nourishes this valley once again.'
+          text: i18n.t('npc.paladill.reward2')
         },
         {
-          speaker: 'Master Paladill',
-          title: 'Dojo Mentor',
+          speaker: i18n.t('npc.paladill.name'),
+          title: i18n.t('npc.paladill.title'),
           avatar: './assets/portraits/paladill.png',
-          text: 'You have shown the discipline and honor of a true warrior. As a reward, I formally present you with the Dojo Wooden Sword and 150 gold coins.'
+          text: i18n.t('npc.paladill.reward3')
         },
         {
-          speaker: 'Master Paladill',
-          title: 'Dojo Mentor',
+          speaker: i18n.t('npc.paladill.name'),
+          title: i18n.t('npc.paladill.title'),
           avatar: './assets/portraits/paladill.png',
-          text: 'Open your Inventory by pressing [I] and equip the sword to {heroName} in the weapon slot.'
+          text: i18n.t('npc.paladill.reward4')
         }
       ];
 
@@ -1529,32 +1572,32 @@ export class NPCManager {
       if (!isEquipped) {
         const dialogue = [
           {
-            speaker: 'Master Paladill',
-            title: 'Dojo Mentor',
+            speaker: i18n.t('npc.paladill.name'),
+            title: i18n.t('npc.paladill.title'),
             avatar: './assets/portraits/paladill.png',
-            text: 'You haven\'t equipped the Wooden Sword yet! Open your Inventory with [I], click on the sword, and equip it to wield its power.'
+            text: i18n.t('npc.paladill.notEquipped')
           }
         ];
         this.dialogSystem.startDialogue(dialogue);
       } else {
         const dialogue = [
           {
-            speaker: 'Master Paladill',
-            title: 'Dojo Mentor',
+            speaker: i18n.t('npc.paladill.name'),
+            title: i18n.t('npc.paladill.title'),
             avatar: './assets/portraits/paladill.png',
-            text: 'That sword looks majestic in your hands! I can feel how Atia\'s resonance amplifies every one of your strikes.'
+            text: i18n.t('npc.paladill.graduate1')
           },
           {
-            speaker: 'Master Paladill',
-            title: 'Dojo Mentor',
+            speaker: i18n.t('npc.paladill.name'),
+            title: i18n.t('npc.paladill.title'),
             avatar: './assets/portraits/paladill.png',
-            text: 'Your basic training is complete. I have ordered the Dojo gates opened. You now have full access to all 9 macro-zones of Lunacia and your World Map [M].'
+            text: i18n.t('npc.paladill.graduate2')
           },
           {
-            speaker: 'Master Paladill',
-            title: 'Dojo Mentor',
+            speaker: i18n.t('npc.paladill.name'),
+            title: i18n.t('npc.paladill.title'),
             avatar: './assets/portraits/paladill.png',
-            text: 'Head east if you seek to test your mettle. Word has it a cheerful Beast pup named Bing needs assistance at the forest border. May Atia guide your path!'
+            text: i18n.t('npc.paladill.graduate3')
           }
         ];
 
@@ -1577,16 +1620,16 @@ export class NPCManager {
       // Step 5: Post-graduation ambient advice
       const dialogue = [
         {
-          speaker: 'Maestro Paladill',
-          title: 'Mentor del Dojo',
+          speaker: i18n.t('npc.paladill.name'),
+          title: i18n.t('npc.paladill.title'),
           avatar: './assets/portraits/paladill.png',
-          text: '¡Que el honor guíe cada movimiento en el tablero de Lunacia, {heroName}!'
+          text: i18n.t('npc.paladill.after1')
         },
         {
-          speaker: 'Maestro Paladill',
-          title: 'Mentor del Dojo',
+          speaker: i18n.t('npc.paladill.name'),
+          title: i18n.t('npc.paladill.title'),
           avatar: './assets/portraits/paladill.png',
-          text: 'Consulta el mapa [M] y la Crónica [J] en tus viajes por la Sabana, el Ártico, la Isla Mística y Génesis.'
+          text: i18n.t('npc.paladill.after2')
         }
       ];
       this.dialogSystem.startDialogue(dialogue);
@@ -1615,7 +1658,7 @@ export class NPCManager {
     banner.className = 'turn-banner hidden';
     void banner.offsetWidth; // force reflow
 
-    const isComplete = title.includes('COMPLETADA') || title.includes('PURIFICADA') || title.includes('VICTORIA');
+    const isComplete = title.includes('COMPLETADA') || title.includes('PURIFICADA') || title.includes('VICTORIA') || title === i18n.t('npc.quest.bannerCompleted');
     banner.className = `turn-banner quest-notification ${isComplete ? 'quest-completed' : 'quest-accepted'}`;
 
     if (this._bannerTimeout) clearTimeout(this._bannerTimeout);
@@ -1629,6 +1672,13 @@ export class NPCManager {
     // 1. Update active animations (LOD Throttled for distant NPCs)
     this.npcs.forEach(npc => {
       if (!npc.group.visible) return;
+      if (npc.staticModel) {
+        // Respiración: ±1,5 % de alto y ±0,8 % de ancho, desfasada por NPC
+        const m = npc.staticModel, s = m.userData.baseScale || 1;
+        npc._breathT = (npc._breathT || (npc.group.position.x % 7)) + dt;
+        const k = Math.sin(npc._breathT * 1.9);
+        m.scale.set(s * (1 - 0.008 * k), s * (1 + 0.015 * k), s * (1 - 0.008 * k));
+      }
       if (npc.mixer) {
         if (npc._lodThrottled) {
           npc._lodSkip = !npc._lodSkip;
@@ -1688,7 +1738,8 @@ export class NPCManager {
 
       // Spiritual pulse for sacred statues harboring divine presence
       if (npc.spiritLight) {
-        npc.spiritLight.intensity = 1.6 + Math.sin(Date.now() * 0.003) * 0.45;
+        const b = npc.spiritLight.userData.base || 1.8;    // keeps the size boost of big statues
+        npc.spiritLight.intensity = b * (0.89 + Math.sin(Date.now() * 0.003) * 0.25 + Math.sin(Date.now() * 0.011) * 0.06);
       }
 
       // Statues and sacred monuments remain firmly stationary without tracking player
@@ -1714,7 +1765,7 @@ export class NPCManager {
       this.interactionPromptEl.classList.remove('hidden');
       const actionSpan = document.getElementById('prompt-npc-action');
       if (actionSpan) {
-        actionSpan.textContent = `Talk to ${this.nearbyNPC.name}`;
+        actionSpan.textContent = i18n.t('npc.talkTo', { name: this.nearbyNPC.name });
       }
     } else {
       this.interactionPromptEl.classList.add('hidden');
@@ -1751,24 +1802,24 @@ export class NPCManager {
           const q4 = this.questManager.getQuest('quest_hunt_beaked_chimera');
           if (!q3 || q3.status === 'locked' || !this.questManager.isMainQuestUnlocked('quest_hostile_sands')) {
             badgeIcon = '💬';
-            this.nearbyBubbleNPC.bubbleQuote = 'The scorching sun and chimeras punish the unwary!';
+            this.nearbyBubbleNPC.bubbleQuote = i18n.t('npc.sentinel.bubbleLocked');
           } else if (q3.status === 'active' || q3.status === 'ready_to_turn_in') {
             badgeIcon = '❓';
             bubbleEl.classList.add('turn-in');
-            this.nearbyBubbleNPC.bubbleQuote = 'Border outpost report! Talk to me [E]';
+            this.nearbyBubbleNPC.bubbleQuote = i18n.t('npc.sentinel.bubbleReport');
           } else if (q4 && (q4.status === 'active' || q4.status === 'ready_to_turn_in')) {
             const alphaDone = q4.objective?.steps?.find(s => s.id === 'defeat_beaked_alpha')?.done;
             if (alphaDone) {
               badgeIcon = '❓';
               bubbleEl.classList.add('turn-in');
-              this.nearbyBubbleNPC.bubbleQuote = 'Great victory! Report back to me for your reward [E]';
+              this.nearbyBubbleNPC.bubbleQuote = i18n.t('npc.sentinel.bubbleVictory');
             } else {
               badgeIcon = '⚔️';
-              this.nearbyBubbleNPC.bubbleQuote = 'The Beaked Chimera lurks in the Wastes of [3, 1]!';
+              this.nearbyBubbleNPC.bubbleQuote = i18n.t('npc.sentinel.bubbleHunt');
             }
           } else {
             badgeIcon = '💬';
-            this.nearbyBubbleNPC.bubbleQuote = 'The Savannah dunes are at peace!';
+            this.nearbyBubbleNPC.bubbleQuote = i18n.t('npc.sentinel.bubblePeace');
           }
         } else if (this.nearbyBubbleNPC.id === 'oracle' && this.questManager) {
           const q7 = this.questManager.getQuest('quest_astral_void_echoes');
@@ -1776,36 +1827,36 @@ export class NPCManager {
 
           if (!q7 || q7.status === 'locked' || !this.questManager.isMainQuestUnlocked('quest_astral_void_echoes')) {
             badgeIcon = '💬';
-            this.nearbyBubbleNPC.bubbleQuote = 'The bell of fate has begun to toll across Lunacia.';
+            this.nearbyBubbleNPC.bubbleQuote = i18n.t('npc.oracle.bubbleLocked');
           } else if (q7.status === 'active' || q7.status === 'ready_to_turn_in') {
             badgeIcon = '❓';
             bubbleEl.classList.add('turn-in');
-            this.nearbyBubbleNPC.bubbleQuote = 'Heroes of Lunacia! Approach the Oracle [E]';
+            this.nearbyBubbleNPC.bubbleQuote = i18n.t('npc.oracle.bubbleApproach');
           } else if (q8 && (q8.status === 'active' || q8.status === 'ready_to_turn_in')) {
             const sapidaeDone = q8.objective?.steps?.find(s => s.id === 'defeat_sapidae')?.done;
             if (sapidaeDone) {
               badgeIcon = '❓';
               bubbleEl.classList.add('turn-in');
-              this.nearbyBubbleNPC.bubbleQuote = 'The void has been shattered! Come claim your reward [E]';
+              this.nearbyBubbleNPC.bubbleQuote = i18n.t('npc.oracle.bubbleReward');
             } else {
               badgeIcon = '⚔️';
-              this.nearbyBubbleNPC.bubbleQuote = 'Purify the Arcane Sapidae Chimera in this sanctuary!';
+              this.nearbyBubbleNPC.bubbleQuote = i18n.t('npc.oracle.bubblePurify');
             }
           } else {
             badgeIcon = '💬';
-            this.nearbyBubbleNPC.bubbleQuote = 'May astral light guide your path into the Royal Gardens of Genesis.';
+            this.nearbyBubbleNPC.bubbleQuote = i18n.t('npc.oracle.bubbleAfter');
           }
         } else if (this.nearbyBubbleNPC.id === 'polar_sage' && this.questManager) {
           const q7 = this.questManager.getQuest('quest_astral_void_echoes');
           if (!q7 || q7.status === 'locked' || !this.questManager.isMainQuestUnlocked('quest_astral_void_echoes')) {
             badgeIcon = '💬';
-            this.nearbyBubbleNPC.bubbleQuote = 'The constellations tremble before the advance of the void...';
+            this.nearbyBubbleNPC.bubbleQuote = i18n.t('npc.sage.bubbleLocked');
           } else if (q7.status === 'active') {
             badgeIcon = '❗';
-            this.nearbyBubbleNPC.bubbleQuote = 'The Astral Oracle awaits you at the Sanctuary [1, 4]!';
+            this.nearbyBubbleNPC.bubbleQuote = i18n.t('npc.sage.bubbleOracle');
           } else {
             badgeIcon = '💬';
-            this.nearbyBubbleNPC.bubbleQuote = 'The energies of the Nebula flow in harmony.';
+            this.nearbyBubbleNPC.bubbleQuote = i18n.t('npc.sage.bubbleAfter');
           }
         } else if (this.nearbyBubbleNPC.questId && this.questManager) {
           const q = this.questManager.getQuest(this.nearbyBubbleNPC.questId);
@@ -1815,8 +1866,8 @@ export class NPCManager {
               if (!isUnlocked) {
                 badgeIcon = '💬';
                 this.nearbyBubbleNPC.bubbleQuote = this.nearbyBubbleNPC.heroId === 'pomodoro'
-                  ? 'The polar wind and blizzard are relentless!'
-                  : 'Master Paladill awaits you at the Dojo!';
+                  ? i18n.t('npc.recruit.bubblePomodoroLocked')
+                  : i18n.t('npc.recruit.bubbleBingLocked');
               } else {
                 const battleStep = q.objective?.steps?.find(s => s.id === 'defend_bing' || s.id === 'defend_pomodoro');
                 const findStep = q.objective?.steps?.find(s => s.id === 'find_bing' || s.id === 'reach_arctic');
@@ -1824,10 +1875,10 @@ export class NPCManager {
                 if (battleStep && battleStep.done && (!findStep || findStep.done)) {
                   badgeIcon = '✨';
                   bubbleEl.classList.add('recruit');
-                  this.nearbyBubbleNPC.bubbleQuote = 'Victory! Talk to me to join our forces.';
+                  this.nearbyBubbleNPC.bubbleQuote = i18n.t('npc.recruit.bubbleVictory');
                 } else if (findStep && findStep.done) {
                   badgeIcon = '⚔️';
-                  this.nearbyBubbleNPC.bubbleQuote = 'Let\'s enter combat against those chimeras!';
+                  this.nearbyBubbleNPC.bubbleQuote = i18n.t('npc.recruit.bubbleFight');
                 } else {
                   badgeIcon = '❗';
                 }
@@ -1840,10 +1891,10 @@ export class NPCManager {
               const isTalkOrReport = pendingStep && (
                 pendingStep.id.startsWith('talk_') ||
                 pendingStep.id.startsWith('report_') ||
-                pendingStep.desc.toLowerCase().includes('hablar') ||
-                pendingStep.desc.toLowerCase().includes('reportar') ||
-                pendingStep.desc.toLowerCase().includes('talk') ||
-                pendingStep.desc.toLowerCase().includes('report')
+                i18n.en(pendingStep.desc).toLowerCase().includes('hablar') ||
+                i18n.en(pendingStep.desc).toLowerCase().includes('reportar') ||
+                i18n.en(pendingStep.desc).toLowerCase().includes('talk') ||
+                i18n.en(pendingStep.desc).toLowerCase().includes('report')
               );
               if (isTalkOrReport) {
                 badgeIcon = '❓';
@@ -1862,8 +1913,9 @@ export class NPCManager {
         // (solo se escribe en el DOM lo que cambia: cada escritura por fotograma recalcula estilos y layout)
         if (speakerEl && speakerEl.textContent !== this.nearbyBubbleNPC.name) speakerEl.textContent = this.nearbyBubbleNPC.name;
         if (textEl) {
-          const heroName = this.dialogSystem?.activeHero?.name || 'Hero';
-          const quote = (this.nearbyBubbleNPC.bubbleQuote || '').replace(/{heroName}/g, heroName);
+          const heroName = this.dialogSystem?.activeHero?.name || i18n.t('npc.fallbackHero');
+          const axieName = this.dialogSystem?.axieName ? this.dialogSystem.axieName() : i18n.t('npc.fallbackAxie');
+          const quote = (this.nearbyBubbleNPC.bubbleQuote || '').replace(/{heroName}/g, heroName).replace(/{axieName}/g, axieName);
           const q = `"${quote}"`;
           if (textEl.textContent !== q) textEl.textContent = q;
         }
@@ -1896,7 +1948,7 @@ export class NPCManager {
       const tut = this.overworldManager?.tutorialManager;
       const npcId = this.nearbyNPC.id || this.nearbyNPC.config?.id;
       if (tut && tut.isActive && !tut.done && npcId !== 'paladill') {
-        this.overworldManager?._showFeatureLockedFeedback?.('Primero termina el entrenamiento con el Maestro Paladill.');
+        this.overworldManager?._showFeatureLockedFeedback?.(i18n.t('npc.trainingFirst'));
         return true;
       }
       this.nearbyNPC.onInteract();

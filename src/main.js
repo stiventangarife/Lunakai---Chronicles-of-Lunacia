@@ -28,6 +28,9 @@ import { CombatBanner } from './rpg/ui/CombatBanner.js';
 import { initLoadingScreen } from './ui/LoadingScreen.js';
 import { initCombatHUDMarkup, attachCombatHUD } from './ui/CombatHUD.js';
 import { attachTurnTimer } from './ui/TurnTimerHUD.js';
+import * as i18n from './i18n/i18n.js';
+// Nombre visible de cada hueco de equipo del campamento (los ids weapon/hat/… no cambian)
+const SLOT_LABEL = { weapon: i18n.t('system.slotWeapon'), hat: i18n.t('system.slotHat'), shield: i18n.t('system.slotShield'), body: i18n.t('system.slotBody'), boots: i18n.t('system.slotBoots') };
 import { accountManager } from './net/AccountManager.js';
 import { SaveStatusChip } from './net/SaveStatusChip.js';
 import { installCombatDebug } from './tactics/combat/CombatDebug.js';
@@ -45,7 +48,11 @@ import { attachRunesCharms } from './ui/RunesCharmsPanel.js';
 import { attachForge } from './ui/ForgePanel.js';
 import { attachGathering } from './ui/GatheringHUD.js';
 import { attachShop } from './ui/ShopPanel.js';
+import { ForestVillage } from './rpg/world/ForestVillage.js';
 import { rollLoot, grantLoot, lootView, isLootId } from './rpg/LootService.js';
+import { curIcon } from './ui/lk.js';
+import { RUNE_CHARM_DROP } from './tactics/data/EconomyCatalog.js';
+import { loadRuneCharmArt, runeCharmArt } from './ui/RuneCharmArt.js';
 import { AxiePartsResolver } from './rpg/AxiePartsResolver.js';
 import { STARTER_DECKS } from './tactics/data/StarterCards.js';
 import { CollectionVFX } from './tactics/combat/CollectionVFX.js';
@@ -128,6 +135,7 @@ class AxieTacticsGame {
     this.forge = attachForge(this); // Forja del Valle del Dojō: yunque en el patio (E) → crear Tier 0 y evolucionar equipo
     this.gathering = attachGathering(this); // Recolección: pesca y tala (Axie), minería y plantas (Sapidae); el botín va a la bolsa de la Forja
     this.shop = attachShop(this); // Tienda: el Mercader Ochi (patio del Dojō) la abre al hablar con él
+    try { this.forestVillage = new ForestVillage(this.overworldManager); } catch (e) { console.warn('[ForestVillage]', e); } // Hito 51: pueblo del Bosque (dojo, tienda, Forja, casas…)
     window.__AXIE_TACTICS_APP__ = this;
 
     this.currentLevel = 1; // 1 = Tutorial (Training Dojo), 2 = Lunacia Plains 3v3
@@ -141,6 +149,7 @@ class AxieTacticsGame {
     this.hoverCell = null;
     this.reachableCells = [];
     this.validSpellCells = [];
+    this.spellRangeCells = { range: [], blocked: [] }; // Hito 65: alcance dibujado (estilo Dofus)
 
     this.raycaster = new THREE.Raycaster();
     this.mouse = new THREE.Vector2(-999, -999);
@@ -165,8 +174,8 @@ class AxieTacticsGame {
             if (!slot) return;
             if (spent) slot.classList.add('disabled');
             slot.toggleAttribute('data-spent', spent);
-            if (spent) slot.title = 'Ya la usaste este turno (1 vez por turno)';
-            else if (slot.title === 'Ya la usaste este turno (1 vez por turno)') slot.removeAttribute('title');
+            if (spent) slot.title = i18n.t('game.spellSpent');
+            else if (slot.title === i18n.t('game.spellSpent')) slot.removeAttribute('title');
           });
         } catch { /* la interfaz nunca rompe el combate */ }
         return r;
@@ -273,7 +282,7 @@ class AxieTacticsGame {
 
     const currentMapDef = wmm?.currentMapDef;
     const mapId = wmm?.currentMapId || 'zone_2_2';
-    const zoneName = currentMapDef?.name || 'Valle del Dojo';
+    const zoneName = currentMapDef?.name || i18n.t('places.zone22Title');
     const gx = currentMapDef?.gx !== undefined ? currentMapDef.gx : 2;
     const gy = currentMapDef?.gy !== undefined ? currentMapDef.gy : 2;
 
@@ -316,6 +325,7 @@ class AxieTacticsGame {
       sapidaePortrait: currentPortrait,
       unlockedHeroes: exported.unlockedHeroes || ['kotaro'],
       squad: exported.squad,
+      accountAxies: exported.accountAxies,
       zone: {
         mapId: mapId,
         name: zoneName,
@@ -414,9 +424,9 @@ class AxieTacticsGame {
         if (this.audio && typeof this.audio.toggleMute === 'function') {
           const isMuted = this.audio.toggleMute();
           btnMute.textContent = isMuted ? '🔇' : '🔊';
-          btnMute.title = isMuted ? 'Unmute Music and Sound' : 'Mute Music and Sound';
+          btnMute.title = isMuted ? i18n.t('game.unmuteAll') : i18n.t('game.muteAll');
           const ovSoundBtn = document.getElementById('btn-toggle-sound');
-          if (ovSoundBtn) ovSoundBtn.textContent = isMuted ? '🔇 Muted' : '🔊 Sound';
+          if (ovSoundBtn) ovSoundBtn.textContent = isMuted ? i18n.t('game.hudMuted') : i18n.t('game.hudSound');
         }
       });
     }
@@ -673,11 +683,11 @@ class AxieTacticsGame {
       const iconEl = document.getElementById('zone-loading-icon');
       const hintEl = document.getElementById('zone-loading-hint');
       if (badgeEl) badgeEl.textContent = 'LUNAKAI';
-      if (titleEl) titleEl.textContent = 'Loading Biome...';
+      if (titleEl) titleEl.textContent = i18n.t('game.loadingBiome');
       const initialMap = slotData?.currentZone || 'zone_2_2';
-      if (subtitleEl) subtitleEl.textContent = initialMap === 'zone_2_2' ? 'Dojo Valley [2, 2]' : initialMap;
+      if (subtitleEl) subtitleEl.textContent = initialMap === 'zone_2_2' ? `${i18n.t('places.zone22Title')} [2, 2]` : initialMap;
       if (iconEl) iconEl.textContent = '';
-      if (hintEl) hintEl.textContent = 'Preparing 3D environment and textures...';
+      if (hintEl) hintEl.textContent = i18n.t('game.loadingHint');
       curtain.classList.remove('hidden');
       curtain.classList.add('active');
     }
@@ -752,7 +762,7 @@ class AxieTacticsGame {
       const base = (em.heroesBase && em.heroesBase[heroId]) || {};
       const isAxie = base.modelType === 'axie' || Boolean(base.axieId);
       const own = (isAxie && this.partsResolver?.idsFor(base))
-        || (heroId === 'kotaro' ? (base.spellIds || getHeroSpells(base.heroKey || base.axieId)) : HERO_SPELLS[heroId])
+        || (heroId === 'kotaro' ? (base.spellIds || getHeroSpells(base.heroKey || base.axieId)) : (HERO_SPELLS[heroId] || base.spellIds))
         || [];
       ids.push(...own);
     }
@@ -986,7 +996,7 @@ class AxieTacticsGame {
     const isFinalBoss = Boolean(
       config?.isFinalBoss ||
       config?.id === 10 ||
-      (typeof config?.badgeText === 'string' && config.badgeText.includes('BOSS FINAL')) ||
+      (typeof config?.badgeText === 'string' && (config.badgeText.includes('BOSS FINAL') || config.badgeText === i18n.t('levels.l10.badge'))) ||
       (this.overworldManager?.currentBattlingZoneKey === '3_3') ||
       (this.overworldManager?.worldMapManager?.currentMapDef?.gx === 3 &&
        this.overworldManager?.worldMapManager?.currentMapDef?.gy === 3) ||
@@ -1053,7 +1063,7 @@ class AxieTacticsGame {
     const sapidaeClassKey = (activeSlot && activeSlot.sapidaeClass) || 'crafter';
     const sapidaeClassDef = SAPIDAE_CLASSES[sapidaeClassKey] || SAPIDAE_CLASSES.crafter;
     const sapidaeModel = (activeSlot && activeSlot.sapidaeModel) || 'sapidae-m-a';
-    const sapidaePlayerName = (activeSlot && activeSlot.playerName) || 'Sapidae Adventurer';
+    const sapidaePlayerName = (activeSlot && activeSlot.playerName) || i18n.t('game.archSapidae');
     const sapidaeCustomization = (activeSlot && activeSlot.customization) || null;
 
     // Estadísticas reales del Sapidae (clase + nivel + atributos + equipo de la mochila), igual que los axies
@@ -1149,6 +1159,7 @@ class AxieTacticsGame {
         archetype: baseInfo.archetype,
         type: isAxie ? 'axie' : heroMeta.type,
         modelType: baseInfo.modelType || (isAxie ? 'axie' : heroMeta.type),
+        equipped: this.equipmentManager ? (this.equipmentManager.getEquipped(heroId) || {}) : {}, // arma visible del Axie (Hito 52)
         axieId: baseInfo.axieId || null,
         genes: baseInfo.genes || null,
         team: 'player',
@@ -1172,7 +1183,7 @@ class AxieTacticsGame {
         skillLevels: prog ? prog.skillLevels : {},
         // Cartas de partes reales (Fase 4). En el tutorial también, con un ataque cuerpo a cuerpo en la ranura [1]
         // (el paso 6 pide la [1]); si el Axie no tiene ninguno, usa los hechizos de siempre.
-        spellIds: (isAxie && (config.isTutorial ? tutorialCardOrder(this.partsResolver?.idsFor(baseInfo)) : this.partsResolver?.idsFor(baseInfo))) || (heroId === 'kotaro' ? (baseInfo.spellIds || getHeroSpells(baseInfo.heroKey || baseInfo.axieId)) : HERO_SPELLS[heroId]) || ['kotaro_slash'],
+        spellIds: (isAxie && (config.isTutorial ? tutorialCardOrder(this.partsResolver?.idsFor(baseInfo)) : this.partsResolver?.idsFor(baseInfo))) || (heroId === 'kotaro' ? (baseInfo.spellIds || getHeroSpells(baseInfo.heroKey || baseInfo.axieId)) : (HERO_SPELLS[heroId] || baseInfo.spellIds)) || ['kotaro_slash'],
         scale: isAxie ? 0.88 : heroMeta.scale,
         ...(hp.facing !== undefined ? { initialFacing: hp.facing } : {})
       }, this.gridManager, this.sceneManager, this.audio));
@@ -1344,7 +1355,7 @@ class AxieTacticsGame {
       if (this.audio && typeof this.audio.playVictoryMusic === 'function') {
         this.audio.playVictoryMusic();
       }
-      const duelSub = config.duel ? (this.lastDuelOutcome === 'yield' ? 'El Maestro Paladill se rinde' : 'Fin del entrenamiento') : null;
+      const duelSub = config.duel ? (this.lastDuelOutcome === 'yield' ? i18n.t('game.duelYield') : i18n.t('game.trainingOver')) : null;
       await this.combatBanner.play('victory', { subtitle: duelSub || [config.title, config.biomeName].filter(Boolean).join(' · ') });
 
       // 3. El título se disuelve mientras la cámara vuelve y entra el panel
@@ -1363,7 +1374,7 @@ class AxieTacticsGame {
           this.equipmentManager.unlockHero(heroId);
           const h = this.equipmentManager.heroesBase[heroId];
           const { url, portraitKey } = this._getHeroPortrait(heroId, h);
-          recruits.push({ name: h ? h.name : heroId, sub: h ? h.archetype : 'Aliado de Lunacia', cls: this._heroClassKey(h), portraitUrl: url, portraitKey });
+          recruits.push({ name: h ? h.name : heroId, sub: h ? h.archetype : i18n.t('game.allyOfLunacia'), cls: this._heroClassKey(h), portraitUrl: url, portraitKey });
         });
       }
 
@@ -1415,6 +1426,27 @@ class AxieTacticsGame {
       if (lootIds.length > 0) {
         grantLoot(this.equipmentManager, loot);
       }
+      // Runas y charms neutros (Hito 54): un charm (10 %) y una runa (5 %) por victoria, el doble contra jefes
+      const rcLoot = [];
+      if (!config.isTutorial && !config.tutorialKind) {
+        const boss = Boolean(config.isBoss) || DynamicCombatFactory.isBossEncounter(null, null, config.enemies || []);
+        const mult = boss ? RUNE_CHARM_DROP.bossMult : 1;
+        [['charms', RUNE_CHARM_DROP.charm], ['runes', RUNE_CHARM_DROP.rune]].forEach(([kind, p]) => {
+          if (Math.random() >= p * mult) return;
+          const x = RuneCharmService.rollNeutral(kind);
+          if (x && RuneCharmService.add(kind, x.id, 1)) rcLoot.push({ kind, x });
+        });
+        if (rcLoot.length) await loadRuneCharmArt();
+      }
+      // Hito 74: un poco de oro por cada victoria contra quimeras (20–45). Ni el tutorial ni los duelos de entrenamiento.
+      let goldView = [];
+      if (!config.isTutorial && !config.tutorialKind && !config.duel) {
+        const gold = 20 + Math.floor(Math.random() * 26);
+        this.equipmentManager.addGold(gold);
+        goldView = [{ id: 'gold', name: i18n.t('game.goldLoot', { n: gold }), rarity: 'common', icon: curIcon('gold'), slot: i18n.t('game.goldSlot'), stats: {}, description: i18n.t('game.goldLootDesc') }];
+      }
+      const RC_RAR = (r) => (['rare', 'epic', 'mystic'].includes(r) ? r : 'common');
+      const rcView = rcLoot.map(({ kind, x }) => ({ id: `${kind}:${x.id}`, name: x.name, rarity: RC_RAR(x.rarity), icon: runeCharmArt(kind, x.id) || `./assets/ui/icons/${kind === 'runes' ? 'rune' : 'charm'}.png`, slot: kind === 'runes' ? i18n.t('game.rune') : i18n.t('game.charm'), stats: {}, description: `${i18n.t(kind === 'runes' ? 'game.runeNeutralDesc' : 'game.charmNeutralDesc')} ${x.desc || ''}` }));
 
       // Valoración y resumen con datos reales del combate
       const allies = this.units.filter(u => u.team === 'player');
@@ -1425,20 +1457,20 @@ class AxieTacticsGame {
       const hpMax = allies.reduce((t, u) => t + (u.maxHP || 0), 0);
 
       this.endScreen.showVictory({
-        subtitle: [config.duel ? (this.lastDuelOutcome === 'yield' ? 'Paladill se rinde' : 'Entrenamiento terminado') : config.title, config.biomeName, `${rounds} ${rounds === 1 ? 'ronda' : 'rondas'}`].filter(Boolean).join(' · '),
+        subtitle: [config.duel ? (this.lastDuelOutcome === 'yield' ? i18n.t('game.duelYieldShort') : i18n.t('game.trainingEnded')) : config.title, config.biomeName, i18n.t(rounds === 1 ? 'game.roundOne' : 'game.roundMany', { n: rounds })].filter(Boolean).join(' · '),
         moons: [
-          { label: 'Victoria', on: true },
-          { label: 'Ningún aliado K.O.', on: alliesKO === 0 },
-          { label: 'En 3 rondas o menos', on: rounds <= 3 }
+          { label: i18n.t('game.moonVictory'), on: true },
+          { label: i18n.t('game.moonNoKO'), on: alliesKO === 0 },
+          { label: i18n.t('game.moonFast'), on: rounds <= 3 }
         ],
         squad,
         recruits,
-        loot: lootView(loot),
+        loot: [...goldView, ...lootView(loot), ...rcView],
         summary: [
-          ['Rondas', String(rounds)],
-          ['Enemigos derrotados', String(foes.filter(u => u.isDead).length)],
-          ['Aliados K.O.', String(alliesKO)],
-          ['Vida del escuadrón', `${hpMax > 0 ? Math.round((hpNow / hpMax) * 100) : 0}%`]
+          [i18n.t('game.sumRounds'), String(rounds)],
+          [i18n.t('game.sumFoesDefeated'), String(foes.filter(u => u.isDead).length)],
+          [i18n.t('game.sumAlliesKO'), String(alliesKO)],
+          [i18n.t('game.sumSquadHP'), `${hpMax > 0 ? Math.round((hpNow / hpMax) * 100) : 0}%`]
         ]
       });
 
@@ -1456,7 +1488,7 @@ class AxieTacticsGame {
       if (this.audio && typeof this.audio.playDefeatMusic === 'function') {
         this.audio.playDefeatMusic();
       }
-      await this.combatBanner.play('defeat', { subtitle: 'Tus héroes han caído en Lunacia' });
+      await this.combatBanner.play('defeat', { subtitle: i18n.t('game.defeatSub') });
       this.sceneManager.restoreCamera();
       await this.combatBanner.hide();
 
@@ -1495,7 +1527,7 @@ class AxieTacticsGame {
         const prog = this.equipmentManager.getProgression(u.id);
         const name = h ? h.name : u.id;
         if (prog.unspentStatPoints > 0) {
-          hints.push({ icon: 'upgrade', html: `<b>${name} tiene ${prog.unspentStatPoints} ${prog.unspentStatPoints === 1 ? 'punto' : 'puntos'} de estadística sin asignar.</b> Repártelos en la Mochila <b>I</b> antes de volver.` });
+          hints.push({ icon: 'upgrade', html: i18n.t(prog.unspentStatPoints === 1 ? 'game.hintStatOne' : 'game.hintStatMany', { name, n: prog.unspentStatPoints }) });
         }
       });
       allies.forEach(u => {
@@ -1504,19 +1536,19 @@ class AxieTacticsGame {
         const empty = Object.values(eq).filter(v => !v).length;
         if (empty > 0) {
           const h = this.equipmentManager.heroesBase[u.id];
-          hints.push({ icon: 'equipable', html: `<b>${h ? h.name : u.id} tiene ${empty} ${empty === 1 ? 'ranura' : 'ranuras'} de equipo ${empty === 1 ? 'vacía' : 'vacías'}.</b> Equípale objetos desde la Mochila <b>I</b>.` });
+          hints.push({ icon: 'equipable', html: i18n.t(empty === 1 ? 'game.hintSlotOne' : 'game.hintSlotMany', { name: h ? h.name : u.id, n: empty }) });
         }
       });
       if (foesAlive.length > 0) {
         const names = [...new Set(foesAlive.map(u => u.name))].join(', ');
-        hints.push({ icon: 'swords', html: `<b>${foesAlive.length === 1 ? 'Sigue en pie' : `Siguen en pie ${foesAlive.length} enemigos`}:</b> ${names}. Gana experiencia en combates más sencillos y vuelve con más nivel.` });
+        hints.push({ icon: 'swords', html: i18n.t(foesAlive.length === 1 ? 'game.hintFoeOne' : 'game.hintFoeMany', { n: foesAlive.length, names }) });
       }
 
-      let endSubtitle = 'El escuadrón se repliega al dojo';
+      let endSubtitle = i18n.t('game.defeatRetreat');
       if (foesAlive.length === 1) {
-        endSubtitle += ` · ${foesAlive[0].name} sobrevive con ${Math.max(0, Math.round(foesAlive[0].currentHP || 0))} de vida`;
+        endSubtitle += ` · ${i18n.t('game.defeatFoeSurvives', { name: foesAlive[0].name, hp: Math.max(0, Math.round(foesAlive[0].currentHP || 0)) })}`;
       } else if (foesAlive.length > 1) {
-        endSubtitle += ` · ${foesAlive.length} enemigos siguen en pie`;
+        endSubtitle += ` · ${i18n.t('game.defeatFoesStanding', { n: foesAlive.length })}`;
       }
 
       this.endScreen.showDefeat({
@@ -1574,9 +1606,11 @@ class AxieTacticsGame {
 
   /** Subtítulo del héroe en las pantallas de fin de combate. */
   _heroSubtitle(h) {
-    if (!h) return 'Aliado de Lunacia';
-    if (h.isSapidae) return `Sapidae · ${h.class || 'Líder'}`;
-    return [h.axieId ? `#${h.axieId}` : null, h.class].filter(Boolean).join(' · ');
+    if (!h) return i18n.t('game.allyOfLunacia');
+    if (h.isSapidae) return `Sapidae · ${h.class || i18n.t('game.leader')}`;
+    const ck = this._heroClassKey(h);
+    const CLS = { beast: 'combatHud.clsBeast', plant: 'combatHud.clsPlant', aquatic: 'combatHud.clsAquatic', bird: 'combatHud.clsBird', reptile: 'combatHud.clsReptile', bug: 'combatHud.clsBug' };
+    return [h.axieId ? `#${h.axieId}` : null, CLS[ck] ? i18n.t(CLS[ck]) : h.class].filter(Boolean).join(' · ');
   }
 
   _openEquipmentScreen() {
@@ -1683,7 +1717,7 @@ class AxieTacticsGame {
           <div class="slot-equipped-item">
             <span>${item.icon}</span>
             <span class="slot-item-title">${item.name}</span>
-            <span class="slot-unequip-hint">(Unequip)</span>
+            <span class="slot-unequip-hint">${i18n.t('game.unequip')}</span>
           </div>
         `;
         box.onclick = () => {
@@ -1694,7 +1728,7 @@ class AxieTacticsGame {
         };
       } else {
         parentBox.classList.remove('has-item');
-        box.innerHTML = `<span class="slot-empty">+ Equip ${slot}</span>`;
+        box.innerHTML = `<span class="slot-empty">${i18n.t('game.equipSlot', { slot: SLOT_LABEL[slot] || slot })}</span>`;
         box.onclick = null;
       }
     });
@@ -1704,10 +1738,10 @@ class AxieTacticsGame {
     const container = document.getElementById('inventory-grid');
     container.innerHTML = '';
     const inv = this.equipmentManager.inventory;
-    document.getElementById('inv-count').textContent = inv.length + ' items';
+    document.getElementById('inv-count').textContent = i18n.t('game.itemCount', { n: inv.length });
 
     if (inv.length === 0) {
-      container.innerHTML = '<div style="color: #64748b; font-size: 12px; padding: 12px;">Backpack is empty. All items are equipped.</div>';
+      container.innerHTML = `<div style="color: #64748b; font-size: 12px; padding: 12px;">${i18n.t('game.backpackEmpty')}</div>`;
       return;
     }
 
@@ -1719,19 +1753,19 @@ class AxieTacticsGame {
       card.className = 'item-card rarity-' + item.rarity;
 
       let statBadges = '';
-      if (item.stats.damage) statBadges += `<span class="stat-badge">+${item.stats.damage} Damage</span>`;
-      if (item.stats.hp) statBadges += `<span class="stat-badge">+${item.stats.hp} HP</span>`;
-      if (item.stats.pm) statBadges += `<span class="stat-badge">+${item.stats.pm} MP</span>`;
-      if (item.stats.pa) statBadges += `<span class="stat-badge">+${item.stats.pa} AP</span>`;
-      if (item.stats.shield) statBadges += `<span class="stat-badge">+${item.stats.shield} Shield</span>`;
-      if (item.stats.initiative) statBadges += `<span class="stat-badge">+${item.stats.initiative} Init</span>`;
+      if (item.stats.damage) statBadges += `<span class="stat-badge">${i18n.t('game.statDamage', { n: item.stats.damage })}</span>`;
+      if (item.stats.hp) statBadges += `<span class="stat-badge">${i18n.t('game.statHP', { n: item.stats.hp })}</span>`;
+      if (item.stats.pm) statBadges += `<span class="stat-badge">${i18n.t('game.statMP', { n: item.stats.pm })}</span>`;
+      if (item.stats.pa) statBadges += `<span class="stat-badge">${i18n.t('game.statAP', { n: item.stats.pa })}</span>`;
+      if (item.stats.shield) statBadges += `<span class="stat-badge">${i18n.t('game.statShield', { n: item.stats.shield })}</span>`;
+      if (item.stats.initiative) statBadges += `<span class="stat-badge">${i18n.t('game.statInit', { n: item.stats.initiative })}</span>`;
 
       card.innerHTML = `
         <div class="item-header">
           <span class="item-icon">${item.icon}</span>
           <span class="item-name">${item.name}</span>
         </div>
-        <span class="item-slot-tag">${item.slot} • Click to equip on ${this.equipmentManager.heroesBase[this.selectedHeroId].name}</span>
+        <span class="item-slot-tag">${SLOT_LABEL[item.slot] || item.slot} • ${i18n.t('game.clickToEquip', { name: this.equipmentManager.heroesBase[this.selectedHeroId].name })}</span>
         <div class="item-stats-badges">${statBadges}</div>
       `;
 
@@ -1750,7 +1784,7 @@ class AxieTacticsGame {
     const cfg = this.activeBattleConfig || LEVELS_CONFIG[this.equipmentManager.selectedLevelId];
     const barTitle = document.getElementById('active-mission-title');
     if (barTitle && cfg) {
-      barTitle.textContent = cfg.title ? `${cfg.title}` : `Level ${this.equipmentManager.selectedLevelId}`;
+      barTitle.textContent = cfg.title ? `${cfg.title}` : i18n.t('game.levelN', { n: this.equipmentManager.selectedLevelId });
     }
   }
 
@@ -1761,7 +1795,7 @@ class AxieTacticsGame {
 
     const progressCount = document.getElementById('map-progress-count');
     if (progressCount) {
-      progressCount.textContent = `${this.equipmentManager.completedLevels.length} / 10 Missions`;
+      progressCount.textContent = i18n.t('game.missionsProgress', { n: this.equipmentManager.completedLevels.length });
     }
 
     for (let lvl = 1; lvl <= 10; lvl++) {
@@ -1774,56 +1808,56 @@ class AxieTacticsGame {
 
       const card = document.createElement('div');
       let statusClass = 'locked';
-      let statusLabel = '🔒 Locked';
+      let statusLabel = i18n.t('game.statusLocked');
       let statusBadgeClass = 'status-locked';
 
       if (isCompleted) {
         statusClass = 'completed';
-        statusLabel = '✓ Cleared';
+        statusLabel = i18n.t('game.statusCleared');
         statusBadgeClass = 'status-completed';
       } else if (isUnlocked) {
         statusClass = 'unlocked';
-        statusLabel = '⚔️ Available';
+        statusLabel = i18n.t('game.statusAvailable');
         statusBadgeClass = 'status-unlocked';
       }
 
       if (isSelected) {
         statusClass += ' active';
-        statusLabel = '★ Target';
+        statusLabel = i18n.t('game.statusTarget');
         statusBadgeClass = 'status-active';
       }
 
       card.className = `mission-node-card ${statusClass}`;
 
       // Enemies preview badges
-      const enemiesHTML = cfg.enemies.map(e => `<span class="node-enemy-pill">${e.name} (${e.maxHP} HP)</span>`).join('');
+      const enemiesHTML = cfg.enemies.map(e => `<span class="node-enemy-pill">${i18n.t('game.enemyHp', { name: e.name, hp: e.maxHP })}</span>`).join('');
 
       // Rewards text
       let rewardsText = '';
       if (cfg.rewardRecruits && cfg.rewardRecruits.length > 0) {
         const recruitsNames = cfg.rewardRecruits.map(r => this.equipmentManager.heroesBase[r] ? this.equipmentManager.heroesBase[r].name : r).join(', ');
-        rewardsText += `✨ Hero: ${recruitsNames} `;
+        rewardsText += i18n.t('game.rewardHero', { names: recruitsNames }) + ' ';
       }
       if (cfg.rewardItems && cfg.rewardItems.length > 0) {
-        rewardsText += `🎁 ${cfg.rewardItems.length} Items`;
+        rewardsText += i18n.t('game.rewardItems', { n: cfg.rewardItems.length });
       }
       if (!rewardsText) {
-        rewardsText = '🏆 Glory in Lunacia';
+        rewardsText = i18n.t('game.rewardGlory');
       }
 
       // Button
       let btnHTML = '';
       if (isSelected) {
-        btnHTML = `<button class="node-select-btn btn-selected">★ Selected Mission</button>`;
+        btnHTML = `<button class="node-select-btn btn-selected">${i18n.t('game.selectedMission')}</button>`;
       } else if (isUnlocked) {
-        btnHTML = `<button class="node-select-btn btn-choose">Select Mission</button>`;
+        btnHTML = `<button class="node-select-btn btn-choose">${i18n.t('game.selectMission')}</button>`;
       } else {
-        btnHTML = `<button class="node-select-btn btn-locked" disabled>🔒 Locked</button>`;
+        btnHTML = `<button class="node-select-btn btn-locked" disabled>${i18n.t('game.statusLocked')}</button>`;
       }
 
       card.innerHTML = `
         <div class="node-header">
-          <span class="node-lvl-tag">Level ${lvl}</span>
+          <span class="node-lvl-tag">${i18n.t('game.levelN', { n: lvl })}</span>
           <span class="node-status-badge ${statusBadgeClass}">${statusLabel}</span>
         </div>
         <div class="node-title-group">
@@ -1840,7 +1874,7 @@ class AxieTacticsGame {
           ${enemiesHTML}
         </div>
         <div class="node-rewards-row">
-          <span class="node-rewards-label">REWARD:</span>
+          <span class="node-rewards-label">${i18n.t('game.reward')}</span>
           <span>${rewardsText}</span>
         </div>
         ${btnHTML}
@@ -1868,18 +1902,7 @@ class AxieTacticsGame {
       const card = document.createElement('div');
       card.className = 'timeline-card team-' + unit.team + (unit === this.activeUnit ? ' active-turn' : '');
 
-      let avatar = '⚔️';
-      if (unit.type === 'bing') avatar = '🐶';
-      else if (unit.type === 'pomodoro') avatar = '🍳';
-      else if (unit.type.includes('werewolf') || unit.type.includes('wolf')) avatar = '🐺';
-      else if (unit.type.includes('bear')) avatar = '🐻';
-      else if (unit.type.includes('dryad')) avatar = '🧚';
-      else if (unit.type.includes('treant')) avatar = '🌲';
-      else if (unit.type.includes('slime')) avatar = '🟢';
-      else if (unit.type.includes('brawler') || unit.type === 'buba') avatar = '🥊';
-      else if (unit.type.includes('stalker') || unit.type === 'fox') avatar = '🦊';
-      else if (unit.type === 'sapidae') avatar = unit.modelType?.includes('f') ? '👩‍🌾' : '🧑‍🌾';
-      else if (unit.type.includes('shaman')) avatar = '🔮';
+      const avatar = ''; // Hito 75: sin emojis; sin retrato se muestra la inicial
 
       const portraitKey = (unit.config && unit.config.axieId) ? unit.config.axieId : (unit.modelType || unit.type || unit.id);
       const portraitUrl = portraitService.getPortraitSync(portraitKey) || 
@@ -1894,7 +1917,7 @@ class AxieTacticsGame {
 
       const avatarContent = portraitUrl
         ? `<img class="timeline-avatar-img" src="${portraitUrl}" alt="${unit.name}">`
-        : `<span class="timeline-avatar-fallback">${avatar}</span>`;
+        : `<span class="timeline-avatar-fallback">${avatar || String(unit.name || '?').charAt(0).toUpperCase()}</span>`;
 
       card.innerHTML = 
         '<span class="card-avatar">' + avatarContent + '</span>' +
@@ -1912,20 +1935,20 @@ class AxieTacticsGame {
     if (!unit) return;
     document.getElementById('unit-name').textContent = unit.name;
     let archetype = unit.archetype || (unit.config && unit.config.archetype);
-    let avatar = '⚔️';
+    let avatar = '';
     if (!archetype) {
-      if (unit.type === 'bing') { archetype = 'Beast Axie (Morale Support)'; avatar = '🐶'; }
-      else if (unit.type === 'pomodoro') { archetype = 'Bug Axie (Shield Guardian)'; avatar = '🍳'; }
-      else if (unit.type === 'werewolf-boss' || unit.type.includes('werewolf')) { archetype = 'Supreme Chimera Boss'; avatar = '🐺'; }
-      else if (unit.type.includes('bear')) { archetype = 'Colossal Bear Chimera'; avatar = '🐻'; }
-      else if (unit.type.includes('wolf')) { archetype = 'Hunter Wolf Chimera'; avatar = '🐺'; }
-      else if (unit.type.includes('dryad')) { archetype = 'Arcane Mystic Dryad'; avatar = '🧚'; }
-      else if (unit.type.includes('treant')) { archetype = 'Ancient Botanical Treant'; avatar = '🌲'; }
-      else if (unit.type.includes('slime')) { archetype = 'Slime Chimera'; avatar = '🟢'; }
-      else if (unit.type.includes('brawler') || unit.type === 'buba') { archetype = 'Assault Beast'; avatar = '🥊'; }
-      else if (unit.type === 'sapidae') { archetype = unit.archetype || 'Sapidae Adventurer'; avatar = unit.modelType?.includes('f') ? '👩‍🌾' : '🧑‍🌾'; }
-      else if (unit.type.includes('shaman')) { archetype = 'Botanical Shaman'; avatar = '🔮'; }
-      else { archetype = 'Beast Axie (Melee Duelist)'; }
+      if (unit.type === 'bing') { archetype = i18n.t('game.archBing'); avatar = ''; }
+      else if (unit.type === 'pomodoro') { archetype = i18n.t('game.archPomodoro'); avatar = ''; }
+      else if (unit.type === 'werewolf-boss' || unit.type.includes('werewolf')) { archetype = i18n.t('game.archWerewolfBoss'); avatar = ''; }
+      else if (unit.type.includes('bear')) { archetype = i18n.t('game.archBear'); avatar = ''; }
+      else if (unit.type.includes('wolf')) { archetype = i18n.t('game.archWolf'); avatar = ''; }
+      else if (unit.type.includes('dryad')) { archetype = i18n.t('game.archDryad'); avatar = ''; }
+      else if (unit.type.includes('treant')) { archetype = i18n.t('game.archTreant'); avatar = ''; }
+      else if (unit.type.includes('slime')) { archetype = i18n.t('game.archSlime'); avatar = ''; }
+      else if (unit.type.includes('brawler') || unit.type === 'buba') { archetype = i18n.t('game.archBrawler'); avatar = ''; }
+      else if (unit.type === 'sapidae') { archetype = unit.archetype || i18n.t('game.archSapidae'); avatar = ''; }
+      else if (unit.type.includes('shaman')) { archetype = i18n.t('game.archShaman'); avatar = ''; }
+      else { archetype = i18n.t('game.archDefault'); }
     }
 
     document.getElementById('unit-archetype').textContent = archetype;
@@ -1938,7 +1961,7 @@ class AxieTacticsGame {
     if (portraitUrl) {
       avatarEl.innerHTML = `<img class="tactical-hud-avatar-img" src="${portraitUrl}" alt="${unit.name}">`;
     } else {
-      avatarEl.textContent = avatar;
+      avatarEl.textContent = avatar || String(unit.name || '?').charAt(0).toUpperCase();
     }
 
     const safeHP = (typeof unit.currentHP === 'number' && !isNaN(unit.currentHP)) ? Math.max(0, unit.currentHP) : 0;
@@ -1961,14 +1984,14 @@ class AxieTacticsGame {
           continue;
         }
         slot.style.display = 'flex';
-        slot.querySelector('.pa-cost-badge').textContent = this.spellManager.getSpellCost(unit, spell) + ' AP';
+        slot.querySelector('.pa-cost-badge').textContent = i18n.t('game.apCost', { n: this.spellManager.getSpellCost(unit, spell) });
         const iconEl = slot.querySelector('.spell-icon');
         if (spell.icon && (spell.icon.includes('/') || spell.icon.endsWith('.png') || spell.icon.endsWith('.webp'))) {
-          iconEl.innerHTML = `<img src="${spell.icon}" alt="${spell.name || 'Habilidad'}" class="spell-img-icon">`;
+          iconEl.innerHTML = `<img src="${spell.icon}" alt="${spell.name || i18n.t('game.skill')}" class="spell-img-icon">`;
         } else {
-          iconEl.textContent = spell.icon || '⚔️';
+          if (spell.icon) iconEl.textContent = spell.icon; else iconEl.innerHTML = '<img src="./assets/ui/icons/swords.png" alt="" class="spell-img-icon">';
         }
-        slot.querySelector('.range-badge').textContent = (spell.minRange === spell.maxRange ? spell.minRange : spell.minRange + '-' + spell.maxRange) + ' RNG';
+        slot.querySelector('.range-badge').textContent = i18n.t('game.rangeBadge', { r: (spell.minRange === spell.maxRange ? spell.minRange : spell.minRange + '-' + spell.maxRange) });
 
         if (unit.currentPA < this.spellManager.getSpellCost(unit, spell) || unit.team !== 'player' || this.activeUnit !== unit) {
           slot.classList.add('disabled');
@@ -1988,11 +2011,11 @@ class AxieTacticsGame {
 
     if (unit.team === 'player') {
       banner.className = 'turn-banner turn-player';
-      subtitle.textContent = 'START OF';
-      title.textContent = unit.name.toUpperCase() + "'S TURN";
+      subtitle.textContent = i18n.t('game.turnStart');
+      title.textContent = i18n.t('game.turnTitle', { name: unit.name.toUpperCase() });
     } else {
       banner.className = 'turn-banner turn-enemy';
-      subtitle.textContent = 'ENEMY TURN';
+      subtitle.textContent = i18n.t('game.enemyTurn');
       title.textContent = unit.name.toUpperCase();
     }
 
@@ -2094,8 +2117,9 @@ class AxieTacticsGame {
       }
 
       this.validSpellCells = this.spellManager.getValidTargetCells(this.activeUnit, spell);
+      this.spellRangeCells = this.spellManager.getRangeCells(this.activeUnit, spell);
       this.gridManager.clearHighlights();
-      this.gridManager.highlightSpellRange(this.validSpellCells);
+      this._paintSpellCells();
 
       if (this.tutorialManager.isActive && this.tutorialManager.isSpellSelectionStep()) {
         this.tutorialManager.advanceStep();
@@ -2129,12 +2153,22 @@ class AxieTacticsGame {
       if (slot) slot.classList.remove('active');
     }
     this.validSpellCells = this.spellManager.getValidTargetCells(this.activeUnit, spell);
+    this.spellRangeCells = this.spellManager.getRangeCells(this.activeUnit, spell);
     this.gridManager.clearHighlights();
-    this.gridManager.highlightSpellRange(this.validSpellCells);
+    this._paintSpellCells();
     this._updateHUD(this.activeUnit);
   }
 
+  /** Alcance de la habilidad elegida: sin visión (apagado), a tiro (rojo) y objetivos válidos (rojo intenso, pulso). */
+  _paintSpellCells() {
+    const gm = this.gridManager, r = this.spellRangeCells || { range: [], blocked: [] };
+    gm.highlightSpellBlocked(r.blocked);
+    gm.highlightSpellRange(r.range);
+    gm.highlightSpellTargets(this.validSpellCells);
+  }
+
   _clearSpellSelection() {
+    this.spellRangeCells = { range: [], blocked: [] };
     this.selectedSpell = null;
     this.selectedSpellIndex = -1;
     for (let i = 0; i < 3; i++) {
@@ -2188,7 +2222,7 @@ class AxieTacticsGame {
       const isValid = this.validSpellCells.some(c => c.x === cell.x && c.z === cell.z);
       if (isValid) {
         this.gridManager.clearHighlights();
-        this.gridManager.highlightSpellRange(this.validSpellCells);
+        this._paintSpellCells();
 
         const aoe = this.spellManager.getAoECells(cell, this.selectedSpell, this.activeUnit);
         this.gridManager.highlightAoE(aoe);
@@ -2204,6 +2238,9 @@ class AxieTacticsGame {
         }
       } else {
         this._hideForecast();
+        // fuera de un objetivo: se quitan el área y el cursor de la casilla anterior, queda el alcance
+        this.gridManager.clearHighlights();
+        this._paintSpellCells();
       }
     } else {
       this._hideForecast();
@@ -2213,7 +2250,7 @@ class AxieTacticsGame {
         this.gridManager.clearHighlights();
         this.gridManager.highlightReachable(this._tutorialAllowedReach());
         this.gridManager.highlightPath(reachable.path);
-        this.gridManager.highlightHover(cell.x, cell.z, 0x00f3ff);
+        this.gridManager.highlightHover(cell.x, cell.z, 0x39e75f); // casilla elegida para moverse: verde (Hito 65)
 
         if (this.tutorialManager.isActive) {
           const step = this.tutorialManager.steps[this.tutorialManager.currentStep];
@@ -2313,10 +2350,10 @@ class AxieTacticsGame {
       return;
     }
     const el = document.getElementById('combat-forecast');
-    document.getElementById('forecast-target-name').textContent = targetUnit.name || 'Enemigo';
+    document.getElementById('forecast-target-name').textContent = targetUnit.name || i18n.t('game.enemy');
     const curHP = (typeof targetUnit.currentHP === 'number' && !isNaN(targetUnit.currentHP)) ? targetUnit.currentHP : 0;
     const maxHP = (typeof targetUnit.maxHP === 'number' && !isNaN(targetUnit.maxHP)) ? targetUnit.maxHP : 1;
-    document.getElementById('forecast-target-hp').textContent = curHP + ' / ' + maxHP + ' HP';
+    document.getElementById('forecast-target-hp').textContent = i18n.t('game.hpOf', { cur: curHP, max: maxHP });
 
     // Fase 5: pronóstico exacto (triángulo, estados, escudo, barrera, bonus de la carta, área) — ui/ForecastPanel.js
     try {
@@ -2332,7 +2369,7 @@ class AxieTacticsGame {
 
     if (spell.pushDistance) {
       pushRow.classList.remove('hidden');
-      document.getElementById('forecast-push-val').textContent = spell.pushDistance + ' casillas';
+      document.getElementById('forecast-push-val').textContent = i18n.t('game.pushTiles', { n: spell.pushDistance });
 
       const dx = Math.sign(targetUnit.gridX - this.activeUnit.gridX);
       const dz = Math.sign(targetUnit.gridZ - this.activeUnit.gridZ);
@@ -2373,10 +2410,10 @@ class AxieTacticsGame {
 
     const tt = document.getElementById('spell-tooltip');
     document.getElementById('tt-title').textContent = spell.name;
-    document.getElementById('tt-pa').textContent = this.spellManager.getSpellCost(this.activeUnit, spell) + ' AP';
-    document.getElementById('tt-range').textContent = '🎯 Range: ' + spell.minRange + '-' + spell.maxRange;
-    document.getElementById('tt-los').textContent = '👁️ Line of Sight: ' + (spell.requiresLoS ? 'Yes' : 'No');
-    document.getElementById('tt-area').textContent = '📐 Area: ' + (spell.areaType === 'cross1' ? 'Cross (1 tile)' : 'Single Tile');
+    document.getElementById('tt-pa').textContent = i18n.t('game.apCost', { n: this.spellManager.getSpellCost(this.activeUnit, spell) });
+    document.getElementById('tt-range').textContent = i18n.t('game.ttRange', { r: spell.minRange + '-' + spell.maxRange });
+    document.getElementById('tt-los').textContent = i18n.t('game.ttLos', { v: spell.requiresLoS ? i18n.t('game.yes') : i18n.t('game.no') });
+    document.getElementById('tt-area').textContent = i18n.t('game.ttArea', { v: spell.areaType === 'cross1' ? i18n.t('game.areaCross') : i18n.t('game.areaSingle') });
     document.getElementById('tt-desc').textContent = spell.description;
 
     const rect = e.target.getBoundingClientRect();
@@ -2422,6 +2459,7 @@ class AxieTacticsGame {
       if (this._hoverDirty) { this._hoverDirty = false; this._handleHover(); }
       this.units.forEach(u => u.update(dt, time));
       this.combatText.update(dt);
+      this.gridManager.tickHighlights(time);
       if (this.tutorialManager) {
         this.tutorialManager.update(time);
       }

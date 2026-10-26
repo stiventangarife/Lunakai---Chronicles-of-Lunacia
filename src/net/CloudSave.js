@@ -8,6 +8,7 @@
 
 import { NET_CONFIG } from './config.js';
 import { supabaseFetch } from './AuthService.js';
+import * as i18n from '../i18n/i18n.js';
 
 const LOCAL_ONLY_FIELDS = ['sapidaePortrait']; // pesados y regenerables: no viajan a la nube
 
@@ -107,7 +108,7 @@ export class CloudSave {
         } else {
           // Tenía versión en la nube y ya no está: se borró desde otro dispositivo.
           this.ssm.removeSlotLocal(id);
-          notices.push(`La ranura ${id} se eliminó desde otro dispositivo.`);
+          notices.push(i18n.t('account.notice.slotDeletedRemote', { id }));
         }
       }
     }
@@ -185,7 +186,7 @@ export class CloudSave {
           this.ssm.applyCloudSlot(slotId, res.data, res.version);
           this._lastHash(slotId, contentHash(toCloudData(res.data)));
           this._setStatus(this.hasPending() ? 'saving' : 'saved', {
-            lastNotice: `Se cargó el progreso más reciente de la ranura ${slotId} desde otro dispositivo.`,
+            lastNotice: i18n.t('account.notice.slotLoadedRemote', { id: slotId }),
           });
           this._listeners.forEach((fn) => { try { fn('conflict', this); } catch { /* nada */ } });
           return;

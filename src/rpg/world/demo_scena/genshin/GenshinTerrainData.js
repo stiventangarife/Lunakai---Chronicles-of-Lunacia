@@ -8,7 +8,7 @@ import { fbm2D } from '../grassShader.js';
  *
  *   heightTex (R16F): terrain height, bilinear-filtered on the GPU.
  *   maskTex   (RGBA8):
- *      R = grass density   (0 on roads, river beds, shores, cliffs, dojo floor)
+ *      R = grass density   (0 on roads, river beds, shores, cliffs)
  *      G = road / path factor
  *      B = wildflower meadow mask
  *      A = shore wetness (proximity to the river water line)
@@ -58,9 +58,9 @@ export class GenshinTerrainData {
         const rf = road ? road.getX(vi) : 0.0;
 
         const { riverCenterX, riverHalfWidth } = WaterManager.getRiverBounds(z);
-        // The river only exists from its spring (z = -115) down to the bay
-        const distRiver = (z >= -118) ? Math.abs(x - riverCenterX) - riverHalfWidth : 999;
-        const waterY = (z >= -115 && distRiver < 14.0) ? WaterManager.getRiverWaterHeight(z) : -99;
+        // El río va de mar a mar (Hito 66; antes nacía en un manantial en z = -115)
+        const distRiver = (z >= WaterManager.RIVER_CARVE_Z0) ? Math.abs(x - riverCenterX) - riverHalfWidth * (x < riverCenterX ? WaterManager.getNorthMouthFactor(z) : 1) : 999;
+        const waterY = (z >= WaterManager.RIVER_CARVE_Z0 && distRiver < 14.0) ? WaterManager.getRiverWaterHeight(z) : -99;
         const aboveWater = y - Math.max(waterY, t.waterLevel);
 
         // --- Grass density ---------------------------------------------------
@@ -69,8 +69,7 @@ export class GenshinTerrainData {
         d *= smooth(0.0, 1.6, distRiver);                     // no grass in the river
         d *= smooth(0.05, 0.4, aboveWater);                   // thin wet sandy banks
         d *= smooth(0.56, 0.7, ny);                           // only true cliffs stay bare
-        const dojo = Math.hypot(x + 87.9, z - 74.0);
-        d *= smooth(14.5, 18.0, dojo);                        // dojo courtyard
+        // (el patio sin hierba del antiguo Dojō Secreto se retiró en el Hito 51: ahí vuelve a crecer)
         const coast = Math.hypot(x, z);
         d *= smooth(152.0, 141.0, coast);                     // beaches near the sea
         // Natural thinning: little clearings so the meadow breathes

@@ -4,6 +4,7 @@
 // isOpen, open(), close(), toggle(), applyQuality(preset), modalEl (#settings-modal, usa la clase .hidden).
 import { saveSlotManager } from '../SaveSlotManager.js';
 import { asset, sprite, toast } from '../../ui/lk.js';
+import * as i18n from '../../i18n/i18n.js';
 
 const K = {
   quality: 'axie_tactics_graphics_quality',
@@ -22,7 +23,7 @@ const AUDIO_DEFAULTS = { master: 100, music: 75, sfx: 80, amb: 60 };
 const PREF_DEFAULTS = {
   mute: { master: false, music: false, sfx: false, amb: false },
   bgMute: true, duckDialog: false,
-  lang: 'es', textSize: 'normal', textSpeed: 'normal',
+  lang: i18n.DEFAULT_LANG, textSize: 'normal', textSpeed: 'normal',
   contrast: false, reduceMotion: false, shake: true
 };
 const TEXT_SPEED_MS = { slow: 40, normal: 22, instant: 1 };
@@ -36,7 +37,7 @@ const EXIT_SVG = (style = '') => `<svg viewBox="0 0 24 24" fill="none" stroke="c
 
 const sw = (key, label, small, on) => `<div class="lk-set-row"><span class="lk-t"><b>${label}</b><small>${small}</small></span><button class="lk-switch" role="switch" data-k="${key}" aria-checked="${on}" aria-label="${label}"></button></div>`;
 const seg = (key, label, small, opts) => `<div class="lk-set-row"><span class="lk-t"><b>${label}</b><small>${small}</small></span><div class="lk-segmented" data-k="${key}">${opts.map(([v, t]) => `<button aria-pressed="false" data-v="${v}">${t}</button>`).join('')}</div></div>`;
-const vol = (ch, name, small, master = false) => `<div class="lk-vol ${master ? 'lk-is-master' : ''}" data-ch="${ch}"><button class="lk-mute" aria-pressed="false" aria-label="Silenciar ${name}">${SPEAKER}</button><span class="lk-t"><b>${name}</b><small>${small}</small></span><input class="lk-range" type="range" min="0" max="100" value="50" aria-label="Volumen de ${name}"><span class="lk-num">50%</span></div>`;
+const vol = (ch, name, small, master = false) => `<div class="lk-vol ${master ? 'lk-is-master' : ''}" data-ch="${ch}"><button class="lk-mute" aria-pressed="false" aria-label="${i18n.t('settings.muteChannel', { name })}">${SPEAKER}</button><span class="lk-t"><b>${name}</b><small>${small}</small></span><input class="lk-range" type="range" min="0" max="100" value="50" aria-label="${i18n.t('settings.volumeOf', { name })}"><span class="lk-num">50%</span></div>`;
 const keyRow = (label, keys) => `<div class="lk-key-row"><span>${label}</span><span>${keys.map((k) => `<kbd>${k}</kbd>`).join('')}</span></div>`;
 const bars = (n) => `<span class="lk-bars">${[0, 1, 2, 3].map((i) => `<i class="${i < n ? 'lk-on' : ''}"></i>`).join('')}</span>`;
 
@@ -78,91 +79,91 @@ export class SettingsModal {
     modal.className = 'lk-ui lk-backdrop hidden';
     modal.setAttribute('aria-hidden', 'true');
     modal.innerHTML = `
-      <div class="lk-panel-modal-window lk-pause" role="dialog" aria-label="Pausa y opciones">
+      <div class="lk-panel-modal-window lk-pause" role="dialog" aria-label="${i18n.t('settings.dialogLabel')}">
         <div class="lk-panel-head">
           <span class="lk-emblem"><img class="lk-ai" src="${I}/setting.png" alt=""></span>
-          <h3><small>Pausa · Esc</small>Opciones</h3>
-          <span class="lk-save-chip" data-ref="saveChip"><i>✓</i><span>Sin guardar todavía</span></span>
-          <button class="lk-btn-close-x" data-act="close" aria-label="Cerrar y reanudar">${sprite('i-close')}</button>
+          <h3><small>${i18n.t('settings.kickPause')}</small>${i18n.t('settings.title')}</h3>
+          <span class="lk-save-chip" data-ref="saveChip"><i>✓</i><span>${i18n.t('settings.notSaved')}</span></span>
+          <button class="lk-btn-close-x" data-act="close" aria-label="${i18n.t('settings.closeResume')}">${sprite('i-close')}</button>
         </div>
         <div class="lk-pause__body">
-          <nav class="lk-pause__nav" aria-label="Menú de pausa">
+          <nav class="lk-pause__nav" aria-label="${i18n.t('settings.pauseMenu')}">
             <div class="lk-where"><img class="lk-ai" src="${I}/map.png" alt=""><b data-ref="zone">Lunacia</b><small data-ref="zoneMeta"></small></div>
-            <button class="lk-btn lk-btn-primary-gold" data-act="resume"><span class="lk-b-ico"><img class="lk-ai" src="${I}/resume.png" alt=""></span>Reanudar<kbd>Esc</kbd></button>
+            <button class="lk-btn lk-btn-primary-gold" data-act="resume"><span class="lk-b-ico"><img class="lk-ai" src="${I}/resume.png" alt=""></span>${i18n.t('settings.resume')}<kbd>Esc</kbd></button>
             <div class="lk-vtabs" role="tablist" aria-orientation="vertical">
-              <span class="lk-label">Opciones</span>
-              <button class="lk-vtab" role="tab" aria-selected="true" data-p="gfx"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"><path d="M3 18l6-8 4 5 3-3 5 6z"/><circle cx="16.5" cy="6.5" r="2"/></svg>Gráficos</button>
-              <button class="lk-vtab" role="tab" aria-selected="false" data-p="aud"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18V5l11-2v13"/><circle cx="6.5" cy="18" r="2.5"/><circle cx="17.5" cy="16" r="2.5"/></svg>Audio</button>
-              <button class="lk-vtab" role="tab" aria-selected="false" data-p="ctl"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"><rect x="2.5" y="6.5" width="19" height="11" rx="2.5"/><path d="M6 10h1M9 10h1M12 10h1M15 10h1M18 10h0M7 14h10" stroke-linecap="round"/></svg>Controles</button>
-              <button class="lk-vtab" role="tab" aria-selected="false" data-p="acc"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="4.5" r="1.8"/><path d="M5 8.5l7 1.5 7-1.5M12 10v5l-3 6M12 15l3 6"/></svg>Accesibilidad</button>
+              <span class="lk-label">${i18n.t('settings.title')}</span>
+              <button class="lk-vtab" role="tab" aria-selected="true" data-p="gfx"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"><path d="M3 18l6-8 4 5 3-3 5 6z"/><circle cx="16.5" cy="6.5" r="2"/></svg>${i18n.t('settings.tabGfx')}</button>
+              <button class="lk-vtab" role="tab" aria-selected="false" data-p="aud"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18V5l11-2v13"/><circle cx="6.5" cy="18" r="2.5"/><circle cx="17.5" cy="16" r="2.5"/></svg>${i18n.t('settings.tabAudio')}</button>
+              <button class="lk-vtab" role="tab" aria-selected="false" data-p="ctl"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"><rect x="2.5" y="6.5" width="19" height="11" rx="2.5"/><path d="M6 10h1M9 10h1M12 10h1M15 10h1M18 10h0M7 14h10" stroke-linecap="round"/></svg>${i18n.t('settings.tabControls')}</button>
+              <button class="lk-vtab" role="tab" aria-selected="false" data-p="acc"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="4.5" r="1.8"/><path d="M5 8.5l7 1.5 7-1.5M12 10v5l-3 6M12 15l3 6"/></svg>${i18n.t('settings.tabAccess')}</button>
             </div>
             <div class="lk-bottom">
-              <button class="lk-btn lk-btn-secondary-wood lk-btn--sm" data-act="save"><span class="lk-b-ico"><img class="lk-ai" src="${I}/save.png" alt=""></span>Guardar ahora</button>
-              <button class="lk-link-danger" data-act="exit">${EXIT_SVG()}Salir al menú principal</button>
-              <p class="lk-pause__cnote"><b>En combate</b>Guardar y salir al menú estarán disponibles al terminar la batalla. El reloj de tu turno sigue corriendo.</p>
+              <button class="lk-btn lk-btn-secondary-wood lk-btn--sm" data-act="save"><span class="lk-b-ico"><img class="lk-ai" src="${I}/save.png" alt=""></span>${i18n.t('settings.saveNow')}</button>
+              <button class="lk-link-danger" data-act="exit">${EXIT_SVG()}${i18n.t('settings.exitToMenu')}</button>
+              <p class="lk-pause__cnote"><b>${i18n.t('settings.inCombat')}</b>${i18n.t('settings.inCombatNote')}</p>
             </div>
           </nav>
           <div class="lk-pause__content">
             <div class="lk-pause__pane" data-p="gfx">
-              <div class="lk-pane-h"><h4>Calidad gráfica</h4><span class="lk-fps" data-ref="fps">Midiendo FPS…</span></div>
+              <div class="lk-pane-h"><h4>${i18n.t('settings.gfxQuality')}</h4><span class="lk-fps" data-ref="fps">${i18n.t('settings.measuringFps')}</span></div>
               <div class="lk-presets">
-                <button class="lk-preset" data-q="low" aria-pressed="false">${bars(1)}<b>Bajo</b><small>Prioriza fluidez en equipos modestos</small></button>
-                <button class="lk-preset" data-q="mid" aria-pressed="false">${bars(2)}<b>Medio</b><small>Equilibrio entre detalle y rendimiento</small></button>
-                <button class="lk-preset" data-q="high" aria-pressed="false">${bars(3)}<b>Alto</b><small>Máximo detalle del paisaje</small></button>
-                <button class="lk-preset" data-q="custom" aria-pressed="false">${bars(4)}<b>Personalizado</b><small>Tus ajustes de abajo</small></button>
+                <button class="lk-preset" data-q="low" aria-pressed="false">${bars(1)}<b>${i18n.t('settings.qLow')}</b><small>${i18n.t('settings.qLowDesc')}</small></button>
+                <button class="lk-preset" data-q="mid" aria-pressed="false">${bars(2)}<b>${i18n.t('settings.qMid')}</b><small>${i18n.t('settings.qMidDesc')}</small></button>
+                <button class="lk-preset" data-q="high" aria-pressed="false">${bars(3)}<b>${i18n.t('settings.qHigh')}</b><small>${i18n.t('settings.qHighDesc')}</small></button>
+                <button class="lk-preset" data-q="custom" aria-pressed="false">${bars(4)}<b>${i18n.t('settings.qCustom')}</b><small>${i18n.t('settings.qCustomDesc')}</small></button>
               </div>
-              <div class="lk-group" data-ref="gfxToggles"><span class="lk-label">Detalle</span>
-                ${sw('shadows', 'Sombras dinámicas', 'Sombras en tiempo real del sol y la luna', true)}
-                ${sw('grass', 'Hierba animada', 'Briznas con viento por GPU', true)}
-                ${sw('particles', 'Partículas ambientales', 'Hojas, nieve, brasas y esporas por bioma', true)}
-                ${sw('sky', 'Cielo mágico', 'Auroras, nubes y estrellas procedurales', true)}
-                <div class="lk-set-row"><span class="lk-t"><b>Escala de resolución</b><small>Menos escala, más rendimiento</small></span><span style="display:flex;align-items:center;gap:10px;min-width:180px"><input class="lk-range" type="range" min="50" max="100" value="100" data-ref="res" aria-label="Escala de resolución"><b class="lk-num" data-ref="resNum" style="font-size:.84rem;color:var(--lk-ivory-50);min-width:40px;text-align:right">100%</b></span></div>
+              <div class="lk-group" data-ref="gfxToggles"><span class="lk-label">${i18n.t('settings.detail')}</span>
+                ${sw('shadows', i18n.t('settings.shadows'), i18n.t('settings.shadowsDesc'), true)}
+                ${sw('grass', i18n.t('settings.grass'), i18n.t('settings.grassDesc'), true)}
+                ${sw('particles', i18n.t('settings.particles'), i18n.t('settings.particlesDesc'), true)}
+                ${sw('sky', i18n.t('settings.sky'), i18n.t('settings.skyDesc'), true)}
+                <div class="lk-set-row"><span class="lk-t"><b>${i18n.t('settings.resScale')}</b><small>${i18n.t('settings.resScaleDesc')}</small></span><span style="display:flex;align-items:center;gap:10px;min-width:180px"><input class="lk-range" type="range" min="50" max="100" value="100" data-ref="res" aria-label="${i18n.t('settings.resScale')}"><b class="lk-num" data-ref="resNum" style="font-size:.84rem;color:var(--lk-ivory-50);min-width:40px;text-align:right">100%</b></span></div>
               </div>
             </div>
             <div class="lk-pause__pane" data-p="aud" hidden>
-              <div class="lk-pane-h"><h4>Audio</h4><p>Pulsa el altavoz para silenciar un canal sin perder su nivel.</p></div>
-              <div class="lk-group"><span class="lk-label">Volumen</span>
-                ${vol('master', 'General', 'Afecta a todo el sonido', true)}
-                ${vol('music', 'Música', 'Banda sonora y temas de zona')}
-                ${vol('sfx', 'Efectos', 'Combate, habilidades e interfaz')}
-                ${vol('amb', 'Ambiente', 'Viento, agua, fauna')}
+              <div class="lk-pane-h"><h4>${i18n.t('settings.tabAudio')}</h4><p>${i18n.t('settings.audioHint')}</p></div>
+              <div class="lk-group"><span class="lk-label">${i18n.t('settings.volume')}</span>
+                ${vol('master', i18n.t('settings.volMaster'), i18n.t('settings.volMasterDesc'), true)}
+                ${vol('music', i18n.t('settings.volMusic'), i18n.t('settings.volMusicDesc'))}
+                ${vol('sfx', i18n.t('settings.volSfx'), i18n.t('settings.volSfxDesc'))}
+                ${vol('amb', i18n.t('settings.volAmb'), i18n.t('settings.volAmbDesc'))}
               </div>
-              <div class="lk-group"><span class="lk-label">Comportamiento</span>
-                ${sw('bgMute', 'Silenciar en segundo plano', 'Baja el sonido cuando cambias de ventana', true)}
-                ${sw('duckDialog', 'Bajar música en diálogos', 'La música se atenúa mientras hablan los personajes', false)}
+              <div class="lk-group"><span class="lk-label">${i18n.t('settings.behaviour')}</span>
+                ${sw('bgMute', i18n.t('settings.bgMute'), i18n.t('settings.bgMuteDesc'), true)}
+                ${sw('duckDialog', i18n.t('settings.duck'), i18n.t('settings.duckDesc'), false)}
               </div>
             </div>
             <div class="lk-pause__pane" data-p="ctl" hidden>
-              <div class="lk-pane-h"><h4>Controles</h4><p>Teclas actuales del juego.</p></div>
+              <div class="lk-pane-h"><h4>${i18n.t('settings.tabControls')}</h4><p>${i18n.t('settings.controlsHint')}</p></div>
               <div class="lk-keys">
-                <div class="lk-group"><span class="lk-label">Exploración</span>${keyRow('Moverse', ['W', 'A', 'S', 'D'])}${keyRow('Interactuar', ['E'])}${keyRow('Avanzar diálogo', ['Espacio'])}${keyRow('Mochila', ['I'])}${keyRow('Diario de misiones', ['J'])}${keyRow('Mapa del mundo', ['M'])}${keyRow('Opciones', ['O'])}${keyRow('Pausa', ['Esc'])}</div>
-                <div class="lk-group"><span class="lk-label">Combate</span>${keyRow('Usar carta', ['1 – 6'])}${keyRow('Pasar turno', ['Espacio'])}${keyRow('Rotar cámara 45°', ['Q', 'E'])}${keyRow('Centrar en el héroe', ['R'])}${keyRow('Orbitar cámara', ['Clic der.'])}${keyRow('Zoom', ['Rueda'])}${keyRow('Cancelar acción', ['Esc'])}</div>
+                <div class="lk-group"><span class="lk-label">${i18n.t('settings.kExplore')}</span>${keyRow(i18n.t('settings.kMove'), ['W', 'A', 'S', 'D'])}${keyRow(i18n.t('settings.kInteract'), ['E'])}${keyRow(i18n.t('settings.kDialog'), [i18n.t('settings.keySpace')])}${keyRow(i18n.t('settings.kBag'), ['I'])}${keyRow(i18n.t('settings.kJournal'), ['J'])}${keyRow(i18n.t('settings.kMap'), ['M'])}${keyRow(i18n.t('settings.title'), ['O'])}${keyRow(i18n.t('settings.kPause'), ['Esc'])}</div>
+                <div class="lk-group"><span class="lk-label">${i18n.t('settings.kCombat')}</span>${keyRow(i18n.t('settings.kCard'), ['1 – 6'])}${keyRow(i18n.t('settings.kEndTurn'), [i18n.t('settings.keySpace')])}${keyRow(i18n.t('settings.kRotate'), ['Q', 'E'])}${keyRow(i18n.t('settings.kCenter'), ['R'])}${keyRow(i18n.t('settings.kOrbit'), [i18n.t('settings.keyRmb')])}${keyRow('Zoom', [i18n.t('settings.keyWheel')])}${keyRow(i18n.t('settings.kCancel'), ['Esc'])}</div>
               </div>
             </div>
             <div class="lk-pause__pane" data-p="acc" hidden>
-              <div class="lk-pane-h"><h4>Accesibilidad</h4><p>Idioma, lectura y comodidad para sesiones largas.</p></div>
-              <div class="lk-group"><span class="lk-label">Idioma</span>
-                ${seg('lang', 'Idioma del juego', 'Menús, diálogos, cartas y tooltips', [['es', 'Español'], ['en', 'English']])}
+              <div class="lk-pane-h"><h4>${i18n.t('settings.tabAccess')}</h4><p>${i18n.t('settings.accessHint')}</p></div>
+              <div class="lk-group"><span class="lk-label">${i18n.t('settings.language')}</span>
+                ${seg('lang', i18n.t('settings.gameLang'), i18n.t('settings.gameLangDesc'), [['en', 'English'], ['es', 'Español']])}
               </div>
-              <div class="lk-group"><span class="lk-label">Lectura</span>
-                ${seg('textSize', 'Tamaño del texto', 'Menús, tooltips y diálogos', [['normal', 'Normal'], ['large', 'Grande'], ['xlarge', 'Muy grande']])}
-                ${seg('textSpeed', 'Velocidad del texto', 'Cómo aparece el diálogo', [['slow', 'Lenta'], ['normal', 'Normal'], ['instant', 'Instantánea']])}
+              <div class="lk-group"><span class="lk-label">${i18n.t('settings.reading')}</span>
+                ${seg('textSize', i18n.t('settings.textSize'), i18n.t('settings.textSizeDesc'), [['normal', i18n.t('settings.normal')], ['large', i18n.t('settings.large')], ['xlarge', i18n.t('settings.xlarge')]])}
+                ${seg('textSpeed', i18n.t('settings.textSpeed'), i18n.t('settings.textSpeedDesc'), [['slow', i18n.t('settings.slow')], ['normal', i18n.t('settings.normal')], ['instant', i18n.t('settings.instant')]])}
               </div>
-              <div class="lk-group"><span class="lk-label">Visión y movimiento</span>
-                ${sw('contrast', 'Marcadores de alto contraste', 'Contorno y forma distinta para enemigos y aliados, no solo color', false)}
-                ${sw('reduceMotion', 'Reducir movimiento', 'Menos destellos, rayos y animaciones de cámara', false)}
-                ${sw('shake', 'Temblor de cámara', 'En golpes críticos y Vínculo Supremo', true)}
+              <div class="lk-group"><span class="lk-label">${i18n.t('settings.vision')}</span>
+                ${sw('contrast', i18n.t('settings.contrast'), i18n.t('settings.contrastDesc'), false)}
+                ${sw('reduceMotion', i18n.t('settings.reduceMotion'), i18n.t('settings.reduceMotionDesc'), false)}
+                ${sw('shake', i18n.t('settings.shake'), i18n.t('settings.shakeDesc'), true)}
               </div>
             </div>
-            <div class="lk-pause__foot"><span class="lk-hint"><i></i>Los cambios se aplican y guardan al instante</span><button class="lk-text-btn" data-act="reset">Restablecer esta pestaña</button></div>
+            <div class="lk-pause__foot"><span class="lk-hint"><i></i>${i18n.t('settings.applyHint')}</span><button class="lk-text-btn" data-act="reset">${i18n.t('settings.resetTab')}</button></div>
           </div>
         </div>
         <div class="lk-confirm" data-ref="confirm" role="alertdialog" aria-labelledby="lk-exit-title">
           <div class="lk-confirm__card">
-            <h4 id="lk-exit-title">¿Volver al menú principal?</h4>
-            <p data-ref="exitText">Guardaremos tu aventura antes de salir.</p>
-            <span class="lk-warn">Volverás a la pantalla de inicio del juego.</span>
-            <div class="lk-acts"><button class="lk-btn lk-btn-secondary-wood lk-btn--sm" data-act="exitCancel"><span class="lk-b-ico">${EXIT_SVG(' style="width:15px;height:15px;transform:scaleX(-1)"')}</span>Seguir jugando</button><button class="lk-btn lk-btn-primary-gold lk-btn--sm" data-act="exitOk"><span class="lk-b-ico"><img class="lk-ai" src="${I}/save.png" alt=""></span>Guardar y salir</button></div>
+            <h4 id="lk-exit-title">${i18n.t('settings.exitTitle')}</h4>
+            <p data-ref="exitText">${i18n.t('settings.exitText')}</p>
+            <span class="lk-warn">${i18n.t('settings.exitWarn')}</span>
+            <div class="lk-acts"><button class="lk-btn lk-btn-secondary-wood lk-btn--sm" data-act="exitCancel"><span class="lk-b-ico">${EXIT_SVG(' style="width:15px;height:15px;transform:scaleX(-1)"')}</span>${i18n.t('settings.keepPlaying')}</button><button class="lk-btn lk-btn-primary-gold lk-btn--sm" data-act="exitOk"><span class="lk-b-ico"><img class="lk-ai" src="${I}/save.png" alt=""></span>${i18n.t('settings.saveExit')}</button></div>
           </div>
         </div>
       </div>`;
@@ -219,7 +220,7 @@ export class SettingsModal {
     this.qualityBtns.forEach((b) => b.addEventListener('click', () => {
       this._click();
       this.applyQuality(b.dataset.q);
-      if (b.dataset.q !== 'custom') toast(`Calidad ${b.querySelector('b').textContent.toLowerCase()} aplicada`);
+      if (b.dataset.q !== 'custom') toast(i18n.t('settings.toastQuality', { q: b.querySelector('b').textContent.toLowerCase() }));
     }));
 
     // Interruptores
@@ -258,7 +259,7 @@ export class SettingsModal {
       row.querySelector('.lk-mute').addEventListener('click', () => {
         const on = !this.prefs.mute[ch];
         this._setMute(ch, on);
-        toast(on ? `${row.querySelector('.lk-t b').textContent} silenciado` : `${row.querySelector('.lk-t b').textContent} activado`);
+        toast(i18n.t(on ? 'settings.toastMuted' : 'settings.toastUnmuted', { name: row.querySelector('.lk-t b').textContent }));
       });
     });
 
@@ -269,7 +270,7 @@ export class SettingsModal {
       this.prefs[k] = b.dataset.v;
       this._paintSeg(g, b.dataset.v);
       this._savePrefs();
-      if (k === 'lang') toast(b.dataset.v === 'en' ? 'Language set to English' : 'Idioma cambiado a español');
+      if (k === 'lang' && b.dataset.v !== i18n.lang()) this._reloadForLanguage(b.dataset.v);
     })));
 
     // Guardar / salir
@@ -387,7 +388,7 @@ export class SettingsModal {
   _syncHudSoundButtons() {
     const muted = Boolean(this.audio?.isMuted);
     const ov = document.getElementById('btn-toggle-sound');
-    if (ov) ov.textContent = muted ? '🔇 Muted' : '🔊 Sound';
+    if (ov) ov.textContent = muted ? i18n.t('settings.hudMuted') : i18n.t('settings.hudSound');
     const bm = document.getElementById('btn-mute');
     if (bm) bm.textContent = muted ? '🔇' : '🔊';
   }
@@ -413,6 +414,13 @@ export class SettingsModal {
   _paintSeg(g, v) { g.querySelectorAll('button').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.v === v))); }
 
   _savePrefs() { write(K.prefs, this.prefs); this._applyPrefs(); }
+
+  /** Recarga guiada al cambiar el idioma: guarda la partida (si hay una en curso) y recarga la página. */
+  _reloadForLanguage(next) {
+    try { if (typeof this.onSaveProgress === 'function') this.onSaveProgress(); else if (typeof window.game?._saveCurrentProgress === 'function') window.game._saveCurrentProgress(); } catch (err) { console.error('[SettingsModal] Error al guardar antes de cambiar el idioma', err); }
+    toast(next === 'es' ? 'Cambiando el idioma… el juego se recargará' : 'Changing language… the game will reload');
+    setTimeout(() => location.reload(), 900);
+  }
 
   _applyPrefs() {
     const root = document.documentElement;
@@ -446,8 +454,9 @@ export class SettingsModal {
       this.$$('.lk-segmented[data-k]').forEach((g) => this._paintSeg(g, this.prefs[g.dataset.k]));
       ['contrast', 'reduceMotion', 'shake'].forEach((p) => this.$(`[data-k="${p}"]`).setAttribute('aria-checked', String(this.prefs[p])));
       this._savePrefs();
+      if (this.prefs.lang !== i18n.lang()) { this._reloadForLanguage(this.prefs.lang); return; }
     }
-    toast('Valores restablecidos');
+    toast(i18n.t('settings.toastReset'));
   }
 
   // ---------------------------------------------------------------- guardado e info
@@ -455,16 +464,16 @@ export class SettingsModal {
     const id = saveSlotManager?.activeSlotId;
     if (id == null) return null;
     const n = String(id).replace(/\D/g, '');
-    return `Ranura ${n || id}`;
+    return i18n.t('settings.slot', { n: n || id });
   }
 
   _ago(ts) {
     const s = Math.max(0, Math.round((Date.now() - ts) / 1000));
-    if (s < 45) return 'ahora';
+    if (s < 45) return i18n.t('settings.agoNow');
     const min = Math.round(s / 60);
-    if (min < 60) return `hace ${min} min`;
+    if (min < 60) return i18n.t('settings.agoMin', { n: min });
     const h = Math.round(min / 60);
-    return h < 24 ? `hace ${h} h` : `hace ${Math.round(h / 24)} d`;
+    return h < 24 ? i18n.t('settings.agoH', { n: h }) : i18n.t('settings.agoD', { n: Math.round(h / 24) });
   }
 
   _refreshInfo() {
@@ -473,16 +482,16 @@ export class SettingsModal {
     const chip = this.ref('saveChip');
     if (!chip.classList.contains('lk-is-saving')) {
       chip.querySelector('span').textContent = slot?.lastSaved
-        ? `Autoguardado ${this._ago(slot.lastSaved)}${slotLabel ? ` · ${slotLabel}` : ''}`
-        : 'Sin guardar todavía';
+        ? `${i18n.t('settings.autosaved', { ago: this._ago(slot.lastSaved) })}${slotLabel ? ` · ${slotLabel}` : ''}`
+        : i18n.t('settings.notSaved');
     }
     const def = window.overworldManager?.worldMapManager?.currentMapDef;
     const zone = def?.name || slot?.zone?.name || 'Lunacia';
     const coords = def && def.gx !== undefined ? [def.gx, def.gy] : slot?.zone?.coords;
     const lvl = window.game?.equipmentManager?.heroProgression?.kotaro?.level || slot?.level;
     this.ref('zone').textContent = zone;
-    this.ref('zoneMeta').textContent = [coords ? `Zona [${coords.join(',')}]` : null, [slot?.playerName, lvl ? `Nv ${lvl}` : null].filter(Boolean).join(' ')].filter(Boolean).join(' · ');
-    this.ref('exitText').innerHTML = `Guardaremos tu aventura${slotLabel ? ` en la <b>${slotLabel}</b>` : ''} antes de salir. Podrás continuar desde ${zone}.`;
+    this.ref('zoneMeta').textContent = [coords ? i18n.t('settings.zoneCoords', { c: coords.join(',') }) : null, [slot?.playerName, lvl ? i18n.t('settings.level', { n: lvl }) : null].filter(Boolean).join(' ')].filter(Boolean).join(' · ');
+    this.ref('exitText').innerHTML = slotLabel ? i18n.t('settings.exitTextSlot', { slot: slotLabel, zone }) : i18n.t('settings.exitTextZone', { zone });
   }
 
   _saveNow() {
@@ -490,7 +499,7 @@ export class SettingsModal {
     const chip = this.ref('saveChip');
     chip.classList.add('lk-is-saving');
     chip.querySelector('i').textContent = '↻';
-    chip.querySelector('span').textContent = 'Guardando…';
+    chip.querySelector('span').textContent = i18n.t('settings.saving');
     let ok = true;
     try {
       if (typeof this.onSaveProgress === 'function') this.onSaveProgress();
@@ -501,8 +510,8 @@ export class SettingsModal {
       chip.classList.remove('lk-is-saving');
       chip.querySelector('i').textContent = ok ? '✓' : '!';
       const slotLabel = this._slotLabel();
-      chip.querySelector('span').textContent = ok ? `Guardado ahora${slotLabel ? ` · ${slotLabel}` : ''}` : 'No se pudo guardar';
-      toast(ok ? `Partida guardada${slotLabel ? ` en la ${slotLabel}` : ''}` : 'No se pudo guardar la partida', !ok);
+      chip.querySelector('span').textContent = ok ? `${i18n.t('settings.savedNow')}${slotLabel ? ` · ${slotLabel}` : ''}` : i18n.t('settings.saveFailed');
+      toast(ok ? (slotLabel ? i18n.t('settings.toastSavedSlot', { slot: slotLabel }) : i18n.t('settings.toastSaved')) : i18n.t('settings.toastSaveFailed'), !ok);
     }, 600);
   }
 
@@ -524,7 +533,7 @@ export class SettingsModal {
       frames++;
       if (t - t0 >= 1000) {
         const fps = Math.round((frames * 1000) / (t - t0));
-        el.textContent = `≈ ${fps} FPS en este equipo`;
+        el.textContent = i18n.t('settings.fps', { n: fps });
         el.classList.toggle('lk-mid', fps < 50);
         frames = 0; t0 = t;
       }
@@ -546,9 +555,9 @@ export class SettingsModal {
     const inCombat = document.body.classList.contains('state-combat') || window.game?.gameState === 'BATTLE';
     this.modalEl.classList.toggle('lk-in-combat', inCombat);
     const kick = this.modalEl.querySelector('.lk-panel-head h3 small');
-    if (kick) kick.textContent = inCombat ? 'Combate · Esc' : 'Pausa · Esc'; // en el tablero el juego no se pausa
+    if (kick) kick.textContent = inCombat ? i18n.t('settings.kickCombat') : i18n.t('settings.kickPause'); // en el tablero el juego no se pausa
     const res = this.$('[data-act="resume"]');
-    if (res) { const t = [...res.childNodes].find((n) => n.nodeType === 3 && n.textContent.trim()); if (t) t.textContent = inCombat ? 'Volver al combate' : 'Reanudar'; }
+    if (res) { const t = [...res.childNodes].find((n) => n.nodeType === 3 && n.textContent.trim()); if (t) t.textContent = inCombat ? i18n.t('settings.backToCombat') : i18n.t('settings.resume'); }
     this._updateMuteUI();
     this._applyAudio();
     this._applyPrefs();

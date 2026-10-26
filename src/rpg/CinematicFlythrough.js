@@ -1,5 +1,6 @@
 // CinematicFlythrough.js - 3D In-Engine Prologue Flight Across Lunacia with Lore Subtitles
 import * as THREE from 'three';
+import * as i18n from '../i18n/i18n.js';
 
 export class CinematicFlythrough {
   constructor(camera, audioSystem) {
@@ -16,17 +17,17 @@ export class CinematicFlythrough {
       {
         start: 0.04,
         end: 0.32,
-        text: 'Under the sacred mantle of Atia, Lunacia flourished for millennia in peace and mystical balance...'
+        text: i18n.t('prologue.flySub1')
       },
       {
         start: 0.35,
         end: 0.65,
-        text: 'But from the chasms of the Abyss, a dark corruption has awakened, giving birth to the Chimeras...'
+        text: i18n.t('prologue.flySub2')
       },
       {
         start: 0.68,
         end: 0.94,
-        text: 'At the Sacred Dojo, a new aspirant prepares to wield the Runes and defend the realm.'
+        text: i18n.t('prologue.flySub3')
       }
     ];
 
@@ -64,9 +65,9 @@ export class CinematicFlythrough {
       const dots = this.subtitles.map(() => '<i></i>').join('');
       el.innerHTML = `
         <div class="lk-prologue__bar lk-prologue__bar--top">
-          <span class="lk-prologue__kicker"><i></i>Prólogo · Crónicas de Lunacia</span>
-          <button id="btn-skip-cinematic" class="lk-prologue__skip" type="button" title="Saltar prólogo">
-            Saltar prólogo <kbd>Espacio</kbd>
+          <span class="lk-prologue__kicker"><i></i>${i18n.t('prologue.kicker')}</span>
+          <button id="btn-skip-cinematic" class="lk-prologue__skip" type="button" title="${i18n.t('prologue.skipPrologue')}">
+            ${i18n.t('prologue.skipPrologue')} <kbd>${i18n.t('prologue.keySpace')}</kbd>
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 6l6 6-6 6M13 6l6 6-6 6"/></svg>
           </button>
         </div>

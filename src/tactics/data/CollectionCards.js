@@ -11,6 +11,7 @@
 
 import { findPartCard, withDisplayFields } from './PartCards.js';
 import { PART_VARIANTS } from './PartVariants.js';
+import * as i18n from '../../i18n/i18n.js';
 
 /** Valor de skin del gen → colección. */
 export const COLLECTION_SKINS = {
@@ -61,7 +62,7 @@ export const COLLECTION_CARDS_LIST = Object.entries(COLLECTION_PARTS).map(([key,
     collection, collectionKey: key,
     art: COLLECTION_ART.has(key) ? `./assets/cards/collection/${key}.webp` : base.art,
     artKey: COLLECTION_ART.has(key) ? undefined : `collection/${key}`,
-    adaptation: `Carta de colección ${COLLECTION_LABELS[collection]}: mismo efecto que ${base.name}.` + (base.adaptation ? ` ${base.adaptation}` : ''),
+    adaptation: i18n.t('enemySpells.collectionCard', { col: COLLECTION_LABELS[collection], base: base.name }) + (base.adaptation ? ` ${base.adaptation}` : ''),
   };
 });
 

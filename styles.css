@@ -10125,15 +10125,14 @@ body.state-combat .interaction-prompt {
   border-color: #38bdf8;
 }
 
-/* Strict Suppression of Overworld Modals & HUDs During Combat */
+/* Strict Suppression of Overworld Modals & HUDs During Combat
+   (Hito 74: el menú de Opciones —#settings-modal— sí se abre en combate: botón ⚙ del tablero o Esc) */
 body.state-combat #inventory-modal,
 body.state-combat #quest-book-modal,
 body.state-combat #world-map-modal,
-body.state-combat #settings-modal,
 body.state-combat .inventory-modal,
 body.state-combat .quest-book-modal,
 body.state-combat .world-map-modal,
-body.state-combat .settings-modal,
 body.state-combat .overworld-hud-container,
 body.state-combat #overworld-hud,
 body.state-combat .squad-hud-container {

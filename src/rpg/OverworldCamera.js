@@ -245,8 +245,25 @@ export class OverworldCamera {
     this.currentAngle += angleDiff * (1 - Math.exp(-8.0 * dt));
 
     // Spherical to Cartesian with pitch & distance
-    const horizontalDist = this.distance * Math.cos(this.pitchAngle);
-    const height = this.distance * Math.sin(this.pitchAngle);
+    // Hito 74 · brazo de cámara con colisión: si entre el personaje y la cámara hay una casa, una roca o una ladera,
+    // la cámara se pone delante (al instante) y vuelve despacio a su distancia cuando queda libre.
+    let armDist = this.distance;
+    if (this.occlusion && this.followTarget) {
+      this.occlusion.tick();
+      const hd = this.distance * Math.cos(this.pitchAngle), hh = this.distance * Math.sin(this.pitchAngle);
+      this._wantPos = this._wantPos || new THREE.Vector3();
+      this._wantPos.set(this.currentLookAt.x + Math.sin(this.currentAngle) * hd, this.currentLookAt.y + hh, this.currentLookAt.z + Math.cos(this.currentAngle) * hd);
+      const f = this.occlusion.cast(this.currentLookAt, this._wantPos, 0.3);
+      const target = f < 1 ? Math.max(1.6, this.distance * f - 0.35) : this.distance;
+      if (this._arm === undefined || !Number.isFinite(this._arm)) this._arm = target;
+      if (target < this._arm) this._arm = target;                                  // acercarse: al instante
+      else this._arm += (target - this._arm) * (1 - Math.exp(-3.0 * dt));           // alejarse: suave
+      armDist = Math.min(this.distance, this._arm);
+    } else {
+      this._arm = this.distance;
+    }
+    const horizontalDist = armDist * Math.cos(this.pitchAngle);
+    const height = armDist * Math.sin(this.pitchAngle);
 
     const camX = this.currentLookAt.x + Math.sin(this.currentAngle) * horizontalDist;
     const camZ = this.currentLookAt.z + Math.cos(this.currentAngle) * horizontalDist;
@@ -276,5 +293,7 @@ export class OverworldCamera {
 
     this.camera.position.set(camX, camY, camZ);
     this.camera.lookAt(this.currentLookAt);
+    // Hito 74 · árboles y arbustos que tapan al personaje: se agujerean con un tramado suave
+    if (this.occlusion) this.occlusion.updateSeeThrough(this.camera, this.currentLookAt, Boolean(this.followTarget));
   }
 }

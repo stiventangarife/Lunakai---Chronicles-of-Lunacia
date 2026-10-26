@@ -2,6 +2,7 @@
 // Añade sus filas en un contenedor propio (#forecast-extra) para no depender del marcado de CombatHUD.js.
 
 import { forecast, elementalLabel } from '../tactics/combat/Forecast.js';
+import * as i18n from '../i18n/i18n.js';
 
 const CSS = `
 #ui-overlay .lk-fc-extra { display: grid; gap: 5px; }
@@ -56,21 +57,21 @@ export function renderForecast(game, target, spell, cell = null) {
   // Fila principal: daño, cura o escudo sobre el objetivo bajo el cursor
   if (main?.damage) {
     dmgRow?.classList.remove('hidden');
-    if (dmgVal) dmgVal.textContent = range(main.damage.min, main.damage.max) + (main.damage.hits > 1 ? ` (${main.damage.hits} golpes)` : '');
+    if (dmgVal) dmgVal.textContent = range(main.damage.min, main.damage.max) + (main.damage.hits > 1 ? ` ${i18n.t('combatUi.hitsN', { n: main.damage.hits })}` : '');
     const el = elementalLabel(main.damage.elemental);
     if (el) html.push(`<div class="lk-fc-row lk-fc-${el.kind}"><span>${esc(el.text)}</span></div>`);
-    if (main.damage.barrier) html.push(`<div class="lk-fc-row"><span>Barrera absorbe</span><b>${main.damage.barrier}</b></div>`);
-    if (main.damage.shieldMax > 0) html.push(`<div class="lk-fc-row"><span>Escudo absorbe</span><b>${range(main.damage.shieldMin, main.damage.shieldMax)}</b></div>`);
-    if (fc.critChance > 0) html.push(`<div class="lk-fc-row"><span>Crítico ${Math.round(fc.critChance * 100)} %</span><b>hasta ${main.damage.critMax}</b></div>`);
-    if (main.damage.lethal) html.push('<div class="lk-fc-row lk-fc-lethal">💀 Golpe letal</div>');
-    else if (main.damage.mayKill) html.push('<div class="lk-fc-row lk-fc-maykill">Puede derrotarlo con un crítico</div>');
+    if (main.damage.barrier) html.push(`<div class="lk-fc-row"><span>${i18n.t('combatUi.barrierAbsorbs')}</span><b>${main.damage.barrier}</b></div>`);
+    if (main.damage.shieldMax > 0) html.push(`<div class="lk-fc-row"><span>${i18n.t('combatUi.shieldAbsorbs')}</span><b>${range(main.damage.shieldMin, main.damage.shieldMax)}</b></div>`);
+    if (fc.critChance > 0) html.push(`<div class="lk-fc-row"><span>${i18n.t('combatUi.critPct', { n: Math.round(fc.critChance * 100) })}</span><b>${i18n.t('combatUi.upTo', { n: main.damage.critMax })}</b></div>`);
+    if (main.damage.lethal) html.push(`<div class="lk-fc-row lk-fc-lethal">✖ ${i18n.t('combatUi.lethal')}</div>`);
+    else if (main.damage.mayKill) html.push(`<div class="lk-fc-row lk-fc-maykill">${i18n.t('combatUi.mayKill')}</div>`);
   } else if (main && (main.heal || main.shield)) {
     dmgRow?.classList.add('hidden');
   } else if (dmgVal) {
     dmgVal.textContent = '—';
   }
-  if (main?.heal) html.push(`<div class="lk-fc-row lk-fc-good"><span>Cura</span><b>+${main.heal} HP</b></div>`);
-  if (main?.shield) html.push(`<div class="lk-fc-row lk-fc-good"><span>Escudo</span><b>+${main.shield}</b></div>`);
+  if (main?.heal) html.push(`<div class="lk-fc-row lk-fc-good"><span>${i18n.t('combatUi.heal')}</span><b>+${main.heal} HP</b></div>`);
+  if (main?.shield) html.push(`<div class="lk-fc-row lk-fc-good"><span>${i18n.t('combatUi.shield')}</span><b>+${main.shield}</b></div>`);
   if (main?.statuses.length) {
     html.push(`<div class="lk-fc-chips">${main.statuses.map((s) => `<span class="lk-fc-chip ${s.kind === 'debuff' ? 'lk-is-bad' : ''}">${esc(s.icon)} ${esc(s.label)}${s.duration ? ` · ${s.duration}t` : ''}</span>`).join('')}</div>`);
   }
@@ -83,13 +84,13 @@ export function renderForecast(game, target, spell, cell = null) {
     const allies = others.filter((r) => r.unit.team === caster.team);
     if (foes.length) {
       const lethal = foes.filter((r) => r.damage.lethal).length;
-      html.push(`<div class="lk-fc-row"><span>+${foes.length} enemigo${foes.length > 1 ? 's' : ''} en el área</span><b>${range(foes.reduce((s, r) => s + r.damage.min, 0), foes.reduce((s, r) => s + r.damage.max, 0))}</b></div>`);
-      if (lethal) html.push(`<div class="lk-fc-note">💀 ${lethal} caería${lethal > 1 ? 'n' : ''}</div>`);
+      html.push(`<div class="lk-fc-row"><span>${i18n.t(foes.length > 1 ? 'combatUi.foesInArea' : 'combatUi.foeInArea', { n: foes.length })}</span><b>${range(foes.reduce((s, r) => s + r.damage.min, 0), foes.reduce((s, r) => s + r.damage.max, 0))}</b></div>`);
+      if (lethal) html.push(`<div class="lk-fc-note">✖ ${i18n.t(lethal > 1 ? 'combatUi.wouldFallN' : 'combatUi.wouldFall1', { n: lethal })}</div>`);
     }
     const hit = allies.filter((r) => r.damage);
-    if (hit.length) html.push(`<div class="lk-fc-row lk-fc-bad"><span>⚠ Golpea a ${hit.length} aliado${hit.length > 1 ? 's' : ''}</span></div>`);
+    if (hit.length) html.push(`<div class="lk-fc-row lk-fc-bad"><span>! ${i18n.t(hit.length > 1 ? 'combatUi.hitsAlliesN' : 'combatUi.hitsAlly1', { n: hit.length })}</span></div>`);
     const helped = allies.filter((r) => r.heal || r.shield || r.statuses.length);
-    if (helped.length) html.push(`<div class="lk-fc-note">También afecta a ${helped.length} aliado${helped.length > 1 ? 's' : ''}</div>`);
+    if (helped.length) html.push(`<div class="lk-fc-note">${i18n.t(helped.length > 1 ? 'combatUi.alsoAlliesN' : 'combatUi.alsoAlly1', { n: helped.length })}</div>`);
   }
 
   box.innerHTML = html.join('');

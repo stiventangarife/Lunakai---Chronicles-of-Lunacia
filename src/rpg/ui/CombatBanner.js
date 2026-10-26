@@ -3,6 +3,8 @@
 // tablero desenfocado, emblema lunar y título VICTORIA / DERROTA. Se pinta en #cinematic-banner (index.html).
 // Uso en main.js:  await banner.play('victory', { subtitle });  …  await banner.hide();
 
+import * as i18n from '../../i18n/i18n.js';
+
 const MOON = '<svg viewBox="0 0 64 64" aria-hidden="true"><path d="M40 6a26 26 0 1 0 17 45.4A21.5 21.5 0 1 1 40 6z" fill="currentColor"/><path class="lk-cine__crack" d="M27 12l6 13-7 6 8 10-5 13"/></svg>';
 const HOLD = { victory: 1700, defeat: 2400 };   // tiempo en pantalla antes de dar paso al panel
 const OUT_MS = 450;
@@ -18,7 +20,7 @@ export class CombatBanner {
   }
 
   _html(kind, subtitle) {
-    const title = kind === 'victory' ? 'VICTORIA' : 'DERROTA';
+    const title = kind === 'victory' ? i18n.t('hud.victory') : i18n.t('hud.defeat');
     const motes = Array.from({ length: kind === 'victory' ? 26 : 18 }, (_, k) => {
       const r = (n) => (Math.sin((k + 1) * n) + 1) / 2;
       return `<i style="--x:${(r(12.9) * 100).toFixed(1)}%;--s:${(2 + r(7.3) * 4).toFixed(1)}px;--d:${(0.3 + r(3.1) * 1.1).toFixed(2)}s;--t:${(2 + r(5.7) * 1.6).toFixed(2)}s"></i>`;

@@ -14,6 +14,7 @@
 
 import { STATUS_DEFS } from '../tactics/combat/StatusSystem.js';
 import { hasUltimate, paintUltimate, ultimateTipHTML, ultimateView } from './UltimateButton.js';
+import * as i18n from '../i18n/i18n.js';
 
 const ICON = './assets/ui/icons/';
 const SLOTS = 6;          // seis habilidades por unidad (teclas 1–6). main.js gestiona 0–2; este módulo completa 3–5
@@ -51,16 +52,16 @@ const classIcon = (k) => `./assets/classes/${CLASS_ICON_FILE[k] || k}.png`;
 // Icono de la carta: la parte del cuerpo (assets/parts/<clase>-<parte>.png, ya pintada con el color de su clase).
 // Mech, Dawn y Dusk no tienen iconos de partes: usan la parte de su iconClass y un filtro con el color de su clase.
 // Hechizos sin parte (Sapidae, enemigos): el icono de la clase, como antes.
-const PART_LABEL = { eyes: 'Ojos', ears: 'Orejas', mouth: 'Boca', horn: 'Cuerno', back: 'Espalda', tail: 'Cola' };
-const CLASS_LABEL = { beast: 'Bestia', plant: 'Planta', aquatic: 'Acuático', bird: 'Pájaro', bug: 'Bicho', reptile: 'Reptil', mech: 'Mech', dawn: 'Dawn', dusk: 'Dusk' };
+const PART_LABEL = { eyes: i18n.t('combatHud.partEyes'), ears: i18n.t('combatHud.partEars'), mouth: i18n.t('combatHud.partMouth'), horn: i18n.t('combatHud.partHorn'), back: i18n.t('combatHud.partBack'), tail: i18n.t('combatHud.partTail') };
+const CLASS_LABEL = { beast: i18n.t('combatHud.clsBeast'), plant: i18n.t('combatHud.clsPlant'), aquatic: i18n.t('combatHud.clsAquatic'), bird: i18n.t('combatHud.clsBird'), bug: i18n.t('combatHud.clsBug'), reptile: i18n.t('combatHud.clsReptile'), mech: 'Mech', dawn: 'Dawn', dusk: 'Dusk' };
 function spellIconHtml(spell, unit) {
   const ck = spellClassKey(spell, unit);
   if (spell?.part && PART_LABEL[spell.part]) {
     const src = spell.partIcon || `./assets/parts/${spell.iconClass || spell.class}-${spell.part}.png`;
     const alt = `${PART_LABEL[spell.part]} · ${CLASS_LABEL[ck] || ck || ''}`;
-    return { html: `<img class="lk-part-ico lk-part-ico--${ck || 'none'}" src="${src}" alt="${alt}">`, title: `Carta de ${alt}` };
+    return { html: `<img class="lk-part-ico lk-part-ico--${ck || 'none'}" src="${src}" alt="${alt}">`, title: i18n.t('combatHud.cardOf', { alt }) };
   }
-  return ck ? { html: `<img src="${classIcon(ck)}" alt="${ck}">`, title: `Carta de clase ${CLASS_LABEL[ck] || ck}` } : null;
+  return ck ? { html: `<img src="${classIcon(ck)}" alt="${ck}">`, title: i18n.t('combatHud.cardOfClass', { cls: CLASS_LABEL[ck] || ck }) } : null;
 }
 function tintOf(unit) {
   if (!unit) return 'var(--lk-gilt-300)';
@@ -79,9 +80,9 @@ export function spellNumbers(s, unit, sm) {
   const pctTxt = (v) => `${v > 0 ? '+' : '−'}${Math.abs(Math.round(v))} %`;
   const mult = sm && unit && typeof sm._getSpellMultiplier === 'function' ? sm._getSpellMultiplier(unit, s) : 1;
   const parts = [];
-  if (mult !== 1) parts.push(`Nv ${unit.getSkillLevel?.(s.id) || 1} ×${String(mult).replace('.', ',')}`);
+  if (mult !== 1) parts.push(i18n.t('combatHud.lvlMult', { lv: unit.getSkillLevel?.(s.id) || 1, mult: i18n.num(mult) }));
   const b0 = s.rcBase || s; // carta sin charms: el valor «de la carta» del desglose
-  if (s.rcBase) parts.push('con charms');
+  if (s.rcBase) parts.push(i18n.t('combatHud.withCharms'));
   if (s.baseMinDamage) {
     const e = (s.effects || []).find((x) => x.type === 'damage');
     const hits = e && typeof e.hits === 'number' ? e.hits : 1;
@@ -91,28 +92,28 @@ export function spellNumbers(s, unit, sm) {
     // Runas del lanzador que no dependen del objetivo (Pure Power, Heart of Ocean…)
     const pctRc = sm?.runeCharms && unit?.rc ? sm.runeCharms.damagePct(unit, null, s.maxRange <= 1 ? 1 : 2, { spell: s }) : 0;
     const pct = pctSt + pctRc;
-    if (flat) parts.push(`+${flat} atributos`);
-    if (pctSt) parts.push(`${pctSt > 0 ? 'Potenciado' : 'Débil'} ${pctTxt(pctSt)}`);
-    if (pctRc) parts.push(`Runa ${pctTxt(pctRc)}`);
+    if (flat) parts.push(i18n.t('combatHud.plusAttrs', { n: flat }));
+    if (pctSt) parts.push(`${pctSt > 0 ? i18n.t('combatHud.empowered') : i18n.t('combatHud.weakened')} ${pctTxt(pctSt)}`);
+    if (pctRc) parts.push(i18n.t('combatHud.runePct', { pct: pctTxt(pctRc) }));
     const f = (v) => Math.max(0, Math.round((Math.floor(v * mult) + flat) * (1 + pct / 100)) * hits);
     const lo = f(min0), hi = f(max0);
-    return { kind: 'Ataque', cls: '', val: lo === hi ? `${lo}` : `${lo}–${hi}`, label: 'Daño', parts, boosted: lo !== b0.baseMinDamage || hi !== b0.baseMaxDamage, down: hi < b0.baseMaxDamage, base: b0.baseMinDamage === b0.baseMaxDamage ? `${b0.baseMinDamage}` : `${b0.baseMinDamage}–${b0.baseMaxDamage}` };
+    return { kind: i18n.t('combatHud.kindAttack'), cls: '', val: lo === hi ? `${lo}` : `${lo}–${hi}`, label: i18n.t('combatHud.damage'), parts, boosted: lo !== b0.baseMinDamage || hi !== b0.baseMaxDamage, down: hi < b0.baseMaxDamage, base: b0.baseMinDamage === b0.baseMaxDamage ? `${b0.baseMinDamage}` : `${b0.baseMinDamage}–${b0.baseMaxDamage}` };
   }
   const sup = unit?.supportPower || 0;
-  if (sup) parts.push(`Apoyo +${Math.round(sup)} %`);
+  if (sup) parts.push(i18n.t('combatHud.supportPct', { n: Math.round(sup) }));
   const g = (v) => Math.round(Math.floor(v * mult) * (1 + sup / 100));
   if (s.baseMinHeal) {
     const lo = g(s.baseMinHeal), hi = g(s.baseMaxHeal || s.baseMinHeal);
-    return { kind: 'Apoyo', cls: 'lk-heal', val: `+${lo}${hi !== lo ? '–' + hi : ''}`, label: 'Curación', parts, boosted: lo !== b0.baseMinHeal, base: `+${b0.baseMinHeal}` };
+    return { kind: i18n.t('combatHud.kindSupport'), cls: 'lk-heal', val: `+${lo}${hi !== lo ? '–' + hi : ''}`, label: i18n.t('combatHud.healing'), parts, boosted: lo !== b0.baseMinHeal, base: `+${b0.baseMinHeal}` };
   }
   if (s.shieldAmount) {
     const v = Math.round(Math.round(s.shieldAmount * mult) * (1 + sup / 100));
-    return { kind: 'Escudo', cls: 'lk-shield', val: `+${v}`, label: 'Escudo', parts, boosted: v !== b0.shieldAmount, base: `+${b0.shieldAmount}` };
+    return { kind: i18n.t('combatHud.shield'), cls: 'lk-shield', val: `+${v}`, label: i18n.t('combatHud.shield'), parts, boosted: v !== b0.shieldAmount, base: `+${b0.shieldAmount}` };
   }
-  return { kind: 'Habilidad', cls: '', val: '', label: '', parts: [] };
+  return { kind: i18n.t('combatHud.kindSkill'), cls: '', val: '', label: '', parts: [] };
 }
 function spellEffect(s, unit = null, sm = null) { return spellNumbers(s, unit, sm); }
-const AREA = { single: 'Una casilla', cross1: 'Cruz (1)', cross2: 'Cruz (2)', line: 'Línea', circle1: 'Círculo (1)', square1: 'Cuadrado 3×3' };
+const AREA = { single: i18n.t('combatHud.areaSingle'), cross1: i18n.t('combatHud.areaCross1'), cross2: i18n.t('combatHud.areaCross2'), line: i18n.t('combatHud.areaLine'), circle1: i18n.t('combatHud.areaCircle1'), square1: i18n.t('combatHud.areaSquare1') };
 
 /* ───────────────────────────── 1. Marcado ───────────────────────────── */
 export function initCombatHUDMarkup() {
@@ -125,15 +126,15 @@ export function initCombatHUDMarkup() {
     header.className = 'battle-header lk-ui lk-cb-top';
     header.innerHTML = `
       <div class="lk-turn-tracker lk-cb-tracker">
-        <div class="lk-round-badge" title="Ronda"><div><b id="round-number">1</b></div><span class="lk-rb-l">Ronda</span></div>
-        <div id="initiative-timeline" class="initiative-bar lk-cb-timeline" aria-label="Orden de iniciativa"></div>
+        <div class="lk-round-badge" title="${i18n.t('combatHud.round')}"><div><b id="round-number">1</b></div><span class="lk-rb-l">${i18n.t('combatHud.round')}</span></div>
+        <div id="initiative-timeline" class="initiative-bar lk-cb-timeline" aria-label="${i18n.t('combatHud.initiativeOrder')}"></div>
       </div>
       <span class="lk-cb-spacer"></span>
       <div class="header-actions lk-cb-tools">
-        <button id="btn-options" class="icon-btn lk-btn-circle-icon" type="button" title="Opciones (Esc)" aria-label="Opciones"><img class="lk-ai" src="${ICON}setting.png" alt=""></button>
+        <button id="btn-options" class="icon-btn lk-btn-circle-icon" type="button" title="${i18n.t('combatHud.optionsEsc')}" aria-label="${i18n.t('combatHud.options')}"><img class="lk-ai" src="${ICON}setting.png" alt=""></button>
         <!-- El volumen vive ahora en Opciones › Audio; el botón se conserva oculto porque main.js lo usa -->
-        <button id="btn-mute" class="icon-btn lk-btn-circle-icon" type="button" title="Silenciar música y sonido" hidden>🔊</button>
-        <button id="btn-help" class="icon-btn lk-btn-circle-icon" type="button" title="Controles y reglas"><img class="lk-ai" src="${ICON}info.png" alt=""></button>
+        <button id="btn-mute" class="icon-btn lk-btn-circle-icon" type="button" title="${i18n.t('combatHud.muteAll')}" hidden>🔊</button>
+        <button id="btn-help" class="icon-btn lk-btn-circle-icon" type="button" title="${i18n.t('combatHud.helpTitle')}"><img class="lk-ai" src="${ICON}info.png" alt=""></button>
       </div>`;
   }
 
@@ -141,9 +142,9 @@ export function initCombatHUDMarkup() {
   if (cams) {
     cams.className = 'camera-controls lk-ui lk-cb-cams';
     cams.innerHTML = `
-      <button id="btn-cam-left" class="cam-btn lk-btn-circle-icon" type="button" title="Girar cámara a la izquierda (Q)">${SVG_ROT_L}<span class="lk-key">Q</span></button>
-      <button id="btn-cam-reset" class="cam-btn lk-btn-circle-icon" type="button" title="Centrar en la unidad (R)">${SVG_FOCUS}<span class="lk-key">R</span></button>
-      <button id="btn-cam-right" class="cam-btn lk-btn-circle-icon" type="button" title="Girar cámara a la derecha (E)">${SVG_ROT_R}<span class="lk-key">E</span></button>`;
+      <button id="btn-cam-left" class="cam-btn lk-btn-circle-icon" type="button" title="${i18n.t('combatHud.camLeft')}">${SVG_ROT_L}<span class="lk-key">Q</span></button>
+      <button id="btn-cam-reset" class="cam-btn lk-btn-circle-icon" type="button" title="${i18n.t('combatHud.camReset')}">${SVG_FOCUS}<span class="lk-key">R</span></button>
+      <button id="btn-cam-right" class="cam-btn lk-btn-circle-icon" type="button" title="${i18n.t('combatHud.camRight')}">${SVG_ROT_R}<span class="lk-key">E</span></button>`;
   }
 
   const hud = ov.querySelector('.tactical-hud');
@@ -167,14 +168,14 @@ export function initCombatHUDMarkup() {
           <div class="lk-cb-who">
             <b id="unit-name" class="unit-name">—</b>
             <small><span class="lk-cb-cls-badge" data-ref="sheetCls" hidden></span><span id="unit-archetype" class="unit-archetype"></span></small>
-            <div class="lk-bar-read"><span>Vida</span><span id="hud-hp-text">0 / 0</span></div>
+            <div class="lk-bar-read"><span>${i18n.t('combatHud.hp')}</span><span id="hud-hp-text">0 / 0</span></div>
             <div class="lk-bar lk-cb-hp"><i id="hud-hp-fill" style="width:100%"></i><em data-ref="shield" hidden></em></div>
             <div class="lk-cb-status" data-ref="status"></div>
           </div>
         </div>
         <div class="points-container lk-res-meters">
-          <div class="lk-meter lk-meter--pa" data-ref="mPA" title="Puntos de acción: cada hechizo cuesta PA"><span class="lk-orb"><img class="lk-ai" src="${ICON}pa.png" alt=""></span><b id="hud-pa-count">6 / 6</b><span class="lk-pips" data-ref="paPips"></span></div>
-          <div class="lk-meter lk-meter--pm" data-ref="mPM" title="Puntos de movimiento: una casilla por PM"><span class="lk-orb">${SVG_PM}</span><b id="hud-pm-count">3 / 3</b><span class="lk-pips" data-ref="pmPips"></span></div>
+          <div class="lk-meter lk-meter--pa" data-ref="mPA" title="${i18n.t('combatHud.paTitle')}"><span class="lk-orb"><img class="lk-ai" src="${ICON}pa.png" alt=""></span><b id="hud-pa-count">6 / 6</b><span class="lk-pips" data-ref="paPips"></span></div>
+          <div class="lk-meter lk-meter--pm" data-ref="mPM" title="${i18n.t('combatHud.pmTitle')}"><span class="lk-orb">${SVG_PM}</span><b id="hud-pm-count">3 / 3</b><span class="lk-pips" data-ref="pmPips"></span></div>
         </div>
         <div class="spell-hotbar lk-tray">${slots}</div>
         <div class="lk-duo-wrap lk-cb-ult-wrap">
@@ -185,7 +186,7 @@ export function initCombatHUDMarkup() {
             <span class="lk-pct" data-ref="ultPct">Ultimate</span>
           </button>
         </div>
-        <button id="btn-end-turn" class="end-turn-btn lk-btn lk-btn-primary-gold lk-btn-end-turn" type="button">Pasar turno<small>Espacio</small></button>
+        <button id="btn-end-turn" class="end-turn-btn lk-btn lk-btn-primary-gold lk-btn-end-turn" type="button">${i18n.t('combatHud.endTurn')}<small>${i18n.t('combatHud.keySpace')}</small></button>
       </div>`;
   }
 
@@ -203,11 +204,11 @@ export function initCombatHUDMarkup() {
   if (fc) {
     fc.className = 'combat-forecast lk-ui lk-cb-forecast hidden';
     fc.innerHTML = `
-      <div class="lk-cb-fc__head"><b id="forecast-target-name">Objetivo</b><span id="forecast-target-hp" class="forecast-hp">0 / 0 HP</span></div>
+      <div class="lk-cb-fc__head"><b id="forecast-target-name">${i18n.t('combatHud.target')}</b><span id="forecast-target-hp" class="forecast-hp">0 / 0 HP</span></div>
       <div class="lk-cb-fc__body">
-        <div id="forecast-damage-row" class="forecast-row"><span class="row-label">Daño estimado</span><b id="forecast-damage-val" class="damage-badge">—</b></div>
-        <div id="forecast-push-row" class="forecast-row hidden"><span class="row-label">Empuje</span><b id="forecast-push-val" class="push-badge">—</b></div>
-        <div id="forecast-collision-alert" class="collision-alert hidden">${SVG_WARN}Choca contra un obstáculo: +40 de daño</div>
+        <div id="forecast-damage-row" class="forecast-row"><span class="row-label">${i18n.t('combatHud.estDamage')}</span><b id="forecast-damage-val" class="damage-badge">—</b></div>
+        <div id="forecast-push-row" class="forecast-row hidden"><span class="row-label">${i18n.t('combatHud.push')}</span><b id="forecast-push-val" class="push-badge">—</b></div>
+        <div id="forecast-collision-alert" class="collision-alert hidden">${SVG_WARN}${i18n.t('combatHud.collision')}</div>
       </div>`;
   }
 
@@ -220,7 +221,7 @@ export function initCombatHUDMarkup() {
   const enemy = document.createElement('div');
   enemy.id = 'lk-cb-enemy';
   enemy.className = 'lk-ui lk-enemy-banner lk-cb-enemy';
-  enemy.innerHTML = '<span class="lk-notice">Turno enemigo</span>';
+  enemy.innerHTML = `<span class="lk-notice">${i18n.t('combatHud.enemyTurn')}</span>`;
   ov.appendChild(enemy);
 
   // El cartel de turno (#turn-banner) también lo usan los avisos de misión: aquí solo se le añade la clase base
@@ -307,7 +308,7 @@ export function attachCombatHUD(game) {
         const hpPct = Math.max(0, Math.min(100, (unit.currentHP / Math.max(1, unit.maxHP)) * 100));
         sh.style.left = hpPct + '%';
         sh.style.width = Math.min(100 - hpPct, (s / Math.max(1, unit.maxHP)) * 100) + '%';
-        sh.title = `Escudo ${s}`;
+        sh.title = i18n.t('combatHud.shieldN', { n: s });
       }
     }
 
@@ -318,7 +319,7 @@ export function attachCombatHUD(game) {
       const defs = STATUS_DEFS;
       st.innerHTML = list.map((s) => {
         const label = s.label || defs?.[s.id]?.label || s.id;
-        return `<span class="lk-cb-st" title="${esc(label)} · ${s.duration} turno${s.duration === 1 ? '' : 's'}">${esc(s.icon || defs?.[s.id]?.icon || '•')}<b>${s.duration}</b></span>`;
+        return `<span class="lk-cb-st" title="${esc(label)} · ${i18n.t(s.duration === 1 ? 'combatHud.turn1' : 'combatHud.turnsN', { n: s.duration })}">${esc(s.icon || defs?.[s.id]?.icon || '•')}<b>${s.duration}</b></span>`;
       }).join('');
     }
 
@@ -334,7 +335,7 @@ export function attachCombatHUD(game) {
         if (iconEl && iconEl.dataset.src !== String(s.icon || '')) {
           iconEl.dataset.src = String(s.icon || '');
           if (s.icon && /[/.]/.test(s.icon)) iconEl.innerHTML = `<img src="${s.icon}" alt="${esc(s.name)}" class="spell-img-icon">`;
-          else iconEl.textContent = s.icon || '⚔️';
+          else if (s.icon) iconEl.textContent = s.icon; else iconEl.innerHTML = '<img src="./assets/ui/icons/swords.png" alt="" class="spell-img-icon">';
         }
         slot.classList.toggle('disabled', unit.currentPA < costNum(unit, s) || unit.team !== 'player' || game.activeUnit !== unit);
       }
@@ -347,9 +348,9 @@ export function attachCombatHUD(game) {
         cost.classList.toggle('lk-is-boosted', typeof s.paCost === 'number' && costNum(unit, s) < (s.rcBase?.paCost ?? s.paCost));
       }
       const rng = slot.querySelector('.range-badge');
-      if (rng) rng.textContent = `AL ${rangeTxt(s)}${s.isLinear ? ' ↔' : ''}`;
+      if (rng) rng.textContent = `${i18n.t('combatHud.rangeShort')} ${rangeTxt(s)}${s.isLinear ? ' ↔' : ''}`;
       const los = slot.querySelector('[data-ref="los"]');
-      if (los) { los.classList.toggle('lk-nolos', !s.requiresLoS); los.title = s.requiresLoS ? 'Requiere línea de visión' : 'No requiere línea de visión'; }
+      if (los) { los.classList.toggle('lk-nolos', !s.requiresLoS); los.title = s.requiresLoS ? i18n.t('combatHud.needsLos') : i18n.t('combatHud.noLos'); }
       const nm = slot.querySelector('[data-ref="name"]');
       if (nm) nm.textContent = s.name || '';
       const eff = spellEffect(s, unit, game.spellManager);
@@ -366,7 +367,7 @@ export function attachCombatHUD(game) {
       const afford = unit.currentPA >= costNum(unit, s);
       slot.classList.toggle('lk-is-unaffordable', mine && !afford);
       slot.classList.toggle('lk-is-idle', !mine);
-      slot.setAttribute('aria-label', `${s.name} · ${costOf(unit, s)} PA · alcance ${rangeTxt(s)}`);
+      slot.setAttribute('aria-label', i18n.t('combatHud.cardAria', { name: s.name, cost: costOf(unit, s), range: rangeTxt(s) }));
     }
     decorateUltimate(unit);
   }
@@ -392,16 +393,16 @@ export function attachCombatHUD(game) {
     btn.classList.toggle('lk-is-spent', Boolean(unit.ultimateUsed));
     btn.classList.toggle('lk-is-unaffordable', ready && mine && !afford);
     const pct = btn.querySelector('[data-ref="ultPct"]');
-    if (pct) pct.textContent = unit.ultimateUsed ? 'Usada' : ready ? 'Lista' : s ? `${Math.round(charge)}%` : 'Ultimate';
-    btn.setAttribute('aria-label', s ? `Ultimate: ${s.name}` : 'Ultimate (aún no disponible)');
+    if (pct) pct.textContent = unit.ultimateUsed ? i18n.t('combatHud.ultUsed') : ready ? i18n.t('combatHud.ultReady') : s ? `${Math.round(charge)}%` : 'Ultimate';
+    btn.setAttribute('aria-label', s ? `Ultimate: ${s.name}` : i18n.t('combatHud.ultUnavailable'));
   }
   function ultTipHTML(unit) {
     if (hasUltimate(game)) return ultimateTipHTML(game);
     const { s, charge, ready } = ultState(unit);
-    if (s) return tipHTML(unit, s).replace('· Ataque', '· Ultimate').replace('· Apoyo', '· Ultimate').replace('· Escudo', '· Ultimate').replace('· Habilidad', '· Ultimate');
-    return `<div class="lk-tooltip-tactical" style="--c:var(--lk-gilt-500)"><header><span class="lk-cb-tip-cls lk-cb-tip-ult">${SVG_ULT}</span><div><small>${esc(unit?.name || '')} · Ultimate</small><b>Técnica definitiva</b></div></header>
-      <div class="lk-tt-body"><div class="lk-tt-stats"><span class="lk-tt-stat">Carga<b>${Math.round(charge)}%</b></span><span class="lk-tt-stat">Usos<b>1 por combate</b></span></div>
-      <p>Esta unidad todavía no tiene Ultimate. Cuando la tenga, el anillo se llenará durante el combate y podrás lanzarla una vez.</p></div></div>`;
+    if (s) return tipHTML(unit, s).replace('· ' + i18n.t('combatHud.kindAttack'), '· Ultimate').replace('· ' + i18n.t('combatHud.kindSupport'), '· Ultimate').replace('· ' + i18n.t('combatHud.shield'), '· Ultimate').replace('· ' + i18n.t('combatHud.kindSkill'), '· Ultimate');
+    return `<div class="lk-tooltip-tactical" style="--c:var(--lk-gilt-500)"><header><span class="lk-cb-tip-cls lk-cb-tip-ult">${SVG_ULT}</span><div><small>${esc(unit?.name || '')} · Ultimate</small><b>${i18n.t('combatHud.ultTech')}</b></div></header>
+      <div class="lk-tt-body"><div class="lk-tt-stats"><span class="lk-tt-stat">${i18n.t('combatHud.charge')}<b>${Math.round(charge)}%</b></span><span class="lk-tt-stat">${i18n.t('combatHud.uses')}<b>${i18n.t('combatHud.oncePerBattle')}</b></span></div>
+      <p>${i18n.t('combatHud.ultNone')}</p></div></div>`;
   }
 
   // ── Línea de iniciativa: rombo sobre el que actúa y vida en cada retrato
@@ -421,8 +422,8 @@ export function attachCombatHUD(game) {
     const t = $('banner-title'), sub = $('banner-subtitle');
     if (!banner || !unit) return;
     banner.classList.add('lk-ui', 'lk-turn-banner');
-    if (unit.team === 'player') { if (sub) sub.textContent = 'Turno de'; if (t) t.textContent = unit.name; }
-    else { if (sub) sub.textContent = 'Turno enemigo'; if (t) t.textContent = unit.name; }
+    if (unit.team === 'player') { if (sub) sub.textContent = i18n.t('combatHud.turnOf'); if (t) t.textContent = unit.name; }
+    else { if (sub) sub.textContent = i18n.t('combatHud.enemyTurn'); if (t) t.textContent = unit.name; }
     banner.style.setProperty('--tint', tintOf(unit));
   }
 
@@ -433,21 +434,21 @@ export function attachCombatHUD(game) {
     const tipIco = spellIconHtml(s, unit);
     const art = s.icon && /[/.]/.test(s.icon) ? s.icon : '';
     const stats = [
-      `<span class="lk-tt-stat"><i class="lk-tl"><img class="lk-ai" src="${ICON}pa.png" alt="">Coste</i><b>${costOf(unit, s)} PA</b></span>`,
-      `<span class="lk-tt-stat"><i class="lk-tl"><img class="lk-ai" src="${ICON}range.png" alt="">Alcance</i><b>AL ${rangeTxt(s)}</b></span>`,
-      `<span class="lk-tt-stat"><i class="lk-tl"><img class="lk-ai" src="${ICON}vision.png" alt="">Visión</i><b>${s.requiresLoS ? 'Requiere' : 'No requiere'}</b></span>`,
-      `<span class="lk-tt-stat">Área<b>${AREA[s.areaType] || 'Una casilla'}</b></span>`
+      `<span class="lk-tt-stat"><i class="lk-tl"><img class="lk-ai" src="${ICON}pa.png" alt="">${i18n.t('combatHud.cost')}</i><b>${i18n.t('combatHud.paN', { n: costOf(unit, s) })}</b></span>`,
+      `<span class="lk-tt-stat"><i class="lk-tl"><img class="lk-ai" src="${ICON}range.png" alt="">${i18n.t('combatHud.range')}</i><b>${i18n.t('combatHud.rangeShort')} ${rangeTxt(s)}</b></span>`,
+      `<span class="lk-tt-stat"><i class="lk-tl"><img class="lk-ai" src="${ICON}vision.png" alt="">${i18n.t('combatHud.vision')}</i><b>${s.requiresLoS ? i18n.t('combatHud.required') : i18n.t('combatHud.notRequired')}</b></span>`,
+      `<span class="lk-tt-stat">${i18n.t('combatHud.area')}<b>${AREA[s.areaType] || AREA.single}</b></span>`
     ];
-    if (s.isLinear) stats.push(`<span class="lk-tt-stat">Lanzamiento<b>En línea</b></span>`);
+    if (s.isLinear) stats.push(`<span class="lk-tt-stat">${i18n.t('combatHud.cast')}<b>${i18n.t('combatHud.inLine')}</b></span>`);
     if (eff.label) stats.push(`<span class="lk-tt-stat">${eff.label}<b>${eff.val}</b></span>`);
     // Desglose: de dónde sale la diferencia con el valor de la carta (nivel, atributos, estados)
-    const breakdown = eff.boosted && eff.parts?.length ? `<p class="lk-cb-tip-calc">Carta ${eff.base} · ${eff.parts.join(' · ')}</p>` : '';
-    if (s.pushDistance) stats.push(`<span class="lk-tt-stat">Empuje<b>${s.pushDistance} casilla${s.pushDistance === 1 ? '' : 's'}</b></span>`);
+    const breakdown = eff.boosted && eff.parts?.length ? `<p class="lk-cb-tip-calc">${i18n.t('combatHud.cardBase', { base: eff.base })} · ${eff.parts.join(' · ')}</p>` : '';
+    if (s.pushDistance) stats.push(`<span class="lk-tt-stat">${i18n.t('combatHud.push')}<b>${i18n.t(s.pushDistance === 1 ? 'combatHud.tile1' : 'combatHud.tilesN', { n: s.pushDistance })}</b></span>`);
     return `<div class="lk-tooltip-tactical" style="--c:${tintOf(unit)}${art ? `;--art:url('${art}')` : ''}">
-      <header class="${art ? 'lk-has-art' : ''}">${tipIco ? `<span class="lk-cb-tip-cls${s?.part ? ' lk-has-part' : ''}" title="${tipIco.title}">${tipIco.html}</span>` : ''}<div><small>${esc(unit.name)} · ${eff.kind}${s.stage >= 2 ? ' · Parte de nivel 2' : ''}${s.collection ? ` · ${esc(String(s.collection).charAt(0).toUpperCase() + String(s.collection).slice(1))}` : ''}</small><b>${esc(s.name)}</b></div></header>
+      <header class="${art ? 'lk-has-art' : ''}">${tipIco ? `<span class="lk-cb-tip-cls${s?.part ? ' lk-has-part' : ''}" title="${tipIco.title}">${tipIco.html}</span>` : ''}<div><small>${esc(unit.name)} · ${eff.kind}${s.stage >= 2 ? ' · ' + i18n.t('combatHud.stage2') : ''}${s.collection ? ` · ${esc(String(s.collection).charAt(0).toUpperCase() + String(s.collection).slice(1))}` : ''}</small><b>${esc(s.name)}</b></div></header>
       <div class="lk-tt-body"><div class="lk-tt-stats">${stats.join('')}</div>${breakdown}<p>${esc(s.description || '')}</p>
-      ${s.rcNotes?.length ? `<p class="lk-cb-tip-calc">Charms y runa: ${s.rcNotes.map(esc).join(' · ')}</p>` : ''}
-      ${unit.team === 'player' && unit.currentPA < costNum(unit, s) ? `<p class="lk-cb-tip-warn">Te faltan ${costNum(unit, s) - unit.currentPA} PA para lanzarlo.</p>` : ''}</div></div>`;
+      ${s.rcNotes?.length ? `<p class="lk-cb-tip-calc">${i18n.t('combatHud.charmsRune', { list: s.rcNotes.map(esc).join(' · ') })}</p>` : ''}
+      ${unit.team === 'player' && unit.currentPA < costNum(unit, s) ? `<p class="lk-cb-tip-warn">${i18n.t('combatHud.missingPa', { n: costNum(unit, s) - unit.currentPA })}</p>` : ''}</div></div>`;
   }
   function showTip(index) {
     const unit = game.activeUnit;
@@ -464,7 +465,7 @@ export function attachCombatHUD(game) {
   const hideTip = () => tip?.classList.remove('lk-is-on');
 
   // ── Registro de combate
-  const names = (u) => `<b>${esc(u?.name || '¿?')}</b>`;
+  const names = (u) => `<b>${esc(u?.name || i18n.t('combatHud.unknown'))}</b>`;
   function log(html, cls = '') {
     if (!logEl) return;
     const p = document.createElement('p');
@@ -478,11 +479,11 @@ export function attachCombatHUD(game) {
     ev.on('unit:damaged', ({ unit, source, spell, actual, isCrit }) => {
       if (!(actual > 0)) return;
       const from = source && source !== unit ? `${names(source)}${spell?.name ? ' · ' + esc(spell.name) : ''} → ` : '';
-      log(`${from}${names(unit)} · <span class="lk-cb-dmg">${actual}${isCrit ? ' crítico' : ''}</span>`, isCrit ? 'lk-is-crit' : '');
-      if (unit?.currentHP <= 0) log(`${names(unit)} ha caído`, 'lk-is-ko');
+      log(`${from}${names(unit)} · <span class="lk-cb-dmg">${actual}${isCrit ? ' ' + i18n.t('combatHud.crit') : ''}</span>`, isCrit ? 'lk-is-crit' : '');
+      if (unit?.currentHP <= 0) log(i18n.t('combatHud.fell', { name: names(unit) }), 'lk-is-ko');
     });
     ev.on('unit:healed', ({ unit, amount }) => { if (amount > 0) log(`${names(unit)} · <span class="lk-cb-heal">+${amount}</span>`); });
-    ev.on('unit:shielded', ({ unit, amount }) => { if (amount > 0) log(`${names(unit)} · <span class="lk-cb-shield">escudo +${amount}</span>`); });
+    ev.on('unit:shielded', ({ unit, amount }) => { if (amount > 0) log(`${names(unit)} · <span class="lk-cb-shield">${i18n.t('combatHud.shieldPlus', { n: amount })}</span>`); });
   }
 
   // ── Envolturas
@@ -580,8 +581,8 @@ export function attachCombatHUD(game) {
     const sh = Math.max(0, u.shield | 0);
     const shPct = Math.min(100 - hpPct, (sh / max) * 100);
     const img = portraitOf(u) || document.querySelector(`#initiative-timeline .timeline-card img[alt="${CSS.escape(u.name || '')}"]`)?.src;
-    const role = ally ? (k ? `Aliado · ${k[0].toUpperCase() + k.slice(1)}` : 'Aliado') : (u.config?.tier ? `Enemigo · Nv. ${u.config.tier}` : 'Enemigo');
-    const turn = u === game.activeUnit ? '<span class="lk-cb-ut-now">Su turno</span>' : '';
+    const role = ally ? (k ? `${i18n.t('combatHud.ally')} · ${CLASS_LABEL[k] || k[0].toUpperCase() + k.slice(1)}` : i18n.t('combatHud.ally')) : (u.config?.tier ? i18n.t('combatHud.enemyLv', { n: u.config.tier }) : i18n.t('combatHud.enemy'));
+    const turn = u === game.activeUnit ? `<span class="lk-cb-ut-now">${i18n.t('combatHud.theirTurn')}</span>` : '';
     const st = (u.statuses || []).map((s) => {
       const d = STATUS_DEFS[s.id] || {};
       const bad = d.kind === 'debuff';
@@ -590,11 +591,11 @@ export function attachCombatHUD(game) {
     return `<div class="lk-tooltip-tactical lk-cb-ut" style="--c:${tintOf(u)}">
       <header><span class="lk-cb-ut-por">${img ? `<img src="${img}" alt="">` : ''}</span><div><small>${role}</small><b>${esc(u.name)}</b></div>${turn}</header>
       <div class="lk-tt-body">
-        <div><div class="lk-cb-ut-read"><span>Vida</span><b>${hp}${sh ? ` <i>+${sh}</i>` : ''} / ${max}</b></div>
+        <div><div class="lk-cb-ut-read"><span>${i18n.t('combatHud.hp')}</span><b>${hp}${sh ? ` <i>+${sh}</i>` : ''} / ${max}</b></div>
         <div class="lk-bar ${ally ? '' : 'lk-bar--enemy'}" style="--v:${hpPct}%"><i></i>${sh ? `<em style="left:${hpPct}%;width:${shPct}%"></em>` : ''}</div></div>
         <div class="lk-tt-stats">
-          <span class="lk-tt-stat"><i class="lk-tl"><img class="lk-ai" src="${ICON}pa.png" alt="">PA</i><b>${u.currentPA}/${u.maxPA}</b></span>
-          <span class="lk-tt-stat"><i class="lk-tl">${SVG_PM}PM</i><b>${u.currentPM}/${u.maxPM}</b></span>
+          <span class="lk-tt-stat"><i class="lk-tl"><img class="lk-ai" src="${ICON}pa.png" alt="">${i18n.t('combatHud.paShort')}</i><b>${u.currentPA}/${u.maxPA}</b></span>
+          <span class="lk-tt-stat"><i class="lk-tl">${SVG_PM}${i18n.t('combatHud.pmShort')}</i><b>${u.currentPM}/${u.maxPM}</b></span>
         </div>
         ${st ? `<div class="lk-cb-ut-sts">${st}</div>` : ''}
       </div></div>`;

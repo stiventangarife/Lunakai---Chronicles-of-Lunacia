@@ -3,6 +3,7 @@ import { formatBond } from '../BondService.js';
 import { portraitService } from '../../tactics/CharacterPortraitService.js';
 import { SAPIDAE_CLASSES } from '../SaveSlotManager.js';
 import { BondDemo } from './CombatEndScreen.js';
+import * as i18n from '../../i18n/i18n.js';
 
 export const SAPIDAE_CLASS_THEMES = {
   crafter: {
@@ -215,8 +216,8 @@ export class SquadHUD {
 
     // Columna del escuadrón a la derecha: medallones con marco dorado neutro, ficha de nivel y barra de vida fina.
     // El principal lleva el anillo de vínculo. Nombre, clase, PA, PM e iniciativa van en el tooltip.
-    const CLS_ES = { beast: 'Bestia', bird: 'Pájaro', plant: 'Planta', aquatic: 'Acuático', bug: 'Bicho', reptile: 'Reptil' };
-    const ROLE_ES = { 'Melee Duelist': 'Duelista cuerpo a cuerpo', 'Ranged Marksman': 'Tirador a distancia', 'Healer & Control': 'Sanador y control', 'Líder': 'Líder de la expedición' };
+    const CLS_ES = { beast: i18n.t('squadHud.clsBeast'), bird: i18n.t('squadHud.clsBird'), plant: i18n.t('squadHud.clsPlant'), aquatic: i18n.t('squadHud.clsAquatic'), bug: i18n.t('squadHud.clsBug'), reptile: i18n.t('squadHud.clsReptile') };
+    const ROLE_ES = { 'Melee Duelist': i18n.t('squadHud.roleMelee'), 'Ranged Marksman': i18n.t('squadHud.roleRanged'), 'Healer & Control': i18n.t('squadHud.roleHealer'), 'Líder': i18n.t('squadHud.roleLeader') };
     const esc = (v) => String(v ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
     this._tips = {};
     const rows = unlocked.map((heroId) => {
@@ -251,7 +252,7 @@ export class SquadHUD {
       // Vínculo del principal: orbe pequeño con el corazón y el líquido rosa a su nivel (como el medidor de vínculo del sistema de diseño)
       const lvl = (24 * (1 - bond / 100)).toFixed(1);
       const ring = isMain
-        ? `<span class="lk-pm-bond" title="Vínculo ${formatBond(bond)}%"><svg viewBox="0 0 26 26" aria-hidden="true"><defs><clipPath id="lkPmClip-${heroId}"><circle cx="13" cy="13" r="11"/></clipPath><linearGradient id="lkPmLiq-${heroId}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#FFD3E0"/><stop offset="1" stop-color="#E25C88"/></linearGradient></defs><circle cx="13" cy="13" r="11" fill="#121829"/><rect x="0" y="${(1 + +lvl).toFixed(1)}" width="26" height="26" fill="url(#lkPmLiq-${heroId})" clip-path="url(#lkPmClip-${heroId})"/><path d="M13 18.4l-.8-.7C9.3 15.1 7.4 13.4 7.4 11.3c0-1.7 1.3-3 3-3 .95 0 1.86.44 2.46 1.14.6-.7 1.51-1.14 2.46-1.14 1.7 0 3 1.3 3 3 0 2.1-1.9 3.8-4.8 6.4l-.52.7z" fill="#fff" stroke="rgba(11,15,28,.35)" stroke-width=".6"/><circle cx="13" cy="13" r="11.6" fill="none" stroke="#D3AE6C" stroke-width="1.2"/></svg></span>`
+        ? `<span class="lk-pm-bond" title="${i18n.t('squadHud.bondTitle', { n: formatBond(bond) })}"><svg viewBox="0 0 26 26" aria-hidden="true"><defs><clipPath id="lkPmClip-${heroId}"><circle cx="13" cy="13" r="11"/></clipPath><linearGradient id="lkPmLiq-${heroId}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#FFD3E0"/><stop offset="1" stop-color="#E25C88"/></linearGradient></defs><circle cx="13" cy="13" r="11" fill="#121829"/><rect x="0" y="${(1 + +lvl).toFixed(1)}" width="26" height="26" fill="url(#lkPmLiq-${heroId})" clip-path="url(#lkPmClip-${heroId})"/><path d="M13 18.4l-.8-.7C9.3 15.1 7.4 13.4 7.4 11.3c0-1.7 1.3-3 3-3 .95 0 1.86.44 2.46 1.14.6-.7 1.51-1.14 2.46-1.14 1.7 0 3 1.3 3 3 0 2.1-1.9 3.8-4.8 6.4l-.52.7z" fill="#fff" stroke="rgba(11,15,28,.35)" stroke-width=".6"/><circle cx="13" cy="13" r="11.6" fill="none" stroke="#D3AE6C" stroke-width="1.2"/></svg></span>`
         : '';
 
       // Ficha del tooltip
@@ -261,30 +262,31 @@ export class SquadHUD {
         const sDef = SAPIDAE_CLASSES[sKey] || SAPIDAE_CLASSES.crafter;
         clsName = sDef.name;
         clsIcon = sDef.icon || sDef.iconImg || (SAPIDAE_CLASS_THEMES[sKey] || SAPIDAE_CLASS_THEMES.crafter).iconUrl;
-        role = 'Líder de la expedición';
+        role = i18n.t('squadHud.roleLeader');
       } else {
         const cKey = getHeroClassKey(base, heroId);
         clsName = CLS_ES[cKey] || 'Axie';
         clsIcon = `./assets/classes/${cKey === 'dusk' ? 'dust' : cKey}.png`;
         const m = String(base.archetype || '').match(/\(([^)]+)\)/);
-        role = m ? (ROLE_ES[m[1]] || m[1]) : '';
+        const mEn = String(i18n.en(base.archetype || '')).match(/\(([^)]+)\)/); // rol en inglés para buscarlo (Hito 61)
+        role = m ? (ROLE_ES[mEn && mEn[1]] || ROLE_ES[m[1]] || m[1]) : '';
       }
-      const slot = isSapidaeHero ? 'Líder' : isMain ? 'Principal' : 'Apoyo';
+      const slot = isSapidaeHero ? i18n.t('squadHud.slotLeader') : isMain ? i18n.t('squadHud.slotMain') : i18n.t('squadHud.slotSupport');
       this._tips[heroId] = `<header><span class="lk-pt-cls ${isSapidaeHero ? 'lk-is-sapi' : ''}"><img src="${clsIcon}" alt="${esc(clsName)}"></span><div><small>${esc(slot)} · ${esc(clsName)}</small><b>${esc(base.name)}</b></div></header>
         <div class="lk-tt-body">
           ${role ? `<span class="lk-pt-role">${esc(role)}</span>` : ''}
-          <div class="lk-pt-xp"><span>Nv ${prog.level}</span><span class="lk-bar lk-bar--xp" style="--v:${xpPct}%"><i></i></span><b>${xpPct}%</b></div>
+          <div class="lk-pt-xp"><span>${i18n.t('squadHud.lv', { n: prog.level })}</span><span class="lk-bar lk-bar--xp" style="--v:${xpPct}%"><i></i></span><b>${xpPct}%</b></div>
           <div class="lk-tt-stats">
-            <span class="lk-tt-stat">Vida<b>${currHP} / ${stats.maxHP}</b></span>
-            <span class="lk-tt-stat">PA<b>${stats.maxPA ?? '—'}</b></span>
-            <span class="lk-tt-stat">PM<b>${stats.maxPM ?? '—'}</b></span>
-            <span class="lk-tt-stat">Iniciativa<b>${stats.initiative ?? '—'}</b></span>
-            ${isMain ? `<span class="lk-tt-stat">Vínculo<b style="color:var(--lk-bond-heart-magenta)">${bond}%</b></span>` : ''}
+            <span class="lk-tt-stat">${i18n.t('squadHud.hp')}<b>${currHP} / ${stats.maxHP}</b></span>
+            <span class="lk-tt-stat">${i18n.t('squadHud.ap')}<b>${stats.maxPA ?? '—'}</b></span>
+            <span class="lk-tt-stat">${i18n.t('squadHud.mp')}<b>${stats.maxPM ?? '—'}</b></span>
+            <span class="lk-tt-stat">${i18n.t('squadHud.initiative')}<b>${stats.initiative ?? '—'}</b></span>
+            ${isMain ? `<span class="lk-tt-stat">${i18n.t('squadHud.bond')}<b style="color:var(--lk-bond-heart-magenta)">${bond}%</b></span>` : ''}
           </div>
-          <span class="lk-tt-hint">Clic: abrir su mochila</span>
+          <span class="lk-tt-hint">${i18n.t('squadHud.clickHint')}</span>
         </div>`;
 
-      return `<button type="button" class="lk-party-med ${isMain ? 'lk-is-main' : ''}" data-hero-id="${heroId}" aria-label="${esc(base.name)}, nivel ${prog.level}, ${currHP} de ${stats.maxHP} de vida">
+      return `<button type="button" class="lk-party-med ${isMain ? 'lk-is-main' : ''}" data-hero-id="${heroId}" aria-label="${i18n.t('squadHud.medAria', { name: esc(base.name), lv: prog.level, hp: currHP, max: stats.maxHP })}">
           <span class="lk-pm-frame"><img class="squad-avatar-img" src="${portraitUrl || ''}" alt="" style="${portraitUrl ? '' : 'display:none'}">${ring}<span class="lk-pm-lv">${prog.level}</span></span>
           <span class="lk-pm-hp ${hpPct <= 30 ? 'lk-is-low' : ''}"><i style="width:${hpPct}%"></i></span>
         </button>`;
@@ -327,14 +329,14 @@ export class SquadHUD {
 
     // Oro arriba a la derecha y vida del Sapidae abajo al centro
     const goldEl = document.getElementById('hud-gold');
-    if (goldEl) goldEl.textContent = Number(typeof em.getGold === 'function' ? em.getGold() : (em.gold || 0)).toLocaleString('es');
+    if (goldEl) goldEl.textContent = i18n.num(typeof em.getGold === 'function' ? em.getGold() : (em.gold || 0));
     const bottom = document.getElementById('lk-ow-bottom');
     const sap = em.heroesBase.sapidae;
     if (bottom && sap) {
       const st = em.getCalculatedStats('sapidae') || { maxHP: 1 };
       const hp = typeof em.getCurrentHP === 'function' ? em.getCurrentHP('sapidae') : st.maxHP;
       const pct = Math.max(0, Math.min(100, (hp / Math.max(1, st.maxHP)) * 100));
-      bottom.innerHTML = `<span class="lk-lvl">${sap.name} · Nv. ${em.getProgression('sapidae').level}</span><div class="lk-bar ${pct <= 30 ? 'lk-bar--low' : ''}" style="--v:${pct}%" title="${hp}/${st.maxHP} de vida"><i></i></div>`;
+      bottom.innerHTML = `<span class="lk-lvl">${sap.name} · ${i18n.t('squadHud.lvDot', { n: em.getProgression('sapidae').level })}</span><div class="lk-bar ${pct <= 30 ? 'lk-bar--low' : ''}" style="--v:${pct}%" title="${i18n.t('squadHud.hpTitle', { hp, max: st.maxHP })}"><i></i></div>`;
     }
   }
 

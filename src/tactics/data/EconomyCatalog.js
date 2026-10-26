@@ -9,9 +9,10 @@
 //    es una demo y el calificador tiene que poder ver todo el bucle en poco tiempo.
 //  · El equipo Raro, Épico y Místico solo se consigue evolucionando (ni misiones, ni combates, ni Tienda).
 //  · Tienda: pociones, comida, materiales Comunes y equipo Común.
+import * as i18n from '../../i18n/i18n.js';
 
 /* ───────────────────────── Materiales ───────────────────────── */
-export const MATERIAL_RARITY_NAME = { common: 'Común', rare: 'Raro', epic: 'Épico', mystic: 'Místico' };
+export const MATERIAL_RARITY_NAME = { common: i18n.t('items.rarity.common'), rare: i18n.t('items.rarity.rare'), epic: i18n.t('items.rarity.epic'), mystic: i18n.t('items.rarity.mystic') };
 export const MATERIALS = {
   // Comunes · Bosque y Sabana
   mat_copper:        { id: 'mat_copper',        name: 'Cobre del cañón',  rarity: 'common', tier: 1, biome: 'savannah', icon: './assets/materials/ore_copper.webp', glyph: 'ingot',  source: 'Minar las vetas de la Isla de la Sabana',           description: 'Metal blando que se trabaja en frío. La base de casi todo el equipo Común.' },
@@ -33,6 +34,7 @@ export const MATERIALS = {
   // Catalizador de evolución
   mat_lunar_shard:   { id: 'mat_lunar_shard',   name: 'Esquirla lunar',   rarity: 'mystic', tier: 0, biome: 'any',      icon: './assets/materials/lunar_shard.webp', glyph: 'shard',  source: 'Minería en la Sabana (rara) y la Tienda',           description: 'Fragmento de la luna de Lunacia. Necesario para evolucionar a Místico.' },
 };
+i18n.applyText(MATERIALS, 'items', ['name', 'source', 'description']);
 
 /* ───────────────────────── Forja · Crear (Común) ─────────────────────────
    Las 7 piezas Comunes, una por línea de evolución. Son las únicas que se pueden crear, comprar o ganar. */
@@ -46,6 +48,7 @@ export const TIER0_ITEMS = {
   composite_bow:  { id: 'composite_bow',  name: 'Arco compuesto',   slot: 'weapon', rarity: 'common', tier: 0, stats: { damage: 7, initiative: 3 }, icon: EQ('composite_bow'), description: 'Madera y cola de quimera: ligero y preciso.' },
   mushroom_staff: { id: 'mushroom_staff', name: 'Bastón de hongo',  slot: 'weapon', rarity: 'common', tier: 0, stats: { hp: 20, damage: 6 },     icon: EQ('mushroom_staff'),   description: 'Un bastón coronado por un hongo que brilla un poco.' },
 };
+i18n.applyText(TIER0_ITEMS, 'items', ['name', 'description']);
 
 /** Recetas de la forja: materiales Comunes + oro → pieza Común. */
 export const CRAFT_RECIPES = [
@@ -56,6 +59,10 @@ export const CRAFT_RECIPES = [
   { id: 'r_wood_sword',     result: 'wood_sword',     gold: 20, mats: { mat_copper: 3, mat_slime_goo: 1 } },
   { id: 'r_composite_bow',  result: 'composite_bow',  gold: 20, mats: { mat_slime_goo: 2, mat_chimera_tail: 2 } },
   { id: 'r_mushroom_staff', result: 'mushroom_staff', gold: 25, mats: { mat_slime_goo: 2, mat_copper: 1, mat_chimera_tail: 1 } },
+  // Hito 54: bolsas que se abren en la Mochila y dan una runa o un charm de clase al azar
+  // Hito 74: se pagan con SLP (no con oro), además de los materiales
+  { id: 'r_rune_bag',       result: 'rune_bag',       slp: 80, mats: { mat_slime_goo: 5, mat_copper: 3, mat_lunar_shard: 1 } },
+  { id: 'r_charm_bag',      result: 'charm_bag',      slp: 50, mats: { mat_chimera_tail: 3, mat_lunar_shard: 1 } },
 ];
 
 /* ───────────────────────── Forja · Evolucionar ─────────────────────────
@@ -113,7 +120,12 @@ export const MATERIAL_PRICE = { 0: 250, 1: 6, 2: 14, 3: 30, 4: 65 }; // por tier
 export const CONSUMABLE_PRICE = {
   food_berry: 12, food_fruit: 10, food_fish: 15, food_rice_cake: 30, food_feast: 75, food_koi: 120,
   potion_health_small: 25, dew_flask: 55, potion_health_large: 90,
+  rune_bag: 160, charm_bag: 100, // no se venden en la tienda; esto fija lo que te dan al venderlas (×0,3)
 };
+/** Runas y charms (Hito 54): solo se venden. Neutros 15 de oro; de clase según su rareza. */
+export const RUNE_CHARM_SELL = { neutral: 15, common: 10, rare: 20, epic: 40, mystic: 80, secret: 40 };
+/** Botín de los combates (fuera del tutorial): probabilidad de un charm y de una runa neutros por victoria; ×2 con jefes. */
+export const RUNE_CHARM_DROP = { charm: 0.10, rune: 0.05, bossMult: 2 };
 export const SELL_RATIO = 0.3;           // el equipo y los consumibles se venden al 30 %
 export const SELL_RATIO_MATERIAL = 0.5;  // los materiales, al 50 %
 export const BUYBACK_SLOTS = 6;          // lo último vendido se puede recomprar al mismo precio
@@ -128,6 +140,7 @@ export function buyPrice(item) {
 /** Precio de venta (0 = no se puede vender). */
 export function sellPrice(item) {
   if (!item || item.slot === 'quest' || item.category === 'quest') return 0;
+  if (item.runeCharm) return item.class === 'neutral' ? RUNE_CHARM_SELL.neutral : (RUNE_CHARM_SELL[item.rarity] ?? 20);
   const ratio = item.id in MATERIALS ? SELL_RATIO_MATERIAL : SELL_RATIO;
   return Math.max(1, Math.floor(buyPrice(item) * ratio));
 }
@@ -136,7 +149,7 @@ export function sellPrice(item) {
    `stock` = unidades al día (null = ilimitado). Se renuevan cada `restockHours`. */
 export const SHOPS = {
   dojo_valley: {
-    id: 'dojo_valley', name: 'Mercader Ochi', place: 'Valle del Dojō', island: 'island_forest', restockHours: 6,
+    id: 'dojo_valley', name: i18n.t('items.shop.dojoValley.name'), place: i18n.t('items.shop.dojoValley.place'), island: 'island_forest', restockHours: 6,
     // Solo vende (y solo compra) equipo Común; el Raro, Épico y Místico solo se consigue evolucionando en la Forja.
     maxGearTier: 0,
     stock: [

@@ -2,12 +2,13 @@
 // "Guardado en la nube" · "Guardando…" · "Sin conexión: se reintentará" · "No se pudo guardar · Reintentar"
 
 import { toast } from '../ui/lk.js';
+import * as i18n from '../i18n/i18n.js';
 
 const TEXT = {
-  saving: 'Guardando…',
-  saved: 'Guardado en la nube',
-  offline: 'Sin conexión · se reintentará',
-  error: 'No se pudo guardar',
+  saving: i18n.t('common.saving'),
+  saved: i18n.t('common.savedCloud'),
+  offline: i18n.t('common.offlineRetry'),
+  error: i18n.t('common.saveFailed'),
 };
 
 export class SaveStatusChip {
@@ -18,7 +19,7 @@ export class SaveStatusChip {
     this.el.setAttribute('role', 'status');
     this.el.setAttribute('aria-live', 'polite');
     this.el.hidden = true;
-    this.el.innerHTML = '<span class="lk-save-chip__dot"></span><span class="lk-save-chip__txt"></span><button type="button" class="lk-save-chip__retry" hidden>Reintentar</button>';
+    this.el.innerHTML = `<span class="lk-save-chip__dot"></span><span class="lk-save-chip__txt"></span><button type="button" class="lk-save-chip__retry" hidden>${i18n.t('common.retry')}</button>`;
     document.body.appendChild(this.el);
     this._txt = this.el.querySelector('.lk-save-chip__txt');
     this._btn = this.el.querySelector('.lk-save-chip__retry');

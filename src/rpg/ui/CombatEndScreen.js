@@ -6,23 +6,24 @@ import { asset, tooltip } from '../../ui/lk.js';
 import { BondService, formatBond } from '../BondService.js';
 import { axieMixerService } from '../AxieMixerService.js';
 import { matSvg } from '../../ui/MaterialIcons.js';
+import * as i18n from '../../i18n/i18n.js';
 
 const I = (name) => asset(`assets/ui/icons/${name}.png`);
 const MOON = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 3a9 9 0 1 0 6 15.7A7.5 7.5 0 1 1 15 3z" fill="currentColor"/></svg>';
 const BROKEN_MOON = '<svg viewBox="0 0 64 64" aria-hidden="true"><path d="M40 6a26 26 0 1 0 17 45.4A21.5 21.5 0 1 1 40 6z" fill="currentColor" opacity=".9"/><path d="M27 12l6 13-7 6 8 10-5 13" fill="none" stroke="#0B0F1C" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
 const CLASSES = ['beast', 'plant', 'aquatic', 'bird', 'reptile', 'bug', 'mech', 'dawn', 'dusk'];
-const RARITY = { common: ['common', 'Común'], uncommon: ['uncommon', 'Poco común'], rare: ['rare', 'Raro'], epic: ['epic', 'Épico'], legendary: ['mystic', 'Místico'], mystic: ['mystic', 'Místico'] };
-const SLOT = { weapon: 'Arma', hat: 'Sombrero', shield: 'Escudo', body: 'Armadura', boots: 'Botas', consumable: 'Consumible', material: 'Material', quest: 'Objeto de misión' };
+const RARITY = { common: ['common', i18n.t('combatEnd.rarCommon')], uncommon: ['uncommon', i18n.t('combatEnd.rarUncommon')], rare: ['rare', i18n.t('combatEnd.rarRare')], epic: ['epic', i18n.t('combatEnd.rarEpic')], legendary: ['mystic', i18n.t('combatEnd.rarMystic')], mystic: ['mystic', i18n.t('combatEnd.rarMystic')] };
+const SLOT = { weapon: i18n.t('combatEnd.slotWeapon'), hat: i18n.t('combatEnd.slotHat'), shield: i18n.t('combatEnd.slotShield'), body: i18n.t('combatEnd.slotBody'), boots: i18n.t('combatEnd.slotBoots'), consumable: i18n.t('combatEnd.slotConsumable'), material: i18n.t('combatEnd.slotMaterial'), quest: i18n.t('combatEnd.slotQuest') };
 const isImg = (s) => typeof s === 'string' && (/^(\.\/|\/|assets\/|http|data:image)/.test(s) || /\.(png|jpe?g|webp|svg)$/i.test(s));
 /** Dibujo de un objeto del botín: imagen, material (SVG) o emoji. */
 const lootArt = (it, size) => it.glyph && !it.icon ? `<span style="display:grid;place-items:center;width:${size}px;height:${size}px;color:var(--lk-gilt-300, #EED39A)">${matSvg(it.glyph, '')}</span>`
   : isImg(it.icon) ? `<img src="${esc(it.icon)}" alt="" style="width:${size}px;height:${size}px;object-fit:contain">`
-  : `<span style="font-size:${Math.round(size * 0.7)}px;line-height:1">${esc(it.icon || '🎁')}</span>`;
-const STAT = [['damage', 'Daño'], ['hp', 'Vida'], ['shield', 'Escudo'], ['pa', 'PA'], ['pm', 'PM'], ['initiative', 'Iniciativa']];
+  : `<span style="font-size:${Math.round(size * 0.7)}px;line-height:1">${esc(it.icon || '✦')}</span>`;
+const STAT = [['damage', i18n.t('combatEnd.statDamage')], ['hp', i18n.t('combatEnd.statHp')], ['shield', i18n.t('combatEnd.statShield')], ['pa', i18n.t('combatEnd.statAp')], ['pm', i18n.t('combatEnd.statMp')], ['initiative', i18n.t('combatEnd.statInitiative')]];
 
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const pct = (a, b) => (b > 0 ? Math.max(0, Math.min(100, Math.round((a / b) * 100))) : 0);
-const num = (n) => Number(n || 0).toLocaleString('es');
+const num = (n) => i18n.num(n || 0);
 
 // ------------------------------------------------------------------------------------------
 // AXP DE DEMOSTRACIÓN (ficticia: no se envía a Sky Mavis). Se guarda en este navegador entre combates.
@@ -176,36 +177,36 @@ export class CombatEndScreen {
     const isZero = zero || x.gain === 0;
     const bar = this._bar({ basePct: x.basePct, afterPct: x.afterPct }, isZero);
     if (compact) return `<div class="lk-prow lk-axp ${isZero ? 'lk-is-zero' : ''}"><span class="lk-chip">AXP</span>${bar}<span class="lk-gain">+${num(x.gain)}</span></div>`;
-    return `<div class="lk-prow lk-axp ${isZero ? 'lk-is-zero' : ''}"><span class="lk-chip">AXP</span><span class="lk-lv">Nv ${x.level}</span>${bar}<span class="lk-gain">+${num(x.gain)}</span></div>`;
+    return `<div class="lk-prow lk-axp ${isZero ? 'lk-is-zero' : ''}"><span class="lk-chip">AXP</span><span class="lk-lv">${i18n.t('combatEnd.lv', { n: x.level })}</span>${bar}<span class="lk-gain">+${num(x.gain)}</span></div>`;
   }
 
   _axpMeta(u, zero) {
     const x = u.axp;
     if (!x) return '';
-    const demoTitle = x.fromSkyMavis ? 'AXP simulada a partir del nivel real del Axie en Sky Mavis (no se envía a Sky Mavis)' : 'AXP simulada (este Axie no tiene datos de Sky Mavis)';
-    const demo = `<span class="lk-demo-tag" title="${demoTitle}">Demo</span>`;
+    const demoTitle = x.fromSkyMavis ? i18n.t('combatEnd.demoAxpReal') : i18n.t('combatEnd.demoAxpNoData');
+    const demo = `<span class="lk-demo-tag" title="${demoTitle}">${i18n.t('combatEnd.demo')}</span>`;
     if (zero) return `<div class="lk-axp-meta">${demo}</div>`;
     const diamond = '<svg viewBox="0 0 12 12" aria-hidden="true"><path d="M6 0l6 6-6 6-6-6z" fill="currentColor"/></svg>';
-    const top = x.capReason === 'max' ? `<span class="lk-asc-ready">${diamond}Nivel máximo (${AXP_MAX_LEVEL}): ya no gana AXP</span>`
-      : x.capReason === 'ascend' ? `<span class="lk-asc-ready">${diamond}Tope de evolución: asciende a Nv ${x.nextGate} en Axie Infinity para seguir ganando AXP</span>` : '';
-    const capped = x.today >= x.cap ? ' · tope diario alcanzado' : '';
-    return `<div class="lk-axp-meta"><span>AXP de hoy <b>${num(x.today)} / ${num(x.cap)}</b>${capped}</span>${top}${demo}</div>`;
+    const top = x.capReason === 'max' ? `<span class="lk-asc-ready">${diamond}${i18n.t('combatEnd.maxLevel', { n: AXP_MAX_LEVEL })}</span>`
+      : x.capReason === 'ascend' ? `<span class="lk-asc-ready">${diamond}${i18n.t('combatEnd.ascendCap', { n: x.nextGate })}</span>` : '';
+    const capped = x.today >= x.cap ? i18n.t('combatEnd.dailyCapReached') : '';
+    return `<div class="lk-axp-meta"><span>${i18n.t('combatEnd.axpToday', { today: num(x.today), cap: num(x.cap) })}${capped}</span>${top}${demo}</div>`;
   }
 
   _mainRow(u, zero) {
-    const lvlUp = !zero && u.levelsGained > 0 ? `<span class="lk-lvl-up">¡Nivel ${u.level}!</span>` : '';
-    const axpUp = !zero && u.axp && u.axp.levelsGained > 0 ? `<span class="lk-lvl-up">AXP Nv ${u.axp.level}</span>` : '';
+    const lvlUp = !zero && u.levelsGained > 0 ? `<span class="lk-lvl-up">${i18n.t('combatEnd.levelUp', { n: u.level })}</span>` : '';
+    const axpUp = !zero && u.axp && u.axp.levelsGained > 0 ? `<span class="lk-lvl-up">${i18n.t('combatEnd.axpLevel', { n: u.axp.level })}</span>` : '';
     const points = !zero && u.levelsGained > 0
-      ? `<div class="lk-axp-meta"><span>+${u.levelsGained * 3} puntos de estadística · asígnalos en la Mochila <b>I</b></span></div>` : '';
-    const sub = u.isSapidae && !zero ? `${u.sub} · solo XP` : u.sub;
+      ? `<div class="lk-axp-meta"><span>${i18n.t('combatEnd.statPoints', { n: u.levelsGained * 3 })}</span></div>` : '';
+    const sub = u.isSapidae && !zero ? `${u.sub}${i18n.t('combatEnd.xpOnly')}` : u.sub;
     return `<div class="lk-u-prog">${this._portrait(u)}<div class="lk-rows">
       <div class="lk-u-name"><b>${esc(u.name)}</b><small>${esc(sub)}</small>${lvlUp}${axpUp}</div>
-      <div class="lk-prow lk-xp ${zero ? 'lk-is-zero' : ''}"><span class="lk-chip">XP</span><span class="lk-lv">Nv ${u.level}</span>${this._bar(u, zero)}<span class="lk-gain">+${zero ? 0 : num(u.gain)}</span></div>
+      <div class="lk-prow lk-xp ${zero ? 'lk-is-zero' : ''}"><span class="lk-chip">XP</span><span class="lk-lv">${i18n.t('combatEnd.lv', { n: u.level })}</span>${this._bar(u, zero)}<span class="lk-gain">+${zero ? 0 : num(u.gain)}</span></div>
       ${this._axpRow(u, zero)}${this._axpMeta(u, zero)}${points}</div></div>`;
   }
 
   _supRow(u, zero) {
-    const up = !zero && u.levelsGained > 0 ? `<small class="lk-sup-up">¡Nv ${u.level}!</small>` : '';
+    const up = !zero && u.levelsGained > 0 ? `<small class="lk-sup-up">${i18n.t('combatEnd.lvUpShort', { n: u.level })}</small>` : '';
     return `<div class="lk-sup ${u.axp ? '' : 'lk-xp-only'}">${this._portrait(u)}<b><span style="overflow:hidden;text-overflow:ellipsis">${esc(u.name)}</span>${up}</b><div class="lk-prow lk-xp ${zero ? 'lk-is-zero' : ''}"><span class="lk-chip">XP</span>${this._bar(u, zero)}<span class="lk-gain">+${zero ? 0 : num(u.gain)}</span></div>${this._axpRow(u, zero, true)}</div>`;
   }
 
@@ -226,11 +227,11 @@ export class CombatEndScreen {
     const main = squad.filter((u) => u.isMain || u.isSapidae);
     const sup = squad.filter((u) => !(u.isMain || u.isSapidae));
     return main.map((u) => this._mainRow(u, zero)).join('')
-      + (sup.length ? `<div class="lk-sup-prog"><span class="lk-label">${zero ? 'Apoyo' : 'Apoyo · ganan menos'}</span>${sup.map((u) => this._supRow(u, zero)).join('')}</div>` : '');
+      + (sup.length ? `<div class="lk-sup-prog"><span class="lk-label">${zero ? i18n.t('combatEnd.support') : i18n.t('combatEnd.supportLess')}</span>${sup.map((u) => this._supRow(u, zero)).join('')}</div>` : '');
   }
 
   _loot(items, lost = false) {
-    if (!items.length) return `<p class="lk-end-empty">${lost ? 'Este combate no tenía botín.' : 'Este combate no dejó botín.'}</p>`;
+    if (!items.length) return `<p class="lk-end-empty">${lost ? i18n.t('combatEnd.noLootLost') : i18n.t('combatEnd.noLoot')}</p>`;
     return `<div class="lk-loot ${lost ? 'lk-is-lost' : ''}">${items.map((it, n) => {
       const [r, rName] = RARITY[it.rarity] || RARITY.common;
       return `<div class="lk-charm-item" data-n="${n}" tabindex="0"><span class="lk-slot-item" style="--r:var(--lk-rar-${r})"><span class="lk-art">${lootArt(it, 44)}</span><span class="lk-cap">${it.qty > 1 ? `×${it.qty}` : rName}</span></span><small>${esc(it.name)}</small></div>`;
@@ -283,25 +284,25 @@ export class CombatEndScreen {
     this.crest.innerHTML = `
       <span class="lk-end__rays" aria-hidden="true"></span>
       <span class="lk-end__emblem">${MOON}</span>
-      <div class="lk-end__title" id="lk-end-title">VICTORIA</div>
+      <div class="lk-end__title" id="lk-end-title">${i18n.t('combatEnd.victory')}</div>
       <div class="lk-end__line"><i></i></div>
       <div class="lk-end__sub">${esc(d.subtitle)}</div>
       <div class="lk-moons">${(d.moons || []).map((m) => `<div class="lk-moon-r ${m.on ? 'lk-on' : ''}">${MOON}<small>${esc(m.label)}</small></div>`).join('')}</div>`;
 
     const recruits = (d.recruits || []).length
-      ? `<span class="lk-label">Se unen al escuadrón</span>${d.recruits.map((r) => `<div class="lk-u-prog">${this._portrait(r)}<div class="lk-rows"><div class="lk-u-name"><b>${esc(r.name)}</b><small>${esc(r.sub)}</small><span class="lk-lvl-up">Nuevo</span></div></div></div>`).join('')}` : '';
+      ? `<span class="lk-label">${i18n.t('combatEnd.recruitsJoin')}</span>${d.recruits.map((r) => `<div class="lk-u-prog">${this._portrait(r)}<div class="lk-rows"><div class="lk-u-name"><b>${esc(r.name)}</b><small>${esc(r.sub)}</small><span class="lk-lvl-up">${i18n.t('combatEnd.new')}</span></div></div></div>`).join('')}` : '';
 
     this.body.innerHTML = `
-      <div class="lk-end__col"><span class="lk-label">Escuadrón</span>${this._squad(this._withAxp(d.squad || [], true))}
-        <div class="lk-bond-note"><img src="${I('heart')}" alt="">El vínculo no cambia con la victoria: se cuida en el campamento.</div></div>
+      <div class="lk-end__col"><span class="lk-label">${i18n.t('combatEnd.squad')}</span>${this._squad(this._withAxp(d.squad || [], true))}
+        <div class="lk-bond-note"><img src="${I('heart')}" alt="">${i18n.t('combatEnd.bondVictoryNote')}</div></div>
       <div class="lk-end__col">${recruits}
-        <span class="lk-label">Botín</span>${this._loot(d.loot || [])}
-        <span class="lk-label" style="margin-top:6px">Resumen</span>
+        <span class="lk-label">${i18n.t('combatEnd.loot')}</span>${this._loot(d.loot || [])}
+        <span class="lk-label" style="margin-top:6px">${i18n.t('combatEnd.summary')}</span>
         <div class="lk-kv">${(d.summary || []).map(([k, v]) => `<span>${esc(k)}<b>${esc(v)}</b></span>`).join('')}</div>
       </div>`;
     this._bindLootTips(d.loot || []);
-    if (this.hint) this.hint.textContent = 'Espacio · Continuar';
-    this._setPrimary('Continuar', 'map');
+    if (this.hint) this.hint.textContent = i18n.t('combatEnd.hintContinue');
+    this._setPrimary(i18n.t('combatEnd.continue'), 'map');
     this._open(false);
   }
 
@@ -314,7 +315,7 @@ export class CombatEndScreen {
     tooltip.hide();
     this.crest.innerHTML = `
       <span class="lk-end__emblem">${BROKEN_MOON}</span>
-      <div class="lk-end__title" id="lk-end-title">DERROTA</div>
+      <div class="lk-end__title" id="lk-end-title">${i18n.t('combatEnd.defeat')}</div>
       <div class="lk-end__line"><i></i></div>
       <div class="lk-end__sub">${esc(d.subtitle)}</div>`;
 
@@ -323,27 +324,27 @@ export class CombatEndScreen {
     const hints = [...(d.hints || [])];
     if (main) {
       const b = BondDemo.lose(main.id || main.name);
-      bondRow = `<div class="lk-xp-row lk-bond-loss">${this._portrait(main, 44)}<b>Vínculo con ${esc(main.name)}<small>Derrota del escuadrón</small></b><span class="lk-gain lk-bad">−${formatBond(b.lost)}%</span>`
+      bondRow = `<div class="lk-xp-row lk-bond-loss">${this._portrait(main, 44)}<b>${i18n.t('combatEnd.bondWith', { name: esc(main.name) })}<small>${i18n.t('combatEnd.squadDefeat')}</small></b><span class="lk-gain lk-bad">−${formatBond(b.lost)}%</span>`
         + `<span class="lk-ds-bar lk-bond lk-loss"><i class="lk-base" style="--a:${b.before}%;--b:${b.after}%"></i><i class="lk-lost" style="--a:${b.before}%;--b:${b.after}%"></i></span></div>`
-        + `<div class="lk-axp-meta" style="padding-left:56px"><span>Vínculo al <b>${b.after}%</b></span><span class="lk-demo-tag" title="Vínculo simulado: el sistema real aún no está integrado">Demo</span></div>`;
-      hints.unshift({ icon: 'heart', html: `<b>Vínculo al ${b.after}%.</b> Alimenta o acaricia a ${esc(main.name)} en el campamento antes de volver${b.after < 25 ? ': por debajo del 25% puede vacilar al inicio del turno.' : '.'}` });
+        + `<div class="lk-axp-meta" style="padding-left:56px"><span>${i18n.t('combatEnd.bondAt', { n: b.after })}</span><span class="lk-demo-tag" title="${i18n.t('combatEnd.demoBond')}">${i18n.t('combatEnd.demo')}</span></div>`;
+      hints.unshift({ icon: 'heart', html: `${i18n.t('combatEnd.bondHint', { n: b.after, name: esc(main.name) })}${b.after < 25 ? i18n.t('combatEnd.bondHintLow') : i18n.t('combatEnd.bondHintEnd')}` });
     }
 
     this.body.innerHTML = `
       <div class="lk-end__col">
-        <span class="lk-label" style="color:#FF9C95">Consecuencias</span>
+        <span class="lk-label" style="color:#FF9C95">${i18n.t('combatEnd.consequences')}</span>
         ${bondRow}
         ${this._squad(this._withAxp(d.squad || [], false), true)}
-        <div class="lk-axp-meta" style="padding-left:0"><span>La XP y la AXP solo se ganan con victorias</span></div>
-        <span class="lk-label" style="margin-top:6px">Botín perdido</span>${this._loot(d.lostLoot || [], true)}
+        <div class="lk-axp-meta" style="padding-left:0"><span>${i18n.t('combatEnd.xpOnlyVictories')}</span></div>
+        <span class="lk-label" style="margin-top:6px">${i18n.t('combatEnd.lostLoot')}</span>${this._loot(d.lostLoot || [], true)}
       </div>
       <div class="lk-end__col">
-        <span class="lk-label">Para el próximo intento</span>
+        <span class="lk-label">${i18n.t('combatEnd.nextAttempt')}</span>
         <ul class="lk-hints">${hints.slice(0, 4).map((h) => `<li><img class="lk-ai" src="${I(h.icon)}" alt=""><span>${h.html}</span></li>`).join('')}</ul>
       </div>`;
     this._bindLootTips(d.lostLoot || []);
-    if (this.hint) this.hint.textContent = 'El progreso del mapa se conserva';
-    this._setPrimary('Volver al dojo', 'back');
+    if (this.hint) this.hint.textContent = i18n.t('combatEnd.mapProgressKept');
+    this._setPrimary(i18n.t('combatEnd.backToDojo'), 'back');
     this._open(true);
   }
 }

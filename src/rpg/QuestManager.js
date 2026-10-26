@@ -1,13 +1,24 @@
 // QuestManager.js - Centralized Quest System for Lunacia Adventures
 import { ForgeService } from './ForgeService.js';
+import * as i18n from '../i18n/i18n.js';
 import { isMaterial } from './LootService.js';
-import { canonicalZoneKey, MERGED_ZONES, FERRY_DOCKS, ISLAND_NAMES, mergedBattleAnchor } from './world/islands/IslandWorldLayout.js';
+import { canonicalZoneKey, MERGED_ZONES, FERRY_DOCKS, ISLAND_NAMES, mergedBattleAnchor, ISLAND_MONSTER_LAYOUT } from './world/islands/IslandWorldLayout.js';
+
+/** Hito 74: posición actual de un monstruo de misión (si está en el mapa) o su sitio fijo en la isla. */
+function questMobPos(id, islandKey) {
+  const mob = typeof window !== 'undefined' ? window.overworldManager?.monsters?.monsters?.find((m) => m.id === id) : null;
+  if (mob && mob.group) return { x: mob.group.position.x, z: mob.group.position.z };
+  const a = ISLAND_MONSTER_LAYOUT[islandKey]?.questMobs?.[id];
+  return a ? { x: a.x, z: a.z } : null;
+}
 export class QuestManager {
   constructor(equipmentManager = null, audioSystem = null) {
     this.equipmentManager = equipmentManager;
     this.audio = audioSystem;
     this.listeners = [];
     this.trackedQuestId = null;
+    // Seguimiento desactivado por el jugador (Libro de misiones): sin misión seguida, sin flecha ni marcador.
+    this.trackingOff = false;
 
     // Master Quests Database (10 Main Linear Quests + 10 Side Quests)
     this.quests = {
@@ -16,28 +27,28 @@ export class QuestManager {
       // ==========================================
       quest_slime_purification: {
         id: 'quest_slime_purification',
-        title: 'El aprendiz del Dojo',
+        title: i18n.t('quests.dojoApprentice.title'),
         category: 'Principal',
         order: 1,
         giver: {
-          name: 'Maestro Paladill',
-          title: 'Mentor del Dojo',
+          name: i18n.t('quests.npc.paladill'),
+          title: i18n.t('quests.dojoApprentice.giverTitle'),
           avatar: './assets/portraits/paladill.png',
           model: 'paladill'
         },
         zoneCoords: [2, 2],
-        lore: 'Las quimeras han llegado hasta el Dojo. El Maestro Paladill entrena a su nuevo aprendiz: combate, equipo, la Forja, el vínculo con su Axie y las runas.',
-        npcQuote: 'Tú y tu Axie sois mi primera línea. ¡Ahora te toca a ti!',
+        lore: i18n.t('quests.dojoApprentice.lore'),
+        npcQuote: i18n.t('quests.dojoApprentice.quote'),
         objective: {
-          summary: 'Completa el entrenamiento del Maestro Paladill en el Dojo.',
+          summary: i18n.t('quests.dojoApprentice.summary'),
           steps: [
-            { id: 'defend_dojo', desc: 'Defiende el Dojo de las quimeras', done: false },
-            { id: 'equip_sword', desc: 'Equipa la Espada de madera [I]', done: false },
-            { id: 'duel_paladill', desc: 'Entrena con el Maestro Paladill', done: false },
-            { id: 'evolve_sword', desc: 'Mejora tu espada en la Forja', done: false },
-            { id: 'bond_axie', desc: 'Fortalece el vínculo con tu Axie', done: false },
-            { id: 'equip_runes', desc: 'Equipa una runa y un charm [U]', done: false },
-            { id: 'graduate', desc: 'Habla con Paladill para graduarte', done: false }
+            { id: 'defend_dojo', desc: i18n.t('quests.dojoApprentice.step.defendDojo'), done: false },
+            { id: 'equip_sword', desc: i18n.t('quests.dojoApprentice.step.equipSword'), done: false },
+            { id: 'duel_paladill', desc: i18n.t('quests.dojoApprentice.step.duelPaladill'), done: false },
+            { id: 'evolve_sword', desc: i18n.t('quests.dojoApprentice.step.evolveSword'), done: false },
+            { id: 'bond_axie', desc: i18n.t('quests.dojoApprentice.step.bondAxie'), done: false },
+            { id: 'equip_runes', desc: i18n.t('quests.dojoApprentice.step.equipRunes'), done: false },
+            { id: 'graduate', desc: i18n.t('quests.dojoApprentice.step.graduate'), done: false }
           ]
         },
         rewards: {
@@ -51,24 +62,24 @@ export class QuestManager {
 
       quest_prove_ferocity: {
         id: 'quest_prove_ferocity',
-        title: 'Prove Your Ferocity',
+        title: i18n.t('quests.proveFerocity.title'),
         category: 'Principal',
         order: 2,
         giver: {
           name: 'Bing',
-          title: 'Cheerful Savannah Pup',
+          title: i18n.t('quests.proveFerocity.giverTitle'),
           avatar: './assets/portraits/bing.png',
           model: 'bing'
         },
         zoneCoords: [3, 2],
-        lore: 'Leaving the Dojo through the east gate towards the Eastern Savannah [3, 2], a cheerful Beast pup named Bing is cornered by fierce Chimeras that want his precious ice-cream cones. If you prove your courage and fight alongside him, his toy ball, his healing treats and his rallying barks will join your squad.',
-        npcQuote: 'Woof! Careful, adventurer! Those beasts have razor-sharp claws and they want my ice cream! Fight with me and I\'ll keep everyone\'s spirits, and health, high!',
+        lore: i18n.t('quests.proveFerocity.lore'),
+        npcQuote: i18n.t('quests.proveFerocity.quote'),
         objective: {
-          summary: 'Travel to the eastern macro-zone [3, 2], help Bing repel the savannah monsters, and recruit him into your tactical squad.',
+          summary: i18n.t('quests.proveFerocity.summary'),
           steps: [
-            { id: 'find_bing', desc: 'Locate Bing in the Eastern Savannah [3, 2]', done: false },
-            { id: 'defend_bing', desc: 'Fight and purify the Chimeras surrounding him', done: false },
-            { id: 'recruit_bing', desc: 'Talk to Bing and add his cheer to your squad [E]', done: false }
+            { id: 'find_bing', desc: i18n.t('quests.proveFerocity.step.findBing'), done: false },
+            { id: 'defend_bing', desc: i18n.t('quests.proveFerocity.step.defendBing'), done: false },
+            { id: 'recruit_bing', desc: i18n.t('quests.proveFerocity.step.recruitBing'), done: false }
           ]
         },
         rewards: {
@@ -76,7 +87,7 @@ export class QuestManager {
           exp: 150,
           recruits: ['bing'],
           items: [
-            { id: 'composite_bow', name: 'Arco compuesto', slot: 'weapon', rarity: 'common', icon: './assets/equippable/composite_bow.webp', desc: 'Madera y cola de quimera: ligero y preciso.', stats: { damage: 7, initiative: 3 } }
+            { id: 'composite_bow', name: i18n.t('items.composite_bow.name'), slot: 'weapon', rarity: 'common', icon: './assets/equippable/composite_bow.webp', desc: i18n.t('items.composite_bow.description'), stats: { damage: 7, initiative: 3 } }
           ]
         },
         status: 'locked',
@@ -85,31 +96,31 @@ export class QuestManager {
 
       quest_hostile_sands: {
         id: 'quest_hostile_sands',
-        title: 'Hostile Sands',
+        title: i18n.t('quests.hostileSands.title'),
         category: 'Principal',
         order: 3,
         giver: {
-          name: 'Desert Sentinel',
-          title: 'Savannah Dunes Watcher',
+          name: i18n.t('quests.npc.desertSentinel'),
+          title: i18n.t('quests.hostileSands.giverTitle'),
           avatar: './assets/portraits/kibo.png',
           model: 'kibo',
           zoneCoords: [3, 2]
         },
         zoneCoords: [3, 2],
-        lore: 'The Savannah dunes blaze under a scorching sun. Bing warns that desert chimeras are faster and more aggressive. Cross the eastern border into [3, 2] and make contact with the Sentinel.',
-        npcQuote: 'Welcome to the scorching sands of Lunacia! Sluggishness is punished with death here. Chimeras lurk in every dune.',
+        lore: i18n.t('quests.hostileSands.lore'),
+        npcQuote: i18n.t('quests.hostileSands.quote'),
         objective: {
-          summary: 'Advance into the Eastern Savannah at [3, 2], speak with the Sentinel, and secure the border outpost.',
+          summary: i18n.t('quests.hostileSands.summary'),
           steps: [
-            { id: 'cross_to_savannah', desc: 'Cross the portal into the Savannah at [3, 2]', done: false, zoneCoords: [3, 2] },
-            { id: 'talk_sentinel', desc: 'Report to the Desert Sentinel [E]', done: false, zoneCoords: [3, 2] }
+            { id: 'cross_to_savannah', desc: i18n.t('quests.hostileSands.step.crossToSavannah'), done: false, zoneCoords: [3, 2] },
+            { id: 'talk_sentinel', desc: i18n.t('quests.hostileSands.step.talkSentinel'), done: false, zoneCoords: [3, 2] }
           ]
         },
         rewards: {
           gold: 250,
           exp: 200,
           items: [
-            { id: 'beast_helmet', name: 'Yelmo bestial', slot: 'hat', rarity: 'common', icon: './assets/equippable/beast_helmet.webp', desc: 'Casco de cuero y hueso. El primer sombrero de todo aventurero.', stats: { hp: 15 } }
+            { id: 'beast_helmet', name: i18n.t('items.beast_helmet.name'), slot: 'hat', rarity: 'common', icon: './assets/equippable/beast_helmet.webp', desc: i18n.t('items.beast_helmet.description'), stats: { hp: 15 } }
           ]
         },
         status: 'locked',
@@ -118,32 +129,32 @@ export class QuestManager {
 
       quest_hunt_beaked_chimera: {
         id: 'quest_hunt_beaked_chimera',
-        title: 'Hunt of the Beaked Chimera',
+        title: i18n.t('quests.huntBeakedChimera.title'),
         category: 'Principal',
         order: 4,
         giver: {
-          name: 'Desert Sentinel',
-          title: 'Dune Watcher',
+          name: i18n.t('quests.npc.desertSentinel'),
+          title: i18n.t('quests.huntBeakedChimera.giverTitle'),
           avatar: './assets/portraits/kibo.png',
           model: 'kibo',
           zoneCoords: [3, 2]
         },
         zoneCoords: [3, 2],
-        lore: 'A flock of Beaked Chimeras led by an alpha male has cut off oasis supplies. To advance to the frozen north, we must first thin the beaked pack ruling the Savannah Island [3, 2].',
-        npcQuote: 'If we want to advance to the frozen north, we must first decimate the beaked pack dominating the Savannah Island in [3, 2].',
+        lore: i18n.t('quests.huntBeakedChimera.lore'),
+        npcQuote: i18n.t('quests.huntBeakedChimera.quote'),
         objective: {
-          summary: 'Hunt the Beaked Chimera pack on Savannah Island [3, 2], and defeat their leader in tactical combat.',
+          summary: i18n.t('quests.huntBeakedChimera.summary'),
           steps: [
-            { id: 'reach_wastes', desc: 'Explore the Savannah canyon plateau [3, 2]', done: false, zoneCoords: [3, 2] },
-            { id: 'defeat_beaked_alpha', desc: 'Purify the Beaked Chimera pack', done: false, zoneCoords: [3, 2] },
-            { id: 'report_hunt', desc: 'Inform the Sentinel of the savannah\'s pacification [3, 2] [E]', done: false, zoneCoords: [3, 2] }
+            { id: 'reach_wastes', desc: i18n.t('quests.huntBeakedChimera.step.reachWastes'), done: false, zoneCoords: [3, 2] },
+            { id: 'defeat_beaked_alpha', desc: i18n.t('quests.huntBeakedChimera.step.defeatBeakedAlpha'), done: false, zoneCoords: [3, 2] },
+            { id: 'report_hunt', desc: i18n.t('quests.huntBeakedChimera.step.reportHunt'), done: false, zoneCoords: [3, 2] }
           ]
         },
         rewards: {
           gold: 300,
           exp: 250,
           items: [
-            { id: 'wooden_buckler', name: 'Rodela de roble', slot: 'shield', rarity: 'common', icon: './assets/equippable/wooden_buckler.webp', desc: 'Escudo pequeño de roble con remaches de cobre.', stats: { hp: 18, shield: 15 } }
+            { id: 'wooden_buckler', name: i18n.t('items.wooden_buckler.name'), slot: 'shield', rarity: 'common', icon: './assets/equippable/wooden_buckler.webp', desc: i18n.t('items.wooden_buckler.description'), stats: { hp: 18, shield: 15 } }
           ]
         },
         status: 'locked',
@@ -152,24 +163,24 @@ export class QuestManager {
 
       quest_frozen_seed: {
         id: 'quest_frozen_seed',
-        title: 'The Frozen Seed',
+        title: i18n.t('quests.frozenSeed.title'),
         category: 'Principal',
         order: 5,
         giver: {
           name: 'Pomodoro',
-          title: 'Leaf-Shell Guardian of Atia',
+          title: i18n.t('quests.frozenSeed.giverTitle'),
           avatar: './assets/portraits/pomodoro.png',
           model: 'pomodoro'
         },
         zoneCoords: [2, 1],
-        lore: 'The northern arctic mountains endure a relentless blizzard. In the Glacial Peaks [2, 1], noble Pomodoro, a Bug cook who shelters under autumn leaves, fights alone with his trusty frying pan to protect a sacred sprout of the Atia Tree from Glacial Chimeras.',
-        npcQuote: 'By the leaves of Atia! My sprout won\'t endure much more cold if those beasts keep attacking! Help me drive them out!',
+        lore: i18n.t('quests.frozenSeed.lore'),
+        npcQuote: i18n.t('quests.frozenSeed.quote'),
         objective: {
-          summary: 'Ascend to the Glacial Peaks at [2, 1], defeat the frozen creatures, and recruit Pomodoro as your squad\'s shield protector.',
+          summary: i18n.t('quests.frozenSeed.summary'),
           steps: [
-            { id: 'reach_arctic', desc: 'Locate and speak with Pomodoro in the Glacial Peaks [2, 1]', done: false, zoneCoords: [2, 1] },
-            { id: 'defend_pomodoro', desc: 'Defeat the Ice Chimeras in tactical combat', done: false, zoneCoords: [2, 1] },
-            { id: 'recruit_pomodoro', desc: 'Speak with Pomodoro and add him to your team [E]', done: false, zoneCoords: [2, 1] }
+            { id: 'reach_arctic', desc: i18n.t('quests.frozenSeed.step.reachArctic'), done: false, zoneCoords: [2, 1] },
+            { id: 'defend_pomodoro', desc: i18n.t('quests.frozenSeed.step.defendPomodoro'), done: false, zoneCoords: [2, 1] },
+            { id: 'recruit_pomodoro', desc: i18n.t('quests.frozenSeed.step.recruitPomodoro'), done: false, zoneCoords: [2, 1] }
           ]
         },
         rewards: {
@@ -177,8 +188,8 @@ export class QuestManager {
           exp: 300,
           recruits: ['pomodoro'],
           items: [
-            { id: 'mat_wool', name: 'Lana', qty: 3, kind: 'material', rarity: 'rare', desc: 'Abriga y acolcha. Va en armaduras, sombreros y empuñaduras.' },
-            { id: 'mat_wood', name: 'Madera', qty: 3, kind: 'material', rarity: 'rare', desc: 'Tronco recio y fácil de trabajar. Lo pide cualquier evolución a Raro.' }
+            { id: 'mat_wool', name: i18n.t('items.mat_wool.name'), qty: 3, kind: 'material', rarity: 'rare', desc: i18n.t('items.mat_wool.description') },
+            { id: 'mat_wood', name: i18n.t('items.mat_wood.name'), qty: 3, kind: 'material', rarity: 'rare', desc: i18n.t('items.mat_wood.description') }
           ]
         },
         status: 'locked',
@@ -187,31 +198,31 @@ export class QuestManager {
 
       quest_blizzard_core: {
         id: 'quest_blizzard_core',
-        title: 'Core of the Blizzard',
+        title: i18n.t('quests.blizzardCore.title'),
         category: 'Principal',
         order: 6,
         giver: {
           name: 'Pomodoro',
-          title: 'Leaf-Shell Ally',
+          title: i18n.t('quests.blizzardCore.giverTitle'),
           avatar: './assets/portraits/pomodoro.png',
           model: 'pomodoro'
         },
         zoneCoords: [1, 1],
-        lore: 'The blizzard ravaging the north is unnatural: an Armored Polar Golem in the Frost Valley [1, 1] fuels an ice vortex blocking passage to the arcane sanctuaries in the west.',
-        npcQuote: 'I feel the ice vibrations through my leaves. If we destroy the Golem core in the Frost Valley [1, 1], the storm will cease and we can cross into the Astral Nebula [1, 2].',
+        lore: i18n.t('quests.blizzardCore.lore'),
+        npcQuote: i18n.t('quests.blizzardCore.quote'),
         objective: {
-          summary: 'Advance into the Valley of Eternal Frost at [1, 1], defeat the Armored Polar Golem, and dispel the blizzard barrier.',
+          summary: i18n.t('quests.blizzardCore.summary'),
           steps: [
-            { id: 'reach_peaks', desc: 'Advance to the Valley of Eternal Frost [1, 1]', done: false, zoneCoords: [1, 1] },
-            { id: 'defeat_golem', desc: 'Defeat the Armored Polar Golem in tactical combat', done: false, zoneCoords: [1, 1] }
+            { id: 'reach_peaks', desc: i18n.t('quests.blizzardCore.step.reachPeaks'), done: false, zoneCoords: [1, 1] },
+            { id: 'defeat_golem', desc: i18n.t('quests.blizzardCore.step.defeatGolem'), done: false, zoneCoords: [1, 1] }
           ]
         },
         rewards: {
           gold: 400,
           exp: 350,
           items: [
-            { id: 'mat_wool', name: 'Lana', qty: 4, kind: 'material', rarity: 'rare', desc: 'Abriga y acolcha. Va en armaduras, sombreros y empuñaduras.' },
-            { id: 'mat_frost_crystal', name: 'Cristal de escarcha', qty: 1, kind: 'material', rarity: 'mystic', desc: 'Guarda el frío dentro. Lo pide la evolución a Místico.' }
+            { id: 'mat_wool', name: i18n.t('items.mat_wool.name'), qty: 4, kind: 'material', rarity: 'rare', desc: i18n.t('items.mat_wool.description') },
+            { id: 'mat_frost_crystal', name: i18n.t('items.mat_frost_crystal.name'), qty: 1, kind: 'material', rarity: 'mystic', desc: i18n.t('items.mat_frost_crystal.description') }
           ]
         },
         status: 'locked',
@@ -220,32 +231,32 @@ export class QuestManager {
 
       quest_astral_void_echoes: {
         id: 'quest_astral_void_echoes',
-        title: 'Echoes of the Astral Void',
+        title: i18n.t('quests.astralVoidEchoes.title'),
         category: 'Principal',
         order: 7,
         giver: {
-          name: 'Astral Sage',
-          title: 'Guardian of Ley Lines',
+          name: i18n.t('quests.npc.astralSage'),
+          title: i18n.t('quests.astralVoidEchoes.giverTitle'),
           avatar: './assets/portraits/sapidae-f-c.png',
           model: 'sapidae-f-c',
           zoneCoords: [1, 2]
         },
         zoneCoords: [1, 2],
-        lore: 'As the blizzard ceases, gates to the Mystic biome open at [1, 2]. The Astral Sage indicates cosmic energies are desynchronized and urges you to consult the Astral Oracle.',
-        npcQuote: 'The fabric of reality is fraying in the Astral Nebula [1, 2]. Seek the Cosmic Oracle before corruption consumes Lunacia\'s ether.',
+        lore: i18n.t('quests.astralVoidEchoes.lore'),
+        npcQuote: i18n.t('quests.astralVoidEchoes.quote'),
         objective: {
-          summary: 'Cross into the Astral Nebula at [1, 2] and speak with the Astral Oracle of Lunacia at [1, 3].',
+          summary: i18n.t('quests.astralVoidEchoes.summary'),
           steps: [
-            { id: 'enter_mystic', desc: 'Enter the Astral Nebula [1, 2]', done: false, zoneCoords: [1, 2] },
-            { id: 'talk_oracle', desc: 'Meet with the Astral Oracle in the Sanctuary [1, 3] [E]', done: false, zoneCoords: [1, 3] }
+            { id: 'enter_mystic', desc: i18n.t('quests.astralVoidEchoes.step.enterMystic'), done: false, zoneCoords: [1, 2] },
+            { id: 'talk_oracle', desc: i18n.t('quests.astralVoidEchoes.step.talkOracle'), done: false, zoneCoords: [1, 3] }
           ]
         },
         rewards: {
           gold: 450,
           exp: 400,
           items: [
-            { id: 'mat_druid_flower', name: 'Flor de druida', qty: 3, kind: 'material', rarity: 'epic', desc: 'Flor encantada que nunca se marchita.' },
-            { id: 'mat_moon_flower', name: 'Flor lunar', qty: 2, kind: 'material', rarity: 'epic', desc: 'Solo abre de noche. Sus pétalos guardan un poco de luz de luna.' }
+            { id: 'mat_druid_flower', name: i18n.t('items.mat_druid_flower.name'), qty: 3, kind: 'material', rarity: 'epic', desc: i18n.t('items.mat_druid_flower.description') },
+            { id: 'mat_moon_flower', name: i18n.t('items.mat_moon_flower.name'), qty: 2, kind: 'material', rarity: 'epic', desc: i18n.t('items.mat_moon_flower.description') }
           ]
         },
         status: 'locked',
@@ -254,33 +265,33 @@ export class QuestManager {
 
       quest_forbidden_resonance: {
         id: 'quest_forbidden_resonance',
-        title: 'The Forbidden Resonance',
+        title: i18n.t('quests.forbiddenResonance.title'),
         category: 'Principal',
         order: 8,
         giver: {
-          name: 'Astral Oracle',
-          title: 'Voice of the Constellations',
+          name: i18n.t('quests.npc.astralOracle'),
+          title: i18n.t('quests.forbiddenResonance.giverTitle'),
           avatar: './assets/portraits/sapidae-f-d.png',
           model: 'sapidae-f-d',
           zoneCoords: [1, 3]
         },
         zoneCoords: [1, 3],
-        lore: 'In the Astral Void Sanctuary [1, 3], an Arcane Sapidae Chimera has awakened, releasing dark pulses that poison subterranean continental roots.',
-        npcQuote: 'The void resonance intensifies! If that celestial beast completes its ritual, Lunacia will collapse. Use the synergy of your three heroes to purify it.',
+        lore: i18n.t('quests.forbiddenResonance.lore'),
+        npcQuote: i18n.t('quests.forbiddenResonance.quote'),
         objective: {
-          summary: 'Descend to [1, 3] in the Mystic realm, face the Arcane Sapidae Chimera, and neutralize its void pulse.',
+          summary: i18n.t('quests.forbiddenResonance.summary'),
           steps: [
-            { id: 'reach_sanctuary', desc: 'Reach the Void Sanctuary [1, 3]', done: false, zoneCoords: [1, 3] },
-            { id: 'defeat_sapidae', desc: 'Defeat the Arcane Sapidae Chimera in combat', done: false, zoneCoords: [1, 3] },
-            { id: 'purify_resonance', desc: 'Inform the Oracle of the distortion\'s end [E]', done: false, zoneCoords: [1, 3] }
+            { id: 'reach_sanctuary', desc: i18n.t('quests.forbiddenResonance.step.reachSanctuary'), done: false, zoneCoords: [1, 3] },
+            { id: 'defeat_sapidae', desc: i18n.t('quests.forbiddenResonance.step.defeatSapidae'), done: false, zoneCoords: [1, 3] },
+            { id: 'purify_resonance', desc: i18n.t('quests.forbiddenResonance.step.purifyResonance'), done: false, zoneCoords: [1, 3] }
           ]
         },
         rewards: {
           gold: 500,
           exp: 450,
           items: [
-            { id: 'mat_druid_staff', name: 'Bastón de druida', qty: 3, kind: 'material', rarity: 'epic', desc: 'Bastón tallado por las dríadas; conduce la magia del bosque.' },
-            { id: 'mat_astral_dust', name: 'Polvo astral', qty: 1, kind: 'material', rarity: 'mystic', desc: 'Restos de estrellas caídas. Despierta la magia del equipo.' }
+            { id: 'mat_druid_staff', name: i18n.t('items.mat_druid_staff.name'), qty: 3, kind: 'material', rarity: 'epic', desc: i18n.t('items.mat_druid_staff.description') },
+            { id: 'mat_astral_dust', name: i18n.t('items.mat_astral_dust.name'), qty: 1, kind: 'material', rarity: 'mystic', desc: i18n.t('items.mat_astral_dust.description') }
           ]
         },
         status: 'locked',
@@ -289,31 +300,31 @@ export class QuestManager {
 
       quest_sulfur_threshold: {
         id: 'quest_sulfur_threshold',
-        title: 'The Genesis Threshold',
+        title: i18n.t('quests.genesisThreshold.title'),
         category: 'Principal',
         order: 9,
         giver: {
           name: 'Kotaro',
-          title: 'Threshold Guardian',
+          title: i18n.t('quests.genesisThreshold.giverTitle'),
           avatar: './assets/portraits/kotaro.png',
           model: 'kotaro',
           zoneCoords: [2, 3]
         },
         zoneCoords: [2, 3],
-        lore: 'At the Sanctuary Gate of Genesis [2, 3], Kotaro guards the seal of the Royal Gardens, the forbidden sanctuary reserved for the elite of trainers.',
-        npcQuote: 'The time for the final pilgrimage has arrived. Cross the Sanctuary Gate of Genesis in [2, 3] and speak with Kotaro after overcoming the Genesis Wardens.',
+        lore: i18n.t('quests.genesisThreshold.lore'),
+        npcQuote: i18n.t('quests.genesisThreshold.quote'),
         objective: {
-          summary: 'March to the Royal Gardens of Genesis at [2, 3], defeat the ancient sanctuary wardens, and earn access to the Sanctum of Origin.',
+          summary: i18n.t('quests.genesisThreshold.summary'),
           steps: [
-            { id: 'reach_threshold', desc: 'Advance to the Sanctuary Gate of Genesis [2, 3]', done: false, zoneCoords: [2, 3] },
-            { id: 'defeat_sulfur_guards', desc: 'Defeat the Genesis Wardens in combat', done: false, zoneCoords: [2, 3] }
+            { id: 'reach_threshold', desc: i18n.t('quests.genesisThreshold.step.reachThreshold'), done: false, zoneCoords: [2, 3] },
+            { id: 'defeat_sulfur_guards', desc: i18n.t('quests.genesisThreshold.step.defeatSulfurGuards'), done: false, zoneCoords: [2, 3] }
           ]
         },
         rewards: {
           gold: 600,
           exp: 500,
           items: [
-            { id: 'crimson_crypt_key', name: 'Crimson Crypt Key', slot: 'quest', rarity: 'mystic', icon: './assets/materials/misions/crimson_crypt_key.webp', desc: 'Key forged in elemental magma. Unlocks the arcane seal of the final Crypt Catacombs.', stats: {} }
+            { id: 'crimson_crypt_key', name: i18n.t('items.crimson_crypt_key.name'), slot: 'quest', rarity: 'mystic', icon: './assets/materials/misions/crimson_crypt_key.webp', desc: i18n.t('items.crimson_crypt_key.description'), stats: {} }
           ]
         },
         status: 'locked',
@@ -322,33 +333,33 @@ export class QuestManager {
 
       quest_primeval_purification: {
         id: 'quest_primeval_purification',
-        title: 'The Primeval Purification',
+        title: i18n.t('quests.primevalPurification.title'),
         category: 'Principal',
         order: 10,
         giver: {
-          name: 'Spirit of Atia',
-          title: 'Soul of the Great Tree',
+          name: i18n.t('quests.npc.spiritOfAtia'),
+          title: i18n.t('quests.primevalPurification.giverTitle'),
           avatar: './assets/portraits/statue_atia.png',
           model: 'statue_atia',
           zoneCoords: [3, 3]
         },
         zoneCoords: [3, 3],
-        lore: 'Deep within the Sanctum of Origin [3, 3] sleeps the Chimera Overlord, the source of all Lunacia\'s corruption. This is the definitive final battle for the world\'s fate.',
-        npcQuote: '{heroName}, Bing, Pomodoro... your hearts beat in unison with the Atia Tree. Enter the Sanctum of Origin and restore peace once and for all.',
+        lore: i18n.t('quests.primevalPurification.lore'),
+        npcQuote: i18n.t('quests.primevalPurification.quote'),
         objective: {
-          summary: 'Enter the Sanctum of Origin [3, 3] with your complete squad, defeat the Overlord in tactical combat, and save Lunacia.',
+          summary: i18n.t('quests.primevalPurification.summary'),
           steps: [
-            { id: 'enter_catacombs', desc: 'Enter the Sanctum of Origin [3, 3]', done: false, zoneCoords: [3, 3] },
-            { id: 'defeat_crypt_lord', desc: 'Defeat the Chimera Overlord in combat', done: false, zoneCoords: [3, 3] },
-            { id: 'restore_lunacia', desc: 'Consecrate victory alongside the Spirit of Atia [E]', done: false, zoneCoords: [3, 3] }
+            { id: 'enter_catacombs', desc: i18n.t('quests.primevalPurification.step.enterCatacombs'), done: false, zoneCoords: [3, 3] },
+            { id: 'defeat_crypt_lord', desc: i18n.t('quests.primevalPurification.step.defeatCryptLord'), done: false, zoneCoords: [3, 3] },
+            { id: 'restore_lunacia', desc: i18n.t('quests.primevalPurification.step.restoreLunacia'), done: false, zoneCoords: [3, 3] }
           ]
         },
         rewards: {
           gold: 1000,
           exp: 1000,
           items: [
-            { id: 'mat_amber_atia', name: 'Ámbar de Atia', qty: 3, kind: 'material', rarity: 'mystic', desc: 'Savia del Gran Árbol endurecida durante siglos. El corazón de toda pieza Mística.' },
-            { id: 'mat_lunar_shard', name: 'Esquirla lunar', qty: 1, kind: 'material', rarity: 'mystic', desc: 'Fragmento de la luna de Lunacia. Necesario para evolucionar a Místico.' }
+            { id: 'mat_amber_atia', name: i18n.t('items.mat_amber_atia.name'), qty: 3, kind: 'material', rarity: 'mystic', desc: i18n.t('items.mat_amber_atia.description') },
+            { id: 'mat_lunar_shard', name: i18n.t('items.mat_lunar_shard.name'), qty: 1, kind: 'material', rarity: 'mystic', desc: i18n.t('items.mat_lunar_shard.description') }
           ]
         },
         status: 'locked',
@@ -360,30 +371,30 @@ export class QuestManager {
       // ==========================================
       quest_world_cartographer: {
         id: 'quest_world_cartographer',
-        title: 'Cartographer of the 9 Regions',
+        title: i18n.t('quests.worldCartographer.title'),
         category: 'Secundaria',
         giver: {
           name: 'Xia',
-          title: 'Imperial Explorer of Lunacia',
+          title: i18n.t('quests.worldCartographer.giverTitle'),
           avatar: './assets/portraits/xia.png',
           model: 'xia'
         },
         zoneCoords: [2, 2],
-        bubbleQuote: 'Hey, traveler! Got a map handy?',
-        lore: 'The continent of Lunacia is structured in a 9 macro-zone grid (3x3 quadrants). Each biome (Forest, Savannah, Arctic, Mystic, and Genesis) holds unique dangers and secrets.',
-        npcQuote: 'A true duelist never travels blind! Learn to read the stars and the World Map [M] to recognize each of the 9 regions.',
+        bubbleQuote: i18n.t('quests.worldCartographer.bubble'),
+        lore: i18n.t('quests.worldCartographer.lore'),
+        npcQuote: i18n.t('quests.worldCartographer.quote'),
         objective: {
-          summary: 'Open the World Map with [M] and cross into a new biome to record the geography of Lunacia.',
+          summary: i18n.t('quests.worldCartographer.summary'),
           steps: [
-            { id: 'open_map', desc: 'Consult the World Map by pressing [M]', done: false },
-            { id: 'visit_biomes', desc: 'Travel to a different biome (Savannah, Arctic, Mystic, or Genesis)', done: false }
+            { id: 'open_map', desc: i18n.t('quests.worldCartographer.step.openMap'), done: false },
+            { id: 'visit_biomes', desc: i18n.t('quests.worldCartographer.step.visitBiomes'), done: false }
           ]
         },
         rewards: {
           gold: 150,
           exp: 80,
           items: [
-            { id: 'traveler_cloak', name: 'Capa de viajero', slot: 'body', rarity: 'common', icon: './assets/equippable/traveler_cloak.webp', desc: 'Capa gruesa y cómoda para los caminos de Lunacia.', stats: { hp: 25 } }
+            { id: 'traveler_cloak', name: i18n.t('items.traveler_cloak.name'), slot: 'body', rarity: 'common', icon: './assets/equippable/traveler_cloak.webp', desc: i18n.t('items.traveler_cloak.description'), stats: { hp: 25 } }
           ]
         },
         status: 'available',
@@ -392,31 +403,31 @@ export class QuestManager {
 
       quest_lost_mail: {
         id: 'quest_lost_mail',
-        title: 'The Lost Mail',
+        title: i18n.t('quests.lostMail.title'),
         category: 'Secundaria',
         giver: {
-          name: 'Lunacian Postman',
-          title: 'Royal Messenger',
+          name: i18n.t('quests.npc.postman'),
+          title: i18n.t('quests.lostMail.giverTitle'),
           avatar: './assets/portraits/sapidae-m-a.png',
           model: 'sapidae-m-a'
         },
         zoneCoords: [2, 2],
-        bubbleQuote: 'Please help me! My letters scattered across the meadow!',
-        lore: 'The loyal postman was ambushed by lesser chimeras while crossing Dojo Valley in [2, 2]. Sealed noble letters scattered everywhere.',
-        npcQuote: 'If I don\'t deliver this mail, I\'ll lose my official cap! Please, purify the prowlers and recover the lost bags.',
+        bubbleQuote: i18n.t('quests.lostMail.bubble'),
+        lore: i18n.t('quests.lostMail.lore'),
+        npcQuote: i18n.t('quests.lostMail.quote'),
         objective: {
-          summary: 'Help the postman in [2, 2] recover the scattered mailbags.',
+          summary: i18n.t('quests.lostMail.summary'),
           steps: [
-            { id: 'talk_postman', desc: 'Speak with the Lunacian Postman in the Dojo [2, 2]', done: false },
-            { id: 'find_mail', desc: 'Defeat the chimeras and secure the mailbag', done: false },
-            { id: 'return_mail', desc: 'Return the letters to the Postman [E]', done: false }
+            { id: 'talk_postman', desc: i18n.t('quests.lostMail.step.talkPostman'), done: false },
+            { id: 'find_mail', desc: i18n.t('quests.lostMail.step.findMail'), done: false },
+            { id: 'return_mail', desc: i18n.t('quests.lostMail.step.returnMail'), done: false }
           ]
         },
         rewards: {
           gold: 120,
           exp: 70,
           items: [
-            { id: 'heavy_boots', name: 'Botas pesadas', slot: 'boots', rarity: 'common', icon: './assets/equippable/heavy_boots.webp', desc: 'Suela gruesa para no resbalar en el barro.', stats: { hp: 12, initiative: 2 } }
+            { id: 'heavy_boots', name: i18n.t('items.heavy_boots.name'), slot: 'boots', rarity: 'common', icon: './assets/equippable/heavy_boots.webp', desc: i18n.t('items.heavy_boots.description'), stats: { hp: 12, initiative: 2 } }
           ]
         },
         status: 'available',
@@ -425,31 +436,31 @@ export class QuestManager {
 
       quest_forest_elixir: {
         id: 'quest_forest_elixir',
-        title: 'Elixir for the Forest',
+        title: i18n.t('quests.forestElixir.title'),
         category: 'Secundaria',
         giver: {
-          name: 'Herbalist Rosalba',
-          title: 'Flower Alchemist',
+          name: i18n.t('quests.npc.herbalistRosalba'),
+          title: i18n.t('quests.forestElixir.giverTitle'),
           avatar: './assets/portraits/sapidae-f-a.png',
           model: 'sapidae-f-a'
         },
         zoneCoords: [2, 2],
-        bubbleQuote: 'Psst! I\'m looking for fresh sprouts from the Sacred Atia Tree...',
-        lore: 'Rosalba brews healing concoctions to treat those wounded by chimera incursions. She needs to harvest Luminous Moss in the Dojo forest [2, 2].',
-        npcQuote: 'The moss growing near the water neutralizes toxins. Bring me a sample and I\'ll brew a revitalizing nectar for you.',
+        bubbleQuote: i18n.t('quests.forestElixir.bubble'),
+        lore: i18n.t('quests.forestElixir.lore'),
+        npcQuote: i18n.t('quests.forestElixir.quote'),
         objective: {
-          summary: 'Gather Luminous Moss in [2, 2] and deliver it to Herbalist Rosalba.',
+          summary: i18n.t('quests.forestElixir.summary'),
           steps: [
-            { id: 'talk_herbalist', desc: 'Talk to Rosalba in the Dojo forest [2, 2]', done: false },
-            { id: 'gather_moss', desc: 'Harvest Luminous Moss near the stream', done: false },
-            { id: 'deliver_moss', desc: 'Deliver the moss to Rosalba [E]', done: false }
+            { id: 'talk_herbalist', desc: i18n.t('quests.forestElixir.step.talkHerbalist'), done: false },
+            { id: 'gather_moss', desc: i18n.t('quests.forestElixir.step.gatherMoss'), done: false },
+            { id: 'deliver_moss', desc: i18n.t('quests.forestElixir.step.deliverMoss'), done: false }
           ]
         },
         rewards: {
           gold: 140,
           exp: 85,
           items: [
-            { id: 'dew_flask', name: 'Healing Dew Flask', slot: 'consumable', rarity: 'rare', icon: './assets/consumable/healing_dew_flask.webp', desc: 'Medicinal flask with moss extract and healing dew crafted by Rosalba. Instantly restores 100 HP to the selected hero.', stats: {} }
+            { id: 'dew_flask', name: i18n.t('items.dew_flask.name'), slot: 'consumable', rarity: 'rare', icon: './assets/consumable/healing_dew_flask.webp', desc: i18n.t('items.dew_flask.description'), stats: {} }
           ]
         },
         status: 'available',
@@ -458,32 +469,32 @@ export class QuestManager {
 
       quest_nomad_steel: {
         id: 'quest_nomad_steel',
-        title: 'Nomad Steel',
+        title: i18n.t('quests.nomadSteel.title'),
         category: 'Secundaria',
         giver: {
-          name: 'Blacksmith Baruk',
-          title: 'Canyon Forger',
+          name: i18n.t('quests.npc.blacksmithBaruk'),
+          title: i18n.t('quests.nomadSteel.giverTitle'),
           avatar: './assets/portraits/sapidae-m-b.png',
           model: 'sapidae-m-b'
         },
         zoneCoords: [3, 2],
-        bubbleQuote: 'By fire and hammer! Looking to forge true savannah steel?',
-        lore: 'The heat of the Savannah Canyon [3, 2] tempers metal like nowhere else on the continent. Baruk seeks to test the strength of his alloys at his canyon forge.',
-        npcQuote: 'Bring me a carapace fragment from an Armored Chimera of the savannah, and I\'ll forge an unbreakable blade for your squad.',
+        bubbleQuote: i18n.t('quests.nomadSteel.bubble'),
+        lore: i18n.t('quests.nomadSteel.lore'),
+        npcQuote: i18n.t('quests.nomadSteel.quote'),
         objective: {
-          summary: 'Gather hardened ore in [3, 2] and collaborate with Baruk at his canyon forge.',
+          summary: i18n.t('quests.nomadSteel.summary'),
           steps: [
-            { id: 'talk_blacksmith', desc: 'Speak with Blacksmith Baruk in [3, 2]', done: false },
-            { id: 'gather_ores', desc: 'Defeat an Armored Chimera and extract ore fragments', done: false },
-            { id: 'deliver_ores', desc: 'Bring the ores to Baruk\'s forge [E]', done: false }
+            { id: 'talk_blacksmith', desc: i18n.t('quests.nomadSteel.step.talkBlacksmith'), done: false },
+            { id: 'gather_ores', desc: i18n.t('quests.nomadSteel.step.gatherOres'), done: false },
+            { id: 'deliver_ores', desc: i18n.t('quests.nomadSteel.step.deliverOres'), done: false }
           ]
         },
         rewards: {
           gold: 200,
           exp: 120,
           items: [
-            { id: 'mat_copper', name: 'Cobre del cañón', qty: 5, kind: 'material', rarity: 'common', desc: 'Metal blando que se trabaja en frío. La base de casi todo el equipo Común.' },
-            { id: 'mat_wolf_tooth', name: 'Diente de lobo', qty: 3, kind: 'material', rarity: 'rare', desc: 'Afilado como una cuchilla: refuerza filos y puntas.' }
+            { id: 'mat_copper', name: i18n.t('items.mat_copper.name'), qty: 5, kind: 'material', rarity: 'common', desc: i18n.t('items.mat_copper.description') },
+            { id: 'mat_wolf_tooth', name: i18n.t('items.mat_wolf_tooth.name'), qty: 3, kind: 'material', rarity: 'rare', desc: i18n.t('items.mat_wolf_tooth.description') }
           ]
         },
         status: 'available',
@@ -492,31 +503,31 @@ export class QuestManager {
 
       quest_keen_eye_trial: {
         id: 'quest_keen_eye_trial',
-        title: 'Trial of the Keen Eye',
+        title: i18n.t('quests.keenEyeTrial.title'),
         category: 'Secundaria',
         giver: {
-          name: 'Hunter Zarek',
-          title: 'Savannah Marksman',
+          name: i18n.t('quests.npc.hunterZarek'),
+          title: i18n.t('quests.keenEyeTrial.giverTitle'),
           avatar: './assets/portraits/sapidae-m-c.png',
           model: 'sapidae-m-c'
         },
         zoneCoords: [3, 2],
-        bubbleQuote: 'Hey, duelist! Think your aim rivals the desert wind?',
-        lore: 'In the Savannah Island [3, 2], dust devils hinder any shot. Zarek challenges travelers to shoot down chimeras at range in tactical combat.',
-        npcQuote: 'If your sight isn\'t faster than the blazing sun, chimeras will surround you before you draw your bowstring. Show me your accuracy!',
+        bubbleQuote: i18n.t('quests.keenEyeTrial.bubble'),
+        lore: i18n.t('quests.keenEyeTrial.lore'),
+        npcQuote: i18n.t('quests.keenEyeTrial.quote'),
         objective: {
-          summary: 'Pass Zarek\'s tactical shooting trial in [3, 2] by eliminating enemies at range.',
+          summary: i18n.t('quests.keenEyeTrial.summary'),
           steps: [
-            { id: 'talk_hunter', desc: 'Accept Zarek\'s trial at the oasis [3, 2]', done: false },
-            { id: 'win_hunt_battle', desc: 'Triumph in tactical combat across the desert', done: false },
-            { id: 'report_hunt', desc: 'Prove your victory to Zarek [E]', done: false }
+            { id: 'talk_hunter', desc: i18n.t('quests.keenEyeTrial.step.talkHunter'), done: false },
+            { id: 'win_hunt_battle', desc: i18n.t('quests.keenEyeTrial.step.winHuntBattle'), done: false },
+            { id: 'report_hunt', desc: i18n.t('quests.keenEyeTrial.step.reportHunt'), done: false }
           ]
         },
         rewards: {
           gold: 220,
           exp: 140,
           items: [
-            { id: 'mushroom_staff', name: 'Bastón de hongo', slot: 'weapon', rarity: 'common', icon: './assets/equippable/mushroom_staff.webp', desc: 'Un bastón coronado por un hongo que brilla un poco.', stats: { hp: 20, damage: 6 } }
+            { id: 'mushroom_staff', name: i18n.t('items.mushroom_staff.name'), slot: 'weapon', rarity: 'common', icon: './assets/equippable/mushroom_staff.webp', desc: i18n.t('items.mushroom_staff.description'), stats: { hp: 20, damage: 6 } }
           ]
         },
         status: 'available',
@@ -525,32 +536,32 @@ export class QuestManager {
 
       quest_blizzard_stew: {
         id: 'quest_blizzard_stew',
-        title: 'Blizzard Stew',
+        title: i18n.t('quests.blizzardStew.title'),
         category: 'Secundaria',
         giver: {
-          name: 'Boreal Chef',
-          title: 'Snow Cook',
+          name: i18n.t('quests.npc.chefBoreal'),
+          title: i18n.t('quests.blizzardStew.giverTitle'),
           avatar: './assets/portraits/sapidae-m-d.png',
           model: 'sapidae-m-d'
         },
         zoneCoords: [2, 1],
-        bubbleQuote: 'Brrr! Even my cauldron freezes over on these ice floes!',
-        lore: 'In the Glacial Peaks of Lunacia [2, 1], the Boreal Chef attempts to cook a legendary stew capable of keeping explorers warm.',
-        npcQuote: 'I only need two things: pure meltwater ice and blue frost mushrooms. Bring them and I\'ll share my culinary potion with you!',
+        bubbleQuote: i18n.t('quests.blizzardStew.bubble'),
+        lore: i18n.t('quests.blizzardStew.lore'),
+        npcQuote: i18n.t('quests.blizzardStew.quote'),
         objective: {
-          summary: 'Gather polar ingredients in [2, 1] and assist the Boreal Chef with his cauldron.',
+          summary: i18n.t('quests.blizzardStew.summary'),
           steps: [
-            { id: 'talk_chef', desc: 'Speak with the Boreal Chef in [2, 1]', done: false },
-            { id: 'gather_frost_mushrooms', desc: 'Gather polar mushrooms in the snow', done: false },
-            { id: 'deliver_soup', desc: 'Taste the Chef\'s steaming stew [E]', done: false }
+            { id: 'talk_chef', desc: i18n.t('quests.blizzardStew.step.talkChef'), done: false },
+            { id: 'gather_frost_mushrooms', desc: i18n.t('quests.blizzardStew.step.gatherFrostMushrooms'), done: false },
+            { id: 'deliver_soup', desc: i18n.t('quests.blizzardStew.step.deliverSoup'), done: false }
           ]
         },
         rewards: {
           gold: 260,
           exp: 180,
           items: [
-            { id: 'mat_wood', name: 'Madera', qty: 4, kind: 'material', rarity: 'rare', desc: 'Tronco recio y fácil de trabajar. Lo pide cualquier evolución a Raro.' },
-            { id: 'mat_wool', name: 'Lana', qty: 2, kind: 'material', rarity: 'rare', desc: 'Abriga y acolcha. Va en armaduras, sombreros y empuñaduras.' }
+            { id: 'mat_wood', name: i18n.t('items.mat_wood.name'), qty: 4, kind: 'material', rarity: 'rare', desc: i18n.t('items.mat_wood.description') },
+            { id: 'mat_wool', name: i18n.t('items.mat_wool.name'), qty: 2, kind: 'material', rarity: 'rare', desc: i18n.t('items.mat_wool.description') }
           ]
         },
         status: 'available',
@@ -559,32 +570,32 @@ export class QuestManager {
 
       quest_dark_frost_totems: {
         id: 'quest_dark_frost_totems',
-        title: 'Dark Frost Totems',
+        title: i18n.t('quests.darkFrostTotems.title'),
         category: 'Secundaria',
         giver: {
-          name: 'Glacial Hermit',
-          title: 'Shaman of Sacred Ice',
+          name: i18n.t('quests.npc.glacialHermit'),
+          title: i18n.t('quests.darkFrostTotems.giverTitle'),
           avatar: './assets/portraits/sapidae-m-e.png',
           model: 'sapidae-m-e'
         },
         zoneCoords: [1, 1],
-        bubbleQuote: 'Dark frost poisons the wind! We must purify the totems!',
-        lore: 'In the Valley of Eternal Frost [1, 1], totems corrupted by abyssal energy are freezing the spiritual heart of arctic beasts.',
-        npcQuote: 'Ice must be pure, not pitch black like tar. Shatter the abyss\'s hold on this quadrant\'s frozen monoliths.',
+        bubbleQuote: i18n.t('quests.darkFrostTotems.bubble'),
+        lore: i18n.t('quests.darkFrostTotems.lore'),
+        npcQuote: i18n.t('quests.darkFrostTotems.quote'),
         objective: {
-          summary: 'Destroy the corrupted totems in [1, 1] and restore polar equilibrium.',
+          summary: i18n.t('quests.darkFrostTotems.summary'),
           steps: [
-            { id: 'talk_hermit', desc: 'Speak with the Glacial Hermit in [1, 1]', done: false },
-            { id: 'purify_totems', desc: 'Defeat the dark frost guardians', done: false },
-            { id: 'report_hermit', desc: 'Receive the Hermit\'s blessing [E]', done: false }
+            { id: 'talk_hermit', desc: i18n.t('quests.darkFrostTotems.step.talkHermit'), done: false },
+            { id: 'purify_totems', desc: i18n.t('quests.darkFrostTotems.step.purifyTotems'), done: false },
+            { id: 'report_hermit', desc: i18n.t('quests.darkFrostTotems.step.reportHermit'), done: false }
           ]
         },
         rewards: {
           gold: 280,
           exp: 200,
           items: [
-            { id: 'mat_wool', name: 'Lana', qty: 3, kind: 'material', rarity: 'rare', desc: 'Abriga y acolcha. Va en armaduras, sombreros y empuñaduras.' },
-            { id: 'mat_frost_crystal', name: 'Cristal de escarcha', qty: 1, kind: 'material', rarity: 'mystic', desc: 'Guarda el frío dentro. Lo pide la evolución a Místico.' }
+            { id: 'mat_wool', name: i18n.t('items.mat_wool.name'), qty: 3, kind: 'material', rarity: 'rare', desc: i18n.t('items.mat_wool.description') },
+            { id: 'mat_frost_crystal', name: i18n.t('items.mat_frost_crystal.name'), qty: 1, kind: 'material', rarity: 'mystic', desc: i18n.t('items.mat_frost_crystal.description') }
           ]
         },
         status: 'available',
@@ -593,32 +604,32 @@ export class QuestManager {
 
       quest_fallen_stardust: {
         id: 'quest_fallen_stardust',
-        title: 'Fallen Stardust',
+        title: i18n.t('quests.fallenStardust.title'),
         category: 'Secundaria',
         giver: {
-          name: 'Astral Astrologer',
-          title: 'Sky Reader',
+          name: i18n.t('quests.npc.astralAstrologer'),
+          title: i18n.t('quests.fallenStardust.giverTitle'),
           avatar: './assets/portraits/sapidae-f-b.png',
           model: 'sapidae-f-b'
         },
         zoneCoords: [1, 2],
-        bubbleQuote: 'The constellations resonated when you crossed the rift!',
-        lore: 'In the Astral Nebula [1, 2], meteorites saturated with cosmic light crashed during the last full moon. Their fragments glow with arcane radiance.',
-        npcQuote: 'Those star fragments carry the primordial spark of Lunacia. Seek them among the floating mists and I\'ll unveil their secrets.',
+        bubbleQuote: i18n.t('quests.fallenStardust.bubble'),
+        lore: i18n.t('quests.fallenStardust.lore'),
+        npcQuote: i18n.t('quests.fallenStardust.quote'),
         objective: {
-          summary: 'Gather star fragments in [1, 2] for the Astral Astrologer.',
+          summary: i18n.t('quests.fallenStardust.summary'),
           steps: [
-            { id: 'talk_astrologer', desc: 'Speak with the Astral Astrologer in [1, 2]', done: false },
-            { id: 'gather_stardust', desc: 'Recover luminescent fragments in the nebula', done: false },
-            { id: 'deliver_stardust', desc: 'Deliver the fragments to the Astrologer [E]', done: false }
+            { id: 'talk_astrologer', desc: i18n.t('quests.fallenStardust.step.talkAstrologer'), done: false },
+            { id: 'gather_stardust', desc: i18n.t('quests.fallenStardust.step.gatherStardust'), done: false },
+            { id: 'deliver_stardust', desc: i18n.t('quests.fallenStardust.step.deliverStardust'), done: false }
           ]
         },
         rewards: {
           gold: 320,
           exp: 240,
           items: [
-            { id: 'mat_moon_flower', name: 'Flor lunar', qty: 3, kind: 'material', rarity: 'epic', desc: 'Solo abre de noche. Sus pétalos guardan un poco de luz de luna.' },
-            { id: 'mat_astral_dust', name: 'Polvo astral', qty: 1, kind: 'material', rarity: 'mystic', desc: 'Restos de estrellas caídas. Despierta la magia del equipo.' }
+            { id: 'mat_moon_flower', name: i18n.t('items.mat_moon_flower.name'), qty: 3, kind: 'material', rarity: 'epic', desc: i18n.t('items.mat_moon_flower.description') },
+            { id: 'mat_astral_dust', name: i18n.t('items.mat_astral_dust.name'), qty: 1, kind: 'material', rarity: 'mystic', desc: i18n.t('items.mat_astral_dust.description') }
           ]
         },
         status: 'available',
@@ -627,32 +638,32 @@ export class QuestManager {
 
       quest_shadow_mirror: {
         id: 'quest_shadow_mirror',
-        title: 'Mirror of Shadows',
+        title: i18n.t('quests.shadowMirror.title'),
         category: 'Secundaria',
         giver: {
-          name: 'Spiritual Shaman',
-          title: 'Guardian of the Astral Threshold',
+          name: i18n.t('quests.npc.spiritualShaman'),
+          title: i18n.t('quests.shadowMirror.giverTitle'),
           avatar: './assets/portraits/sapidae-f-e.png',
           model: 'sapidae-f-e'
         },
         zoneCoords: [1, 3],
-        bubbleQuote: 'Careful traveler! In this mist, your own shadow will hunt you...',
-        lore: 'In the Astral Void Sanctuary [1, 3], mystic mist casts spectral projections that deceive and trap those who dare look upon the reflection.',
-        npcQuote: 'Only those with tempered spirits can dispel the illusion of the dark mirror. Face your phantom echo and break free of its hold.',
+        bubbleQuote: i18n.t('quests.shadowMirror.bubble'),
+        lore: i18n.t('quests.shadowMirror.lore'),
+        npcQuote: i18n.t('quests.shadowMirror.quote'),
         objective: {
-          summary: 'Venture into [1, 3] and dispel the spectral illusion corrupting travelers\' minds.',
+          summary: i18n.t('quests.shadowMirror.summary'),
           steps: [
-            { id: 'talk_shaman', desc: 'Speak with the Spiritual Shaman in [1, 3]', done: false },
-            { id: 'defeat_shadow', desc: 'Defeat the illusory shadow in tactical combat', done: false },
-            { id: 'report_shaman', desc: 'Purify the mirror alongside the Shaman [E]', done: false }
+            { id: 'talk_shaman', desc: i18n.t('quests.shadowMirror.step.talkShaman'), done: false },
+            { id: 'defeat_shadow', desc: i18n.t('quests.shadowMirror.step.defeatShadow'), done: false },
+            { id: 'report_shaman', desc: i18n.t('quests.shadowMirror.step.reportShaman'), done: false }
           ]
         },
         rewards: {
           gold: 360,
           exp: 280,
           items: [
-            { id: 'mat_druid_branch', name: 'Rama de druida', qty: 3, kind: 'material', rarity: 'epic', desc: 'Rama viva que todavía brota. Da forma a las piezas Épicas.' },
-            { id: 'mat_druid_staff', name: 'Bastón de druida', qty: 2, kind: 'material', rarity: 'epic', desc: 'Bastón tallado por las dríadas; conduce la magia del bosque.' }
+            { id: 'mat_druid_branch', name: i18n.t('items.mat_druid_branch.name'), qty: 3, kind: 'material', rarity: 'epic', desc: i18n.t('items.mat_druid_branch.description') },
+            { id: 'mat_druid_staff', name: i18n.t('items.mat_druid_staff.name'), qty: 2, kind: 'material', rarity: 'epic', desc: i18n.t('items.mat_druid_staff.description') }
           ]
         },
         status: 'available',
@@ -661,32 +672,32 @@ export class QuestManager {
 
       quest_forgotten_miner_relic: {
         id: 'quest_forgotten_miner_relic',
-        title: 'Tripp\'s Relic',
+        title: i18n.t('quests.trippRelic.title'),
         category: 'Secundaria',
         giver: {
           name: 'Tripp',
-          title: 'Miner Warrior',
+          title: i18n.t('quests.trippRelic.giverTitle'),
           avatar: './assets/portraits/tripp.png',
           model: 'tripp'
         },
         zoneCoords: [2, 3],
-        bubbleQuote: 'A hundred years wandering these ancient gardens searching for my beloved golden pickaxe...!',
-        lore: 'In the Royal Gardens of Genesis [2, 3], Tripp, a veteran miner and warrior, seeks the relic he lost in the pink crystal quarry.',
-        npcQuote: 'That pickaxe forged from Atia gold is my life\'s legacy! The Genesis wardens dragged it into their crystal nest. Recover it, I beg you!',
+        bubbleQuote: i18n.t('quests.trippRelic.bubble'),
+        lore: i18n.t('quests.trippRelic.lore'),
+        npcQuote: i18n.t('quests.trippRelic.quote'),
         objective: {
-          summary: 'Explore the Royal Gardens of Genesis [2, 3], recover the golden pickaxe from the crystal nest, and grant Tripp peace.',
+          summary: i18n.t('quests.trippRelic.summary'),
           steps: [
-            { id: 'talk_miner', desc: 'Speak with Tripp in [2, 3]', done: false },
-            { id: 'find_golden_pickaxe', desc: 'Defeat the crystal warden and recover the pickaxe', done: false },
-            { id: 'return_relic', desc: 'Return the relic to Tripp [E]', done: false }
+            { id: 'talk_miner', desc: i18n.t('quests.trippRelic.step.talkMiner'), done: false },
+            { id: 'find_golden_pickaxe', desc: i18n.t('quests.trippRelic.step.findGoldenPickaxe'), done: false },
+            { id: 'return_relic', desc: i18n.t('quests.trippRelic.step.returnRelic'), done: false }
           ]
         },
         rewards: {
           gold: 500,
           exp: 350,
           items: [
-            { id: 'mat_amber_atia', name: 'Ámbar de Atia', qty: 2, kind: 'material', rarity: 'mystic', desc: 'Savia del Gran Árbol endurecida durante siglos. El corazón de toda pieza Mística.' },
-            { id: 'mat_lunar_shard', name: 'Esquirla lunar', qty: 1, kind: 'material', rarity: 'mystic', desc: 'Fragmento de la luna de Lunacia. Necesario para evolucionar a Místico.' }
+            { id: 'mat_amber_atia', name: i18n.t('items.mat_amber_atia.name'), qty: 2, kind: 'material', rarity: 'mystic', desc: i18n.t('items.mat_amber_atia.description') },
+            { id: 'mat_lunar_shard', name: i18n.t('items.mat_lunar_shard.name'), qty: 1, kind: 'material', rarity: 'mystic', desc: i18n.t('items.mat_lunar_shard.description') }
           ]
         },
         status: 'available',
@@ -721,17 +732,24 @@ export class QuestManager {
     return Object.values(this.quests).filter(q => q.status === 'completed');
   }
 
+  /** {heroName}: the player's Sapidae (same name the dialogs use). */
   getHeroName() {
-    if (this.equipmentManager && this.equipmentManager.heroesBase) {
-      const activeId = (this.equipmentManager.unlockedHeroes && this.equipmentManager.unlockedHeroes[0]) || 'kotaro';
-      return this.equipmentManager.heroesBase[activeId]?.name || 'Hero';
-    }
-    return 'Hero';
+    const ds = this.dialogSystem || (typeof window !== 'undefined' && window.overworldManager && window.overworldManager.dialogSystem);
+    if (ds && ds.activeHero && ds.activeHero.name) return ds.activeHero.name;
+    const p = typeof window !== 'undefined' && window.overworldManager && window.overworldManager.player;
+    return (p && p.name) || i18n.t('quests.heroFallback');
+  }
+
+  /** {axieName}: main Axie of the squad (slot 1). */
+  getAxieName() {
+    const em = this.equipmentManager;
+    const id = em && typeof em.getSquad === 'function' ? em.getSquad()[1] : null;
+    return (id && em.heroesBase && em.heroesBase[id] && em.heroesBase[id].name) || i18n.t('quests.axieFallback');
   }
 
   _formatText(str) {
     if (!str || typeof str !== 'string') return str;
-    return str.replace(/{heroName}/g, this.getHeroName());
+    return str.replace(/{heroName}/g, this.getHeroName()).replace(/{axieName}/g, this.getAxieName());
   }
 
   getQuest(questId) {
@@ -946,6 +964,7 @@ export class QuestManager {
     if (nextQuestId && this.quests[nextQuestId]) {
       this.quests[nextQuestId].status = 'active';
       this.trackedQuestId = nextQuestId;
+      this.trackingOff = false; // un nuevo capítulo vuelve a activar el seguimiento
       console.log(`[QuestManager] Main quest unlocked and tracked: ${this.quests[nextQuestId].title}`);
     }
 
@@ -963,6 +982,7 @@ export class QuestManager {
   }
 
   getTrackedQuest() {
+    if (this.trackingOff) return null;
     if (this.trackedQuestId) {
       const q = this.quests[this.trackedQuestId];
       if (q && (q.status === 'active' || q.status === 'ready_to_turn_in')) {
@@ -999,13 +1019,25 @@ export class QuestManager {
     return null;
   }
 
+  /** Libro de misiones: «Seguir» elige la misión; pulsar «Siguiendo» en la misión seguida desactiva el seguimiento. */
   setTrackedQuest(questId) {
-    if (this.trackedQuestId === questId) {
-      this.trackedQuestId = null; // Toggle off to default auto-track
+    if (!this.trackingOff && this.getTrackedQuest()?.id === questId) {
+      if (!this.canDisableTracking()) return;
+      this.trackingOff = true;
+      this.trackedQuestId = null;
     } else if (this.quests[questId]) {
+      this.trackingOff = false;
       this.trackedQuestId = questId;
     }
     this._notify();
+  }
+
+  isTrackingOff() { return this.trackingOff; }
+
+  /** Durante el tutorial del Dojo el seguimiento no se puede desactivar (guía al jugador). */
+  canDisableTracking() {
+    const tut = this.quests.quest_slime_purification;
+    return !(tut && tut.status !== 'completed');
   }
 
   getNavigationTarget(curGx, curGy, playerPos = { x: 0, z: 0 }, currentMapDef = null) {
@@ -1045,7 +1077,7 @@ export class QuestManager {
         } else if (quest.id === 'quest_slime_purification') {
           if (!pendingStep || pendingStep.id === 'defeat_slime') {
             targetWorldPos = { x: -4.0, z: 2.0 };
-            targetName = 'Slime Chimera';
+            targetName = i18n.t('enemies.arch.slime.name');
           } else {
             const paladillNpc = currentMapDef.npcs ? currentMapDef.npcs.find(n => n.id === 'paladill') : null;
             if (paladillNpc) {
@@ -1053,29 +1085,29 @@ export class QuestManager {
             } else {
               targetWorldPos = { x: -90.3, z: 63.3 };
             }
-            targetName = 'Master Paladill';
+            targetName = i18n.t('quests.npc.paladill');
           }
         } else if (quest.id === 'quest_hunt_beaked_chimera') {
           if (pendingStep && pendingStep.id === 'report_hunt') {
             const sentinelNpc = currentMapDef.npcs ? currentMapDef.npcs.find(n => n.id === 'sentinel') : null;
             targetWorldPos = sentinelNpc ? { x: sentinelNpc.position.x, z: sentinelNpc.position.z } : { x: 62.0, z: -28.5 };
-            targetName = 'Desert Sentinel';
+            targetName = i18n.t('quests.npc.desertSentinel');
           } else {
             targetWorldPos = { x: -40.0, z: -8.0 };
-            targetName = 'Alpha Beaked Chimera';
+            targetName = i18n.t('enemies.alphaBeakedChimera');
           }
         } else if (quest.id === 'quest_nomad_steel') {
           if (pendingStep && pendingStep.id === 'gather_ores') {
             targetWorldPos = { x: 64.0, z: 32.0 };
-            targetName = 'Armored Chimera';
+            targetName = i18n.t('enemies.armoredChimera');
           } else {
             const barukNpc = currentMapDef.npcs ? currentMapDef.npcs.find(n => n.id === 'blacksmith') : null;
             targetWorldPos = barukNpc ? { x: barukNpc.position.x, z: barukNpc.position.z } : { x: 44.5, z: 49.5 };
-            targetName = 'Blacksmith Baruk';
+            targetName = i18n.t('quests.npc.blacksmithBaruk');
           }
         } else if (quest.id === 'quest_blizzard_core') {
           targetWorldPos = mergedBattleAnchor('1_1') || { x: -64.0, z: -72.0 };
-          targetName = 'Armored Polar Golem';
+          targetName = i18n.t('enemies.armoredPolarGolem');
         } else if (quest.id === 'quest_frozen_seed') {
           const pomoNpc = currentMapDef.npcs ? currentMapDef.npcs.find(n => n.id === 'pomodoro_npc' || n.id === 'pomodoro') : null;
           targetWorldPos = pomoNpc ? { x: pomoNpc.position.x, z: pomoNpc.position.z } : { x: 5.8, z: 23.2 };
@@ -1083,51 +1115,71 @@ export class QuestManager {
         } else if (quest.id === 'quest_forbidden_resonance') {
           if (pendingStep && pendingStep.id === 'defeat_sapidae') {
             targetWorldPos = mergedBattleAnchor('1_3') || { x: -80.0, z: 16.0 };
-            targetName = 'Arcane Chimera Pack';
+            targetName = i18n.t('enemies.arcaneChimeraPack');
           } else {
             const oracleNpc = currentMapDef.npcs ? currentMapDef.npcs.find(n => n.id === 'oracle') : null;
             targetWorldPos = oracleNpc ? { x: oracleNpc.position.x, z: oracleNpc.position.z } : { x: 34.0, z: -36.0 };
-            targetName = 'Astral Oracle';
+            targetName = i18n.t('quests.npc.astralOracle');
           }
         } else if (quest.id === 'quest_astral_void_echoes') {
           if (pendingStep && pendingStep.id === 'talk_oracle') {
             const oracleNpc = currentMapDef.npcs ? currentMapDef.npcs.find(n => n.id === 'oracle') : null;
             targetWorldPos = oracleNpc ? { x: oracleNpc.position.x, z: oracleNpc.position.z } : { x: 34.0, z: -36.0 };
-            targetName = 'Astral Oracle';
+            targetName = i18n.t('quests.npc.astralOracle');
           } else {
             const sageNpc = currentMapDef.npcs ? currentMapDef.npcs.find(n => n.id === 'polar_sage') : null;
             targetWorldPos = sageNpc ? { x: sageNpc.position.x, z: sageNpc.position.z } : { x: -8.3, z: 17.3 };
-            targetName = 'Astral Sage';
+            targetName = i18n.t('quests.npc.astralSage');
           }
         } else if (quest.id === 'quest_primeval_purification') {
           if (pendingStep && (pendingStep.id === 'enter_catacombs' || pendingStep.id === 'defeat_crypt_lord')) {
             targetWorldPos = mergedBattleAnchor('3_3') || { x: 0.0, z: 104.0 };
-            targetName = 'Crypt Overlord';
+            targetName = i18n.t('enemies.cryptOverlord');
           } else {
             const atiaNpc = currentMapDef.npcs ? currentMapDef.npcs.find(n => n.id === 'atia_spirit') : null;
-            targetWorldPos = atiaNpc ? { x: atiaNpc.position.x, z: atiaNpc.position.z } : { x: 0.0, z: -13.0 };
-            targetName = 'Spirit of Atia';
+            targetWorldPos = atiaNpc ? { x: atiaNpc.position.x, z: atiaNpc.position.z } : { x: 0.0, z: 92.0 }; // centro del Santuario del Origen
+            targetName = i18n.t('quests.npc.spiritOfAtia');
+          }
+        } else if (quest.id === 'quest_sulfur_threshold') {
+          // Hito 74: primero los Guardianes de Genesis (avenida del este); después, de vuelta con Kotaro
+          if (pendingStep && (pendingStep.id === 'defeat_sulfur_guards' || pendingStep.id === 'reach_threshold')) {
+            targetWorldPos = questMobPos('mob_genesis_guardians', '2_3') || { x: 62.0, z: 26.0 };
+            targetName = i18n.t('enemies.genesisGuardians');
+          } else {
+            const kotaroNpc = currentMapDef.npcs ? currentMapDef.npcs.find(n => n.id === 'sulfur_guard') : null;
+            targetWorldPos = kotaroNpc ? { x: kotaroNpc.position.x, z: kotaroNpc.position.z } : { x: 15.0, z: 4.2 };
+            targetName = 'Kotaro';
+          }
+        } else if (quest.id === 'quest_forgotten_miner_relic') {
+          // Hito 74: hablar con Tripp → Guardián de Cristal en la cantera → devolver el pico a Tripp
+          if (pendingStep && pendingStep.id === 'find_golden_pickaxe') {
+            targetWorldPos = questMobPos('mob_crystal_guardian', '2_3') || { x: -58.0, z: -72.0 };
+            targetName = i18n.t('enemies.crystalGuardian');
+          } else {
+            const trippNpc = currentMapDef.npcs ? currentMapDef.npcs.find(n => n.id === 'miner') : null;
+            targetWorldPos = trippNpc ? { x: trippNpc.position.x, z: trippNpc.position.z } : { x: -50.0, z: -50.0 };
+            targetName = 'Tripp';
           }
         } else if (quest.id === 'quest_forest_elixir' && pendingStep && pendingStep.id === 'gather_moss') {
           targetWorldPos = { x: 11.0, z: -6.5 };
-          targetName = 'Luminous Moss Sprout';
+          targetName = i18n.t('quests.nav.mossSprout');
         } else if (quest.id === 'quest_blizzard_stew' && pendingStep && pendingStep.id === 'gather_frost_mushrooms') {
           targetWorldPos = { x: -16.0, z: 12.0 };
-          targetName = 'Polar Mushroom';
+          targetName = i18n.t('quests.nav.polarMushroom');
         } else if (quest.id === 'quest_fallen_stardust' && pendingStep && pendingStep.id === 'gather_stardust') {
           targetWorldPos = { x: -14.0, z: -12.0 };
-          targetName = 'Luminescent Stardust';
+          targetName = i18n.t('quests.nav.stardust');
         } else if (quest.id === 'quest_dark_frost_totems' && pendingStep && pendingStep.id === 'purify_totems') {
           targetWorldPos = mergedBattleAnchor('1_1') || { x: -64.0, z: -72.0 };
-          targetName = 'Dark Frost Guardians';
+          targetName = i18n.t('enemies.darkFrostGuardians');
         } else if (quest.id === 'quest_world_cartographer') {
           if (pendingStep && pendingStep.id === 'visit_biomes') {
             targetWorldPos = { x: 43.0, z: 132.2 };
-            targetName = '⛵ Pomodoro (Barquero)';
+            targetName = i18n.t('quests.nav.kawaFerryman');
           } else {
             const xiaNpc = currentMapDef.npcs ? currentMapDef.npcs.find(n => n.id === 'cartographer') : null;
-            targetWorldPos = xiaNpc ? { x: xiaNpc.position.x, z: xiaNpc.position.z } : { x: 8.4, z: 46.7 };
-            targetName = 'Xia (Cartógrafa)';
+            targetWorldPos = xiaNpc ? { x: xiaNpc.position.x, z: xiaNpc.position.z } : { x: -97.3, z: 21.3 };
+            targetName = i18n.t('quests.nav.xiaCartographer');
           }
         } else if (currentMapDef.npcs) {
           const matchNpc = currentMapDef.npcs.find(n => n.questId === quest.id || n.id === quest.giver?.id || (quest.giver?.id && n.id?.startsWith(quest.giver.id)));
@@ -1154,7 +1206,7 @@ export class QuestManager {
         logicalZone: MERGED_ZONES[logicalTarKey] ? logicalTarKey : null,
         targetWorldPos,
         targetName,
-        directionText: `🎯 In target zone! [${tarGx}, ${tarGy}]`
+        directionText: i18n.t('quests.nav.inTargetZone', { x: tarGx, y: tarGy })
       };
     }
 
@@ -1172,8 +1224,8 @@ export class QuestManager {
         distanceZones,
         portalDirection: null,
         targetWorldPos: { x: curDock.npc.x, z: curDock.npc.z },
-        targetName: '⛵ Pomodoro (Barquero)',
-        directionText: `⛵ Habla con Pomodoro en la playa ➔ ${islandName}`
+        targetName: i18n.t('quests.nav.kawaFerryman'),
+        directionText: i18n.t('quests.nav.talkToFerryman', { island: islandName })
       };
     }
 
@@ -1203,10 +1255,10 @@ export class QuestManager {
 
     const targetWorldPos = PORTAL_POSITIONS[portalDirection] || { x: 0, z: 0 };
     const dirNames = {
-      NORTH: 'North [▲]',
-      SOUTH: 'South [▼]',
-      EAST: 'East [►]',
-      WEST: 'West [◄]'
+      NORTH: i18n.t('quests.nav.dirNorth'),
+      SOUTH: i18n.t('quests.nav.dirSouth'),
+      EAST: i18n.t('quests.nav.dirEast'),
+      WEST: i18n.t('quests.nav.dirWest')
     };
     const dirLabel = dirNames[portalDirection] || portalDirection;
 
@@ -1220,26 +1272,26 @@ export class QuestManager {
       distanceZones,
       portalDirection,
       targetWorldPos,
-      targetName: `Exit ${dirLabel}`,
-      directionText: `🧭 Next exit: ${dirLabel} ➔ Toward [${tarGx}, ${tarGy}]`
+      targetName: i18n.t('quests.nav.exit', { dir: dirLabel }),
+      directionText: i18n.t('quests.nav.nextExit', { dir: dirLabel, x: tarGx, y: tarGy })
     };
   }
 
   getActiveHUDTrackerText() {
     const q = this.getTrackedQuest();
     if (q) {
-      const prefix = q.category === 'Principal' ? '⭐' : '🗺️';
+      const prefix = q.category === 'Principal' ? '★' : '◆';
       if (q.status === 'ready_to_turn_in') {
-        return `${prefix} ${q.title}: Objectives completed! Talk to ${q.giver.name} [E]`;
+        return `${prefix} ${q.title}: ${i18n.t('quests.hud.readyToTurnIn', { name: q.giver.name })}`;
       }
       const pendingStep = q.objective.steps.find(s => !s.done);
       if (pendingStep) {
         return `${prefix} ${q.title}: ${this._formatText(pendingStep.desc)}`;
       }
-      return `${prefix} ${q.title}: Explore coordinates [${q.zoneCoords ? q.zoneCoords.join(', ') : '?'}]`;
+      return `${prefix} ${q.title}: ${i18n.t('quests.hud.exploreCoords', { coords: q.zoneCoords ? q.zoneCoords.join(', ') : '?' })}`;
     }
 
-    return 'Explore the 9 macro-zones of Lunacia [M]';
+    return i18n.t('quests.hud.exploreLunacia');
   }
 
   exportSaveData() {
@@ -1253,6 +1305,7 @@ export class QuestManager {
     }
     return {
       trackedQuestId: this.trackedQuestId,
+      trackingOff: this.trackingOff,
       quests: questsData
     };
   }
@@ -1262,6 +1315,7 @@ export class QuestManager {
       if (saveData.trackedQuestId !== undefined) {
         this.trackedQuestId = saveData.trackedQuestId;
       }
+      this.trackingOff = Boolean(saveData.trackingOff); // partidas antiguas: seguimiento activado
       for (const [id, savedQ] of Object.entries(saveData.quests)) {
         const q = this.quests[id];
         if (q) {

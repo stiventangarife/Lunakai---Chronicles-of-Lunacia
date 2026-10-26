@@ -14,6 +14,7 @@ import { STARTER_SPELLS } from './data/StarterCards.js';
 import { COLLECTION_SPELLS } from './data/CollectionCards.js';
 import { onVariantRegistered } from './data/VariantCards.js';
 import { applyEnemySpellEffects } from './data/EnemySpellEffects.js';
+import * as i18n from '../i18n/i18n.js';
 
 export const SPELLS_DB = {
   // ===================================================================================
@@ -1759,6 +1760,8 @@ export const SPELLS_DB = {
     description: 'Rugido ensordecedor que otorga +50 de Escudo y +1 PA.'
   }
 };
+// Nombres y descripciones en el idioma activo (i18n/*/spells.js, claves spells.<id>.name / .description)
+i18n.applyText(SPELLS_DB, 'spells', ['name', 'description']);
 
 // Fase 4: las 235 cartas de partes de Axie forman parte del catálogo de hechizos (ids part_<clase>_<parte>_<nombre>)
 Object.assign(SPELLS_DB, PART_SPELLS, STARTER_SPELLS, COLLECTION_SPELLS);
@@ -1889,6 +1892,35 @@ export class SpellManager {
   getSpellCost(caster, spell) {
     if (!spell) return 0;
     return this.runeCharms.costOf(caster, this.runeCharms.spellFor(caster, spell));
+  }
+
+  /**
+   * Hito 65 · alcance para DIBUJAR (estilo Dofus): todas las casillas a tiro, haya o no unidades.
+   *   range   → a tiro (distancia, línea recta si la pide, casilla usable y con línea de visión)
+   *   blocked → dentro de la distancia pero sin línea de visión (tapadas por un obstáculo)
+   * No decide nada: dónde se puede lanzar lo sigue diciendo getValidTargetCells (mismas reglas + unidad).
+   */
+  getRangeCells(caster, spell) {
+    const out = { range: [], blocked: [] };
+    if (!caster || !spell) return out;
+    if (spell.isUltimate && !this.ultimates.canCast(caster)) return out;
+    if (this.isDamageSpell(spell) && caster.statuses?.length && this.statuses.isFeared(caster)) return out;
+    if (this.castLimitReached(caster, spell)) return out;
+    const fromX = caster.gridX, fromZ = caster.gridZ;
+    if (spell.targetType === 'self') { out.range.push({ x: fromX, z: fromZ }); return out; }
+    const maxRange = caster.statuses?.length ? this.getEffectiveMaxRange(caster, spell) : spell.maxRange;
+    for (let x = 0; x < this.gridManager.width; x++) {
+      for (let z = 0; z < this.gridManager.height; z++) {
+        const dist = Math.abs(x - fromX) + Math.abs(z - fromZ);
+        if (dist < spell.minRange || dist > maxRange) continue;
+        if (spell.isLinear && (x !== fromX && z !== fromZ)) continue;
+        const tile = this.gridManager.getTile(x, z);
+        if (!tile || tile.obstacle || tile.baseWalkable === false) continue;
+        if (spell.requiresLoS && !this.gridManager.hasLineOfSight({ x: fromX, z: fromZ }, { x, z })) out.blocked.push({ x, z });
+        else out.range.push({ x, z });
+      }
+    }
+    return out;
   }
 
   getValidTargetCells(caster, spell) {

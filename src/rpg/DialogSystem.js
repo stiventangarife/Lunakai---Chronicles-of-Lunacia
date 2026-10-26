@@ -1,5 +1,6 @@
 // DialogSystem.js — Conversación con NPC (Crónica Celeste, etapa 2): máquina de escribir, respuestas numeradas, Auto y Registro
 import { portraitService } from '../tactics/CharacterPortraitService.js';
+import * as i18n from '../i18n/i18n.js';
 
 export const NPC_PORTRAIT_MAP = {
   // Master Paladill
@@ -31,6 +32,9 @@ export const NPC_PORTRAIT_MAP = {
   'bing_npc': './assets/portraits/bing.png',
   'pomodoro': './assets/portraits/pomodoro.png',
   'pomodoro_npc': './assets/portraits/pomodoro.png',
+  'kappa': './assets/portraits/kappa.png',
+  'guardián de los pergaminos': './assets/portraits/scroll_keeper.png',
+  'scroll keeper': './assets/portraits/scroll_keeper.png',
   'kotaro': './assets/portraits/kotaro.png',
   'sulfur_guard': './assets/portraits/kotaro.png',
   'threshold guardian': './assets/portraits/kotaro.png',
@@ -77,6 +81,9 @@ export const NPC_PORTRAIT_MAP = {
   'herbalist rosalba': './assets/portraits/sapidae-f-a.png',
   'flower alchemist': './assets/portraits/sapidae-f-a.png',
   'herborista rosalba': './assets/portraits/sapidae-f-a.png',
+  'herbolaria rosalba': './assets/portraits/sapidae-f-a.png',
+  'herbolaria ema': './assets/portraits/sapidae-f-a.png', // Hito 64: Rosalba ahora se llama Ema (sin clave suelta 'ema': es un nombre de jugador)
+  'herbalist ema': './assets/portraits/sapidae-f-a.png',
   'alquimista de flores': './assets/portraits/sapidae-f-a.png',
   'sapidae-f-a': './assets/portraits/sapidae-f-a.png',
 
@@ -102,6 +109,8 @@ export const NPC_PORTRAIT_MAP = {
   'snow cook': './assets/portraits/sapidae-m-d.png',
   'cocinero de las nieves': './assets/portraits/sapidae-m-d.png',
   'sapidae-m-d': './assets/portraits/sapidae-m-d.png',
+  'mercader ochi': './assets/portraits/sapidae-m-d.png',
+  'merchant ochi': './assets/portraits/sapidae-m-d.png',
 
   'hermit': './assets/portraits/sapidae-m-e.png',
   'glacial hermit': './assets/portraits/sapidae-m-e.png',
@@ -125,6 +134,8 @@ export const NPC_PORTRAIT_MAP = {
   'polar sage': './assets/portraits/sapidae-f-c.png',
   'custodian of ley lines': './assets/portraits/sapidae-f-c.png',
   'sabio astral': './assets/portraits/sapidae-f-c.png',
+  'guardian of ley lines': './assets/portraits/sapidae-f-c.png',
+  'guardián de las líneas ley': './assets/portraits/sapidae-f-c.png',
   'sabio polar': './assets/portraits/sapidae-f-c.png',
   'custodio de las líneas ley': './assets/portraits/sapidae-f-c.png',
   'custodio de las lineas ley': './assets/portraits/sapidae-f-c.png',
@@ -142,6 +153,7 @@ export const NPC_PORTRAIT_MAP = {
   'spiritual shaman': './assets/portraits/sapidae-f-e.png',
   'astral threshold guardian': './assets/portraits/sapidae-f-e.png',
   'chamán espiritual': './assets/portraits/sapidae-f-e.png',
+  'chamana espiritual': './assets/portraits/sapidae-f-e.png',
   'chaman espiritual': './assets/portraits/sapidae-f-e.png',
   'guardián del umbral astral': './assets/portraits/sapidae-f-e.png',
   'guardian del umbral astral': './assets/portraits/sapidae-f-e.png',
@@ -163,11 +175,17 @@ const escapeHTML = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&a
  *   - choices: [{ text, sub, cost, locked, leave, onSelect(choice), reply: nodo | [nodos] }]
  *     Se eligen con clic o con las teclas 1–9. Una opción bloqueada explica su motivo en `sub`.
  * API pública sin cambios: startDialogue(list, onComplete), advance(), forceNext(), close(), forceClose(cb),
- * setHeroContext(hero), isActive, typingSpeed.
+ * setHeroContext(hero), axieNameFn (nombre del Axie principal para {axieName}), isActive, typingSpeed.
  */
 export class DialogSystem {
   constructor(audioSystem) {
     this.audio = audioSystem;
+    // Hito 54: con un diálogo abierto, <body> lleva .lk-dialog-open y se ocultan los avisos de interacción («E · …»)
+    Object.defineProperty(this, 'isActive', {
+      configurable: true,
+      get: () => this._active,
+      set: (v) => { this._active = Boolean(v); if (typeof document !== 'undefined') document.body?.classList.toggle('lk-dialog-open', this._active); },
+    });
     this.isActive = false;
     this.currentDialogueQueue = [];
     this.currentIndex = 0;
@@ -176,7 +194,7 @@ export class DialogSystem {
     this.isTyping = false;
     this.typingSpeed = 22; // ms por carácter (Opciones › Accesibilidad › Velocidad del texto)
     this.typingTimer = null;
-    this.activeHero = { name: 'Shinji', heroClass: 'Melee Duelist' };
+    this.activeHero = { name: 'Shinji', heroClass: i18n.t('misc.meleeDuelist') };
     this.onCompleteCallback = null;
 
     this.choicesOpen = false;
@@ -192,7 +210,7 @@ export class DialogSystem {
     if (hero) {
       this.activeHero = {
         name: hero.name || 'Shinji',
-        heroClass: hero.heroClass || 'Melee Duelist'
+        heroClass: hero.heroClass || i18n.t('misc.meleeDuelist')
       };
     }
   }
@@ -204,20 +222,20 @@ export class DialogSystem {
     container.className = 'lk-ui lk-dlg-layer hidden';
     container.innerHTML = `
       <div class="lk-dlg__log" data-ref="log" hidden></div>
-      <div class="lk-dlg__choices" data-ref="choices" hidden role="listbox" aria-label="Respuestas"></div>
+      <div class="lk-dlg__choices" data-ref="choices" hidden role="listbox" aria-label="${i18n.t('dialog.answers')}"></div>
       <div class="lk-dlg">
         <div class="lk-dlg__por">
           <span class="lk-frame"><span class="lk-med" data-ref="med" style="--cc:var(--lk-gilt-300)"><img src="${DEFAULT_PORTRAIT}" alt=""></span></span>
-          <span class="lk-role"><img src="${ICON_DIR}chat.png" alt="" data-ref="roleIcon"><span data-ref="role">Maestro</span></span>
+          <span class="lk-role"><img src="${ICON_DIR}chat.png" alt="" data-ref="roleIcon"><span data-ref="role">${i18n.t('dialog.master')}</span></span>
         </div>
         <div class="lk-dlg__box" data-ref="box" role="log" aria-live="polite">
-          <div class="lk-dlg__name"><b data-ref="name">Maestro Paladill</b><i></i></div>
+          <div class="lk-dlg__name"><b data-ref="name">${i18n.t('story.masterPaladill')}</b><i></i></div>
           <div class="lk-dlg__text" data-ref="text"></div>
           <div class="lk-dlg__foot">
             <span class="lk-dlg__pips" data-ref="pips"></span>
-            <button class="lk-dlg__tool" data-ref="auto" aria-pressed="false">Auto</button>
-            <button class="lk-dlg__tool" data-ref="logBtn" aria-pressed="false"><img src="${ICON_DIR}list.png" alt="" style="width:16px;height:16px">Registro</button>
-            <span class="lk-dlg__next" data-ref="next"><kbd>Espacio</kbd><span data-ref="nextTxt">Continuar</span><svg class="lk-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg></span>
+            <button class="lk-dlg__tool" data-ref="auto" aria-pressed="false">${i18n.t('dialog.auto')}</button>
+            <button class="lk-dlg__tool" data-ref="logBtn" aria-pressed="false"><img src="${ICON_DIR}list.png" alt="" style="width:16px;height:16px">${i18n.t('dialog.log')}</button>
+            <span class="lk-dlg__next" data-ref="next"><kbd>${i18n.t('dialog.keySpace')}</kbd><span data-ref="nextTxt">${i18n.t('dialog.continue')}</span><svg class="lk-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg></span>
           </div>
         </div>
       </div>`;
@@ -306,9 +324,15 @@ export class DialogSystem {
     this._showCurrentNode();
   }
 
+  /** Nombre del Axie principal del escuadrón ({axieName}); OverworldManager pone axieNameFn. */
+  axieName() {
+    try { return (this.axieNameFn && this.axieNameFn()) || i18n.t('dialog.yourAxie'); } catch (_) { return i18n.t('dialog.yourAxie'); }
+  }
+
   _formatText(rawText) {
     return rawText
       .replace(/{heroName}/g, this.activeHero.name)
+      .replace(/{axieName}/g, this.axieName())
       .replace(/{heroClass}/g, this.activeHero.heroClass);
   }
 
@@ -328,8 +352,8 @@ export class DialogSystem {
       node.onEnter();
     }
 
-    this.speakerNameEl.textContent = node.speaker || 'Guardián de Lunacia';
-    this.speakerTitleEl.textContent = node.title || 'Maestro';
+    this.speakerNameEl.textContent = node.speaker || i18n.t('dialog.guardian');
+    this.speakerTitleEl.textContent = node.title || i18n.t('dialog.master');
     this.roleIconEl.src = `${ICON_DIR}${node.roleIcon || 'chat'}.png`;
     this.avatarEl.style.setProperty('--cc', node.cls ? `var(--lk-class-${node.cls})` : 'var(--lk-gilt-300)');
     this._renderAvatar(node);
@@ -351,7 +375,7 @@ export class DialogSystem {
     this.currentText = html;
     this.isTyping = true;
     this.nextEl.classList.add('lk-is-typing');
-    this.nextTxtEl.textContent = 'Completar';
+    this.nextTxtEl.textContent = i18n.t('dialog.complete');
     // Las etiquetas HTML se escriben de golpe; el texto, carácter a carácter
     const tokens = html.match(/<[^>]+>|&[a-z#0-9]+;|[\s\S]/gi) || [];
     let k = 0, out = '';
@@ -375,12 +399,12 @@ export class DialogSystem {
     this.nextEl.classList.remove('lk-is-typing');
     const node = this.currentDialogueQueue[this.currentIndex];
     if (node && Array.isArray(node.choices) && node.choices.length) {
-      this.nextTxtEl.textContent = 'Elige una respuesta';
+      this.nextTxtEl.textContent = i18n.t('dialog.chooseAnswer');
       this._showChoices(node.choices);
       return;
     }
     const last = this.currentIndex >= this.currentDialogueQueue.length - 1;
-    this.nextTxtEl.textContent = last ? 'Cerrar' : 'Continuar';
+    this.nextTxtEl.textContent = last ? i18n.t('dialog.close') : i18n.t('dialog.continue');
     if (this.auto) this._scheduleAuto(1600);
   }
 
@@ -472,14 +496,14 @@ export class DialogSystem {
   }
 
   _renderLog() {
-    this.logEl.innerHTML = '<span class="lk-label" style="color:var(--lk-gilt-300)">Registro de la conversación</span>'
+    this.logEl.innerHTML = `<span class="lk-label" style="color:var(--lk-gilt-300)">${i18n.t('dialog.logTitle')}</span>`
       + this.log.map((l) => `<div class="lk-ln ${l.me ? 'lk-me' : ''}"><b>${escapeHTML(l.who)}</b>${l.html}</div>`).join('');
     this.logEl.scrollTop = this.logEl.scrollHeight;
   }
 
   // ------------------------------------------------------------ retrato
   _setAvatarImg(src, alt) {
-    this.avatarEl.innerHTML = `<img src="${src}" alt="${escapeHTML(alt || 'Retrato')}">`;
+    this.avatarEl.innerHTML = `<img src="${src}" alt="${escapeHTML(alt || i18n.t('dialog.portrait'))}">`;
   }
 
   _renderAvatar(node) {

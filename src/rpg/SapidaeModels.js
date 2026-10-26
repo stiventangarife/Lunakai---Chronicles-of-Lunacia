@@ -2,11 +2,12 @@
 // Ema (femenina) y Kai (masculino) son los modelos nuevos con piezas intercambiables: dos peinados (Ema), tres cuernos,
 // dos atuendos (Ema) y atlas de expresiones (ojos y boca, 2 × 2 cada uno). Los modelos antiguos (sapidae-f-a, sapidae-m-a…)
 // los siguen usando los NPC; las partidas del jugador pasan a Ema / Kai al cargarse.
+import * as i18n from '../i18n/i18n.js';
 
 /** Clave del modelo → archivo y datos. La clave mantiene el prefijo «sapidae-f/m» que usa el resto del juego. */
 export const SAPIDAE_BASES = {
-  'sapidae-f-ema': { file: 'Sapidae_Ema.glb', name: 'Ema', gender: 'f', label: 'Femenina' },
-  'sapidae-m-kai': { file: 'Sapidae_Kai.glb', name: 'Kai', gender: 'm', label: 'Masculina' },
+  'sapidae-f-ema': { file: 'Sapidae_Ema.glb', name: 'Ema', gender: 'f', label: i18n.t('misc.baseFemale') },
+  'sapidae-m-kai': { file: 'Sapidae_Kai.glb', name: 'Kai', gender: 'm', label: i18n.t('misc.baseMale') },
 };
 export const DEFAULT_SAPIDAE_MODEL = 'sapidae-f-ema';
 

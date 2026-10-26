@@ -20,13 +20,20 @@ import { GatheringService } from '../GatheringService.js';
 import { BondService } from '../BondService.js';
 import { RuneCharmService } from '../RuneCharmService.js';
 import { RUNE_BY_ID, CHARM_BY_ID } from '../../tactics/data/RunesCharms.js';
+import { FORGE_SPOT } from '../world/ForgeStation.js';
+import { curIcon } from '../../ui/lk.js';
+import { loadRuneCharmArt, runeCharmArt } from '../../ui/RuneCharmArt.js';
+import { showRewardCard } from '../../ui/RewardCard.js';
+import { FORGE_TREE_SPOT, PALADILL_SPOT, PALADILL_GREET_SPOT } from '../world/ForestVillageLayout.js';
+import * as i18n from '../../i18n/i18n.js';
 
-const PALADILL = { speaker: 'Maestro Paladill', title: 'Mentor del Dojo', avatar: './assets/portraits/paladill.png', npcId: 'paladill' };
-const PALADILL_POS = { x: -90.3, z: 63.3 };
-const TREE_POS = { x: -73.5, z: 54.5 };
-const FORGE_POS = { x: -76.5, z: 67.0 };
+const PALADILL = { speaker: i18n.t('tutorialDirector.paladillSpeaker'), title: i18n.t('tutorialDirector.paladillTitle'), avatar: './assets/portraits/paladill.png', npcId: 'paladill' };
+const PALADILL_POS = { x: PALADILL_SPOT.x, z: PALADILL_SPOT.z }; // delante del dojo del pueblo
+const TREE_POS = { x: FORGE_TREE_SPOT.x, z: FORGE_TREE_SPOT.z }; // tree_forest_forge (GatheringCatalog), al lado de la Forja
+const FORGE_POS = { x: FORGE_SPOT.x, z: FORGE_SPOT.z };
 const QUEST = 'quest_slime_purification';
 const ICON = (n) => `./assets/ui/icons/${n}.png`;
+const GOLD_ICON = curIcon('gold'); // la misma moneda que la Forja y la Tienda (Hito 54)
 const idx = (step) => ORDER.indexOf(step);
 const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 
@@ -54,6 +61,8 @@ export class TutorialDirector {
     // Guía paso a paso (22-oct): señala lo que hay que pulsar y bloquea el resto hasta hacerlo
     this._guide = null;
     this._guideTick = setInterval(() => this._updateGuide(), 200);
+    // Hito 75: el Escuadrón se abre al reclutar a Bing, con un mini-tutorial de 3 pasos
+    this._squadTick = setInterval(() => this._updateSquadIntro(), 250);
     window.addEventListener('keydown', (e) => this._guardKeys(e), true);
     if (typeof window !== 'undefined') {
       window.lunakaiTutorial = {
@@ -78,6 +87,7 @@ export class TutorialDirector {
   get equipLockItem() { return this.isActive && !this.done && this.step === 'equip_sword' ? 'wood_sword' : null; }
 
   isFeatureUnlocked(name) {
+    if (name === 'squad') return this._squadReady(); // Hito 75: al reclutar a Bing
     if (!this.isActive || this.done) return true;
     const at = UNLOCK_AT[name];
     return at ? idx(this.step) >= idx(at) : true;
@@ -86,9 +96,10 @@ export class TutorialDirector {
 
   /** Mensaje si `feature` aún no está disponible (null = se puede usar). `extra` = id del punto de recolección. */
   lockMessage(feature, extra = null) {
+    if (feature === 'squad') return this._squadReady() ? null : (LOCKED.squad || i18n.t('tutorialDirector.lockDefault'));
     if (!this.isActive || this.done) return null;
     if (feature === 'gather' && extra === 'tree_forest_forge' && idx(this.step) >= idx('chop')) return null;
-    return this.isFeatureUnlocked(feature) ? null : (LOCKED[feature] || 'Todavía no: sigue el entrenamiento del Maestro Paladill.');
+    return this.isFeatureUnlocked(feature) ? null : (LOCKED[feature] || i18n.t('tutorialDirector.lockDefault'));
   }
 
   isInputLocked(code) {
@@ -124,6 +135,9 @@ export class TutorialDirector {
       this.done = false; this.step = 'defend'; this.flags = {};
     }
     this.isActive = !this.done;
+    // Hito 75: las partidas que ya tenían a Bing no repiten el mini-tutorial del Escuadrón
+    if (!this.flags.squadIntro) this.flags.squadIntro = this._squadReady() ? 'done' : 'waiting';
+    this._loaded = true;
     if (this.done) this._applyDone();
     this._updateHUDButtonsState();
   }
@@ -147,8 +161,8 @@ export class TutorialDirector {
   get qm() { return this.om?.questManager; }
   get care() { return this.game?.axieCare?.service || null; }
   _mainAxie() { const sq = this.em?.getSquad?.() || []; return sq[1] || 'kotaro'; }
-  _axieName() { return this.em?.heroesBase?.[this._mainAxie()]?.name || this.om?.player?.companionName || 'tu Axie'; }
-  _name() { return this.om?.player?.name || 'aprendiz'; }
+  _axieName() { return this.em?.heroesBase?.[this._mainAxie()]?.name || this.om?.player?.companionName || i18n.t('tutorialDirector.fallbackAxie'); }
+  _name() { return this.om?.player?.name || i18n.t('tutorialDirector.fallbackName'); }
   _fmt(s) { return String(s || '').replace(/\{name\}/g, esc(this._name())).replace(/\{axie\}/g, esc(this._axieName())); }
 
   _wireServices() {
@@ -187,7 +201,11 @@ export class TutorialDirector {
     this._spotlightOff();
     this._lockPortals(true);
     this._updateHUDButtonsState();
-    if (this.care) this.care.cooldownFree = ['bond_talk', 'pet', 'feed'].includes(step);
+    if (this.care) {
+      this.care.cooldownFree = ['bond_talk', 'pet', 'feed'].includes(step);
+      // Hito 54: en el tutorial la caricia y la comida llenan el vínculo (mitad y resto: 100 % al terminar)
+      this.care.tutorialFill = ['pet', 'feed'].includes(step);
+    }
     this.om?.inventoryModal?.setTutorialLock?.(step === 'equip_sword', step === 'equip_sword' ? 'wood_sword' : null);
     this._syncQuest();
     if (step === 'equip_sword') {
@@ -196,8 +214,11 @@ export class TutorialDirector {
     }
     if (step === 'chop') { try { GatheringService.reset('tree_forest_forge'); } catch { /* nada */ } }
     if (step === 'forge_open' || step === 'forge_evolve' || step === 'forge_speed' || step === 'forge_collect') this._onForge();
-    if (step === 'feed') this._ensureFood();
-    if (step === 'runes') this._checkRunes();
+    if (step === 'feed') {
+      if (BondService.get(this._mainAxie()) >= 100) { this._go('ult_talk', { talkNow: true }); return; } // ya está lleno
+      this._ensureFood();
+    }
+    if (step === 'runes') { this._ensureRuneReward(); this._checkRunes(); }
     if (def.kind === 'talk') this._autoTalk();
   }
 
@@ -268,9 +289,11 @@ export class TutorialDirector {
   }
 
   _startUltTrial() {
+    // Hito 54: el vínculo ya está al 100 % por la caricia y la comida (Paladill ya no lo «presta»). Por si una partida
+    // antigua llega aquí con menos, se completa sin devolverlo después.
     const main = this._mainAxie();
-    if (this.bondBefore == null) this.bondBefore = BondService.get(main);
-    BondService.set(main, 100);
+    if (BondService.get(main) < 100) BondService.set(main, 100);
+    this.bondBefore = null;
     this._save();
     this._battle('ult');
   }
@@ -289,7 +312,7 @@ export class TutorialDirector {
     if (kind === 'dojo') {
       if (!victory) { this._go('defend'); return; }
       this.qm?.advanceStep(QUEST, 'defend_dojo', true);
-      this._reward({ title: 'Has defendido el Dojo', items: [this._itemView('wood_sword')] }).then(() => this._go('equip_talk', { talkNow: true }));
+      this._reward({ title: i18n.t('tutorialDirector.reward.dojoTitle'), items: [this._itemView('wood_sword')] }).then(() => this._go('equip_talk', { talkNow: true }));
     } else if (kind === 'duel') {
       this.flags.duelOutcome = this.game?.lastDuelOutcome === 'yield' ? 'yield' : 'stop';
       this.qm?.advanceStep(QUEST, 'duel_paladill', true);
@@ -334,8 +357,16 @@ export class TutorialDirector {
     if (this.flags.forged) return;
     this.flags.forged = true;
     this.qm?.advanceStep(QUEST, 'evolve_sword', true);
+    // Hito 54: primero se cierra la Forja y después sale la tarjeta de la espada
+    if (this.om?.forgeModal?.isOpen) { this._go('forge_close'); return; }
+    this._forgeReward();
+  }
+
+  _forgeReward() {
+    if (this._forgeRewardShown) return;
+    this._forgeRewardShown = true;
     const eq = this.em?.equipped?.sapidae || {};
-    this._reward({ title: 'Espada evolucionada', items: [this._itemView('iron_sword')], note: eq.weapon === 'iron_sword' ? 'Ya la llevas equipada: la Forja devuelve la pieza a su ranura.' : 'Está en tu Mochila: equípala con <kbd>I</kbd>.' })
+    this._reward({ title: i18n.t('tutorialDirector.reward.swordTitle'), items: [this._itemView('iron_sword')], note: eq.weapon === 'iron_sword' ? i18n.t('tutorialDirector.reward.swordEquipped') : i18n.t('tutorialDirector.reward.swordInBag') })
       .then(() => this._go('bond_talk', { talkNow: true }));
   }
 
@@ -349,9 +380,9 @@ export class TutorialDirector {
       ForgeService.addMats('mat_wood', 0, true);
     }
     await this._reward({
-      title: 'Regalo del Maestro',
-      items: [{ icon: ICON('resource'), name: 'Oro', qty: REWARDS.duelGold }, ...Object.entries(REWARDS.bundle).map(([id, n]) => this._matView(id, n))],
-      note: 'Lote del aprendiz: ya solo falta <b>madera</b>.',
+      title: i18n.t('tutorialDirector.reward.giftTitle'),
+      items: [{ icon: GOLD_ICON, name: i18n.t('tutorialDirector.reward.gold'), qty: REWARDS.duelGold }, ...Object.entries(REWARDS.bundle).map(([id, n]) => this._matView(id, n))],
+      note: i18n.t('tutorialDirector.reward.giftNote'),
     });
   }
 
@@ -374,16 +405,29 @@ export class TutorialDirector {
   async _giveRunes() {
     if (!this.flags.runes) {
       this.flags.runes = true;
+      // Hito 54: van a la bolsa de runas y charms (solo se equipa lo que tienes)
+      RuneCharmService.add('runes', REWARDS.rune, 1, false);
+      RuneCharmService.add('charms', REWARDS.charm, 1, true);
       this._save();
     }
-    await this._reward({
-      title: 'Runa y charm neutros',
-      items: [
-        { icon: ICON('rune'), name: RUNE_BY_ID[REWARDS.rune]?.name || 'Runa', sub: 'Runa' },
-        { icon: ICON('charm'), name: CHARM_BY_ID[REWARDS.charm]?.name || 'Charm', sub: 'Charm' },
-      ],
-      note: 'Los neutros sirven para cualquier Axie y cualquier parte.',
-    });
+    await this._reward({ title: i18n.t('tutorialDirector.reward.runesTitle'), items: await this._runeRewardItems(), note: i18n.t('tutorialDirector.reward.runesNote') });
+  }
+
+  /** Fichas de la runa y el charm del tutorial con su arte. */
+  async _runeRewardItems() {
+    await loadRuneCharmArt();
+    return [
+      { icon: runeCharmArt('runes', REWARDS.rune) || ICON('rune'), name: RUNE_BY_ID[REWARDS.rune]?.name || i18n.t('tutorialDirector.reward.rune'), rarity: 'rare' },
+      { icon: runeCharmArt('charms', REWARDS.charm) || ICON('charm'), name: CHARM_BY_ID[REWARDS.charm]?.name || i18n.t('tutorialDirector.reward.charm'), rarity: CHARM_BY_ID[REWARDS.charm]?.rarity },
+    ];
+  }
+
+  /** Partidas que llegaron al paso de runas antes de la bolsa (Hito 54): se les da la runa y el charm del tutorial. */
+  _ensureRuneReward() {
+    if (!this.flags.runes) return;
+    const main = this._mainAxie(), eq = RuneCharmService.get(main);
+    if (!eq.rune && RuneCharmService.available('runes', REWARDS.rune) < 1) RuneCharmService.add('runes', REWARDS.rune, 1, false);
+    if (!Object.values(eq.charms || {}).some(Boolean) && RuneCharmService.available('charms', REWARDS.charm) < 1) RuneCharmService.add('charms', REWARDS.charm, 1, true);
   }
 
   _checkRunes() {
@@ -391,7 +435,7 @@ export class TutorialDirector {
     const eq = RuneCharmService.get(this._mainAxie());
     const hasCharm = Object.values(eq.charms || {}).some(Boolean);
     const t = this.bannerEl?.querySelector('[data-ref="text"]');
-    if (t) t.innerHTML = this._fmt(`Pulsa <kbd>U</kbd> y equipa a {axie}: ${eq.rune ? '✓ runa' : '<b>una runa</b>'} · ${hasCharm ? '✓ charm' : '<b>un charm</b>'}.`);
+    if (t) t.innerHTML = this._fmt(i18n.t('tutorialDirector.runesProgress', { rune: eq.rune ? i18n.t('tutorialDirector.runeDone') : i18n.t('tutorialDirector.runeTodo'), charm: hasCharm ? i18n.t('tutorialDirector.charmDone') : i18n.t('tutorialDirector.charmTodo') }));
     if (eq.rune && hasCharm) {
       this.qm?.advanceStep(QUEST, 'equip_runes', true);
       this._go('grad_talk');
@@ -445,18 +489,23 @@ export class TutorialDirector {
       else em?.addItemsToInventory?.(['iron_sword']);
       got.push(this._itemView('iron_sword'));
     }
-    if (!this.flags.duelGold) { this.flags.duelGold = true; em?.addGold?.(REWARDS.duelGold); got.push({ icon: ICON('resource'), name: 'Oro', qty: REWARDS.duelGold }); }
+    if (!this.flags.duelGold) { this.flags.duelGold = true; em?.addGold?.(REWARDS.duelGold); got.push({ icon: GOLD_ICON, name: i18n.t('tutorialDirector.reward.gold'), qty: REWARDS.duelGold }); }
     if (idx(this.step) < idx('feed')) { em?.addItemsToInventory?.(REWARDS.food); got.push({ ...this._itemView('food_berry'), qty: REWARDS.food.length }); }
     const main = this._mainAxie();
     const rc = RuneCharmService.get(main);
+    if (!this.flags.runes) { this.flags.runes = true; RuneCharmService.add('runes', REWARDS.rune, 1, false); RuneCharmService.add('charms', REWARDS.charm, 1, false); }
+    if (!rc.rune && RuneCharmService.available('runes', REWARDS.rune) < 1) RuneCharmService.add('runes', REWARDS.rune, 1, false);
     if (!rc.rune) RuneCharmService.setRune(main, REWARDS.rune);
-    if (!Object.values(rc.charms || {}).some(Boolean)) RuneCharmService.setCharm(main, 'eyes', REWARDS.charm);
-    got.push({ icon: ICON('rune'), name: RUNE_BY_ID[REWARDS.rune]?.name || 'Runa' }, { icon: ICON('charm'), name: CHARM_BY_ID[REWARDS.charm]?.name || 'Charm' });
+    if (!Object.values(rc.charms || {}).some(Boolean)) {
+      if (RuneCharmService.available('charms', REWARDS.charm) < 1) RuneCharmService.add('charms', REWARDS.charm, 1, false);
+      RuneCharmService.setCharm(main, 'eyes', REWARDS.charm);
+    }
+    got.push({ icon: runeCharmArt('runes', REWARDS.rune) || ICON('rune'), name: RUNE_BY_ID[REWARDS.rune]?.name || i18n.t('tutorialDirector.reward.rune') }, { icon: runeCharmArt('charms', REWARDS.charm) || ICON('charm'), name: CHARM_BY_ID[REWARDS.charm]?.name || i18n.t('tutorialDirector.reward.charm') });
     em?._updateSapidaePortrait?.();
     em?._notifyChange?.();
     try { this.om?.player?.applyEquipment?.(em.equipped.sapidae || {}); } catch { /* nada */ }
     this._markDone(false);
-    this._reward({ title: 'Entrenamiento completado', items: got, note: 'La runa y el charm ya están equipados en tu Axie. Pulsa <kbd>M</kbd> para ver el mapa.' });
+    this._reward({ title: i18n.t('tutorialDirector.reward.skipTitle'), items: got, note: i18n.t('tutorialDirector.reward.skipNote') });
   }
 
   // ================================================================ apertura (partida nueva)
@@ -472,7 +521,7 @@ export class TutorialDirector {
     this.hideBanner();
     const veil = document.createElement('div');
     veil.className = 'lk-cine-veil';
-    veil.innerHTML = '<div class="lk-cine-veil__load"><span>Abriendo la crónica…</span><i><b data-ref="bar"></b></i></div>';
+    veil.innerHTML = `<div class="lk-cine-veil__load"><span>${i18n.t('tutorialDirector.openingChronicle')}</span><i><b data-ref="bar"></b></i></div>`;
     document.body.appendChild(veil);
     const bar = veil.querySelector('[data-ref="bar"]');
     try {
@@ -496,10 +545,12 @@ export class TutorialDirector {
     veil.style.transition = '';
     // Al Dojo, frente al maestro
     try {
-      const x = PALADILL_POS.x + 1.2, z = PALADILL_POS.z - 4.6;
+      const { x, z, yaw } = PALADILL_GREET_SPOT;
       const y = om.getGroundHeight ? om.getGroundHeight(x, z) : 0;
-      om.player?.teleport(x, y, z, 0);
-      om.cameraController?.setFollowTarget(om.player, true);
+      om.player?.teleport(x, y, z, yaw);
+      // Cámara detrás del jugador, mirando al maestro y al dojo. Con el giro por defecto (45°) quedaba dentro del dojo.
+      const cc = om.cameraController;
+      if (cc) { cc.targetAngle = cc.currentAngle = yaw - Math.PI; cc.setFollowTarget(om.player, true); }
     } catch { /* nada */ }
     this.isCutsceneActive = false;
     om.state = 'EXPLORING';
@@ -526,6 +577,7 @@ export class TutorialDirector {
       setTimeout(() => { if (this._wantTalk && this._canTalkNow()) this._talk(); }, 250);
     }
     if (this.step.startsWith('forge_')) this._onForge();
+    if (this.step === 'forge_close' && !this.om?.forgeModal?.isOpen && !this._rewardOpen) this._forgeReward();
     if (this.step === 'equip_sword' && this._swordOn()) this._completeEquip();
     // la franja vuelve al salir de un combate o de una ventana
     if (this.game?.gameState === 'OVERWORLD' && this.bannerEl?.classList.contains('hidden') && !this.isCutsceneActive) this._render();
@@ -569,10 +621,10 @@ export class TutorialDirector {
   /** Destino de la flecha y el navegador de la misión (QuestManager). */
   navTarget() {
     if (!this.isActive || this.done) return null;
-    if (this.step === 'chop') return { ...TREE_POS, name: 'Árbol de la Forja' };
-    if (this.step.startsWith('forge_')) return { ...FORGE_POS, name: 'Forja del Valle' };
+    if (this.step === 'chop') return { ...TREE_POS, name: i18n.t('tutorialDirector.nav.forgeTree') };
+    if (this.step.startsWith('forge_')) return { ...FORGE_POS, name: i18n.t('places.forestForge') };
     if (this.step === 'pet' || this.step === 'feed' || this.step === 'runes' || this.step === 'equip_sword') return null;
-    return { ...PALADILL_POS, name: 'Maestro Paladill' };
+    return { ...PALADILL_POS, name: i18n.t('tutorialDirector.paladillSpeaker') };
   }
 
   _lockPortals(locked) {
@@ -581,6 +633,108 @@ export class TutorialDirector {
   }
 
   // ================================================================ interfaz
+  // ================================================================ Escuadrón (Hito 75)
+  /** El Escuadrón se desbloquea al reclutar a Bing (antes, al terminar el entrenamiento). */
+  _squadReady() {
+    if (this.em?.unlockedHeroes?.includes('bing')) return true;
+    return this.qm?.getQuest?.('quest_prove_ferocity')?.status === 'completed';
+  }
+
+  /**
+   * Mini-tutorial tras reclutar a Bing: abrir el Escuadrón → colocar a Bing en un puesto de apoyo → «Cargar mis Axies».
+   * Estado en flags.squadIntro: waiting · open · place · load · done.
+   */
+  _updateSquadIntro() {
+    if (!this.om || !this.em || !this._loaded) return;
+    const ready = this._squadReady();
+    if (ready !== this._squadWasReady) { this._squadWasReady = ready; this._updateHUDButtonsState(); }
+    const sm = this.om.squadModal;
+    if (sm && !sm.__lkIntroHook) {
+      const prev = sm.onAccountLoad;
+      sm.onAccountLoad = (r) => { try { prev?.(r); } finally { this._onSquadAccountLoad(r); } };
+      sm.__lkIntroHook = true;
+    }
+    if (!this.done) return; // primero el entrenamiento del Dojo
+    let st = this.flags.squadIntro;
+    if (st === 'waiting' && this.em.unlockedHeroes.includes('bing')) st = this._setSquadIntro('open');
+    if (st !== 'open' && st !== 'place' && st !== 'load') { this._squadBanner(null); return; }
+    const inSquad = this.em.getSquad().includes('bing');
+    if (st === 'open' && sm?.isOpen) st = this._setSquadIntro(inSquad ? 'load' : 'place');
+    if (st === 'place' && inSquad) { st = this._setSquadIntro('load'); this.om?.audio?.playBuff?.(); }
+    const bing = sm?.root?.querySelector('.lk-ax-card[data-id="bing"]');
+    document.querySelectorAll('#squad-modal .lk-sqi-pulse').forEach((el) => { if (el !== bing || st !== 'place') el.classList.remove('lk-sqi-pulse', 'tutorial-spotlight-target'); });
+    if (st === 'place' && bing && !bing.classList.contains('lk-sqi-pulse')) bing.classList.add('lk-sqi-pulse', 'tutorial-spotlight-target');
+    this._squadBanner(this._squadGuideVisible() ? st : null);
+  }
+
+  _setSquadIntro(st) {
+    this.flags.squadIntro = st;
+    try { this.game?._saveCurrentProgress?.(); } catch { /* nada */ }
+    return st;
+  }
+
+  _onSquadAccountLoad(r) {
+    if (this.flags.squadIntro !== 'load') return;
+    this._setSquadIntro('done');
+    this._squadBanner(null);
+    this._updateGuide();
+    const sm = this.om?.squadModal;
+    this.om?._showBannerMessage?.(i18n.t('tutorialDirector.squad.doneTitle'), i18n.t(r?.ok ? 'tutorialDirector.squad.doneOk' : 'tutorialDirector.squad.doneGuest'));
+  }
+
+  /** Se ve solo explorando (o con el Escuadrón abierto) y sin diálogos, combates ni otras ventanas encima. */
+  _squadGuideVisible() {
+    const g = this.game, om = this.om;
+    if (!om || g?.gameState !== 'OVERWORLD' || om.dialogSystem?.isActive || om.isLoadingZone) return false;
+    const sm = om.squadModal;
+    if (sm?.isOpen) return true;
+    if (om.state !== 'EXPLORING') return false;
+    if (om.inventoryModal?.isOpen || om.settingsModal?.isOpen || om.questBookModal?.isOpen || om.worldMapManager?.worldMapModal?.isOpen || om.forgeModal?.isOpen) return false;
+    return Boolean(document.getElementById('btn-open-squad')?.getClientRects().length);
+  }
+
+  /** Guía del mini-tutorial del Escuadrón (la usa _updateGuide cuando el entrenamiento ya terminó). */
+  _computeSquadGuide() {
+    const st = this.flags.squadIntro;
+    if (st !== 'open' && st !== 'place' && st !== 'load') return null;
+    if (!this._squadGuideVisible()) return null;
+    const sm = this.om.squadModal;
+    if (!sm?.isOpen) {
+      return { sel: '#btn-open-squad', html: i18n.t(st === 'open' ? 'tutorialDirector.squad.guideOpen' : 'tutorialDirector.squad.guideReopen'), keys: ['KeyK'] };
+    }
+    const win = sm.root?.querySelector('.lk-squad');
+    if (st === 'place') {
+      // Todo el panel queda libre (se puede arrastrar o usar «Añadir al escuadrón»); Bing late en la colección
+      return { el: win, html: i18n.t('tutorialDirector.squad.guidePlace'), keys: ['Escape'], soft: true, noClick: true };
+    }
+    const btn = sm.root?.querySelector('[data-ref="loadAx"]');
+    return { el: btn, html: i18n.t('tutorialDirector.squad.guideLoad'), keys: ['Escape'], soft: true, scroll: true };
+  }
+
+  _squadBanner(st) {
+    const b = this.bannerEl;
+    if (!b) return;
+    if (!st) {
+      if (b.dataset.step && b.dataset.step.startsWith('sq_')) { b.classList.add('hidden'); b.classList.remove('tutorial-spotlight-banner', 'lk-tut--low'); b.dataset.step = ''; }
+      return;
+    }
+    const n = { open: 0, place: 1, load: 2 }[st];
+    const $ = (r) => b.querySelector(`[data-ref="${r}"]`);
+    const key = `sq_${st}`;
+    if (b.dataset.step === key && !b.classList.contains('hidden')) return;
+    $('phases').innerHTML = [0, 1, 2].map((i) => `<i class="${i < n ? 'lk-is-full' : i === n ? 'lk-is-half' : ''}"></i>`).join('');
+    $('badge').textContent = i18n.t('tutorialDirector.squad.badge', { n: n + 1 });
+    $('title').textContent = i18n.t(`tutorialDirector.squad.${st}Title`);
+    $('text').innerHTML = i18n.t(`tutorialDirector.squad.${st}Text`);
+    $('skip').hidden = true;
+    $('confirm').hidden = true;
+    b.dataset.step = key;
+    b.classList.remove('hidden', 'is-completed', 'lk-tut--low');
+    b.classList.toggle('lk-tut--low', Boolean(this.om?.squadModal?.isOpen));
+    b.classList.remove('lk-tut--new'); void b.offsetWidth; b.classList.add('lk-tut--new');
+    this.om?.audio?.playStep?.();
+  }
+
   _createDOM() {
     let banner = document.getElementById('overworld-tutorial-banner');
     if (!banner) {
@@ -594,8 +748,8 @@ export class TutorialDirector {
     banner.innerHTML = `
       <div class="lk-tut__head"><span class="lk-tut__phases" data-ref="phases" aria-hidden="true"></span><span class="lk-tut__badge" data-ref="badge"></span><h3 class="lk-tut__title" data-ref="title"></h3></div>
       <p class="lk-tut__text" data-ref="text"></p>
-      <button type="button" class="lk-tut__skip" data-ref="skip" title="Saltar el entrenamiento y recibir sus recompensas">Saltar tutorial</button>
-      <div class="lk-tut__confirm" data-ref="confirm" hidden><span>¿Saltar el entrenamiento? Recibirás sus recompensas.</span><button type="button" class="lk-yes" data-ref="yes">Sí, saltar</button><button type="button" class="lk-no" data-ref="no">Seguir</button></div>`;
+      <button type="button" class="lk-tut__skip" data-ref="skip" title="${i18n.t('tutorialDirector.skipTitle')}">${i18n.t('tutorialDirector.skip')}</button>
+      <div class="lk-tut__confirm" data-ref="confirm" hidden><span>${i18n.t('tutorialDirector.skipConfirm')}</span><button type="button" class="lk-yes" data-ref="yes">${i18n.t('tutorialDirector.skipYes')}</button><button type="button" class="lk-no" data-ref="no">${i18n.t('tutorialDirector.skipNo')}</button></div>`;
     this.bannerEl = banner;
     const $ = (r) => banner.querySelector(`[data-ref="${r}"]`);
     $('skip').addEventListener('click', (e) => { e.stopPropagation(); $('confirm').hidden = false; });
@@ -608,7 +762,7 @@ export class TutorialDirector {
       overlay = document.createElement('div');
       overlay.id = 'tutorial-focus-overlay';
       overlay.innerHTML = `<div class="tutorial-overlay-backdrop"></div><div id="tutorial-spotlight-box" class="tutorial-spotlight-highlight-box hidden"></div>
-        <div id="tutorial-spotlight-pointer" class="tutorial-spotlight-pointer hidden"><div class="pointer-hand">👇</div><div id="pointer-text" class="pointer-text"></div></div>`;
+        <div id="tutorial-spotlight-pointer" class="tutorial-spotlight-pointer hidden"><div class="pointer-hand">◆</div><div id="pointer-text" class="pointer-text"></div></div>`;
       document.body.appendChild(overlay);
     }
     overlay.className = 'tutorial-focus-overlay hidden';
@@ -648,7 +802,7 @@ export class TutorialDirector {
       coach.id = 'lk-tut-coach';
       coach.className = 'lk-ui lk-ctut lk-ctut--hint hidden';
       coach.innerHTML = `<div class="lk-ctut__card"><span class="lk-ctut__coach" aria-hidden="true"><img src="./assets/portraits/paladill.png" alt=""></span>
-        <div class="lk-ctut__body"><div class="lk-ctut__head"><span class="lk-ctut__badge">Maestro Paladill</span></div><p class="lk-ctut__text" data-ref="text"></p></div></div>`;
+        <div class="lk-ctut__body"><div class="lk-ctut__head"><span class="lk-ctut__badge">${i18n.t('tutorialDirector.paladillSpeaker')}</span></div><p class="lk-ctut__text" data-ref="text"></p></div></div>`;
       document.body.appendChild(coach);
     }
     this.coachEl = coach;
@@ -668,7 +822,7 @@ export class TutorialDirector {
     if (!b) return;
     const $ = (r) => b.querySelector(`[data-ref="${r}"]`);
     $('phases').innerHTML = PHASES.map((_, i) => `<i class="${i < phase || completed ? 'lk-is-full' : i === phase ? 'lk-is-half' : ''}"></i>`).join('');
-    $('badge').textContent = completed ? 'Entrenamiento completado' : `Entrenamiento · ${PHASES[phase] || ''}`;
+    $('badge').textContent = completed ? i18n.t('tutorialDirector.badge.done') : i18n.t('tutorialDirector.badge.phase', { phase: PHASES[phase] || '' });
     $('title').textContent = this._fmt(def.title).replace(/&amp;/g, '&');
     $('text').innerHTML = this._fmt(def.text);
     $('skip').hidden = completed;
@@ -678,7 +832,7 @@ export class TutorialDirector {
     b.classList.remove('hidden');
     b.classList.toggle('is-completed', completed);
     // por encima de la Forja, la Mochila y Axie Care cuando el paso ocurre dentro de ellas
-    b.classList.toggle('tutorial-spotlight-banner', ['forge_evolve', 'forge_speed', 'forge_collect', 'runes', 'equip_sword', 'pet', 'feed'].includes(this.step) && !completed);
+    b.classList.toggle('tutorial-spotlight-banner', ['forge_evolve', 'forge_speed', 'forge_collect', 'forge_close', 'runes', 'equip_sword', 'pet', 'feed'].includes(this.step) && !completed);
     // dentro de la Forja y la Mochila la franja baja al pie de la pantalla para no tapar sus cabeceras
     b.classList.toggle('lk-tut--low', !completed && this._bannerLow());
     if (changed) { b.classList.remove('lk-tut--new'); void b.offsetWidth; b.classList.add('lk-tut--new'); this.om?.audio?.playStep?.(); }
@@ -719,10 +873,15 @@ export class TutorialDirector {
     const axie = this._axieName();
     switch (this.step) {
       case 'equip_sword': {
-        if (!inv?.isOpen) return { sel: '#btn-open-inventory', html: 'Pulsa <kbd>I</kbd> o haz clic aquí', keys: ['KeyI'] };
+        if (!inv?.isOpen) return { sel: '#btn-open-inventory', html: i18n.t('tutorialDirector.guide.openInventory'), keys: ['KeyI'] };
         const eq = q('[data-act="equip"]', inv.itip || document);
-        if (eq) return { el: eq, html: 'Pulsa <b>Equipar</b>' };
-        return { sel: '#inventory-modal .lk-it.lk-tut-spot, .lk-it.lk-tut-spot', html: 'Haz clic en la <b>Espada de madera</b>', scroll: true };
+        if (eq) return { el: eq, html: i18n.t('tutorialDirector.guide.equip') };
+        return { sel: '#inventory-modal .lk-it.lk-tut-spot, .lk-it.lk-tut-spot', html: i18n.t('tutorialDirector.guide.pickWoodSword'), scroll: true };
+      }
+      case 'forge_close': {
+        if (!forgeOpen) return null;
+        const x = q('.lk-forge-layer [data-act="close"]');
+        return x ? { el: x, html: i18n.t('tutorialDirector.guide.closeForgeBold') } : null;
       }
       case 'forge_evolve': case 'forge_speed': case 'forge_collect': {
         if (!forgeOpen) return null; // la flecha del mundo lleva al yunque
@@ -730,52 +889,59 @@ export class TutorialDirector {
         if (!L) return null;
         if (this.step === 'forge_evolve') {
           const evo = L.querySelector('[data-m="evolve"]');
-          if (evo && !/lk-is-on|active/.test(evo.className) && evo.getAttribute('aria-pressed') === 'false') return { el: evo, html: 'Pestaña <b>Evolucionar</b>' };
+          if (evo && !/lk-is-on|active/.test(evo.className) && evo.getAttribute('aria-pressed') === 'false') return { el: evo, html: i18n.t('tutorialDirector.guide.evolveTab') };
           // primero la fila de la Espada de madera (por su nombre), luego Evolucionar; si no se puede
           // evolucionar con ella elegida, no se señala nada para no dejar al jugador atrapado
           const name = this._itemView('wood_sword').name;
           const row = [...L.querySelectorAll('.lk-fr')].find((r) => vis(r) && r.querySelector('b')?.textContent.trim() === name);
-          if (row && row.getAttribute('aria-selected') !== 'true') return { el: row, html: `Elige la <b>${esc(name)}</b>`, scroll: true };
+          if (row && row.getAttribute('aria-selected') !== 'true') return { el: row, html: i18n.t('tutorialDirector.guide.pickItem', { name: esc(name) }), scroll: true };
           const go = L.querySelector('[data-act="go"]');
-          if (row && go && !go.disabled && /Evolucionar/.test(go.textContent)) return { el: go, html: 'Pulsa <b>Evolucionar</b>' };
+          if (row && go && !go.disabled && go.textContent.includes(i18n.t('forge.modeEvolve'))) return { el: go, html: i18n.t('tutorialDirector.guide.pressEvolve') };
           return null;
         }
         if (this.step === 'forge_speed') {
           const x4 = q('.lk-speed__opts [data-x="4"]', L);
-          return x4 ? { el: x4, html: 'Pulsa <b>×4</b> (invita Paladill)', scroll: true } : null;
+          return x4 ? { el: x4, html: i18n.t('tutorialDirector.guide.speed'), scroll: true } : null;
         }
         const go = L.querySelector('[data-act="go"]');
-        if (go && !go.disabled && /Recoger/.test(go.textContent)) return { el: go, html: 'Pulsa <b>Recoger</b>', scroll: true };
+        if (go && !go.disabled && go.textContent.includes(i18n.t('forge.collect'))) return { el: go, html: i18n.t('tutorialDirector.guide.collect'), scroll: true };
         const wait = q('.lk-forge-cost', L) || q('.lk-forge-stage', L);
-        return wait ? { el: wait, html: 'Un momento: la espada se está forjando…', scroll: true, noClick: true } : null;
+        return wait ? { el: wait, html: i18n.t('tutorialDirector.guide.forging'), scroll: true, noClick: true } : null;
       }
       case 'pet': case 'feed': {
         if (careOpen) {
-          if (this.step === 'pet') { const b = q('[data-act="pet"]', carePanel); return b ? { el: b, html: 'Pulsa <b>Acariciar</b>' } : null; }
+          if (this.step === 'pet') { const b = q('[data-act="pet"]', carePanel); return b ? { el: b, html: i18n.t('tutorialDirector.guide.pet') } : null; }
           const f = [...carePanel.querySelectorAll('[data-food]')].find((b) => !b.disabled && vis(b));
-          return f ? { el: f, html: `Dale la fruta a ${esc(axie)}` } : null;
+          return f ? { el: f, html: i18n.t('tutorialDirector.guide.feed', { axie: esc(axie) }) } : null;
         }
         const r = this._companionRect();
-        return r ? { rect: r, html: `Haz clic en <b>${esc(axie)}</b>`, canvas: true } : null;
+        return r ? { rect: r, html: i18n.t('tutorialDirector.guide.clickAxie', { axie: esc(axie) }), canvas: true } : null;
       }
       case 'runes': {
         const main = this._mainAxie();
-        if (!inv?.isOpen) return { sel: '#btn-open-inventory', html: 'Pulsa <kbd>U</kbd> o abre la Mochila', keys: ['KeyU', 'KeyI'] };
+        if (!inv?.isOpen) return { sel: '#btn-open-inventory', html: i18n.t('tutorialDirector.guide.openRunes'), keys: ['KeyU', 'KeyI'] };
         const view = q('[data-view="runes"]');
-        if (view && view.getAttribute('aria-pressed') !== 'true') return { el: view, html: 'Abre <b>Runas y charms</b>' };
+        if (view && view.getAttribute('aria-pressed') !== 'true') return { el: view, html: i18n.t('tutorialDirector.guide.runesView') };
         const pip = q(`[data-h="${main}"]`);
-        if (pip && pip.getAttribute('aria-pressed') !== 'true') return { el: pip, html: `Elige a <b>${esc(axie)}</b>` };
+        if (pip && pip.getAttribute('aria-pressed') !== 'true') return { el: pip, html: i18n.t('tutorialDirector.guide.pickAxie', { axie: esc(axie) }) };
         const eq = RuneCharmService.get(main);
         const tabOn = (k) => q(`[data-k="${k}"]`)?.getAttribute('aria-pressed') === 'true';
         if (!eq.rune) {
-          if (!tabOn('runes')) { const s2 = q('[data-ref="runeSocket"]'); return s2 ? { el: s2, html: 'Pulsa el hueco de la <b>runa</b>' } : null; }
+          if (!tabOn('runes')) { const s2 = q('[data-ref="runeSocket"]'); return s2 ? { el: s2, html: i18n.t('tutorialDirector.guide.runeSocket') } : null; }
           const it = q(`[data-rune="${REWARDS.rune}"]`);
-          return it ? { el: it, html: 'Elige la runa <b>neutra</b>', scroll: true } : null;
+          return it ? { el: it, html: i18n.t('tutorialDirector.guide.pickRune'), scroll: true } : null;
         }
         if (!Object.values(eq.charms || {}).some(Boolean)) {
-          if (!tabOn('charms')) { const t = q('[data-k="charms"]') || q('[data-part="eyes"]'); return t ? { el: t, html: 'Ahora los <b>charms</b>' } : null; }
+          // Hito 54: primero la habilidad donde irá el charm (la primera parte), luego el charm neutro
+          const part = q('[data-row]')?.dataset.row || 'eyes';
+          if (!this._charmPartPicked || !tabOn('charms')) {
+            const sock = q(`.lk-socket-charm[data-part="${part}"]`);
+            if (sock && !sock._lkTutHook) { sock._lkTutHook = true; sock.addEventListener('click', () => { this._charmPartPicked = true; }); }
+            const nm = q(`[data-row="${part}"] .lk-pn b`)?.firstChild?.textContent?.trim() || i18n.t('tutorialDirector.guide.skillFallback');
+            return sock ? { el: sock, html: i18n.t('tutorialDirector.guide.charmSocket', { skill: esc(nm) }) } : null;
+          }
           const it = q(`[data-charm="${REWARDS.charm}"]`);
-          return it ? { el: it, html: 'Elige el charm <b>neutro</b>', scroll: true } : null;
+          return it ? { el: it, html: i18n.t('tutorialDirector.guide.pickCharm'), scroll: true } : null;
         }
         return null;
       }
@@ -783,10 +949,10 @@ export class TutorialDirector {
         // Paso de hablar o de ir a algún sitio con una ventana abierta: primero, cerrarla
         const kind = STEPS[this.step]?.kind;
         if (kind !== 'talk' && !['chop', 'forge_open'].includes(this.step)) return null;
-        if (inv?.isOpen) { const x = q('[data-ref="close"]', inv.modalEl) || q('#inventory-modal [data-ref="close"]'); if (x) return { el: x, html: 'Cierra la Mochila', keys: ['KeyI'] }; }
+        if (inv?.isOpen) { const x = q('[data-ref="close"]', inv.modalEl) || q('#inventory-modal [data-ref="close"]'); if (x) return { el: x, html: i18n.t('tutorialDirector.guide.closeBackpack'), keys: ['KeyI'] }; }
         // (al abrir la Forja en el paso forge_open, el paso cambia enseguida a forge_evolve: no pedir cerrarla)
-        if (forgeOpen && this.step !== 'forge_open') { const x = q('.lk-forge-layer [data-act="close"]'); if (x) return { el: x, html: 'Cierra la Forja' }; }
-        if (careOpen) { const x = q('[data-act="close"]', carePanel); if (x) return { el: x, html: 'Cierra el panel' }; }
+        if (forgeOpen && this.step !== 'forge_open') { const x = q('.lk-forge-layer [data-act="close"]'); if (x) return { el: x, html: i18n.t('tutorialDirector.guide.closeForge') }; }
+        if (careOpen) { const x = q('[data-act="close"]', carePanel); if (x) return { el: x, html: i18n.t('tutorialDirector.guide.closePanel') }; }
         return null;
       }
     }
@@ -811,7 +977,7 @@ export class TutorialDirector {
     if (!g) return true;
     if ((g.keys || []).includes(code)) return true;
     // Esc solo para cerrar una ventana del propio paso (nunca abre el menú con la guía puesta)
-    if (code === 'Escape') return Boolean(this.om?.inventoryModal?.isOpen || this.om?.forgeModal?.isOpen);
+    if (code === 'Escape') return Boolean(this.om?.inventoryModal?.isOpen || this.om?.forgeModal?.isOpen || this.om?.squadModal?.isOpen);
     return false;
   }
 
@@ -838,8 +1004,8 @@ export class TutorialDirector {
 
   _updateGuide() {
     let g = null;
-    try { g = this._computeGuide(); } catch (e) { console.warn('[Tutorial] guía', e); g = null; }
-    if (this.bannerEl && !this.bannerEl.classList.contains('is-completed')) {
+    try { g = this.done ? this._computeSquadGuide() : this._computeGuide(); } catch (e) { console.warn('[Tutorial] guía', e); g = null; }
+    if (this.bannerEl && !this.done && !this.bannerEl.classList.contains('is-completed')) {
       // abajo con la Forja o la Mochila abiertas, salvo que lo que hay que pulsar esté en la mitad de abajo
       const tEl = g && (g.el || (g.sel ? document.querySelector(g.sel) : null));
       const tr = g?.rect || tEl?.getBoundingClientRect?.();
@@ -850,7 +1016,7 @@ export class TutorialDirector {
     // objetivo que no está o no se ve: mejor sin guía que un velo sin hueco
     if (g && !g.rect && (!el || !el.getClientRects().length)) g = null;
     if (!g) { if (this._guide) { this._guide = null; this._spotlightOff(); } return; }
-    const key = `${this.step}|${g.html}`;
+    const key = `${this.done ? 'sq' : this.step}|${g.html}`;
     if (!this._guide || this._guide.key !== key || this._guide.target !== el) {
       if (el && g.scroll) el.scrollIntoView({ block: 'center', behavior: 'smooth' });
       this._guide = { ...g, key, target: el };
@@ -872,7 +1038,7 @@ export class TutorialDirector {
     // el panel de cuidados, el juego no debe creer que ya hay una ventana abierta: si no, el botón, la
     // tecla U y el clic sobre el compañero se ignoran, y el panel de cuidados se cierra solo. El velo y el
     // bloqueo de teclas de la guía siguen impidiendo todo lo demás.
-    const opensFromWorld = g.canvas || el?.id === 'btn-open-inventory' || this.step === 'pet' || this.step === 'feed';
+    const opensFromWorld = g.canvas || g.soft || el?.id === 'btn-open-inventory' || el?.id === 'btn-open-squad' || this.step === 'pet' || this.step === 'feed';
     this.isOverlayActive = !opensFromWorld;
     this.activeOverlayStep = this.step === 'equip_sword' ? 'EQUIP_SWORD' : this.step;
     this._spotTarget = el || null;
@@ -935,7 +1101,7 @@ export class TutorialDirector {
     if (this.overlayEl) { this.overlayEl.classList.add('hidden'); this.overlayEl.style.clipPath = 'none'; this.overlayEl.style.webkitClipPath = 'none'; }
     document.getElementById('tutorial-spotlight-box')?.classList.add('hidden');
     document.getElementById('tutorial-spotlight-pointer')?.classList.add('hidden');
-    if (!['forge_evolve', 'forge_speed', 'forge_collect', 'runes', 'equip_sword', 'pet', 'feed'].includes(this.step)) this.bannerEl?.classList.remove('tutorial-spotlight-banner');
+    if (!['forge_evolve', 'forge_speed', 'forge_collect', 'forge_close', 'runes', 'equip_sword', 'pet', 'feed'].includes(this.step)) this.bannerEl?.classList.remove('tutorial-spotlight-banner');
     if (this.isActive && !this.isCutsceneActive) this.om?.playerController?.setEnabled?.(this.om.state === 'EXPLORING');
   }
 
@@ -972,32 +1138,7 @@ export class TutorialDirector {
   _matView(id, n = 1) { const m = MATERIALS[id]; return { icon: m?.icon || ICON('material'), name: m?.name || id, qty: n, rarity: m?.rarity }; }
 
   _reward({ title, items = [], note = '' }) {
-    return new Promise((resolve) => {
-      this._rewardOpen = true;
-      const RC = { common: '#3a4a6e', rare: '#2a5a8a', epic: '#5a2a8a', mystic: '#8a6a1a' };
-      const el = document.createElement('div');
-      el.className = 'lk-ui lk-reward';
-      el.setAttribute('role', 'dialog');
-      el.innerHTML = `<span class="lk-reward__kicker">Recompensa</span><h3 class="lk-reward__title">${esc(title)}</h3>
-        <div class="lk-reward__items">${items.map((it) => `<div class="lk-reward__it"><span class="lk-reward__ico" style="--rc:${RC[it.rarity] || '#3a4a6e'}">${it.icon ? `<img src="${esc(it.icon)}" alt="">` : '<span>✦</span>'}${it.qty > 1 ? `<em>×${it.qty}</em>` : ''}</span><b>${esc(it.name)}</b></div>`).join('')}</div>
-        ${note ? `<p class="lk-reward__note">${note}</p>` : ''}<div class="lk-reward__hint">Clic o Espacio para continuar</div>`;
-      document.body.appendChild(el);
-      requestAnimationFrame(() => el.classList.add('lk-is-on'));
-      this.om?.audio?.playBuff?.();
-      let closed = false;
-      const close = () => {
-        if (closed) return;
-        closed = true;
-        window.removeEventListener('keydown', onKey, true);
-        el.classList.remove('lk-is-on');
-        setTimeout(() => el.remove(), 400);
-        this._rewardOpen = false;
-        resolve();
-      };
-      const onKey = (e) => { if (['Space', 'Enter', 'Escape', 'KeyE'].includes(e.code)) { e.preventDefault(); e.stopImmediatePropagation(); close(); } };
-      setTimeout(() => window.addEventListener('keydown', onKey, true), 350);
-      el.addEventListener('click', close);
-      setTimeout(close, 6000);
-    });
+    this._rewardOpen = true;
+    return showRewardCard({ title, items, note, audio: this.om?.audio }).then(() => { this._rewardOpen = false; });
   }
 }

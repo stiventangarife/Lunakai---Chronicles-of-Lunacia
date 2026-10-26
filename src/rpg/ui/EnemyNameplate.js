@@ -8,6 +8,7 @@
 //   · Al detectarte, la placa pasa a rojo y sale el rombo «!» (mismo lenguaje que las marcas de los NPC).
 //   · El grupo (×3) va como dato aparte, no pegado al nombre.
 import * as THREE from 'three';
+import * as i18n from '../../i18n/i18n.js';
 
 const W = 512, H = 136;
 const FONT_NAME = "'Marcellus', Georgia, serif";
@@ -15,7 +16,7 @@ const FONT_UI = "'Nunito Sans', 'Segoe UI', sans-serif";
 
 /** Separa «Support Slime (x3)» en nombre y tamaño del grupo. */
 function parseName(config) {
-  const raw = String(config.name || 'Quimera');
+  const raw = String(config.name || i18n.t('hud.chimera'));
   const m = raw.match(/\s*\((?:x|×)\s*(\d+)\)\s*$/i);
   const name = m ? raw.slice(0, m.index) : raw;
   const pack = m ? Number(m[1]) : (config.packData?.packSize || 1);
@@ -62,8 +63,8 @@ function drawPlate(canvas, { name, tier, pack, alert }) {
 
   // Datos: nivel · grupo
   const parts = [];
-  if (tier) parts.push(`NV. ${tier}`);
-  if (pack > 1) parts.push(`GRUPO ×${pack}`);
+  if (tier) parts.push(i18n.t('hud.plateLv', { n: tier }));
+  if (pack > 1) parts.push(i18n.t('hud.platePack', { n: pack }));
   if (parts.length) {
     c.font = `800 22px ${FONT_UI}`;
     c.shadowColor = 'rgba(0, 0, 0, 0.8)'; c.shadowBlur = 6;

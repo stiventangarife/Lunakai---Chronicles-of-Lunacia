@@ -26,14 +26,33 @@ export const FOREST_BRIDGE = {
   endLift: 0.22              // deck ends sit slightly above the bank (grass never pokes through)
 };
 
+/**
+ * Puente del pueblo (Hito 66): donde el camino de los Riscos cruza el río bajo el Gran Árbol, ahora que el río ya
+ * no se puede vadear ahí. Mismo modelo y montaje que el de los rápidos.
+ */
+export const FOREST_BRIDGE_VILLAGE = {
+  a: { x: 2.2, z: -29.2 },   // orilla oeste, al pie del Gran Árbol
+  b: { x: 30.6, z: -21.9 },  // orilla este, inicio del camino del Santuario
+  width: 4.0,
+  modules: 4,
+  arch: 0.7,
+  endLift: 0.22
+};
+
 const RAIL_TAG = 'forest_bridge_rail';
 
 export class ForestBridge {
-  constructor(zone) {
+  /**
+   * @param {object} zone  DemoScenaZone22
+   * @param {object} [cfg]  extremos y medidas (FOREST_BRIDGE o FOREST_BRIDGE_VILLAGE)
+   * @param {{name?:string, railTag?:string}} [opts]
+   */
+  constructor(zone, cfg = FOREST_BRIDGE, opts = {}) {
     this.zone = zone;
-    this.cfg = FOREST_BRIDGE;
+    this.cfg = cfg;
+    this.railTag = opts.railTag || RAIL_TAG;
     this.group = new THREE.Group();
-    this.group.name = 'ForestBridge';
+    this.group.name = opts.name || 'ForestBridge';
     zone.group.add(this.group);
     this.meshes = [];
     this.ready = false;
@@ -135,7 +154,7 @@ export class ForestBridge {
         mGeo.computeBoundingSphere();
       }
       const mesh = new THREE.Mesh(mGeo, mat);
-      mesh.name = `ForestBridge_${i}`;
+      mesh.name = `${this.group.name}_${i}`;
       mesh.position.set(a.x + this.dir.x * segH * i, y0, a.z + this.dir.y * segH * i);
       mesh.rotation.set(0, yaw, pitch, 'YZX');
       mesh.scale.set(Math.hypot(segH, y1 - y0) / len0, ky, kz);
@@ -205,14 +224,15 @@ export class ForestBridge {
       // Rails stop 1.2 m short of each end so the bridge is entered straight from the path
       const e0 = 1.2, e1 = this.length - 1.2;
       col.addSegment(a.x + this.dir.x * e0 + ox, a.z + this.dir.y * e0 + oz,
-        a.x + this.dir.x * e1 + ox, a.z + this.dir.y * e1 + oz, 0.25, RAIL_TAG);
+        a.x + this.dir.x * e1 + ox, a.z + this.dir.y * e1 + oz, 0.25, this.railTag);
     }
   }
 
   _removeRails() {
     const col = this.zone.om && this.zone.om.collisions;
     if (!col || !Array.isArray(col.segments)) return;
-    col.segments = col.segments.filter((sg) => sg.tag !== RAIL_TAG);
+    const tag = this.railTag;
+    col.segments = col.segments.filter((sg) => sg.tag !== tag);
   }
 
   setActive(active) {

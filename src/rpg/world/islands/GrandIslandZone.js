@@ -4,9 +4,12 @@ import { LightingManager } from '../demo_scena/LightingManager.js';
 import { FootstepEffectsManager } from '../demo_scena/FootstepEffectsManager.js';
 import { DistantIsland } from '../demo_scena/DistantIsland.js';
 import { SavannaDistantIslands } from '../savanna/SavannaDistantIslands.js';
+import { placeIslandProps, updateFloatingProps } from './kit/IslandProps.js';
 import { createSeededRandom } from '../demo_scena/MathUtils.js';
 import { IslandArtLayer } from './kit/IslandArtLayer.js';
 import { mergeStaticByMaterial } from '../../../render/StaticMerge.js';
+import { buildPropColliders, buildPropHulls } from './kit/IslandPropColliders.js';
+import { IslandTerrainMask } from './kit/IslandTerrainMask.js';
 
 /**
  * GrandIslandZone (Hito 23) — Base for the three new 480 m islands (Arctic, Mystic, Dungeon).
@@ -22,6 +25,13 @@ import { mergeStaticByMaterial } from '../../../render/StaticMerge.js';
  *
  * The zone is created lazily the first time the player travels there (keeps startup RAM low).
  */
+/** Kawa's canoe by each ferry dock (in the sea, ~6–20 m from the ferryman; the Mystic dock sits on a cliff). */
+const FERRY_CANOES = {
+  arctic: { x: 14.3, z: 148.0, yaw: 1.4 },     // ferryman (14.3, 136.2)
+  mystic: { x: 155.7, z: 17.5, yaw: 0.1 },     // ferryman (136, 14), at the foot of the cliff
+  dungeon: { x: 142.0, z: 19.6, yaw: 0.2 }     // ferryman (136, 18)
+};
+
 const ISLAND_CENTRES = {
   forest: new THREE.Vector3(0, 0, 0),
   arctic: new THREE.Vector3(40, 0, -1550),
@@ -73,6 +83,11 @@ export class GrandIslandZone {
    *   rocks: [{ url, count, place(rng, zone) → {x, z, s, sy, rot} | null }],
    *   rockStyle: islandRockMaterial opts,
    *   build(zone) → async set pieces (landmarks, crystals…) — may push collisions with zone.addCollider()
+   *   collision?: { (Hito 71) colisiones de la isla, calculadas una vez:
+   *     propRules: reglas de IslandPropColliders (troncos, rocas…), extraProps(zone) → [[x, z, r, kind]],
+   *     slopeMax (35), wadeMax (0.5), waterSurface(x, z) (0.45 = mar), adjust(mask, zone),
+   *     shallow(x, z) → nivel de un agua somera atravesable o null, shallowMax (0.3),
+   *     hullRules: objetos grandes e irregulares con huella exacta (contorno de segmentos, Hito 72d) }
    * }
    */
   constructor(om, def) {
@@ -90,6 +105,8 @@ export class GrandIslandZone {
     this._loading = null;
     this.colliders = [];
     this.updatables = [];
+    this.terrainMask = null;   // Hito 71: pendiente + agua (si def.collision)
+    this._propCols = null;     // círculos de los objetos (se calculan al activar la isla por primera vez)
     this.rng = createSeededRandom(def.seed || 2323);
   }
 
@@ -106,11 +123,13 @@ export class GrandIslandZone {
     this.terrain = new IslandHeightTerrain(this.group, this.def.height, { name: `${this.id}_Terrain` });
     this.lightingManager = new LightingManager(this.scene);
     this.lightingManager.setVisible(false);
-    this.footstepManager = new FootstepEffectsManager(this.group, this.terrain, (x, z) => this.getHeight(x, z)); // huellas sobre puentes y hielo
+    this.footstepManager = new FootstepEffectsManager(this.group, this.terrain, (x, z) => this.getHeight(x, z), // huellas sobre puentes y hielo
+      (x, z) => (this.terrainMask ? this.terrainMask.depthAt(x, z) : null)); // ondas en el agua (Hito 71)
 
     // Set pieces & props first (trees / crystals may depend on them), then the art layer
     if (typeof this.def.build === 'function') await this.def.build(this);
     await this._buildRocks();
+    this._buildFerryCanoe();
     this._buildHorizon();
 
     this.art = new IslandArtLayer({
@@ -123,12 +142,15 @@ export class GrandIslandZone {
     if (this.horizonMaterials) this.horizonMaterials.forEach((m) => this._tintHorizon(m));
 
     this.isLoaded = true;
+    if (this.def.collision) this._buildTerrainMask();
     this.setActive(this.isActive);
     console.log(`[GrandIslandZone] ✨ ${this.def.label} lista en ${Math.round(performance.now() - t0)} ms`);
   }
 
   getHeight(x, z) {
-    return this.terrain ? this.terrain.getHeight(x, z) : 0;
+    const h = this.terrain ? this.terrain.getHeight(x, z) : 0;
+    // agua somera atravesable (Hito 72, p. ej. el pantano de Mística): se camina con el agua a media pierna
+    return this.terrainMask && this.def.collision && this.def.collision.shallow ? this.terrainMask.walkHeight(x, z, h) : h;
   }
 
   getNormal(x, z) {
@@ -137,6 +159,77 @@ export class GrandIslandZone {
 
   addCollider(x, z, radius) {
     this.colliders.push({ x, z, r: radius });
+  }
+
+  // ── Hito 71 · colisiones de la isla (pendiente, agua y objetos) ───────────
+  _buildTerrainMask() {
+    const C = this.def.collision;
+    this.terrainMask = new IslandTerrainMask({ minX: -160, minZ: -160, size: 320, cell: 1 }, {
+      height: (x, z) => this.getHeight(x, z),
+      waterSurface: C.waterSurface || (() => 0.45),
+      shallow: C.shallow,                 // zonas de agua somera atravesable: (x, z) → nivel del agua o null
+      shallowMax: C.shallowMax ?? 0.3,
+      smoothSlope: true,
+      slopeLimit: C.slopeMax ?? 35,
+      adjust: C.adjust ? (m) => C.adjust(m, this) : undefined,
+    });
+    const t0 = performance.now();
+    this.terrainMask.bake().then(() => {
+      if (!this.terrainMask.ready) return;
+      console.log(`[GrandIslandZone] ${this.def.label}: pendientes y agua listas (${Math.round(performance.now() - t0)} ms repartidos)`);
+      if (this.isActive) this._syncIslandCollisions(true);
+    });
+  }
+
+  /** Círculos de los objetos: una vez, con la isla visible (la capa de arte oculta sus mallas mientras no está activa). */
+  _buildPropColliders() {
+    const C = this.def.collision;
+    const t0 = performance.now();
+    let list = [];
+    try {
+      list = buildPropColliders(this.group, C.propRules || [], {});
+      if (C.extraProps) list.push(...C.extraProps(this));
+    } catch (e) { console.warn('[GrandIslandZone] colisiones', e); }
+    // sin repetir lo que ya tiene colisión (casas, rocas grandes…) ni dos círculos casi en el mismo sitio
+    const out = [];
+    for (const c of list) {
+      if (this.colliders.some((o) => Math.hypot(o.x - c[0], o.z - c[1]) < o.r + 0.3)) continue;
+      if (out.some((o) => Math.hypot(o[0] - c[0], o[1] - c[1]) < 0.5)) continue;
+      out.push(c);
+    }
+    this._propCols = out;
+    // Huella exacta (contorno) de los objetos irregulares: cristales inclinados, cúmulos…
+    this._propHulls = C.hullRules ? buildPropHulls(this.group, C.hullRules, { height: (x, z) => this.getHeight(x, z) }) : [];
+    const kinds = {};
+    out.forEach((c) => { kinds[c[3]] = (kinds[c[3]] || 0) + 1; });
+    console.log(`[GrandIslandZone] ${this.def.label}: ${out.length} colisiones de objetos y ${this._propHulls.length} contornos (${Math.round(performance.now() - t0)} ms)`, kinds);
+  }
+
+  _syncIslandCollisions(active) {
+    const col = this.om.collisions;
+    const C = this.def.collision;
+    if (!col || !C) return;
+    const tag = `gisle_${this.id}_`;
+    if (typeof col.removeCirclesByTag === 'function') col.removeCirclesByTag(tag);
+    if (active && !this._propCols && this.group.visible) this._buildPropColliders();
+    if (active && this._propCols && typeof col.addCircle === 'function') this._propCols.forEach(([x, z, r, kind], i) => col.addCircle(x, z, r, `${tag}${kind}_${i}`));
+    if (typeof col.removeSegmentsByTag === 'function') col.removeSegmentsByTag(tag);
+    if (active && this._propHulls && typeof col.addSegment === 'function') {
+      this._propHulls.forEach(({ kind, pts }, h) => {
+        for (let i = 0; i < pts.length; i++) {
+          const a = pts[i], b = pts[(i + 1) % pts.length];
+          col.addSegment(a[0], a[1], b[0], b[1], 0.08, `${tag}hull_${kind}_${h}`);
+        }
+      });
+    }
+    if (typeof col.setWaterMask !== 'function') return;
+    const m = this.terrainMask;
+    if (active && m && m.ready) { col.setWaterMask(m, C.wadeMax ?? 0.5); col.setSlopeMask?.(m, C.slopeMax ?? 35); }
+    else if (!active && m) {
+      // cada máscara por separado: la isla siguiente puede haber puesto ya la suya
+      if (col._water === m) col.setWaterMask(null);
+      if (col._slope === m) col.setSlopeMask?.(null);
+    }
   }
 
   /** Instanced GLTF rocks restyled with the island stone material. */
@@ -176,6 +269,7 @@ export class GrandIslandZone {
         const mat = islandRockMaterial(src.material, this.def.rockStyle || {});
         const inst = new THREE.InstancedMesh(geo, mat, list.length);
         inst.name = `${this.id}_Rock_${k}`;
+        const rockHull = !!(this.def.collision && this.def.collision.hullRules && this.def.collision.hullRules.some((r) => r.test.test(inst.name)));
         inst.castShadow = true;
         inst.receiveShadow = true;
         list.forEach((p, i) => {
@@ -185,13 +279,26 @@ export class GrandIslandZone {
           q.setFromEuler(new THREE.Euler(p.tilt ? (rng() - 0.5) * p.tilt : 0, p.rot ?? rng() * Math.PI * 2, p.tilt ? (rng() - 0.5) * p.tilt : 0));
           m4.compose(new THREE.Vector3(p.x, y, p.z), q, new THREE.Vector3(s, sy, s));
           inst.setMatrixAt(i, m4);
-          if ((p.s || 1) > 2.2) this.addCollider(p.x, p.z, (p.s || 1) * 0.42);
+          // (si la isla da a sus rocas huella exacta —hullRules—, el círculo aproximado sobra)
+          if ((p.s || 1) > 2.2 && !rockHull) this.addCollider(p.x, p.z, (p.s || 1) * 0.42);
         });
         inst.instanceMatrix.needsUpdate = true;
         inst.computeBoundingSphere();
         this.group.add(inst);
       });
     }
+  }
+
+  /**
+   * Kawa's canoe (balsa.glb, the same as the Forest and the Savanna) floating by each ferry dock. Hito 58.
+   * Shared `#islas` cache (one load for every island), no shadow; it bobs like the Forest raft.
+   */
+  _buildFerryCanoe() {
+    const spot = FERRY_CANOES[this.id];
+    if (!spot) return;
+    const props = placeIslandProps(this.group, [{ model: 'canoe', ...spot, name: `${this.id}_FerryCanoe` }], { height: (x, z) => this.getHeight(x, z), seaLevel: 0.45 });
+    let t = 0;
+    this.updatables.push((dt) => { t += dt || 0; updateFloatingProps(props.floating, t); });
   }
 
   /** Other islands on the horizon at their real relative positions (fog-free silhouettes). */
@@ -248,5 +355,10 @@ export class GrandIslandZone {
       if (active && typeof col.addCircle === 'function') this.colliders.forEach((c, i) => col.addCircle(c.x, c.z, c.r, tag + i));
     }
     if (this.art) this.art.setActive(active);
+    // Hito 71: tras activar la capa de arte (sus mallas pasan a visibles en este mismo setActive)
+    if (this.def.collision) {
+      if (active) setTimeout(() => { if (this.isActive) this._syncIslandCollisions(true); }, 0);
+      else this._syncIslandCollisions(false);
+    }
   }
 }

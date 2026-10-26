@@ -2,6 +2,7 @@
 
 export const MUSIC_TRACKS = {
   CINEMATICA: './assets/sounds/CINEMATICA.mp3',
+  PROLOGO: './assets/sounds/PROLOGO.mp3', // Hito 68: pieza a medida de la cinemática del prólogo
   FOREST: './assets/sounds/FOREST THEME.mp3',
   SAVANNA: './assets/sounds/SAVANNA THEME.mp3',
   ARCTIC: './assets/sounds/ARCTIC THEME.mp3',

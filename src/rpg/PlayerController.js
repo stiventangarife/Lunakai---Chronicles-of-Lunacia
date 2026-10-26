@@ -26,16 +26,29 @@ export class PlayerController {
   }
 
   _initInput() {
-    window.addEventListener('keydown', (e) => {
+    this._onKeyDown = (e) => {
       if (!this.enabled) return;
       if (['INPUT', 'TEXTAREA'].includes(document.activeElement?.tagName) || ['INPUT', 'TEXTAREA'].includes(e.target?.tagName) || e.target?.isContentEditable) return;
       this._updateKey(e.code, true);
-    });
-
-    window.addEventListener('keyup', (e) => {
+    };
+    this._onKeyUp = (e) => {
       if (['INPUT', 'TEXTAREA'].includes(document.activeElement?.tagName) || ['INPUT', 'TEXTAREA'].includes(e.target?.tagName) || e.target?.isContentEditable) return;
       this._updateKey(e.code, false);
-    });
+    };
+    window.addEventListener('keydown', this._onKeyDown);
+    window.addEventListener('keyup', this._onKeyUp);
+  }
+
+  /** Al cargar otra partida: quita sus escuchadores de teclado. Sin esto, la ventana mantenía vivo este
+   *  controlador y, con él, al jugador anterior entero (modelo, Axie, animaciones). */
+  dispose() {
+    window.removeEventListener('keydown', this._onKeyDown);
+    window.removeEventListener('keyup', this._onKeyUp);
+    this.enabled = false;
+    this.player = null;
+    this.camera = null;
+    this.collisions = null;
+    this.om = null;
   }
 
   _updateKey(code, isPressed) {
@@ -137,7 +150,12 @@ export class PlayerController {
     this.stepTimer += dt;
     if (this.stepTimer >= this.stepInterval) {
       this.stepTimer = 0;
-      if (this.audio && typeof this.audio.playStep === 'function') {
+      // En agua poco profunda suena un chapoteo (Hito 66)
+      const wd = this.collisions && typeof this.collisions.waterDepthAt === 'function'
+        ? this.collisions.waterDepthAt(this.player.position.x, this.player.position.z) : null;
+      if (wd !== null && wd > 0.03 && this.audio && typeof this.audio.playWaterStep === 'function') {
+        this.audio.playWaterStep(Math.min(1, wd / 0.5));
+      } else if (this.audio && typeof this.audio.playStep === 'function') {
         this.audio.playStep();
       }
     }

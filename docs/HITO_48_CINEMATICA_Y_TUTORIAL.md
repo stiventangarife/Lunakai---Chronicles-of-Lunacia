@@ -11,6 +11,12 @@
 >
 > Ver `HITO_50_TUTORIAL_GUIADO_Y_AJUSTES.md`.
 
+> **Actualización (23-oct, Hitos 51 y 53):**
+> - El tutorial lleva al pueblo nuevo: árbol junto a la Forja, Forja del pueblo y Paladill delante del dojo. Tras la cinemática la cámara queda detrás del jugador, frente al maestro.
+> - La cinemática suelta las texturas de sus 9 modelos al cargarlos (se dibujan como siluetas) y al terminar libera modelos, esqueletos y fondos (~100–160 MB).
+>
+> Ver `HITO_51_PUEBLO_DEL_BOSQUE.md` y `HITO_53_MEMORIA_TUTORIAL.md`.
+
 ## 1. La cinemática (73 s, se puede saltar con Esc)
 
 Narra el Maestro Paladill (de momento solo subtítulos). Papel envejecido con grano, viñeta y bordes quemados; siluetas hechas con los modelos 3D reales del juego pintados a tinta.

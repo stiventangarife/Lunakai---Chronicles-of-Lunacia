@@ -9,6 +9,7 @@
 
 import { PART_CARDS, withDisplayFields } from './PartCards.js';
 import { COLLECTION_CARDS, COLLECTION_LABELS } from './CollectionCards.js';
+import * as i18n from '../../i18n/i18n.js';
 
 /** +20 % de daño, curación y escudo en las partes de nivel 2. */
 export const STAGE2_BONUS = 0.2;
@@ -57,8 +58,8 @@ export function registerVariantCard(def) {
   const k = stage >= 2 ? 1 + STAGE2_BONUS : 1;
   const collection = def.collection || base.collection || null;
   const notes = [];
-  if (collection && def.name && def.name !== base.name) notes.push(`Parte ${COLLECTION_LABELS[collection] || collection}: mismo efecto que ${base.baseName || base.name}.`);
-  if (stage >= 2) notes.push(`Nivel 2: +${Math.round(STAGE2_BONUS * 100)} % de daño, curación y escudo.`);
+  if (collection && def.name && def.name !== base.name) notes.push(i18n.t('enemySpells.variantPart', { col: COLLECTION_LABELS[collection] || collection, base: base.baseName || base.name }));
+  if (stage >= 2) notes.push(i18n.t('enemySpells.variantStage2', { n: Math.round(STAGE2_BONUS * 100) }));
   const card = {
     ...base,
     id: def.id,

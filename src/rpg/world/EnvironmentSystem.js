@@ -331,12 +331,17 @@ export class EnvironmentSystem {
       const height = window.innerHeight;
       const bConf = this.currentPreset.bloom;
 
+      // Rendimiento (23-oct): el brillo se calcula a media resolución (~1–1,5 ms menos de tarjeta gráfica).
+      // Es un halo difuso: a media resolución apenas cambia. setSize se adapta antes de añadir el pase,
+      // porque el composer lo llama al añadirlo y en cada cambio de tamaño de la ventana.
       this.bloomPass = new UnrealBloomPass(
-        new THREE.Vector2(width, height),
+        new THREE.Vector2(Math.max(1, Math.round(width / 2)), Math.max(1, Math.round(height / 2))),
         bConf.strength,
         bConf.radius,
         bConf.threshold
       );
+      const bloomSetSize = this.bloomPass.setSize.bind(this.bloomPass);
+      this.bloomPass.setSize = (w, h) => bloomSetSize(Math.max(1, Math.round(w / 2)), Math.max(1, Math.round(h / 2)));
       this.composer.addPass(this.bloomPass);
 
       this.outputPass = new OutputPass();
@@ -529,11 +534,39 @@ export class EnvironmentSystem {
   }
 
   render(time, dt) {
-    if (this.isPostProcessingActive && this.composer) {
-      this.composer.render();
-    } else {
-      this.renderer.render(this.scene, this.camera);
+    // Rendimiento (23-oct):
+    // · Las sombras se recalculan uno de cada dos fotogramas (el sol apenas se mueve; la sombra de quien
+    //   camina se actualiza 30 veces por segundo). Solo aquí, en el mundo abierto: el combate no cambia.
+    // · Cada ~2 s se quita la sombra de la vegetación pequeña y las farolas (ver _trimSmallShadows).
+    if ((this._trimTick = ((this._trimTick || 0) + 1) % 120) === 1) this._trimSmallShadows();
+    const sm = this.renderer.shadowMap;
+    const auto = sm.autoUpdate;
+    if (sm.enabled && auto) {
+      sm.autoUpdate = false;
+      this._shadowTick = ((this._shadowTick || 0) + 1) % 2;
+      if (this._shadowTick === 0) sm.needsUpdate = true;
     }
+    try {
+      if (this.isPostProcessingActive && this.composer) {
+        this.composer.render();
+      } else {
+        this.renderer.render(this.scene, this.camera);
+      }
+    } finally {
+      sm.autoUpdate = auto;
+    }
+  }
+
+  /**
+   * Helechos, setas, flores, plantas pequeñas, guijarros y farolas no proyectan sombra: son cientos de miles de
+   * triángulos más en el mapa de sombras para manchas que apenas se ven. Árboles, arbustos, rocas, edificios y
+   * personajes la siguen proyectando. Se repasa cada ~2 s porque la vegetación se crea al cargar cada isla.
+   */
+  _trimSmallShadows() {
+    const SMALL = /^(InstancedAnimeFlower_|InstancedVeg_(fern|mushroom|plant|flower)|InstancedPebbles_|Fern_\d|ForestVillage_lamp)/i;
+    this.scene.traverse((o) => {
+      if (o.castShadow && o.isMesh && SMALL.test(o.name || '')) o.castShadow = false;
+    });
   }
 
   onResize() {

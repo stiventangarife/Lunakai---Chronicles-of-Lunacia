@@ -78,6 +78,56 @@ Capturas en `outputs/capturas/` (`tutorial_guia.jpg`, `tienda_antes_despues.jpg`
 | **Flecha 3D del tutorial:** sigue el destino del tutorial (`TutorialDirector.navTarget()`): árbol de la Forja al talar, yunque en los pasos de la Forja, Paladill al hablar. En los pasos sin sitio al que ir (Mochila, vínculo, runas) se oculta. Antes una regla antigua de la misión la dejaba siempre sobre Paladill. | `rpg/OverworldManager.js` (`_updateQuestNavigation`) |
 | **Forja en ventana estrecha:** la zona del yunque ya no se monta sobre el panel del botón y del temporizador. Con la ventana estrecha (≤ 980 px), la lista queda en 2 filas, la bolsa de materiales en una sola fila con desplazamiento lateral, y el yunque ocupa lo que necesita. Con la ventana ancha, el yunque reserva 250 px y se desplaza si no cabe. | `ui/lunakai-ui.css` |
 
-## 6. Pendiente u observado (no es de este hito)
+## 6. Memoria: fugas al cargar partida y en combate (22-oct)
+
+**Síntoma:** el juego pasaba de unos 1,5 a 2 GB de memoria. Se midió en el navegador integrado con la partida «Auditoria» (memoria JS tras forzar la recolección, y mallas y texturas en la GPU).
+
+| Situación | Antes | Después |
+| --- | --- | --- |
+| Salir al menú y cargar la partida, ×4 (memoria JS) | 148 → 204 → 321 → 417 MB | 150–270 MB, sin crecer |
+| Mallas en GPU por cada carga | +9 | 0 |
+| Objetos en la escena por cada carga | +13 | 0 |
+| Texturas en GPU por cada combate | +12 | +1 |
+
+**Causas y arreglos:**
+
+| Causa | Arreglo | Archivo |
+| --- | --- | --- |
+| El controlador del jugador registraba el teclado en la ventana y nunca lo quitaba: retenía al jugador anterior entero. | `PlayerController.dispose()` quita los escuchadores; se llama al cargar otra partida. | `rpg/PlayerController.js`, `rpg/OverworldManager.js` |
+| El jugador anterior solo se sacaba de la escena. | `PlayerEntity.dispose()` libera geometrías, esqueletos y animador; devuelve el Axie compañero a la librería del mixer (`axie.dispose()`); suelta las referencias pesadas y cancela cargas a medias. | `rpg/PlayerEntity.js` |
+| Cada partida cargada añadía otro escuchador `heroAxieChanged`; todos recargaban el modelo a la vez y el modelo sustituido no se liberaba. | Se registra una sola vez y el modelo sustituido se libera. | `rpg/OverworldManager.js` |
+| Cada carga creaba otro `BiomeDecorationManager` (sus grupos se quedaban en la escena) y otro gestor de pasos de zona. | El de decoración se crea una vez; el grupo del gestor de pasos anterior se retira y se libera. | `rpg/OverworldManager.js`, `rpg/world/WorldMapManager.js` |
+| Las unidades de combate no devolvían su Axie a la librería del mixer ni liberaban sus esqueletos. | `Unit.dispose()` llama a `axie.dispose()` y a `skeleton.dispose()`. | `tactics/Unit.js` |
+
+**Regla:** todo lo que se crea al cargar una partida, si registra escuchadores en `window` o se añade a la escena, necesita su `dispose()`, o bien se crea una sola vez y se reutiliza. Los Axies de la librería del mixer se devuelven siempre con `axie.dispose()`.
+
+## 7. Dojo de madera en la Isla del Bosque (23-oct)
+
+Modelo nuevo `assets/environment/dojo.glb` al final del camino de la tienda de Ochi.
+
+- **Modelo:** 0,7 MB, una malla (≈7.000 triángulos) y un material con 2 texturas WebP de 1024 (color con la luz horneada y relieve), unos 11 MB en GPU. Origen en el centro de la base.
+- **Colocación:** (-85.9, 16.2), escala ×6 (≈11 × 8 × 10 m), giro 2,52 rad. El porche (mesa de té y cojines) y la escalera miran a la tienda y al camino. Se apoya a la altura media del terreno bajo la planta.
+- **Material:** metal 0 y rugosidad 0,85. El GLB no trae textura de metal/rugosidad, y sin esto three lo trataría como metal y se vería oscuro.
+- **Claro:**
+  - la hierba y las flores del campo Genshin no crecen dentro de la planta (más 0,6 m), gracias al nuevo `GenshinGrassField.setClearing()`, un rectángulo girado en el shader;
+  - las plantas, flores, guijarros y rocas instanciados que quedaban dentro se retiran;
+  - no se regenera el bosque, así que el resto de la isla queda igual;
+  - ningún árbol quedaba dentro.
+- **Colisión:** las cuatro paredes como segmentos girados (`OverworldCollisions.addSegment`); el jugador se queda a 5–6 m del centro.
+- **Ciclo:** como el puesto de la tienda, se coloca al cargar la zona 2_2 y se retira, con su colisión, al viajar a otra isla.
+- **Draco:** `render/ModelCache.js` usa ahora un solo `GLTFLoader` con `DRACOLoader` (decodificador en `vendor/draco/`). Este GLB ya no lo necesita, pero queda listo para modelos comprimidos.
+
+| Archivo | Cambio |
+| --- | --- |
+| `src/rpg/world/ForestDojo.js` | Nuevo: carga, colocación, material, claro y colisión (`DOJO_SPOT`). |
+| `src/main.js` | Crea `ForestDojo` junto a la tienda y la forja. |
+| `src/render/ModelCache.js` | Lector GLB compartido con Draco. |
+| `src/rpg/world/demo_scena/genshin/GenshinGrassField.js` | `uClear`, `uClearHalf` y `setClearing()`. |
+
+Captura: `outputs/capturas/dojo_antes_despues.jpg`.
+
+**Modelos de `assets/environment` en uso:** `bridge.glb` (Bosque), `house_artic.glb` y `snowman_artic.glb` (Ártico) y ahora `dojo.glb`. Los demás solo los nombran el gestor de decoraciones del mundo antiguo (`BiomeDecorationManager`) y el Dojo antiguo (`DojoBuilding.js`), que no se cargan.
+
+## 8. Pendiente u observado (no es de este hito)
 
 - Varios textos en inglés en el juego: «FEATURE LOCKED» en el aviso de bloqueo, el globo de Paladill («The discipline of the dojo forges the spirit!») y «In target zone! [2, 2]» en el panel de la misión.

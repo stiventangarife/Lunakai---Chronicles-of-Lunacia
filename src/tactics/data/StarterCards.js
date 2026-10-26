@@ -10,6 +10,7 @@
 //   Bulwark → Protegido −20 % de daño recibido (2 turnos) · Cocoon, robar cartas, Ethereal y Purify no existen en el motor.
 
 import { withDisplayFields } from './PartCards.js';
+import * as i18n from '../../i18n/i18n.js';
 
 const D = (v, extra = {}) => ({ type: 'damage', min: Math.round(v * 0.9), max: Math.round(v * 1.1), ...extra });
 const RAGE = (target = 'allAllies') => ({ type: 'status', status: 'empowered', value: 20, duration: 2, ...(target ? { target } : {}) });
@@ -105,6 +106,8 @@ export const STARTER_CARDS_LIST = [
     art: './assets/cards/starter/pomodoro-tail.webp', // ilustración oficial de la carta α de Pomodoro
   }),
 ];
+// Descripciones en el idioma activo (i18n/es|en/starterCards.js); los nombres de carta no se traducen
+i18n.applyText(STARTER_CARDS_LIST, 'starterCards', ['description', 'adaptation']);
 
 /** Mazo de cada Axie inicial, en el orden de las 6 ranuras del HUD (ojos, orejas, boca, cuerno, espalda, cola). */
 export const STARTER_DECKS = {

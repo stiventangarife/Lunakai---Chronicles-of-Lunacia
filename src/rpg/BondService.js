@@ -9,6 +9,7 @@
 // - Sin ranura activa (pruebas, menús) funciona en memoria.
 
 import { saveSlotManager } from './SaveSlotManager.js';
+import * as i18n from '../i18n/i18n.js';
 
 const LEGACY_KEY = 'lunakai_demo_bond';
 const hash = (str) => [...String(str)].reduce((h, c) => (h * 31 + c.charCodeAt(0)) >>> 0, 7);
@@ -16,7 +17,7 @@ const hash = (str) => [...String(str)].reduce((h, c) => (h * 31 + c.charCodeAt(0
 const clamp = (v) => Math.max(0, Math.min(100, Math.round((Number(v) || 0) * 10) / 10));
 
 /** Vínculo para mostrar: «63» o «63,5». */
-export const formatBond = (v) => { const r = Math.round((Number(v) || 0) * 10) / 10; return Number.isInteger(r) ? String(r) : r.toFixed(1).replace('.', ','); };
+export const formatBond = (v) => { const r = Math.round((Number(v) || 0) * 10) / 10; return Number.isInteger(r) ? String(r) : (i18n.lang() === 'es' ? r.toFixed(1).replace('.', ',') : r.toFixed(1)); }; // coma decimal solo en español (Hito 62)
 
 export const BOND_MAX = 100;
 

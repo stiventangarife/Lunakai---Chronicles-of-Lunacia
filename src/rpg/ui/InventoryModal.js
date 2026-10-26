@@ -8,13 +8,17 @@ import { SPELLS_DB } from '../../tactics/Spells.js';
 import { STARTER_DECKS } from '../../tactics/data/StarterCards.js';
 import { getHeroSpells } from '../SaveSlotManager.js';
 import { portraitService } from '../../tactics/CharacterPortraitService.js';
-import { asset, sprite, toast } from '../../ui/lk.js';
+import { asset, sprite, toast, curIcon } from '../../ui/lk.js';
 import { HeroModelPreview } from './HeroModelPreview.js';
 import { createRunesView, runesPending } from '../../ui/RunesCharmsPanel.js';
+import { RuneCharmService } from '../RuneCharmService.js';
+import { loadRuneCharmArt, runeCharmArt } from '../../ui/RuneCharmArt.js';
+import { showRewardCard } from '../../ui/RewardCard.js';
 import { ForgeService } from '../ForgeService.js';
 import { MATERIALS } from '../../tactics/data/EconomyCatalog.js';
 import { matSvg, BIOME } from '../../ui/ForgePanel.js';
 import { MATERIAL_RARITY_NAME } from '../../tactics/data/EconomyCatalog.js';
+import * as i18n from '../../i18n/i18n.js';
 
 /** Clave de clase de un axie (beast · bird · plant · aquatic · bug · reptile · mech · dawn · dusk). */
 export function axieClassKey(cls) {
@@ -45,43 +49,43 @@ const HERO_SPELLS = {
 
 const I = (n) => asset(`assets/ui/icons/${n}.png`);
 const EQ_SLOTS = ['weapon', 'hat', 'shield', 'body', 'boots'];
-const SLOT1 = { weapon: 'Arma', hat: 'Sombrero', shield: 'Escudo', body: 'Armadura', boots: 'Botas', consumable: 'Consumible', quest: 'Objeto de misión', material: 'Material' };
-const TABS = [['all', 'Todo'], ['weapon', 'Armas'], ['hat', 'Sombreros'], ['shield', 'Escudos'], ['body', 'Armaduras'], ['boots', 'Botas'], ['consumable', 'Consumibles'], ['material', 'Materiales'], ['quest', 'Misión']];
-const STAT_ES = { hp: 'Vida', damage: 'Daño', pa: 'PA', pm: 'PM', initiative: 'Iniciativa', shield: 'Escudo' };
+const SLOT1 = { weapon: i18n.t('inventory.slotWeapon'), hat: i18n.t('inventory.slotHat'), shield: i18n.t('inventory.slotShield'), body: i18n.t('inventory.slotBody'), boots: i18n.t('inventory.slotBoots'), consumable: i18n.t('inventory.slotConsumable'), quest: i18n.t('inventory.slotQuest'), material: i18n.t('inventory.slotMaterial') };
+const TABS = [['all', i18n.t('inventory.tabAll')], ['weapon', i18n.t('inventory.tabWeapons')], ['hat', i18n.t('inventory.tabHats')], ['shield', i18n.t('inventory.tabShields')], ['body', i18n.t('inventory.tabArmor')], ['boots', i18n.t('inventory.tabBoots')], ['consumable', i18n.t('inventory.tabConsumables')], ['material', i18n.t('inventory.tabMaterials')], ['quest', i18n.t('inventory.tabQuest')]];
+const STAT_ES = { hp: i18n.t('inventory.hp'), damage: i18n.t('inventory.damage'), pa: i18n.t('inventory.ap'), pm: i18n.t('inventory.mp'), initiative: i18n.t('inventory.initiative'), shield: i18n.t('inventory.shield') };
 /** Efecto principal de un consumible u objeto de misión, para la franja inferior de su casilla. */
 const effectCap = (it, k) => {
   const e = it.effect || {};
-  if (e.bond) return `+${e.bond}% Vínculo`;
-  if (e.heal) return `Cura ${e.heal}`;
-  if (e.shield) return `+${e.shield} Escudo`;
-  if (e.pa || e.pm) return [e.pa && `+${e.pa} PA`, e.pm && `+${e.pm} PM`].filter(Boolean).join(' · ');
-  if (k === 'quest') return 'Misión';
-  return SLOT1[k] || 'Objeto';
+  if (e.bond) return i18n.t('inventory.capBond', { n: e.bond });
+  if (e.heal) return i18n.t('inventory.capHeal', { n: e.heal });
+  if (e.shield) return i18n.t('inventory.capShield', { n: e.shield });
+  if (e.pa || e.pm) return [e.pa && i18n.t('inventory.capAp', { n: e.pa }), e.pm && i18n.t('inventory.capMp', { n: e.pm })].filter(Boolean).join(' · ');
+  if (k === 'quest') return i18n.t('inventory.tabQuest');
+  return SLOT1[k] || i18n.t('inventory.item');
 };
 const RAR_ORDER = { mystic: 5, legendary: 5, epic: 4, rare: 3, uncommon: 2, common: 1 };
-const RAR_NAME = { mystic: 'Místico', legendary: 'Místico', epic: 'Épico', rare: 'Raro', uncommon: 'Poco común', common: 'Común' };
+const RAR_NAME = { mystic: i18n.t('inventory.rarMystic'), legendary: i18n.t('inventory.rarMystic'), epic: i18n.t('inventory.rarEpic'), rare: i18n.t('inventory.rarRare'), uncommon: i18n.t('inventory.rarUncommon'), common: i18n.t('inventory.rarCommon') };
 // Ranuras en una sola columna, en el borde derecho del modelo 3D (junto a la cuadrícula de objetos: arrastre más corto),
 // de arriba abajo en orden del cuerpo: sombrero, armadura, arma, escudo, botas
 const RAIL_ORDER = ['hat', 'body', 'weapon', 'shield', 'boots'];
 const DOLL_POS = Object.fromEntries(RAIL_ORDER.map((s, i) => [s, ['calc(100% - 46px)', `${12 + i * 19}%`]]));
 const ATTRS = [
-  ['vitality', 'Vitalidad', '+1 Vida'],
-  ['ferocity', 'Ferocidad', '+1,5 cuerpo a cuerpo · +1 colisión'],
-  ['agility', 'Agilidad', '+1,2 a distancia · +0,5% crítico'],
-  ['essence', 'Esencia', '+2% apoyo (curas y escudos)']
+  ['vitality', i18n.t('inventory.attrVitality'), i18n.t('inventory.hintVitality')],
+  ['ferocity', i18n.t('inventory.attrFerocity'), i18n.t('inventory.hintFerocity')],
+  ['agility', i18n.t('inventory.attrAgility'), i18n.t('inventory.hintAgility')],
+  ['essence', i18n.t('inventory.attrEssence'), i18n.t('inventory.hintEssence')]
 ];
 /** Qué hace cada atributo según el héroe (19-oct): el Sapidae Lunalogista y Astromante usan la Esencia como daño. */
 function attrHints(heroId, base) {
   const magic = heroId === 'sapidae' && ['lunalogist', 'stargazer'].includes(base?.sapidaeClassKey);
   if (!magic) return ATTRS;
   return [
-    ['vitality', 'Vitalidad', '+1 Vida'],
-    ['ferocity', 'Ferocidad', '+1 colisión'],
-    ['agility', 'Agilidad', '+0,5% crítico'],
-    ['essence', 'Esencia', '+1,2 daño de sus hechizos · +2% apoyo']
+    ['vitality', i18n.t('inventory.attrVitality'), i18n.t('inventory.hintVitality')],
+    ['ferocity', i18n.t('inventory.attrFerocity'), i18n.t('inventory.hintFerocityMagic')],
+    ['agility', i18n.t('inventory.attrAgility'), i18n.t('inventory.hintAgilityMagic')],
+    ['essence', i18n.t('inventory.attrEssence'), i18n.t('inventory.hintEssenceMagic')]
   ];
 }
-const pct = (v) => String(Math.round((Number(v) || 0) * 10) / 10).replace('.', ',');
+const pct = (v) => { const s = String(Math.round((Number(v) || 0) * 10) / 10); return i18n.lang() === 'es' ? s.replace('.', ',') : s; };
 
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const slotOf = (it) => (it.slot === 'consumable' || it.category === 'consumable' || it.type === 'consumable') ? 'consumable'
@@ -92,7 +96,7 @@ const isImg = (s) => typeof s === 'string' && (/^(\.\/|\/|assets\/|http|data:ima
 const MAT_RARITY = { 0: 'mystic', 1: 'common', 2: 'uncommon', 3: 'rare', 4: 'epic', 5: 'legendary' };
 const matItem = (m) => m && ({ id: m.id, name: m.name, slot: 'material', tier: m.tier || null, rarity: m.rarity || MAT_RARITY[m.tier] || 'common', glyph: m.glyph, icon: m.icon, biome: m.biome, description: m.description, source: m.source, mat: true });
 const itemOf = (id) => ITEMS_DB[id] || matItem(MATERIALS[id]);
-const art = (it) => it.mat && !it.icon ? `<span class="lk-mat-art" style="color:${BIOME[it.biome]?.[1] || '#B8892E'}">${matSvg(it.glyph, '')}</span>` : isImg(it.icon) ? `<img src="${it.icon}" alt="" draggable="false">` : `<span class="lk-emoji">${it.icon || '📦'}</span>`;
+const art = (it) => it.mat && !it.icon ? `<span class="lk-mat-art" style="color:${BIOME[it.biome]?.[1] || '#B8892E'}">${matSvg(it.glyph, '')}</span>` : isImg(it.icon) ? `<img src="${it.icon}" alt="" draggable="false">` : (it.icon ? `<span class="lk-emoji">${it.icon}</span>` : `<img src="./assets/ui/icons/resource.png" alt="" draggable="false">`);
 
 export class InventoryModal {
   constructor(equipmentManager, audioSystem = null) {
@@ -120,24 +124,24 @@ export class InventoryModal {
     modal.id = 'inventory-modal';
     modal.className = 'lk-ui lk-backdrop lk-bag-layer hidden';
     modal.innerHTML = `
-      <div class="lk-panel-modal-window lk-bag" role="dialog" aria-label="Mochila">
+      <div class="lk-panel-modal-window lk-bag" role="dialog" aria-label="${i18n.t('inventory.title')}">
         <div class="lk-panel-head">
           <span class="lk-emblem"><img class="lk-ai" src="${I('inventory')}" alt=""></span>
-          <h3><small>Inventario</small>Mochila</h3>
-          <button type="button" class="lk-btn lk-btn-moon lk-btn--sm lk-bag__squad" data-ref="squadBtn" title="Tecla K"><span class="lk-b-ico"><img class="lk-ai" src="${I('team')}" alt=""></span>Escuadrón</button>
-          <div class="lk-segmented" data-ref="viewTabs"><button type="button" aria-pressed="true" data-view="equipment">Mochila</button><button type="button" aria-pressed="false" data-view="runes" title="Tecla U">Runas y charms<span class="lk-bag-dot" data-ref="runesDot" hidden></span></button></div>
-          <div class="lk-wallet" aria-label="Monedas"><span class="lk-res-pill" title="Oro"><span class="lk-ico" style="background:var(--lk-gilt-300)"><img src="${I('resource')}" alt="" style="width:15px;height:15px"></span><span data-ref="gold">0</span></span><span class="lk-res-pill lk-cur" title="SLP · Smooth Love Potion (moneda de evolución)"><img class="lk-cur-ico" src="${asset('assets/currency/slp.png')}" alt="SLP"><span data-ref="slp">0</span></span><span class="lk-res-pill lk-cur" title="bAXS (comisión y rapidez de la forja)"><img class="lk-cur-ico" src="${asset('assets/currency/baxs.png')}" alt="bAXS"><span data-ref="baxs">0</span></span></div>
-          <button type="button" class="lk-btn-close-x" data-ref="close" aria-label="Cerrar">${sprite('i-close')}</button>
+          <h3><small>${i18n.t('inventory.kicker')}</small>${i18n.t('inventory.title')}</h3>
+          <button type="button" class="lk-btn lk-btn-moon lk-btn--sm lk-bag__squad" data-ref="squadBtn" title="${i18n.t('inventory.keyK')}"><span class="lk-b-ico"><img class="lk-ai" src="${I('team')}" alt=""></span>${i18n.t('inventory.squad')}</button>
+          <div class="lk-segmented" data-ref="viewTabs"><button type="button" aria-pressed="true" data-view="equipment">${i18n.t('inventory.title')}</button><button type="button" aria-pressed="false" data-view="runes" title="${i18n.t('inventory.keyU')}">${i18n.t('inventory.runesCharms')}<span class="lk-bag-dot" data-ref="runesDot" hidden></span></button></div>
+          <div class="lk-wallet" aria-label="${i18n.t('inventory.currencies')}"><span class="lk-res-pill" title="${i18n.t('inventory.gold')}"><img class="lk-cur-ico" src="${curIcon('gold')}" alt="${i18n.t('inventory.gold')}"><span data-ref="gold">0</span></span><span class="lk-res-pill lk-cur" title="${i18n.t('inventory.slpTitle')}"><img class="lk-cur-ico" src="${curIcon('slp')}" alt="SLP"><span data-ref="slp">0</span></span><span class="lk-res-pill lk-cur" title="${i18n.t('inventory.baxsTitle')}"><img class="lk-cur-ico" src="${curIcon('baxs')}" alt="bAXS"><span data-ref="baxs">0</span></span></div>
+          <button type="button" class="lk-btn-close-x" data-ref="close" aria-label="${i18n.t('inventory.close')}">${sprite('i-close')}</button>
         </div>
         <div class="lk-bag__body lk-bag__body--3">
           <div class="lk-bag__attrs">
-            <div class="lk-sq-strip" data-ref="strip" aria-label="Escuadrón"></div>
+            <div class="lk-sq-strip" data-ref="strip" aria-label="${i18n.t('inventory.squad')}"></div>
             <div class="lk-hero-stats" data-ref="stats"></div>
           </div>
           <div class="lk-bag__doll lk-bag__doll--model">
             <div class="lk-doll lk-doll--model" data-ref="doll">
               <div class="lk-doll__stage" data-ref="stage"></div>
-              <span class="lk-doll__hint">Arrastra para girar</span>
+              <span class="lk-doll__hint">${i18n.t('inventory.dragRotate')}</span>
               <span class="lk-doll__rail" aria-hidden="true"></span>
               ${RAIL_ORDER.map((s) => `<button type="button" class="lk-eq-slot" data-slot="${s}" style="--x:${DOLL_POS[s][0]};--y:${DOLL_POS[s][1]}"></button>`).join('')}
             </div>
@@ -145,12 +149,12 @@ export class InventoryModal {
           <div class="lk-bag__grid-wrap" data-ref="bagView">
             <div class="lk-bag__bar">
               <div class="lk-codex__filters" data-ref="tabs"></div>
-              <label class="lk-bag__sort"><span class="lk-label">Orden</span>
-                <select data-ref="sort" class="lk-input lk-select" aria-label="Ordenar la mochila"><option value="rar">Rareza</option><option value="tier">Nivel</option><option value="name">Nombre</option></select></label>
+              <label class="lk-bag__sort"><span class="lk-label">${i18n.t('inventory.sort')}</span>
+                <select data-ref="sort" class="lk-input lk-select" aria-label="${i18n.t('inventory.sortAria')}"><option value="rar">${i18n.t('inventory.sortRarity')}</option><option value="tier">${i18n.t('inventory.sortTier')}</option><option value="name">${i18n.t('inventory.sortName')}</option></select></label>
             </div>
             <div class="lk-bag-tut" data-ref="tut" hidden></div>
             <div class="lk-bag__grid" data-ref="grid"></div>
-            <div class="lk-bag__cap"><span class="lk-drag-hint" style="margin-right:auto">Pasa el ratón para ver la ficha · clic para fijarla · doble clic o arrastra para equipar.</span><span data-ref="count"></span></div>
+            <div class="lk-bag__cap"><span class="lk-drag-hint" style="margin-right:auto">${i18n.t('inventory.gridHint')}</span><span data-ref="count"></span></div>
           </div>
           <div class="lk-bag__grid-wrap lk-bag-runes" data-ref="runesView" hidden></div>
         </div>
@@ -238,12 +242,12 @@ export class InventoryModal {
   // ------------------------------------------------------------ apertura
   _renderGold() {
     const g = typeof this.equipmentManager?.getGold === 'function' ? this.equipmentManager.getGold() : (this.equipmentManager?.gold || 0);
-    this.$('gold').textContent = Number(g).toLocaleString('es');
+    this.$('gold').textContent = i18n.num(g);
     // SLP y bAXS (se guardan con la Forja)
     try {
       const w = ForgeService.wallet();
-      this.$('slp').textContent = Number(w.slp).toLocaleString('es');
-      this.$('baxs').textContent = (Math.round(w.baxs * 100) / 100).toLocaleString('es', { maximumFractionDigits: 2 });
+      this.$('slp').textContent = i18n.num(w.slp);
+      this.$('baxs').textContent = (Math.round(w.baxs * 100) / 100).toLocaleString(i18n.lang() === 'es' ? 'es' : 'en', { maximumFractionDigits: 2 });
     } catch { /* sin partida activa */ }
   }
 
@@ -341,7 +345,7 @@ export class InventoryModal {
       el.animate([{ transform: 'translateX(0)' }, { transform: 'translateX(-8px)' }, { transform: 'translateX(8px)' }, { transform: 'translateX(0)' }], { duration: 320 });
     });
     this.modalEl.querySelector('.lk-tut-spot')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-    toast(`Primero equipa ${ITEMS_DB[this.tutorialTargetItemId]?.name || 'el objeto indicado'}`, true);
+    toast(i18n.t('inventory.tutEquipFirst', { item: ITEMS_DB[this.tutorialTargetItemId]?.name || i18n.t('inventory.tutTheItem') }), true);
   }
 
   close() {
@@ -471,7 +475,7 @@ export class InventoryModal {
     this.$('strip').innerHTML = this._heroIds().map((id, i) => {
       const p = em.getProgression(id);
       const pending = p.unspentStatPoints || 0;
-      return `<button type="button" class="lk-sq-pip" data-h="${id}" aria-pressed="${this.selectedHeroId === id}" aria-label="Equipar a ${esc(this._base(id).name)}">${this._portrait(id)}${i === 1 ? `<span class="lk-hb" title="Compañero principal"><img src="${I('heart')}" alt=""></span>` : ''}${pending ? '<span class="lk-bag-pend" title="Puntos sin asignar">!</span>' : ''}<span class="lk-nm">${esc(this._base(id).name)}</span></button>`;
+      return `<button type="button" class="lk-sq-pip" data-h="${id}" aria-pressed="${this.selectedHeroId === id}" aria-label="${i18n.t('inventory.equipHero', { name: esc(this._base(id).name) })}">${this._portrait(id)}${i === 1 ? `<span class="lk-hb" title="${i18n.t('inventory.mainCompanion')}"><img src="${I('heart')}" alt=""></span>` : ''}${pending ? `<span class="lk-bag-pend" title="${i18n.t('inventory.unspentPoints')}">!</span>` : ''}<span class="lk-nm">${esc(this._base(id).name)}</span></button>`;
     }).join('');
     this.$('strip').querySelectorAll('.lk-sq-pip').forEach((b) => b.addEventListener('click', () => {
       this._sfx();
@@ -529,25 +533,25 @@ export class InventoryModal {
     const pts = prog.unspentStatPoints || 0;
     const ap = prog.allocatedStats || {};
     const base = this._base();
-    const CLS_ES = { beast: 'Bestia', bird: 'Pájaro', plant: 'Planta', aquatic: 'Acuático', bug: 'Bicho', reptile: 'Reptil' };
+    const CLS_ES = { beast: i18n.t('inventory.clsBeast'), bird: i18n.t('inventory.clsBird'), plant: i18n.t('inventory.clsPlant'), aquatic: i18n.t('inventory.clsAquatic'), bug: i18n.t('inventory.clsBug'), reptile: i18n.t('inventory.clsReptile') };
     const clsName = this._isSapi(this.selectedHeroId) ? 'Sapidae' : (CLS_ES[this._clsKey(this.selectedHeroId)] || 'Axie');
     const xp = this._xp || { level: prog.level, cur: prog.currentExp, req: em.getRequiredExp(prog.level), pct: 0 };
     // Estadísticas en cuadrícula de 2 columnas (pantalla 18 del sistema de diseño)
     this.$('stats').innerHTML = `<span class="lk-label">${esc(base.name)} · ${esc(clsName)}${s.role ? ` · ${esc(s.role)}` : ''}</span>`
-      + `<div class="lk-bag-xp"><span>Nv ${xp.level}</span><span class="lk-bar lk-bar--xp" style="--v:${xp.pct}%"><i></i></span><b>${xp.cur}/${xp.req}</b></div>`
+      + `<div class="lk-bag-xp"><span>${i18n.t('inventory.lv', { n: xp.level })}</span><span class="lk-bar lk-bar--xp" style="--v:${xp.pct}%"><i></i></span><b>${xp.cur}/${xp.req}</b></div>`
       + '<div class="lk-hero-stats lk-hero-stats--grid">'
-      + cell('hp', 'Vida', 'Vida máxima', s.maxHP, g.hp)
-      + cell('damage', 'Daño', 'Daño extra', `+${s.bonusDamage}`, g.damage)
-      + cell('pa', 'PA', 'Puntos de acción', s.maxPA, g.pa)
-      + cell('pm', 'PM', 'Puntos de movimiento', s.maxPM, g.pm)
-      + cell('initiative', 'Inic.', 'Iniciativa', s.initiative, g.initiative)
-      + cell('shield', 'Escudo', 'Escudo inicial', `+${s.initialShield}`, g.shield)
-      + cell('crit', 'Crít.', 'Probabilidad de crítico', `${pct(s.critRate)}%`)
-      + cell('support', 'Apoyo', 'Poder de apoyo', `+${pct(s.supportPower)}%`)
+      + cell('hp', i18n.t('inventory.hp'), i18n.t('inventory.hpFull'), s.maxHP, g.hp)
+      + cell('damage', i18n.t('inventory.damage'), i18n.t('inventory.damageFull'), `+${s.bonusDamage}`, g.damage)
+      + cell('pa', i18n.t('inventory.ap'), i18n.t('inventory.apFull'), s.maxPA, g.pa)
+      + cell('pm', i18n.t('inventory.mp'), i18n.t('inventory.mpFull'), s.maxPM, g.pm)
+      + cell('initiative', i18n.t('inventory.iniShort'), i18n.t('inventory.initiative'), s.initiative, g.initiative)
+      + cell('shield', i18n.t('inventory.shield'), i18n.t('inventory.shieldFull'), `+${s.initialShield}`, g.shield)
+      + cell('crit', i18n.t('inventory.critShort'), i18n.t('inventory.critFull'), `${pct(s.critRate)}%`)
+      + cell('support', i18n.t('inventory.support'), i18n.t('inventory.supportFull'), `+${pct(s.supportPower)}%`)
       + '</div>'
       // Atributos: se reparten aquí con los 3 puntos que da cada nivel (EquipmentManager.allocateStatPoint)
-      + `<div class="lk-attr-block"><span class="lk-label">Atributos${pts ? `<span class="lk-attr-pts">${pts} ${pts === 1 ? 'punto' : 'puntos'}</span>` : '<span class="lk-attr-pts lk-is-off">3 por nivel</span>'}</span>`
-      + attrHints(this.selectedHeroId, base).map(([k, label, hint]) => `<div class="lk-attr ${pts ? 'lk-can' : ''}"><span><b>${label}</b><small>${hint}</small></span><strong>${ap[k] || 0}</strong>${pts ? `<button type="button" class="lk-attr-add" data-stat="${k}" aria-label="Asignar 1 punto a ${label}">+</button>` : ''}</div>`).join('')
+      + `<div class="lk-attr-block"><span class="lk-label">${i18n.t('inventory.attributes')}${pts ? `<span class="lk-attr-pts">${pts === 1 ? i18n.t('inventory.pointOne', { n: pts }) : i18n.t('inventory.pointMany', { n: pts })}</span>` : `<span class="lk-attr-pts lk-is-off">${i18n.t('inventory.perLevel')}</span>`}</span>`
+      + attrHints(this.selectedHeroId, base).map(([k, label, hint]) => `<div class="lk-attr ${pts ? 'lk-can' : ''}"><span><b>${label}</b><small>${hint}</small></span><strong>${ap[k] || 0}</strong>${pts ? `<button type="button" class="lk-attr-add" data-stat="${k}" aria-label="${i18n.t('inventory.assignPoint', { label })}">+</button>` : ''}</div>`).join('')
       + '</div>';
     this.$('stats').querySelectorAll('.lk-attr-add').forEach((b) => b.addEventListener('click', () => {
       if (em.allocateStatPoint(this.selectedHeroId, b.dataset.stat)) {
@@ -593,12 +597,12 @@ export class InventoryModal {
     const tut = this.$('tut');
     tut.hidden = !tutOn;
     if (tutOn) {
-      const heroName = this._base()?.name || 'tu héroe';
-      const target = ITEMS_DB[this.tutorialTargetItemId]?.name || 'la espada';
+      const heroName = this._base()?.name || i18n.t('inventory.yourHero');
+      const target = ITEMS_DB[this.tutorialTargetItemId]?.name || i18n.t('inventory.theSword');
       tut.className = `lk-bag-tut ${tutDone ? 'lk-ok' : ''}`;
       tut.innerHTML = tutDone
-        ? `<img class="lk-ai" src="${I('tick')}" alt=""><span><b>¡Equipado!</b> Pulsa <kbd>I</kbd>, <kbd>Esc</kbd> o la ✕ para cerrar la mochila.</span>`
-        : `<img class="lk-ai" src="${I('mission')}" alt=""><span><b>Misión del Maestro Paladill:</b> arrastra <b>${esc(target)}</b> a la ranura de arma de ${esc(heroName)}, o haz clic en él y pulsa «Equipar».</span>`;
+        ? `<img class="lk-ai" src="${I('tick')}" alt=""><span>${i18n.t('inventory.tutDone')}</span>`
+        : `<img class="lk-ai" src="${I('mission')}" alt=""><span>${i18n.t('inventory.tutTask', { item: esc(target), hero: esc(heroName) })}</span>`;
     }
 
     const cells = list.map(({ it, qty }) => {
@@ -607,16 +611,16 @@ export class InventoryModal {
       // Franja inferior = siempre el efecto principal; la cantidad va en la chapa de la esquina y el nombre en la ficha
       const cap = EQ_SLOTS.includes(k)
         ? (Object.entries(st).filter(([, v]) => v).slice(0, 1).map(([s, v]) => `+${v} ${STAT_ES[s] || s}`).join('') || SLOT1[k])
-        : k === 'material' ? (it.tier ? `${MATERIAL_RARITY_NAME[it.rarity] || ''} · ${BIOME[it.biome]?.[0] || ''}` : 'Catalizador') : effectCap(it, k);
+        : k === 'material' ? (it.tier ? `${MATERIAL_RARITY_NAME[it.rarity] || ''} · ${BIOME[it.biome]?.[0] || ''}` : i18n.t('inventory.catalyst')) : effectCap(it, k);
       const spot = tutOn && !tutDone && it.id === this.tutorialTargetItemId;
       return `<button type="button" class="lk-it ${this.pinned?.id === it.id ? 'lk-is-sel' : ''} ${spot ? 'lk-tut-spot' : ''}" data-id="${it.id}" ${EQ_SLOTS.includes(k) ? `data-slot="${k}"` : ''} style="--r:${rv(it.rarity)}" aria-label="${esc(it.name)}${qty > 1 ? ` ×${qty}` : ''}"><span class="lk-art">${art(it)}${EQ_SLOTS.includes(k) && it.tier != null ? `<span class="lk-tier">T${it.tier}</span>` : ''}${qty > 1 ? `<span class="lk-qty">×${qty}</span>` : ''}</span><span class="lk-cap">${esc(cap)}</span></button>`;
     });
     const pad = Math.max(0, Math.ceil((cells.length + 1) / 8) * 8 - cells.length);
     const grid = this.$('grid');
     if (!all.length) {
-      grid.innerHTML = '<p class="lk-bag-empty"><b>Mochila vacía</b>Completa misiones o derrota quimeras para conseguir equipo y provisiones.</p>';
+      grid.innerHTML = `<p class="lk-bag-empty"><b>${i18n.t('inventory.emptyTitle')}</b>${i18n.t('inventory.emptyText')}</p>`;
     } else if (!list.length) {
-      grid.innerHTML = '<p class="lk-bag-empty"><b>Nada en esta categoría</b>Elige «Todo» para ver toda la mochila.</p>';
+      grid.innerHTML = `<p class="lk-bag-empty"><b>${i18n.t('inventory.emptyCatTitle')}</b>${i18n.t('inventory.emptyCatText')}</p>`;
     } else {
       grid.innerHTML = cells.join('') + Array.from({ length: Math.min(pad, 8) }, () => '<span class="lk-it lk-is-empty"><span class="lk-art"></span><span class="lk-cap">&nbsp;</span></span>').join('');
     }
@@ -632,7 +636,7 @@ export class InventoryModal {
       b.addEventListener('dblclick', () => this._quickUse(b.dataset.id));
     });
     const n = (this.equipmentManager.inventory || []).length + all.filter((g) => g.it.mat).reduce((a, g) => a + g.qty, 0);
-    this.$('count').textContent = `${n} ${n === 1 ? 'objeto' : 'objetos'}`;
+    this.$('count').textContent = n === 1 ? i18n.t('inventory.itemsOne', { n }) : i18n.t('inventory.itemsMany', { n });
     if (this.pinned && !this.pinned.anchor.isConnected) this._closeTip();
   }
 
@@ -673,7 +677,7 @@ export class InventoryModal {
     const curId = eqSlot ? eq[k] : null;
     const cur = curId ? ITEMS_DB[curId] : null;
     const isOn = curId === it.id && !(this.equipmentManager.inventory || []).includes(it.id);
-    const hero = this._base()?.name || 'tu héroe';
+    const hero = this._base()?.name || i18n.t('inventory.yourHero');
     const st = it.stats || {};
     const keys = eqSlot ? [...new Set([...Object.keys(st), ...Object.keys((!isOn && cur?.stats) || {})])].filter((s) => STAT_ES[s] && (st[s] || (!isOn && cur?.stats?.[s]))) : [];
     const diff = (s) => {
@@ -682,31 +686,33 @@ export class InventoryModal {
       return d === 0 ? '' : `<span class="${d > 0 ? 'lk-up' : 'lk-down'}">${d > 0 ? '▲' : '▼'}${Math.abs(d)}</span>`;
     };
     const eff = it.effect || {};
-    const effRows = k === 'consumable' ? [['heal', 'Curación'], ['pa', 'PA'], ['pm', 'PM'], ['shield', 'Escudo'], ['bond', 'Vínculo']].filter(([e]) => eff[e]).map(([e, l]) => `<span class="lk-tt-stat">${l}<b>+${eff[e]}${e === 'bond' ? ' %' : ''}</b></span>`).join('') : '';
+    const effRows = k === 'consumable' ? [['heal', i18n.t('inventory.healing')], ['pa', i18n.t('inventory.ap')], ['pm', i18n.t('inventory.mp')], ['shield', i18n.t('inventory.shield')], ['bond', i18n.t('inventory.bond')]].filter(([e]) => eff[e]).map(([e, l]) => `<span class="lk-tt-stat">${l}<b>+${eff[e]}${e === 'bond' ? ' %' : ''}</b></span>`).join('') : '';
     let acts = '';
     if (eqSlot) {
       acts = isOn
-        ? `<button type="button" class="lk-btn lk-btn-secondary-wood lk-btn--sm" data-act="unequip"><span class="lk-b-ico">${sprite('i-close')}</span>Quitar</button>`
-        : `<button type="button" class="lk-btn lk-btn-primary-gold lk-btn--sm" data-act="equip"><span class="lk-b-ico"><img class="lk-ai" src="${I('tick')}" alt=""></span>Equipar a ${esc(hero)}</button>`;
+        ? `<button type="button" class="lk-btn lk-btn-secondary-wood lk-btn--sm" data-act="unequip"><span class="lk-b-ico">${sprite('i-close')}</span>${i18n.t('inventory.unequip')}</button>`
+        : `<button type="button" class="lk-btn lk-btn-primary-gold lk-btn--sm" data-act="equip"><span class="lk-b-ico"><img class="lk-ai" src="${I('tick')}" alt=""></span>${i18n.t('inventory.equipHero', { name: esc(hero) })}</button>`;
+    } else if (k === 'consumable' && eff.openBag) {
+      acts = `<button type="button" class="lk-btn lk-btn-primary-gold lk-btn--sm" data-act="use"><span class="lk-b-ico"><img class="lk-ai" src="${I(eff.openBag === 'runes' ? 'rune' : 'charm')}" alt=""></span>${i18n.t('inventory.open')}</button>`;
     } else if (k === 'consumable' && eff.bond) {
       const care = typeof window !== 'undefined' ? window.lunakaiAxieCare : null;
       const full = Boolean(care && care.status().max);
       acts = full
-        ? `<button type="button" class="lk-btn lk-btn-primary-gold lk-btn--sm" disabled title="El vínculo ya está al 100 %"><span class="lk-b-ico"><img class="lk-ai" src="${I('heart')}" alt=""></span>Vínculo al 100 %</button>`
-        : `<button type="button" class="lk-btn lk-btn-primary-gold lk-btn--sm" data-act="use"><span class="lk-b-ico"><img class="lk-ai" src="${I('heart')}" alt=""></span>Dar a tu Axie</button>`;
+        ? `<button type="button" class="lk-btn lk-btn-primary-gold lk-btn--sm" disabled title="${i18n.t('inventory.bondFullTitle')}"><span class="lk-b-ico"><img class="lk-ai" src="${I('heart')}" alt=""></span>${i18n.t('inventory.bondFull')}</button>`
+        : `<button type="button" class="lk-btn lk-btn-primary-gold lk-btn--sm" data-act="use"><span class="lk-b-ico"><img class="lk-ai" src="${I('heart')}" alt=""></span>${i18n.t('inventory.giveAxie')}</button>`;
     } else if (k === 'consumable') {
-      acts = `<button type="button" class="lk-btn lk-btn-primary-gold lk-btn--sm" data-act="use"><span class="lk-b-ico"><img class="lk-ai" src="${I('tick')}" alt=""></span>Usar en ${esc(hero)}</button>`;
+      acts = `<button type="button" class="lk-btn lk-btn-primary-gold lk-btn--sm" data-act="use"><span class="lk-b-ico"><img class="lk-ai" src="${I('tick')}" alt=""></span>${i18n.t('inventory.useOn', { name: esc(hero) })}</button>`;
     }
     const r = it.rarity || 'common';
-    return `${pinned ? `<button type="button" class="lk-tt-x" aria-label="Cerrar ficha">${sprite('i-close')}</button>` : ''}
-      <header><span class="lk-tt-art">${art(it)}</span><div><small>${SLOT1[k] || 'Objeto'}${EQ_SLOTS.includes(k) && it.tier != null ? ` · Tier ${it.tier}` : ''}</small><b>${esc(it.name)}</b><span class="lk-rar-chip" data-r="${r === 'legendary' ? 'mystic' : r}">${RAR_NAME[r] || r}</span></div></header>
+    return `${pinned ? `<button type="button" class="lk-tt-x" aria-label="${i18n.t('inventory.closeCard')}">${sprite('i-close')}</button>` : ''}
+      <header><span class="lk-tt-art">${art(it)}</span><div><small>${SLOT1[k] || i18n.t('inventory.item')}${EQ_SLOTS.includes(k) && it.tier != null ? i18n.t('inventory.tierSuffix', { n: it.tier }) : ''}</small><b>${esc(it.name)}</b><span class="lk-rar-chip" data-r="${r === 'legendary' ? 'mystic' : r}">${RAR_NAME[r] || r}</span></div></header>
       <div class="lk-tt-body">
         ${keys.length || effRows ? `<div class="lk-tt-stats">${keys.map((s) => `<span class="lk-tt-stat">${STAT_ES[s]}<b>${st[s] ? `+${st[s]}` : '—'}${diff(s)}</b></span>`).join('')}${effRows}</div>` : ''}
-        ${isOn ? `<span class="lk-tt-note">Equipado en ${esc(hero)}</span>` : cur ? `<span class="lk-tt-note">Comparado con ${esc(cur.name)} (equipado en ${esc(hero)})</span>` : ''}
-        ${k === 'quest' ? '<span class="lk-tt-note">Objeto de misión: se guarda para tus misiones activas.</span>' : ''}
-        ${it.mat ? `<span class="lk-tt-note">Material de la Forja · ${esc(it.source || '')}</span>` : ''}
+        ${isOn ? `<span class="lk-tt-note">${i18n.t('inventory.equippedOn', { name: esc(hero) })}</span>` : cur ? `<span class="lk-tt-note">${i18n.t('inventory.comparedWith', { item: esc(cur.name), name: esc(hero) })}</span>` : ''}
+        ${k === 'quest' ? `<span class="lk-tt-note">${i18n.t('inventory.questItemNote')}</span>` : ''}
+        ${it.mat ? `<span class="lk-tt-note">${i18n.t('inventory.forgeMaterial')} · ${esc(it.source || '')}</span>` : ''}
         ${it.description ? `<p class="${pinned ? '' : 'lk-clamp'}">${esc(it.description)}</p>` : ''}
-        ${pinned ? (acts ? `<div class="lk-actions">${acts}</div>` : '') : `<span class="lk-tt-hint">${eqSlot ? 'Clic: fijar ficha · Doble clic o arrastra: equipar' : k === 'consumable' ? 'Clic: fijar ficha · Doble clic: usar' : 'Clic: fijar ficha'}</span>`}
+        ${pinned ? (acts ? `<div class="lk-actions">${acts}</div>` : '') : `<span class="lk-tt-hint">${eqSlot ? i18n.t('inventory.hintEquip') : k === 'consumable' ? i18n.t('inventory.hintUse') : i18n.t('inventory.hintPin')}</span>`}
       </div>`;
   }
 
@@ -766,7 +772,7 @@ export class InventoryModal {
     const slot = it.slot;
     const before = this._statKeys();
     const prev = this._equipped()[slot];
-    if (!this.equipmentManager.equipItem(hero, slot, it.id)) { toast(`${it.name} no se puede equipar aquí`, true); return; }
+    if (!this.equipmentManager.equipItem(hero, slot, it.id)) { toast(i18n.t('inventory.cantEquipHere', { item: it.name }), true); return; }
     if (this.audio && this.audio.playBuff) this.audio.playBuff();
     if (this.onItemEquipped) this.onItemEquipped(hero, slot, it.id);
     this._refreshModelEquipment();
@@ -780,7 +786,7 @@ export class InventoryModal {
     this._renderDoll(Object.keys(after).filter((k) => after[k] !== before[k]));
     const el = this.$('doll').querySelector(`.lk-eq-slot[data-slot="${slot}"]`);
     if (el) { el.classList.remove('lk-just-equipped'); void el.offsetWidth; el.classList.add('lk-just-equipped'); }
-    toast(`${it.name} equipado${prev && prev !== it.id ? ` · ${ITEMS_DB[prev]?.name || 'el anterior'} vuelve a la mochila` : ''}`);
+    toast(`${i18n.t('inventory.equipped', { item: it.name })}${prev && prev !== it.id ? ` · ${i18n.t('inventory.backToBag', { item: ITEMS_DB[prev]?.name || i18n.t('inventory.thePrevious') })}` : ''}`);
   }
 
   _unequip(slot) {
@@ -796,7 +802,7 @@ export class InventoryModal {
     this._closeTip();
     this._renderBackpackItems();
     this._renderDoll(Object.keys(after).filter((k) => after[k] !== before[k]));
-    toast(`${ITEMS_DB[id]?.name || 'Objeto'} vuelve a la mochila`);
+    toast(i18n.t('inventory.backToBag', { item: ITEMS_DB[id]?.name || i18n.t('inventory.item') }));
   }
 
   _startDrag(e, src, id, from) {
@@ -840,7 +846,7 @@ export class InventoryModal {
       setTimeout(() => { this.justDropped = false; }, 0);
       if (over && over.classList && over.classList.contains('lk-eq-slot')) {
         if (over.dataset.slot === it.slot) { if (this._equipped()[it.slot] !== id || from === 'grid') this._equip(it); }
-        else toast(`${it.name} va en la ranura de ${SLOT1[it.slot]}`, true);
+        else toast(i18n.t('inventory.goesInSlot', { item: it.name, slot: SLOT1[it.slot] }), true);
       } else if (from === 'slot' && over && over.dataset.ref === 'bagView') {
         this._unequip(it.slot);
       }
@@ -860,21 +866,45 @@ export class InventoryModal {
   }
 
   // ------------------------------------------------------------ consumibles
+  /** Abre una bolsa de runa o de charm: la saca de la Mochila y muestra lo que tocó. */
+  async _openBag(item) {
+    const idx = this.equipmentManager.inventory.indexOf(item.id);
+    if (idx < 0) return;
+    const kind = item.effect.openBag;
+    const got = RuneCharmService.openBag(kind, false);
+    if (!got) { toast(i18n.t('inventory.bagEmpty'), true); return; }
+    this.equipmentManager.inventory.splice(idx, 1);
+    try { this.equipmentManager._notifyChange?.(); } catch { /* nada */ }
+    RuneCharmService._persist?.();
+    this._renderBackpackItems();
+    await loadRuneCharmArt();
+    const CLS = { aquatic: i18n.t('inventory.clsAquatic'), beast: i18n.t('inventory.clsBeast'), bird: i18n.t('inventory.clsBird'), bug: i18n.t('inventory.clsBug'), plant: i18n.t('inventory.clsPlant'), reptile: i18n.t('inventory.clsReptile') };
+    const it = got.item;
+    showRewardCard({
+      title: item.name,
+      items: [{ icon: runeCharmArt(kind, it.id) || I(kind === 'runes' ? 'rune' : 'charm'), name: it.name, rarity: it.rarity }],
+      note: kind === 'runes' ? i18n.t('inventory.bagNoteRune', { cls: CLS[it.class] || it.class }) : i18n.t('inventory.bagNoteCharm', { cls: CLS[it.class] || it.class }),
+      audio: this.audio,
+    });
+  }
+
   _useConsumable(item) {
     if (!item || !this.equipmentManager) return;
+    // Bolsa de runa o de charm (Hito 54): se abre y da una de clase al azar
+    if (item.effect && item.effect.openBag) { this._openBag(item); return; }
     // Comida: siempre para el Axie principal (Axie Care), sin importar el héroe seleccionado
     if (item.effect && item.effect.bond) {
       const care = typeof window !== 'undefined' ? window.lunakaiAxieCare : null;
       const r = care ? care.feed(item.id) : { ok: false };
       if (this.audio && typeof this.audio.playBuff === 'function' && r.ok) this.audio.playBuff();
-      toast(r.ok ? `Tu Axie se come ${item.name}: vínculo ${formatBond(r.before)}% → ${formatBond(r.after)}%`
-        : r.reason === 'full' ? 'El vínculo ya está al 100 %: guarda la comida para más adelante' : 'Ahora no puedes darle de comer', !r.ok);
+      toast(r.ok ? i18n.t('inventory.fed', { item: item.name, before: formatBond(r.before), after: formatBond(r.after) })
+        : r.reason === 'full' ? i18n.t('inventory.bondFullFood') : i18n.t('inventory.cantFeed'), !r.ok);
       this._renderHeroDetails();
       this._renderBackpackItems();
       return;
     }
     const heroId = this.selectedHeroId;
-    const heroName = this._base(heroId)?.name || 'Héroe';
+    const heroName = this._base(heroId)?.name || i18n.t('inventory.hero');
     const stats = this.equipmentManager.getCalculatedStats(heroId);
     const maxHP = stats ? stats.maxHP : 300;
     const currentHP = this.equipmentManager.getCurrentHP(heroId);
@@ -883,9 +913,9 @@ export class InventoryModal {
       const newHP = Math.min(maxHP, currentHP + item.effect.heal);
       const healed = newHP - currentHP;
       this.equipmentManager.setCurrentHP(heroId, newHP);
-      message = healed > 0 ? `${heroName} recupera +${healed} de vida (${newHP}/${maxHP})` : `${heroName} ya tenía la vida completa`;
+      message = healed > 0 ? i18n.t('inventory.healed', { name: heroName, n: healed, hp: newHP, max: maxHP }) : i18n.t('inventory.alreadyFull', { name: heroName });
     } else {
-      message = `${item.name}: efecto activado en ${heroName}`;
+      message = i18n.t('inventory.effectOn', { item: item.name, name: heroName });
     }
     const idx = this.equipmentManager.inventory.indexOf(item.id);
     if (idx !== -1) this.equipmentManager.inventory.splice(idx, 1);

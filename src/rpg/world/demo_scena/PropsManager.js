@@ -88,11 +88,46 @@ export class PropsManager {
     this.pebbleLODEntries = [];
     this.lastPebblePlayerPos = new THREE.Vector3(-9999, -9999, -9999);
 
-    this.populateAllZones();
+    // Hito 66: la colocación se calcula con el terreno de antes del río de mar a mar y los vados, así la isla
+    // sale idéntica (cada rechazo cambia la secuencia aleatoria). Después se ajusta lo que el nuevo cauce toca.
+    this.terrain.legacyHeights = true;
+    try { this.populateAllZones(); } finally { this.terrain.legacyHeights = false; }
+    this._fitToTerrainEdits();
     if (!this.deferLegacyTrees) this.buildInstancedTrees();
     this.buildInstancedVegetation();
     this.buildInstancedRocks();
     this.buildInstancedPebbles();
+  }
+
+  /**
+   * Hito 66: tras colocar con el terreno antiguo, cada pieza donde el suelo cambió (cauce nuevo del norte, vados)
+   * se apoya en la altura nueva; las que quedarían dentro del agua se quitan.
+   */
+  _fitToTerrainEdits() {
+    const t = this.terrain;
+    const lists = [this.pendingTrees, this.pendingRocks, this.pendingRockPillars, this.pendingVegetation, this.pendingPebbles];
+    const legacyH = (x, z) => { t.legacyHeights = true; try { return t.getHeight(x, z); } finally { t.legacyHeights = false; } };
+    let moved = 0, removed = 0;
+    for (const list of lists) {
+      if (!Array.isArray(list)) continue;
+      for (let i = list.length - 1; i >= 0; i--) {
+        const it = list[i];
+        if (!it || !it.pos) continue;
+        const x = it.pos.x, z = it.pos.z;
+        const { riverCenterX, riverHalfWidth } = WaterManager.getRiverBounds(z);
+        if (Math.abs(x - riverCenterX) > riverHalfWidth + 11) continue; // lejos del río: nada cambió
+        const h1 = t.getHeight(x, z);
+        const dy = h1 - legacyH(x, z);
+        if (Math.abs(dy) < 0.02) continue;
+        const inChannel = Math.abs(x - riverCenterX) < riverHalfWidth + 1.0 && h1 < WaterManager.getRiverWaterHeight(z) + 0.1;
+        if (inChannel && list !== this.pendingRocks && list !== this.pendingRockPillars) { list.splice(i, 1); removed++; continue; }
+        if (inChannel && h1 < WaterManager.getRiverWaterHeight(z) - 0.6) { list.splice(i, 1); removed++; continue; }
+        it.pos.y += dy; moved++;
+      }
+    }
+    // Los árboles también se apuntan en treePositions (distancia mínima entre árboles): se rehace con los que quedan
+    this.treePositions = this.pendingTrees.map((p) => ({ x: p.pos.x, z: p.pos.z }));
+    if (moved || removed) console.log(`[PropsManager] Río de mar a mar: ${moved} piezas apoyadas en el nuevo suelo, ${removed} retiradas del cauce`);
   }
 
   random() {

@@ -251,12 +251,14 @@ export function installCombatDebug(game) {
     rune(heroId, runeId = null) {
       const svc = window.lunakaiRuneCharms;
       if (!svc) throw new Error('[lkDebug] RuneCharmService no está disponible.');
+      if (runeId && svc.available?.('runes', runeId) < 1) svc.add?.('runes', runeId, 1); // pruebas: se añade a la bolsa
       svc.setRune(heroId, runeId);
       return svc.get(heroId);
     },
     charm(heroId, part, charmId = null) {
       const svc = window.lunakaiRuneCharms;
       if (!svc) throw new Error('[lkDebug] RuneCharmService no está disponible.');
+      if (charmId && svc.available?.('charms', charmId) < 1) svc.add?.('charms', charmId, 1); // pruebas: se añade a la bolsa
       if (!svc.setCharm(heroId, part, charmId)) console.warn('[lkDebug] No hay PP suficientes (máx. 15) o la parte no existe.');
       return svc.get(heroId);
     },

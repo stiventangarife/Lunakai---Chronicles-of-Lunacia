@@ -1,12 +1,13 @@
-// FerryTravelUI.js — Barca de Pomodoro (Crónica Celeste, etapa 2)
-// La elección de isla ya no es un panel aparte: Pomodoro pregunta «¿Hacia dónde ponemos rumbo?» y las islas
+// FerryTravelUI.js — Barca de Kawa, el barquero (Crónica Celeste, etapa 2; Pomodoro hasta el Hito 51)
+// La elección de isla ya no es un panel aparte: Kawa pregunta «¿Hacia dónde ponemos rumbo?» y las islas
 // aparecen como respuestas numeradas del diálogo (pantalla 21 del sistema de diseño). La isla actual sale
 // bloqueada con su motivo y «Ahora no» siempre está disponible.
 // API pública intacta: new FerryTravelUI(overworldManager), open(), close(), travel(islandId), isOpen, isTraveling.
 import { ISLANDS_REGISTRY } from '../world/MapRegistry.js';
+import * as i18n from '../../i18n/i18n.js';
 
 const ISLAND_ORDER = ['island_forest', 'island_savannah', 'island_arctic', 'island_mystic', 'island_dungeon'];
-const FERRY_SPEAKER = { speaker: 'Pomodoro', title: 'Barquero de Lunacia', avatar: './assets/portraits/pomodoro.png', npcId: 'pomodoro', cls: 'bug', roleIcon: 'map' };
+const FERRY_SPEAKER = { speaker: 'Kawa', title: i18n.t('hud.ferryTitle'), avatar: './assets/portraits/kappa.png', npcId: 'kappa', cls: 'bug', roleIcon: 'map' };
 
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
@@ -39,21 +40,21 @@ export class FerryTravelUI {
       const here = island.zoneId === currentZone;
       return {
         text: island.name,
-        sub: here ? 'Estás aquí' : [island.tagline, island.levelRange].filter(Boolean).join(' · '),
+        sub: here ? i18n.t('hud.youAreHere') : [island.tagline, island.levelRange && String(island.levelRange).replace('Nivel', i18n.t('hud.level'))].filter(Boolean).join(' · '),
         locked: here,
         islandId: island.id || ISLAND_ORDER.find((k) => ISLANDS_REGISTRY[k] === island),
         reply: {
           ...FERRY_SPEAKER,
-          html: `¡Rumbo a <span class="lk-place">${esc(island.name)}</span>! Agárrate fuerte, que hoy sopla el viento del este.`
+          html: i18n.t('hud.ferrySetSail', { place: `<span class="lk-place">${esc(island.name)}</span>` })
         },
         onSelect: (c) => { this._selected = c.islandId; }
       };
     });
     list.push({
-      text: 'Ahora no',
-      sub: 'Volver más tarde',
+      text: i18n.t('hud.notNow'),
+      sub: i18n.t('hud.comeBackLater'),
       leave: true,
-      reply: { ...FERRY_SPEAKER, text: 'Como quieras. Aquí estaré cuando cambie la marea.' }
+      reply: { ...FERRY_SPEAKER, text: i18n.t('hud.ferryBye') }
     });
     return list;
   }
@@ -66,7 +67,7 @@ export class FerryTravelUI {
     this.isOpen = true;
     window.addEventListener('keydown', this._onKey, true);
     window.addEventListener('keyup', this._onSpace, true);
-    ds.startDialogue([{ ...FERRY_SPEAKER, text: '¿Hacia dónde ponemos rumbo?', choices: this._choices() }], () => {
+    ds.startDialogue([{ ...FERRY_SPEAKER, text: i18n.t('hud.ferryAsk'), choices: this._choices() }], () => {
       const target = this._selected;
       this._release();
       if (target) this.travel(target);
@@ -100,7 +101,7 @@ export class FerryTravelUI {
       if (tm) {
         tm.isTransitioning = true;
         if (typeof tm.onTransitionStart === 'function') tm.onTransitionStart({ targetMap: island.zoneId });
-        if (typeof tm.showLoading === 'function') tm.showLoading(`⛵ ${island.name}`, 'Pomodoro iza las velas...');
+        if (typeof tm.showLoading === 'function') tm.showLoading(`${island.name}`, i18n.t('hud.ferrySails'));
       }
       om.isLoadingZone = true;
       if (om.audio && typeof om.audio.playSfx === 'function') om.audio.playSfx('menu_confirm');

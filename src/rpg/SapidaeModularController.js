@@ -1,161 +1,163 @@
 // SapidaeModularController.js - Modular Equipment & Customization Controller for Sapidae
 import * as THREE from '../../vendor/three.module.js';
+import * as i18n from '../i18n/i18n.js';
 import { ITEMS_DB } from '../tactics/ItemDatabase.js';
+import { weaponVisual, buildStaticWeapon, mountOnSapidae, gripHand } from './WeaponVisuals.js';
 
 export const HORN_STYLES = [
-  { id: 'base', name: 'Cuernos Base Sapidae', icon: '🦬', desc: 'Cuernos curvados originales de Sapidae a los costados de la cabeza' },
-  { id: 'beast', name: 'Cuernos de Bestia', icon: '⚡', desc: 'Cuernos curvados feroces arqueados hacia arriba y atrás' },
-  { id: 'spiral', name: 'Cornamenta de Carnero', icon: '🌀', desc: 'Cuernos espirales curvos protectores de Lunacia' },
-  { id: 'dragon', name: 'Cuernos Dracónicos', icon: '🐉', desc: 'Cuernos afilados de dragón ascendentes' },
-  { id: 'astral', name: 'Cristales Astrales', icon: '✨', desc: 'Astas cristalinas con brillo etéreo lunar' },
-  { id: 'deer', name: 'Astas Silvanas', icon: '🦌', desc: 'Astas ramificadas del bosque lunar' }
+  { id: 'base', name: i18n.t('creator.horn.base.name'), icon: '🦬', desc: i18n.t('creator.horn.base.desc') },
+  { id: 'beast', name: i18n.t('creator.horn.beast.name'), icon: '⚡', desc: i18n.t('creator.horn.beast.desc') },
+  { id: 'spiral', name: i18n.t('creator.horn.spiral.name'), icon: '🌀', desc: i18n.t('creator.horn.spiral.desc') },
+  { id: 'dragon', name: i18n.t('creator.horn.dragon.name'), icon: '🐉', desc: i18n.t('creator.horn.dragon.desc') },
+  { id: 'astral', name: i18n.t('creator.horn.astral.name'), icon: '✨', desc: i18n.t('creator.horn.astral.desc') },
+  { id: 'deer', name: i18n.t('creator.horn.deer.name'), icon: '🦌', desc: i18n.t('creator.horn.deer.desc') }
 ];
 
 export const HORN_COLORS = [
-  { name: 'Original Base', hex: 'original', sample: '#f59e0b' },
-  { name: 'Dorado Solar', hex: '#f59e0b', sample: '#f59e0b' },
-  { name: 'Hueso Astral', hex: '#f8fafc', sample: '#f8fafc' },
-  { name: 'Obsidiana Lunar', hex: '#0f172a', sample: '#0f172a' },
-  { name: 'Carmesí Ferviente', hex: '#dc2626', sample: '#dc2626' },
-  { name: 'Verde Jade', hex: '#10b981', sample: '#10b981' },
-  { name: 'Cian Místico', hex: '#06b6d4', sample: '#06b6d4' },
-  { name: 'Púrpura Sombrío', hex: '#7c3aed', sample: '#7c3aed' },
-  { name: 'Bronce Ancestral', hex: '#92400e', sample: '#92400e' }
+  { name: i18n.t('creator.color.originalBase'), hex: 'original', sample: '#f59e0b' },
+  { name: i18n.t('creator.color.solarGold'), hex: '#f59e0b', sample: '#f59e0b' },
+  { name: i18n.t('creator.color.astralBone'), hex: '#f8fafc', sample: '#f8fafc' },
+  { name: i18n.t('creator.color.lunarObsidian'), hex: '#0f172a', sample: '#0f172a' },
+  { name: i18n.t('creator.color.ferventCrimson'), hex: '#dc2626', sample: '#dc2626' },
+  { name: i18n.t('creator.color.jadeGreen'), hex: '#10b981', sample: '#10b981' },
+  { name: i18n.t('creator.color.mysticCyan'), hex: '#06b6d4', sample: '#06b6d4' },
+  { name: i18n.t('creator.color.shadowPurple'), hex: '#7c3aed', sample: '#7c3aed' },
+  { name: i18n.t('creator.color.ancestralBronze'), hex: '#92400e', sample: '#92400e' }
 ];
 
 export const EYE_SHAPES = [
-  { id: 'round', name: 'Redondeados', icon: '👀', desc: 'Ojos grandes y expresivos de anime clásico' },
-  { id: 'medium', name: 'Medianos', icon: '👁️', desc: 'Ojos proporcionados y serenos' },
-  { id: 'almond', name: 'Rasgados', icon: '🐱', desc: 'Ojos almendrados y estilizados tipo orientales / felinos' }
+  { id: 'round', name: i18n.t('creator.eye.round.name'), icon: '👀', desc: i18n.t('creator.eye.round.desc') },
+  { id: 'medium', name: i18n.t('creator.eye.medium.name'), icon: '👁️', desc: i18n.t('creator.eye.medium.desc') },
+  { id: 'almond', name: i18n.t('creator.eye.almond.name'), icon: '🐱', desc: i18n.t('creator.eye.almond.desc') }
 ];
 export const EYE_TRAITS = EYE_SHAPES; // backwards compatibility
 
 export const PUPIL_COLORS = [
-  { name: 'Carmesí Original', hex: 'original', sample: '#dc2626' },
-  { name: 'Azul Zafiro', hex: '#0284c7', sample: '#0284c7' },
-  { name: 'Verde Esmeralda', hex: '#10b981', sample: '#10b981' },
-  { name: 'Ámbar Místico', hex: '#d97706', sample: '#d97706' },
-  { name: 'Púrpura Arcano', hex: '#8b5cf6', sample: '#8b5cf6' },
-  { name: 'Obsidiana Oscuro', hex: '#0f172a', sample: '#0f172a' },
-  { name: 'Rosa Magenta', hex: '#ec4899', sample: '#ec4899' },
-  { name: 'Cian Eléctrico', hex: '#06b6d4', sample: '#06b6d4' },
-  { name: 'Dorado Solar', hex: '#eab308', sample: '#eab308' }
+  { name: i18n.t('creator.color.originalCrimson'), hex: 'original', sample: '#dc2626' },
+  { name: i18n.t('creator.color.sapphireBlue'), hex: '#0284c7', sample: '#0284c7' },
+  { name: i18n.t('creator.color.emeraldGreen'), hex: '#10b981', sample: '#10b981' },
+  { name: i18n.t('creator.color.mysticAmber'), hex: '#d97706', sample: '#d97706' },
+  { name: i18n.t('creator.color.arcanePurple'), hex: '#8b5cf6', sample: '#8b5cf6' },
+  { name: i18n.t('creator.color.darkObsidian'), hex: '#0f172a', sample: '#0f172a' },
+  { name: i18n.t('creator.color.magentaPink'), hex: '#ec4899', sample: '#ec4899' },
+  { name: i18n.t('creator.color.electricCyan'), hex: '#06b6d4', sample: '#06b6d4' },
+  { name: i18n.t('creator.color.solarGold'), hex: '#eab308', sample: '#eab308' }
 ];
 
 export const HAIR_STYLES = [
-  { id: 'braids', name: 'Coletas Ema', icon: '🎀', desc: 'Trenzas dobles tradicionales de Ema con lazos' },
-  { id: 'short', name: 'Corte Bob Corto', icon: '✂️', desc: 'Cabello corto ágil para el combate veloz' },
-  { id: 'bun', name: 'Moño Samurai', icon: '🍙', desc: 'Recogido alto estilizado de disciplina marcial' },
-  { id: 'long', name: 'Melena Larga', icon: '✨', desc: 'Cabello largo suelto que ondea en la batalla' }
+  { id: 'braids', name: i18n.t('creator.hair.braids.name'), icon: '🎀', desc: i18n.t('creator.hair.braids.desc') },
+  { id: 'short', name: i18n.t('creator.hair.short.name'), icon: '✂️', desc: i18n.t('creator.hair.short.desc') },
+  { id: 'bun', name: i18n.t('creator.hair.bun.name'), icon: '🍙', desc: i18n.t('creator.hair.bun.desc') },
+  { id: 'long', name: i18n.t('creator.hair.long.name'), icon: '✨', desc: i18n.t('creator.hair.long.desc') }
 ];
 
 export const HAIR_COLORS = [
-  { name: 'Carmesí Original', hex: 'original', sample: '#b91c1c' },
-  { name: 'Negro Azabache', hex: '#1e293b', sample: '#1e293b' },
-  { name: 'Castaño Roble', hex: '#451a03', sample: '#451a03' },
-  { name: 'Rubio Dorado', hex: '#eab308', sample: '#eab308' },
-  { name: 'Blanco Plateado', hex: '#f8fafc', sample: '#f8fafc' },
-  { name: 'Cian Astral', hex: '#0284c7', sample: '#0284c7' },
-  { name: 'Rosa Sakura', hex: '#f472b6', sample: '#f472b6' },
-  { name: 'Verde Jade', hex: '#059669', sample: '#059669' },
-  { name: 'Carmesí Ferviente', hex: '#dc2626', sample: '#dc2626' },
-  { name: 'Púrpura Arcano', hex: '#7c3aed', sample: '#7c3aed' },
-  { name: 'Naranja Fuego', hex: '#ea580c', sample: '#ea580c' }
+  { name: i18n.t('creator.color.originalCrimson'), hex: 'original', sample: '#b91c1c' },
+  { name: i18n.t('creator.color.jetBlack'), hex: '#1e293b', sample: '#1e293b' },
+  { name: i18n.t('creator.color.oakBrown'), hex: '#451a03', sample: '#451a03' },
+  { name: i18n.t('creator.color.goldenBlond'), hex: '#eab308', sample: '#eab308' },
+  { name: i18n.t('creator.color.silverWhite'), hex: '#f8fafc', sample: '#f8fafc' },
+  { name: i18n.t('creator.color.astralCyan'), hex: '#0284c7', sample: '#0284c7' },
+  { name: i18n.t('creator.color.sakuraPink'), hex: '#f472b6', sample: '#f472b6' },
+  { name: i18n.t('creator.color.jadeGreen'), hex: '#059669', sample: '#059669' },
+  { name: i18n.t('creator.color.ferventCrimson'), hex: '#dc2626', sample: '#dc2626' },
+  { name: i18n.t('creator.color.arcanePurple'), hex: '#7c3aed', sample: '#7c3aed' },
+  { name: i18n.t('creator.color.fireOrange'), hex: '#ea580c', sample: '#ea580c' }
 ];
 
 export const SUIT_COLORS = [
-  { name: 'Rojo Carmesí Original', hex: 'original', sample: '#b91c1c' },
-  { name: 'Azul Cobalto', hex: '#1d4ed8', sample: '#1d4ed8' },
-  { name: 'Verde Esmeralda', hex: '#15803d', sample: '#15803d' },
-  { name: 'Púrpura Real', hex: '#7e22ce', sample: '#7e22ce' },
-  { name: 'Negro Obsidiana', hex: '#1e293b', sample: '#1e293b' },
-  { name: 'Dorado Solar', hex: '#d97706', sample: '#d97706' },
-  { name: 'Cian Astral', hex: '#0284c7', sample: '#0284c7' },
-  { name: 'Blanco Níveo', hex: '#f1f5f9', sample: '#f1f5f9' },
-  { name: 'Escarlata Pasión', hex: '#e11d48', sample: '#e11d48' },
-  { name: 'Ámbar Cálido', hex: '#b45309', sample: '#b45309' }
+  { name: i18n.t('creator.color.originalCrimsonRed'), hex: 'original', sample: '#b91c1c' },
+  { name: i18n.t('creator.color.cobaltBlue'), hex: '#1d4ed8', sample: '#1d4ed8' },
+  { name: i18n.t('creator.color.emeraldGreen'), hex: '#15803d', sample: '#15803d' },
+  { name: i18n.t('creator.color.royalPurple'), hex: '#7e22ce', sample: '#7e22ce' },
+  { name: i18n.t('creator.color.obsidianBlack'), hex: '#1e293b', sample: '#1e293b' },
+  { name: i18n.t('creator.color.solarGold'), hex: '#d97706', sample: '#d97706' },
+  { name: i18n.t('creator.color.astralCyan'), hex: '#0284c7', sample: '#0284c7' },
+  { name: i18n.t('creator.color.snowWhite'), hex: '#f1f5f9', sample: '#f1f5f9' },
+  { name: i18n.t('creator.color.passionScarlet'), hex: '#e11d48', sample: '#e11d48' },
+  { name: i18n.t('creator.color.warmAmber'), hex: '#b45309', sample: '#b45309' }
 ];
 
 // ---------------------------------------------------------------------------------------------------------
 // Modelos nuevos Ema / Kai (21-oct): piezas reales intercambiables y expresiones por atlas.
 // Ojos y boca usan una textura 2 × 2: cada expresión es un desplazamiento de UV (u, v) de 0 o 0,5.
 export const V2_EYE_EXPRESSIONS = [
-  { id: 'normal', name: 'Normal', desc: 'Mirada tranquila', uv: [0, 0] },
-  { id: 'happy', name: 'Alegre', desc: 'Ojos cerrados de felicidad', uv: [0.5, 0] },
-  { id: 'angry', name: 'Enfadada', desc: 'Ceño fruncido, lista para pelear', uv: [0.5, 0.5] },
+  { id: 'normal', name: i18n.t('creator.v2Eye.normal.name'), desc: i18n.t('creator.v2Eye.normal.desc'), uv: [0, 0] },
+  { id: 'happy', name: i18n.t('creator.v2Eye.happy.name'), desc: i18n.t('creator.v2Eye.happy.desc'), uv: [0.5, 0] },
+  { id: 'angry', name: i18n.t('creator.v2Eye.angry.name'), desc: i18n.t('creator.v2Eye.angry.desc'), uv: [0.5, 0.5] },
 ];
 export const V2_MOUTH_EXPRESSIONS = [
-  { id: 'smile', name: 'Sonrisa', desc: 'Sonrisa suave', uv: [0, 0] },
-  { id: 'open', name: 'Risa', desc: 'Boca abierta', uv: [0.5, 0] },
-  { id: 'cat', name: 'Gatuna', desc: 'Boquita en «w»', uv: [0, 0.5] },
-  { id: 'o', name: 'Sorpresa', desc: 'Boquita en «o»', uv: [0.5, 0.5] },
+  { id: 'smile', name: i18n.t('creator.v2Mouth.smile.name'), desc: i18n.t('creator.v2Mouth.smile.desc'), uv: [0, 0] },
+  { id: 'open', name: i18n.t('creator.v2Mouth.open.name'), desc: i18n.t('creator.v2Mouth.open.desc'), uv: [0.5, 0] },
+  { id: 'cat', name: i18n.t('creator.v2Mouth.cat.name'), desc: i18n.t('creator.v2Mouth.cat.desc'), uv: [0, 0.5] },
+  { id: 'o', name: i18n.t('creator.v2Mouth.o.name'), desc: i18n.t('creator.v2Mouth.o.desc'), uv: [0.5, 0.5] },
 ];
 /** Peinados por base (f = Ema, m = Kai). El id «braids» es el de siempre, así las partidas viejas siguen igual. */
 export const V2_HAIR_STYLES = {
   f: [
-    { id: 'braids', name: 'Melena corta', desc: 'Melena corta y ondulada, el peinado de Ema', img: 'hair_ema_a' },
-    { id: 'long', name: 'Coleta alta', desc: 'Coleta alta con lazo turquesa', img: 'hair_ema_b' },
+    { id: 'braids', name: i18n.t('creator.v2HairF.braids.name'), desc: i18n.t('creator.v2HairF.braids.desc'), img: 'hair_ema_a' },
+    { id: 'long', name: i18n.t('creator.v2HairF.long.name'), desc: i18n.t('creator.v2HairF.long.desc'), img: 'hair_ema_b' },
   ],
-  m: [{ id: 'braids', name: 'Despeinado', desc: 'El pelo alborotado de Kai', img: 'hair_kai_a' }],
+  m: [{ id: 'braids', name: i18n.t('creator.v2HairM.braids.name'), desc: i18n.t('creator.v2HairM.braids.desc'), img: 'hair_kai_a' }],
 };
 export const V2_OUTFITS = {
   f: [
-    { id: 'a', name: 'Kimono', desc: 'Kimono rojo y botas', img: 'outfit_ema_a' },
-    { id: 'b', name: 'Viajera', desc: 'Chaqueta amarilla y pantalón azul', img: 'outfit_ema_b' },
+    { id: 'a', name: i18n.t('creator.v2OutfitF.a.name'), desc: i18n.t('creator.v2OutfitF.a.desc'), img: 'outfit_ema_a' },
+    { id: 'b', name: i18n.t('creator.v2OutfitF.b.name'), desc: i18n.t('creator.v2OutfitF.b.desc'), img: 'outfit_ema_b' },
   ],
-  m: [{ id: 'a', name: 'Chaqueta', desc: 'Chaqueta turquesa y pantalón azul', img: 'outfit_kai_a' }],
+  m: [{ id: 'a', name: i18n.t('creator.v2OutfitM.a.name'), desc: i18n.t('creator.v2OutfitM.a.desc'), img: 'outfit_kai_a' }],
 };
 // Kai (modelo del 21-oct, 2.ª versión): piezas A–E separadas. Cada peinado tiene su cabeza (el pelo pintado en la
 // frente y las cejas es del mismo color), los ojos y la boca son mallas con su propia textura y hay 5 camisas.
 const KAI_PART_RE = /^(Kai|Ema)_(body|pants|eyes|hair|head|mouth|shirt|horns|cheek|hat)(?:_([A-E]))?(_in)?$/; // también Ema (21-oct, 2.ª versión)
 export const KAI_HAIR_STYLES = [
-  { id: 'a', name: 'Rubio', desc: 'Pelo rubio en punta', img: 'hair_kai_a' },
-  { id: 'b', name: 'Moño', desc: 'Moño alto cobrizo', img: 'hair_kai_b' },
-  { id: 'c', name: 'Plateado', desc: 'Pelo blanco recogido', img: 'hair_kai_c' },
-  { id: 'd', name: 'Castaño', desc: 'Pelo castaño corto', img: 'hair_kai_d' },
-  { id: 'e', name: 'Ceniza', desc: 'Pelo gris azulado en punta', img: 'hair_kai_e' },
+  { id: 'a', name: i18n.t('creator.kaiHair.a.name'), desc: i18n.t('creator.kaiHair.a.desc'), img: 'hair_kai_a' },
+  { id: 'b', name: i18n.t('creator.kaiHair.b.name'), desc: i18n.t('creator.kaiHair.b.desc'), img: 'hair_kai_b' },
+  { id: 'c', name: i18n.t('creator.kaiHair.c.name'), desc: i18n.t('creator.kaiHair.c.desc'), img: 'hair_kai_c' },
+  { id: 'd', name: i18n.t('creator.kaiHair.d.name'), desc: i18n.t('creator.kaiHair.d.desc'), img: 'hair_kai_d' },
+  { id: 'e', name: i18n.t('creator.kaiHair.e.name'), desc: i18n.t('creator.kaiHair.e.desc'), img: 'hair_kai_e' },
 ];
 export const KAI_EYE_EXPRESSIONS = [
-  { id: 'a', name: 'Normal', img: 'eyes_kai_a' },
-  { id: 'b', name: 'Sorprendido', img: 'eyes_kai_b' },
-  { id: 'c', name: 'Alegre', img: 'eyes_kai_c' },
-  { id: 'd', name: 'Confiado', img: 'eyes_kai_d' },
-  { id: 'e', name: 'Enfadado', img: 'eyes_kai_e' },
+  { id: 'a', name: i18n.t('creator.kaiEyes.a.name'), img: 'eyes_kai_a' },
+  { id: 'b', name: i18n.t('creator.kaiEyes.b.name'), img: 'eyes_kai_b' },
+  { id: 'c', name: i18n.t('creator.kaiEyes.c.name'), img: 'eyes_kai_c' },
+  { id: 'd', name: i18n.t('creator.kaiEyes.d.name'), img: 'eyes_kai_d' },
+  { id: 'e', name: i18n.t('creator.kaiEyes.e.name'), img: 'eyes_kai_e' },
 ];
 export const KAI_MOUTH_EXPRESSIONS = [
-  { id: 'a', name: 'Sonrisa', img: 'mouth_kai_a' },
-  { id: 'b', name: 'Gatuna', img: 'mouth_kai_b' },
-  { id: 'e', name: 'Molesto', img: 'mouth_kai_e' },
+  { id: 'a', name: i18n.t('creator.kaiMouth.a.name'), img: 'mouth_kai_a' },
+  { id: 'b', name: i18n.t('creator.kaiMouth.b.name'), img: 'mouth_kai_b' },
+  { id: 'e', name: i18n.t('creator.kaiMouth.e.name'), img: 'mouth_kai_e' },
 ];
 export const KAI_SHIRTS = [
-  { id: 'a', name: 'Verde', img: 'outfit_kai_a' },
-  { id: 'b', name: 'Turquesa', img: 'outfit_kai_b' },
-  { id: 'c', name: 'Azul', img: 'outfit_kai_c' },
-  { id: 'd', name: 'Naranja', img: 'outfit_kai_d' },
-  { id: 'e', name: 'Morada', img: 'outfit_kai_e' },
+  { id: 'a', name: i18n.t('creator.kaiShirt.a.name'), img: 'outfit_kai_a' },
+  { id: 'b', name: i18n.t('creator.kaiShirt.b.name'), img: 'outfit_kai_b' },
+  { id: 'c', name: i18n.t('creator.kaiShirt.c.name'), img: 'outfit_kai_c' },
+  { id: 'd', name: i18n.t('creator.kaiShirt.d.name'), img: 'outfit_kai_d' },
+  { id: 'e', name: i18n.t('creator.kaiShirt.e.name'), img: 'outfit_kai_e' },
 ];
 export const KAI_DEFAULTS = { hairStyle: 'a', eyeExpr: 'a', mouthExpr: 'a', outfit: 'd' };
 // Ema (2.ª versión, 21-oct): misma estructura que Kai; por defecto la camisa B.
 export const EMA_HAIR_STYLES = [
-  { id: 'a', name: 'Trenza', desc: 'Melena rubia con trenza', img: 'hair_ema2_a' },
-  { id: 'b', name: 'Rizos', desc: 'Rizos cobrizos', img: 'hair_ema2_b' },
-  { id: 'c', name: 'Larga', desc: 'Melena larga platino', img: 'hair_ema2_c' },
-  { id: 'd', name: 'Despeinada', desc: 'Media melena castaña', img: 'hair_ema2_d' },
-  { id: 'e', name: 'Moño', desc: 'Moño gris azulado', img: 'hair_ema2_e' },
+  { id: 'a', name: i18n.t('creator.emaHair.a.name'), desc: i18n.t('creator.emaHair.a.desc'), img: 'hair_ema2_a' },
+  { id: 'b', name: i18n.t('creator.emaHair.b.name'), desc: i18n.t('creator.emaHair.b.desc'), img: 'hair_ema2_b' },
+  { id: 'c', name: i18n.t('creator.emaHair.c.name'), desc: i18n.t('creator.emaHair.c.desc'), img: 'hair_ema2_c' },
+  { id: 'd', name: i18n.t('creator.emaHair.d.name'), desc: i18n.t('creator.emaHair.d.desc'), img: 'hair_ema2_d' },
+  { id: 'e', name: i18n.t('creator.emaHair.e.name'), desc: i18n.t('creator.emaHair.e.desc'), img: 'hair_ema2_e' },
 ];
 export const EMA_EYE_EXPRESSIONS = [
-  { id: 'a', name: 'Normal', img: 'eyes_ema2_a' },
-  { id: 'b', name: 'Coqueta', img: 'eyes_ema2_b' },
-  { id: 'c', name: 'Decidida', img: 'eyes_ema2_c' },
-  { id: 'd', name: 'Tranquila', img: 'eyes_ema2_d' },
-  { id: 'e', name: 'Ilusionada', img: 'eyes_ema2_e' },
+  { id: 'a', name: i18n.t('creator.emaEyes.a.name'), img: 'eyes_ema2_a' },
+  { id: 'b', name: i18n.t('creator.emaEyes.b.name'), img: 'eyes_ema2_b' },
+  { id: 'c', name: i18n.t('creator.emaEyes.c.name'), img: 'eyes_ema2_c' },
+  { id: 'd', name: i18n.t('creator.emaEyes.d.name'), img: 'eyes_ema2_d' },
+  { id: 'e', name: i18n.t('creator.emaEyes.e.name'), img: 'eyes_ema2_e' },
 ];
 export const EMA_MOUTH_EXPRESSIONS = [
-  { id: 'a', name: 'Pequeña', img: 'mouth_ema2_a' },
-  { id: 'b', name: 'Gatuna', img: 'mouth_ema2_b' },
-  { id: 'c', name: 'Enfadada', img: 'mouth_ema2_c' },
-  { id: 'd', name: 'Sorpresa', img: 'mouth_ema2_d' },
-  { id: 'e', name: 'Sonrisa', img: 'mouth_ema2_e' },
+  { id: 'a', name: i18n.t('creator.emaMouth.a.name'), img: 'mouth_ema2_a' },
+  { id: 'b', name: i18n.t('creator.emaMouth.b.name'), img: 'mouth_ema2_b' },
+  { id: 'c', name: i18n.t('creator.emaMouth.c.name'), img: 'mouth_ema2_c' },
+  { id: 'd', name: i18n.t('creator.emaMouth.d.name'), img: 'mouth_ema2_d' },
+  { id: 'e', name: i18n.t('creator.emaMouth.e.name'), img: 'mouth_ema2_e' },
 ];
 export const EMA_DEFAULTS = { hairStyle: 'b', eyeExpr: 'a', mouthExpr: 'e', outfit: 'b' };
 /** Expresiones genéricas del combate (las de Ema) → ojos / boca de Kai. */
@@ -439,7 +441,8 @@ export class SapidaeModularController {
     drop.forEach((t) => {
       if (keep.has(t)) return;
       if (!t.userData) t.userData = {};
-      if (t.userData.lkNoPrewarm) return; // ya liberada
+      // Se libera aunque ya estuviera marcada: algo (un combate) pudo volver a subirla. Si no está en la GPU,
+      // dispose() no hace nada.
       t.userData.lkNoPrewarm = true;
       t.dispose(); // libera la copia de la GPU; la imagen se conserva
     });
@@ -586,6 +589,19 @@ export class SapidaeModularController {
     mat.map = own;
     mat.needsUpdate = true;
     return own;
+  }
+
+  /**
+   * Memoria (23-oct): libera de la GPU todas las variantes que no se ven en `model` (Ema / Kai): peinados, cabezas,
+   * camisas, sombrero, cuernos y también las expresiones de ojos y boca. Solo para el jugador del mundo abierto, donde
+   * la cara no cambia; en combate, si una expresión se muestra, three.js la sube al dibujarla. Se llama al aplicar
+   * el equipo y al volver de un combate (allí pudieron subirse otra vez).
+   */
+  releaseHiddenFace(model) {
+    const parts = model && this._getV2Parts(model);
+    const g = parts?.kai && parts.groups;
+    if (!g) return;
+    this._releaseUnusedVariantTextures(model, [g.hair, g.head, g.shirt, g.hat ? { hat: g.hat } : null, g.horns, g.eyes, g.mouth, g.mouthIn]);
   }
 
   /** Expresión de la cara (ojos y boca) en un modelo Ema / Kai. Sirve también en combate: setExpression(model, 'angry', 'o'). */
@@ -1278,24 +1294,41 @@ export class SapidaeModularController {
     }
 
     // --- WEAPON SLOT ---
-    this._updateWeaponProp(parts.weaponBoneR, equipped.weapon);
+    this._updateWeaponProp(parts, equipped.weapon, model);
   }
 
   /**
    * Mounts a 3D weapon prop to the weapon bone.
    */
-  _updateWeaponProp(weaponBone, weaponId) {
+  _updateWeaponProp(parts, weaponId, model) {
+    const weaponBone = parts.weaponBoneR;
     if (!weaponBone) return;
 
-    let existingProp = weaponBone.getObjectByName('Sapidae_Equipped_Weapon');
-    if (existingProp) {
-      weaponBone.remove(existingProp);
-    }
+    // Quita el arma anterior de las dos manos (el arco va en la izquierda)
+    [parts.weaponBoneR, parts.weaponBoneL].forEach((b) => {
+      let p;
+      while (b && (p = b.getObjectByName('Sapidae_Equipped_Weapon'))) p.parent.remove(p);
+    });
+    // Cada cambio lleva un número: si llega una carga vieja (cambio rápido de arma), se descarta
+    const token = (model.userData.weaponToken || 0) + 1;
+    model.userData.weaponToken = token;
 
     if (!weaponId) return;
 
     const item = ITEMS_DB[weaponId];
     if (!item) return;
+
+    // Armas con modelo del mixer (espadas, arcos y bastones por Tier): Hito 52
+    const visual = weaponVisual(weaponId);
+    if (visual) {
+      const bone = gripHand(visual.family) === 'L' ? (parts.weaponBoneL || weaponBone) : weaponBone;
+      buildStaticWeapon(visual.url).then((w) => {
+        if (model.userData.weaponToken !== token) return;
+        const holder = mountOnSapidae(bone, model, w, visual.family, visual.level);
+        if (holder) holder.name = 'Sapidae_Equipped_Weapon';
+      }).catch((e) => console.warn('[SapidaeModularController] Arma', visual.variant, e));
+      return;
+    }
 
     const weaponGroup = this._buildWeaponProp(item);
     if (weaponGroup) {

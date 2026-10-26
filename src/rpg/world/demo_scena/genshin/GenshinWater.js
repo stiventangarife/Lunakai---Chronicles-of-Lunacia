@@ -71,11 +71,14 @@ export function createGenshinRiverMaterial() {
       #include <fog_pars_vertex>
       attribute float aDepth;
       attribute float aCenter;
+      attribute float aFade;
       uniform float uTime;
       varying vec3 vWorld;
       varying float vDepth;
       varying float vCenter;
+      varying float vFade;
       void main() {
+        vFade = aFade;
         vec3 p = position;
         float w = sin(p.x * 0.6 + uTime * 1.6 + p.z * 0.25) * 0.025 + cos(p.z * 0.45 - uTime * 2.1) * 0.025;
         p.y += w * smoothstep(0.1, 0.8, aDepth);
@@ -96,11 +99,15 @@ export function createGenshinRiverMaterial() {
       varying vec3 vWorld;
       varying float vDepth;
       varying float vCenter;
+      varying float vFade;
       ${GLSL_NOISE}
 
       void main() {
         // Flow runs toward +Z (spring in the north → bay in the south). Rapids around z∈[14,36].
-        float rapids = smoothstep(10.0, 18.0, vWorld.z) * (1.0 - smoothstep(32.0, 40.0, vWorld.z));
+        float rapidsS = smoothstep(10.0, 18.0, vWorld.z) * (1.0 - smoothstep(32.0, 40.0, vWorld.z));
+        // Hito 66: bajada suave hacia el mar del norte: corriente algo más rápida con estrías, sin manchas blancas
+        float rapidsN = 0.45 * smoothstep(-108.0, -118.0, vWorld.z) * (1.0 - smoothstep(-138.0, -148.0, vWorld.z));
+        float rapids = rapidsS + rapidsN;
         float speed = mix(1.1, 3.2, rapids);
         vec2 p = vWorld.xz;
         vec2 f1 = vec2(p.x * 0.55, p.y * 0.22 - uTime * speed * 0.55);
@@ -148,6 +155,7 @@ export function createGenshinRiverMaterial() {
           float tw = gHash12(sc + floor(uTime * 6.0));
           float crest = smoothstep(0.62, 0.8, h0);
           float sparkle = step(0.965, tw) * crest * pow(clamp(dot(R, L), 0.0, 1.0) + 1e-4, 12.0);
+          sparkle *= smoothstep(0.25, 0.7, d) * (1.0 - min(1.0, rapidsN * 1.6)); // menos destellos en lo somero y en la bajada al mar (Hito 66)
           col += vec3(1.0, 0.97, 0.88) * sparkle * 3.0;
         }
 
@@ -155,8 +163,11 @@ export function createGenshinRiverMaterial() {
         float bankFoam = 1.0 - smoothstep(0.02, 0.22 + gNoise(p * 1.4 + uTime * 0.4) * 0.12, d);
         float streakN = gNoise(vec2(p.x * 1.6, p.y * 0.12 - uTime * speed * 0.7));
         float streaks = smoothstep(0.72, 0.86, streakN) * mix(0.25, 0.9, rapids) * smoothstep(0.1, 0.5, d);
-        float white = rapids * smoothstep(0.45, 0.75, gNoise(vec2(p.x * 0.9, p.y * 0.5 - uTime * 3.5)));
-        float foam = clamp((bankFoam * 0.85 + streaks + white * 0.85) * uFoamIntensity, 0.0, 1.0);
+        float white = rapidsS * smoothstep(0.45, 0.75, gNoise(vec2(p.x * 0.9, p.y * 0.5 - uTime * 3.5)));
+        // Línea suave de espuma donde el río se encuentra con el mar (Hito 66)
+        float meet = smoothstep(0.2, 0.5, vFade) * (1.0 - smoothstep(0.5, 0.85, vFade));
+        meet *= smoothstep(0.35, 0.7, gNoise(vec2(p.x * 0.7 + uTime * 0.3, p.y * 0.7)));
+        float foam = clamp((bankFoam * 0.85 + streaks + white * 0.85 + meet * 0.6) * uFoamIntensity, 0.0, 1.0);
         // soft painterly foam edge
         foam = smoothstep(0.15, 0.65, foam);
         col = mix(col, uFoam * (0.9 + 0.2 * ndl), foam * 0.92);
@@ -167,6 +178,9 @@ export function createGenshinRiverMaterial() {
         alpha = max(alpha, fres * 0.75);
         // fade the very thin edge so no hard line appears against the bank
         alpha *= smoothstep(0.0, 0.05, d) * 0.8 + 0.2 * smoothstep(0.0, 0.02, d);
+
+        // Bocas del río: el agua del río se desvanece sobre el mar (sin borde recto)
+        alpha *= vFade;
 
         col = max(col, vec3(0.0));
         gl_FragColor = vec4(col, clamp(alpha, 0.0, 1.0));

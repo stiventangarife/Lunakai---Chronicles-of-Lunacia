@@ -13,6 +13,7 @@
 import * as THREE from 'three';
 import { ISLANDS_REGISTRY } from './MapRegistry.js';
 import { FERRY_NPC_ID } from './islands/IslandWorldLayout.js';
+import * as i18n from '../../i18n/i18n.js';
 
 const NS = 'http://www.w3.org/2000/svg';
 const HALF = 240;            // todas las islas miden 480 × 480 m, centradas en el origen
@@ -142,20 +143,20 @@ export class IslandChart {
     const h = this.host;
     h.classList.add('lk-chart');
     h.innerHTML = `
-      <div class="lk-chart__filters" role="group" aria-label="Capas del mapa">
-        <button type="button" data-layer="quest" aria-pressed="true"><i style="--c:var(--lk-gilt-300)"></i>Misión</button>
+      <div class="lk-chart__filters" role="group" aria-label="${i18n.t('worldMap.mapLayers')}">
+        <button type="button" data-layer="quest" aria-pressed="true"><i style="--c:var(--lk-gilt-300)"></i>${i18n.t('worldMap.layerQuest')}</button>
         <button type="button" data-layer="npc" aria-pressed="true"><i style="--c:#F6C35B"></i>NPC</button>
-        <button type="button" data-layer="poi" aria-pressed="true"><i style="--c:#C9A36A"></i>Lugares</button>
-        <button type="button" data-layer="ferry" aria-pressed="true"><i style="--c:var(--lk-lumen-300)"></i>Barquero</button>
-        <button type="button" data-layer="foe" aria-pressed="true"><i style="--c:var(--lk-enemy-red)"></i>Quimeras</button>
-        <button type="button" data-layer="fog" aria-pressed="true" class="lk-chart__fogbtn"><i style="--c:#CFC4AE"></i>Niebla</button>
+        <button type="button" data-layer="poi" aria-pressed="true"><i style="--c:#C9A36A"></i>${i18n.t('worldMap.layerPlaces')}</button>
+        <button type="button" data-layer="ferry" aria-pressed="true"><i style="--c:var(--lk-lumen-300)"></i>${i18n.t('worldMap.ferryman')}</button>
+        <button type="button" data-layer="foe" aria-pressed="true"><i style="--c:var(--lk-enemy-red)"></i>${i18n.t('worldMap.layerChimeras')}</button>
+        <button type="button" data-layer="fog" aria-pressed="true" class="lk-chart__fogbtn"><i style="--c:#CFC4AE"></i>${i18n.t('worldMap.layerFog')}</button>
       </div>
       <div class="lk-chart__frame">
-        <svg class="lk-chart__svg" preserveAspectRatio="xMidYMid slice" aria-label="Carta de la isla"></svg>
+        <svg class="lk-chart__svg" preserveAspectRatio="xMidYMid slice" aria-label="${i18n.t('worldMap.islandChart')}"></svg>
         <svg class="lk-chart__cartouche" viewBox="0 0 260 50" aria-hidden="true">
           <path d="M0 8 L14 0 H246 L260 8 V42 L246 50 H14 L0 42 Z" fill="#F2EADA" stroke="#9D7A42" stroke-width="1.6"/>
           <path d="M6 10 L16 4 H244 L254 10 V40 L244 46 H16 L6 40 Z" fill="none" stroke="#D3AE6C" stroke-width="1" opacity=".8"/>
-          <text x="130" y="26" text-anchor="middle" font-size="19" class="lk-chart__ct" data-ref="ctTitle">Isla</text>
+          <text x="130" y="26" text-anchor="middle" font-size="19" class="lk-chart__ct" data-ref="ctTitle">${i18n.t('worldMap.island')}</text>
           <text x="130" y="41" text-anchor="middle" font-size="8.5" class="lk-chart__cs" data-ref="ctSub"></text>
         </svg>
         <svg class="lk-chart__compass" viewBox="-50 -62 100 112" aria-hidden="true">
@@ -167,12 +168,12 @@ export class IslandChart {
         </svg>
         <div class="lk-chart__scale" aria-hidden="true"><i data-ref="scaleBar"></i><span data-ref="scaleTxt">50 m</span></div>
         <div class="lk-chart__ctrl">
-          <button type="button" class="lk-btn-circle-icon" data-act="me" title="Centrar en ti"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="12" cy="12" r="3.2" fill="currentColor" stroke="none"/><path d="M12 2v4M12 18v4M2 12h4M18 12h4"/></svg></button>
-          <button type="button" class="lk-btn-circle-icon" data-act="in" title="Acercar">+</button>
-          <button type="button" class="lk-btn-circle-icon" data-act="out" title="Alejar">−</button>
+          <button type="button" class="lk-btn-circle-icon" data-act="me" title="${i18n.t('worldMap.centerOnYou')}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="12" cy="12" r="3.2" fill="currentColor" stroke="none"/><path d="M12 2v4M12 18v4M2 12h4M18 12h4"/></svg></button>
+          <button type="button" class="lk-btn-circle-icon" data-act="in" title="${i18n.t('worldMap.zoomIn')}">+</button>
+          <button type="button" class="lk-btn-circle-icon" data-act="out" title="${i18n.t('worldMap.zoomOut')}">−</button>
         </div>
-        <div class="lk-chart__legend"><span><i class="lg-you"></i>Tú</span><span><i class="lg-quest"></i>Destino</span><span><i class="lg-poi"></i>Lugar</span><span><i class="lg-npc"></i>NPC</span><span><i class="lg-ferry"></i>Barquero</span></div>
-        <div class="lk-chart__loading" data-ref="loading" hidden>Dibujando la carta…</div>
+        <div class="lk-chart__legend"><span><i class="lg-you"></i>${i18n.t('worldMap.you')}</span><span><i class="lg-quest"></i>${i18n.t('worldMap.destination')}</span><span><i class="lg-poi"></i>${i18n.t('worldMap.place')}</span><span><i class="lg-npc"></i>NPC</span><span><i class="lg-ferry"></i>${i18n.t('worldMap.ferryman')}</span></div>
+        <div class="lk-chart__loading" data-ref="loading" hidden>${i18n.t('worldMap.drawingChart')}</div>
       </div>`;
     this.$ = (r) => h.querySelector(`[data-ref="${r}"]`);
     this.svg = h.querySelector('.lk-chart__svg');
@@ -332,7 +333,7 @@ export class IslandChart {
     const isl = this._island();
     const out = (isl?.landmarks || []).filter((l) => l.coords).map((l) => ({ id: 'poi_' + l.id, kind: 'poi', name: l.name, desc: l.desc, x: l.coords.x, z: l.coords.z }));
     const ferry = (this.om?.npcManager?.npcs || []).find((n) => n.id === FERRY_NPC_ID && n.group);
-    if (ferry) out.push({ id: 'ferry', kind: 'ferry', name: 'Barquero', desc: 'Habla con él para viajar a otra isla.', x: ferry.group.position.x, z: ferry.group.position.z });
+    if (ferry) out.push({ id: 'ferry', kind: 'ferry', name: i18n.t('worldMap.ferryman'), desc: i18n.t('worldMap.ferryDesc'), x: ferry.group.position.x, z: ferry.group.position.z });
     return out;
   }
   _npcs() {
@@ -342,7 +343,7 @@ export class IslandChart {
       const q = n.questId && qm?.getQuest ? qm.getQuest(n.questId) : null;
       if (q?.status === 'ready_to_turn_in') mark = '?';
       else if (q?.status === 'available') mark = '!';
-      return { id: 'npc_' + n.id, kind: 'npc', name: n.name, mark, desc: mark === '?' ? 'Tiene algo que entregarte.' : mark === '!' ? 'Tiene una misión para ti.' : 'Habitante de la isla.', x: n.group.position.x, z: n.group.position.z };
+      return { id: 'npc_' + n.id, kind: 'npc', name: n.name, mark, desc: mark === '?' ? i18n.t('worldMap.npcTurnIn') : mark === '!' ? i18n.t('worldMap.npcQuest') : i18n.t('worldMap.npcResident'), x: n.group.position.x, z: n.group.position.z };
     });
   }
   _foes() {
@@ -351,12 +352,12 @@ export class IslandChart {
     const list = [];
     (this.om?.monsters?.monsters || []).forEach((m) => { if (m.group?.visible) list.push({ name: m.name, tier: m.tier, pos: m.group.position }); });
     (this.om?.demoScenaZone?.slimeCreaturesManager?.slimes || []).forEach((s) => { if (s.group) { s.group.getWorldPosition(v); list.push({ name: s.name, tier: s.tier, pos: v.clone() }); } });
-    return list.filter((m) => Math.hypot(m.pos.x - p.x, m.pos.z - p.z) < 60).map((m, i) => ({ id: 'foe_' + i, kind: 'foe', name: String(m.name || 'Quimera').replace(/^./, (c) => c.toUpperCase()), desc: m.tier ? `Nv. ${m.tier}` : 'Quimera', x: m.pos.x, z: m.pos.z }));
+    return list.filter((m) => Math.hypot(m.pos.x - p.x, m.pos.z - p.z) < 60).map((m, i) => ({ id: 'foe_' + i, kind: 'foe', name: String(m.name || i18n.t('worldMap.chimera')).replace(/^./, (c) => c.toUpperCase()), desc: m.tier ? i18n.t('worldMap.lvN', { n: m.tier }) : i18n.t('worldMap.chimera'), x: m.pos.x, z: m.pos.z }));
   }
   _target() {
     const pl = this.om?.player; const t = pl?.navTargetWorldPos;
-    if (this.follow) { const f = this._places().find((p) => p.id === this.follow); if (f) return { ...f, label: 'Destino', title: f.name }; }
-    if (t) { const q = this.om?.questManager?.getTrackedQuest?.(); return { id: 'quest', kind: 'quest', name: q?.title || 'Objetivo', desc: 'Misión seguida', x: t.x, z: t.z, label: 'Misión seguida', title: q?.title || 'Objetivo' }; }
+    if (this.follow) { const f = this._places().find((p) => p.id === this.follow); if (f) return { ...f, label: i18n.t('worldMap.destination'), title: f.name }; }
+    if (t) { const q = this.om?.questManager?.getTrackedQuest?.(); return { id: 'quest', kind: 'quest', name: q?.title || i18n.t('worldMap.objective'), desc: i18n.t('worldMap.trackedQuest'), x: t.x, z: t.z, label: i18n.t('worldMap.trackedQuest'), title: q?.title || i18n.t('worldMap.objective') }; }
     return null;
   }
 
@@ -393,7 +394,7 @@ export class IslandChart {
     const pl = this.om?.player;
     if (pl?.position) {
       const deg = 90 - (pl.yaw || 0) * 180 / Math.PI; // yaw 0 = +z (sur en la carta)
-      this._mk(this.gMe, { id: 'me', kind: 'me', name: 'Tú', desc: pl.name ? `${pl.name}` : 'Tu posición', x: pl.position.x, z: pl.position.z },
+      this._mk(this.gMe, { id: 'me', kind: 'me', name: i18n.t('worldMap.you'), desc: pl.name ? `${pl.name}` : i18n.t('worldMap.yourPosition'), x: pl.position.x, z: pl.position.z },
         `<g transform="rotate(${deg})"><path d="M0 0 L64 -26 A70 70 0 0 1 64 26 Z" fill="#A9CCFF" opacity=".3"/></g>
          <circle r="12" fill="#1A2236" stroke="#A9CCFF" stroke-width="2.5"/><g transform="rotate(${deg})"><path d="M-5 -6 L8 0 L-5 6 L-2 0 Z" fill="#A9CCFF"/></g>`);
     }
@@ -430,11 +431,11 @@ export class IslandChart {
     if (!m) { this._hideTip(); this.onHover?.(null); return; }
     m.classList.add('is-hot'); this.onHover?.(m.dataset.id);
     const d = this._data.get(m.dataset.id); if (!d) return;
-    const K = { poi: ['Lugar', 'var(--lk-gilt-500)'], ferry: ['Barquero', 'var(--lk-lumen-500)'], npc: ['NPC', '#F6C35B'], foe: ['Quimera', 'var(--lk-enemy-red)'], me: ['Tu posición', 'var(--lk-lumen-300)'], quest: ['Misión seguida', 'var(--lk-gilt-500)'] };
+    const K = { poi: [i18n.t('worldMap.place'), 'var(--lk-gilt-500)'], ferry: [i18n.t('worldMap.ferryman'), 'var(--lk-lumen-500)'], npc: ['NPC', '#F6C35B'], foe: [i18n.t('worldMap.chimera'), 'var(--lk-enemy-red)'], me: [i18n.t('worldMap.yourPosition'), 'var(--lk-lumen-300)'], quest: [i18n.t('worldMap.trackedQuest'), 'var(--lk-gilt-500)'] };
     const [kind, c] = K[d.kind] || K.poi;
     const p = this.om?.player?.position;
-    const dist = p && d.kind !== 'me' ? ` · a ${Math.round(Math.hypot(d.x - p.x, d.z - p.z))} m` : '';
-    const hint = d.kind === 'poi' || d.kind === 'ferry' ? `<p class="lk-chart__tiphint">${this.follow === d.id ? 'Siguiendo este destino' : 'Clic para seguirlo'}</p>` : '';
+    const dist = p && d.kind !== 'me' ? ` · ${i18n.t('worldMap.distM', { n: Math.round(Math.hypot(d.x - p.x, d.z - p.z)) })}` : '';
+    const hint = d.kind === 'poi' || d.kind === 'ferry' ? `<p class="lk-chart__tiphint">${this.follow === d.id ? i18n.t('worldMap.followingThis') : i18n.t('worldMap.clickToTrack')}</p>` : '';
     this.tip.innerHTML = `<div class="lk-tooltip-tactical" style="--c:${c}"><header><div><small>${kind}${dist}</small><b>${esc(d.name)}</b></div></header><div class="lk-tt-body"><p>${esc(d.desc || '')}</p>${hint}</div></div>`;
     this.tip.classList.add('lk-is-on');
     const t = this.tip.getBoundingClientRect();
@@ -459,8 +460,8 @@ export class IslandChart {
   /** Abre/actualiza la carta (captura el terreno la primera vez en cada isla). */
   open() {
     const isl = this._island(); const key = currentIslandKey();
-    const t = this.$('ctTitle'); if (t) t.textContent = isl?.name || 'Isla';
-    const s = this.$('ctSub'); if (s) s.textContent = `LUNACIA · ${String(isl?.levelRange || '').toUpperCase().replace('NIVEL', 'NV.')}`;
+    const t = this.$('ctTitle'); if (t) t.textContent = isl?.name || i18n.t('worldMap.island');
+    const s = this.$('ctSub'); if (s) s.textContent = `LUNACIA · ${String(isl?.levelRange || '').toUpperCase().replace('NIVEL', i18n.t('worldMap.lvUpper'))}`;
     const apply = (url) => { if (!url) return; this.gLand.setAttribute('href', url); this.gWater.setAttribute('href', url); };
     if (captures.has(key)) apply(captures.get(key));
     else {

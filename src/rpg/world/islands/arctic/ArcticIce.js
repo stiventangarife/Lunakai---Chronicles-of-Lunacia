@@ -106,7 +106,7 @@ export class ArcticIce {
       _q.setFromEuler(_e.set((rng() - 0.5) * 0.18, s.rot, (rng() - 0.5) * 0.18));
       _m4.compose(_p.set(s.x, y, s.z), _q, _s.set(w, hgt, w * (0.8 + rng() * 0.3)));
       lists[k].push(_m4.clone());
-      if (s.s > 2.2) this.zone.addCollider(s.x, s.z, s.s * 0.42);
+      // (Hito 71d: colisión con la huella exacta del bloque: def.collision.hullRules)
       // A satellite chunk at the foot of the big ones
       if (s.s > 2.6 && rng() < 0.7) {
         const a = rng() * Math.PI * 2, d = s.s * 0.62;
@@ -175,7 +175,7 @@ export class ArcticIce {
         _m4.compose(_p.set(cx, y + b * 0.35, cz), _q, _s.set(wid, len, wid));
         (blue ? crB : crA).push(_m4.clone());
       }
-      if (o.base > 1.1) this.zone.addCollider(o.x, o.z, o.base * 0.7);
+      // (Hito 71d: colisión con la huella exacta de la mena: def.collision.hullRules)
     }
     const bm = instanced(baseGeo, baseMat, bases, 'ArcticOreRocks', true);
     if (bm) this.root.add(bm);

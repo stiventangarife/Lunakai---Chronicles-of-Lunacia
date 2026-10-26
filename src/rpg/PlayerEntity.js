@@ -7,6 +7,29 @@ import { sapidaeModularController } from './SapidaeModularController.js';
 import { spawnPuff } from './PuffEffect.js';
 import { sapidaeModelUrl, playerSapidaeModel } from './SapidaeModels.js';
 import { cloneGLTF } from '../render/ModelCache.js'; // caché de GLB compartida con el combate
+import { weaponVisual, equipAxieWeapon, disposeAxieWeapons } from './WeaponVisuals.js';
+import * as i18n from '../i18n/i18n.js';
+
+/**
+ * Rendimiento (23-oct): el modelo del Sapidae trae un esqueleto por pieza (cuerpo, cada peinado, cada cabeza…),
+ * todos con los mismos huesos. three.js recalcula y sube cada uno en cada fotograma (9 a la vez en Ema). Las piezas
+ * que usan exactamente los mismos huesos y matrices de enlace pasan a compartir uno solo.
+ */
+function shareSkeletons(root) {
+  const groups = [];
+  root.traverse((o) => {
+    if (!o.isSkinnedMesh || !o.skeleton) return;
+    const sk = o.skeleton;
+    let g = groups.find((x) => x.sk === sk);
+    if (!g) {
+      g = groups.find((x) => x.sk.bones.length === sk.bones.length && x.sk.bones.every((b, i) => b === sk.bones[i])
+        && x.sk.boneInverses.every((m, i) => m.equals(sk.boneInverses[i])));
+      if (g && g.sk !== sk) { g.drop.add(sk); o.skeleton = g.sk; return; }
+      groups.push({ sk, drop: new Set() });
+    }
+  });
+  groups.forEach((g) => g.drop.forEach((sk) => sk.dispose()));
+}
 
 export class PlayerEntity {
   constructor(config = {}) {
@@ -18,7 +41,7 @@ export class PlayerEntity {
 
     // Companion Axie identity
     const isBeast = this.heroId === 'kotaro' || config.heroKey === 'beast_rage' || config.axieId === '10455' || config.axieId === '11968787';
-    this.companionName = (config.name && config.name !== 'Kotaro') ? config.name : (isBeast ? 'Shinji' : (config.name || 'Hero'));
+    this.companionName = (config.name && config.name !== 'Kotaro') ? config.name : (isBeast ? 'Shinji' : (config.name || i18n.t('misc.hero')));
     this.companionAxieId = config.axieId ? String(config.axieId) : (isBeast ? '10455' : '10455');
     if (this.companionAxieId === '11968787') this.companionAxieId = '10455';
     this.axieId = this.companionAxieId;
@@ -33,11 +56,11 @@ export class PlayerEntity {
     this.genes = this.companionGenes;
 
     // Sapidae Player Identity (Humanoid Adventurer)
-    this.name = config.playerName || 'Sapidae Adventurer';
-    this.heroClass = 'Sapidae Adventurer';
+    this.name = config.playerName || i18n.t('misc.sapidaeAdventurer');
+    this.heroClass = i18n.t('misc.sapidaeAdventurer');
     this.title = config.title || 'Axie Tamer & Explorer';
-    this.archetype = `Sapidae Explorer (Companion: ${this.companionName})`;
-    this.avatar = this.sapidaeModel.includes('f') ? '👩‍🌾' : '🧑‍🌾';
+    this.archetype = i18n.t('misc.sapidaeExplorer', { name: this.companionName });
+    this.avatar = '';
     this.modelType = 'sapidae';
     this.scale = config.scale || 1.0;
 
@@ -87,6 +110,8 @@ export class PlayerEntity {
     this.companionGroup = null;
     this.companionMesh = null;
     this.companionAxie = null;
+    this.companionWeaponItem = null;  // arma equipada del Axie compañero (Hito 52)
+    this._compWeaponFamily = null;    // 'Sword' | 'Bow' | 'Staff' cuando el modelo ya la lleva puesta
     this.companionAnim = 'idle';
     this.companionYaw = 0;
 
@@ -182,6 +207,7 @@ export class PlayerEntity {
       // Copia del GLB en caché (con geometría propia: aquí se modifican colores y cuernos). El combate
       // clona el mismo original, así reutiliza las texturas ya teñidas del Sapidae.
       const gltf = await cloneGLTF(modelPath, { cloneGeometry: true });
+      if (this._disposed) return; // se cargó otra partida mientras tanto
       this.mesh = gltf.scene;
 
       // Auto-normalize humanoid scale (target height ~1.55m)
@@ -291,6 +317,8 @@ export class PlayerEntity {
         }
       });
 
+      shareSkeletons(this.mesh);
+
       // Animation Setup
       if (gltf.animations && gltf.animations.length > 0) {
         this.mixer = new THREE.AnimationMixer(this.mesh);
@@ -356,7 +384,11 @@ export class PlayerEntity {
           scale: 0.95 * this.scale, // increased companion size in open world!
           heroId: this.heroId || 'kotaro'
         });
+      if (this._disposed) return; // se cargó otra partida mientras tanto
 
+      // El Axie anterior (al recargar el modelo o cambiar de compañero) se devuelve a la librería del mixer
+      const prevAxie = this.companionAxie;
+      if (prevAxie && prevAxie !== companionRes.axie) { try { disposeAxieWeapons(this.companionMesh); prevAxie.dispose?.(); } catch (_) { /* nada */ } }
       this.companionAxie = companionRes.axie;
       this.companionMesh = companionRes.wrapper;
       this.companionBaseScale = (this.companionMesh && this.companionMesh.scale) ? this.companionMesh.scale.x : (0.95 * this.scale);
@@ -390,9 +422,11 @@ export class PlayerEntity {
       }
 
       this.companionAnim = 'idle';
+      this._compWeaponFamily = null; // el Axie nuevo llega sin arma
       if (this.companionAxie && typeof this.companionAxie.playAnimation === 'function') {
         this.companionAxie.playAnimation('Default.Idle');
       }
+      this._applyCompanionWeapon();
 
       console.log(`[PlayerEntity] Loaded Companion Axie #${axieId} (${this.companionName}) following Sapidae`);
     } catch (err) {
@@ -430,6 +464,29 @@ export class PlayerEntity {
    * con otra nubecita y un pequeño salto. hero = { axieId, genes, name, modelFile, modelScale }.
    * Con animate = false el cambio es instantáneo (al cargar la partida).
    */
+  /** Animación del compañero: la del arma que lleva ('Sword.Run') o la normal ('Default.Run'). */
+  companionClip(base) { return this._compWeaponFamily ? `${this._compWeaponFamily}.${base}` : `Default.${base}`; }
+
+  /** Arma equipada del Axie compañero (id de objeto o null). Se vuelve a poner sola si cambia el Axie. */
+  setCompanionWeapon(itemId) {
+    this.companionWeaponItem = itemId || null;
+    return this._applyCompanionWeapon();
+  }
+
+  async _applyCompanionWeapon() {
+    const ax = this.companionAxie;
+    if (!ax || typeof ax.equipWeapon !== 'function' || this.companionHold) return false; // GLB (Bing…) o recolectando
+    const v = weaponVisual(this.companionWeaponItem);
+    const token = (this._compWeaponToken || 0) + 1;
+    this._compWeaponToken = token;
+    let ok = false;
+    ok = await equipAxieWeapon(ax, this.companionMesh, v ? v.variant : null);
+    if (this._disposed || ax !== this.companionAxie || token !== this._compWeaponToken) return false;
+    this._compWeaponFamily = ok && v ? v.family : null;
+    this.companionAnim = null; // el seguidor vuelve a elegir animación (ya con la del arma)
+    return ok;
+  }
+
   async swapCompanion(hero = {}, { animate = true } = {}) {
     if (this._swappingCompanion) { this._pendingCompanion = [hero, { animate }]; return; }
     this._swappingCompanion = true;
@@ -452,7 +509,7 @@ export class PlayerEntity {
       this.companionModelFile = hero.axieId || hero.genes ? null : (hero.modelFile || null);
       this.companionModelScale = hero.modelScale || 1;
       if (this.companionAxieId) { this.axieId = this.companionAxieId; this.genes = this.companionGenes; }
-      this.archetype = `Sapidae Explorer (Companion: ${this.companionName})`;
+      this.archetype = i18n.t('misc.sapidaeExplorer', { name: this.companionName });
       this.companionSpawnScale = show ? 0 : 1;
       await this._loadCompanionAxie(this._renderer);
       if (pos && this.companionGroup) this.companionGroup.position.copy(pos);
@@ -477,12 +534,19 @@ export class PlayerEntity {
     if (this.equipped && Object.keys(this.equipped).length > 0) {
       sapidaeModularController.applyEquipment(this.mesh, this.equipped, custom);
     }
+    this.releaseHiddenFace();
+  }
+
+  /** Memoria: expresiones de la cara que no se ven, fuera de la GPU (ver SapidaeModularController.releaseHiddenFace). */
+  releaseHiddenFace() {
+    if (this.mesh) sapidaeModularController.releaseHiddenFace(this.mesh);
   }
 
   applyEquipment(equipped = {}) {
     this.equipped = Object.assign({}, equipped);
     if (this.mesh) {
       sapidaeModularController.applyEquipment(this.mesh, this.equipped, this.customization || {});
+      this.releaseHiddenFace();
     }
   }
 
@@ -835,17 +899,17 @@ export class PlayerEntity {
         if (this.companionAxie) {
           if (this.companionState !== 'idle' && currentSpeed >= 2.5) {
             if (this.companionAnim !== 'run') {
-              this.companionAxie.playAnimation('Default.Run');
+              this.companionAxie.playAnimation(this.companionClip('Run'));
               this.companionAnim = 'run';
             }
           } else if (this.companionState !== 'idle' && currentSpeed >= 0.25) {
             if (this.companionAnim !== 'walk' && this.companionAnim !== 'run') {
-              this.companionAxie.playAnimation('Default.Run');
+              this.companionAxie.playAnimation(this.companionClip('Run'));
               this.companionAnim = 'walk';
             }
           } else {
             if (this.companionAnim !== 'idle') {
-              this.companionAxie.playAnimation('Default.Idle');
+              this.companionAxie.playAnimation(this.companionClip('Idle'));
               this.companionAnim = 'idle';
             }
           }
@@ -884,11 +948,45 @@ export class PlayerEntity {
   }
 
   dispose() {
+    this._disposed = true;
     if (this.companionGroup && this.companionGroup.parent) {
       this.companionGroup.parent.remove(this.companionGroup);
     }
     if (this.group && this.group.parent) {
       this.group.parent.remove(this.group);
+    }
+    // Al cargar otra partida (Hito 50): se libera lo que la GPU guarda de este jugador. Solo búferes de
+    // geometría y esqueletos; materiales y texturas pueden venir de la caché de modelos (los usa el
+    // combate) y no se tocan. Si una geometría compartida se vuelve a dibujar, three la sube de nuevo.
+    try {
+      for (const mx of [this.mixer]) {
+        if (!mx) continue;
+        mx.stopAllAction();
+        const root = mx.getRoot?.();
+        if (root) mx.uncacheRoot(root);
+      }
+      this.mixer = null;
+      // El Axie compañero es de la librería del mixer: su dispose() devuelve las piezas compartidas
+      // (por recuento) y lo borra de su registro. Sin esto la librería lo guardaba para siempre.
+      try { disposeAxieWeapons(this.companionMesh); this.companionAxie?.dispose?.(); } catch (_) { /* nada */ }
+      const skels = new Set();
+      for (const root of [this.group]) {
+        root?.traverse((o) => {
+          if (o.geometry && typeof o.geometry.dispose === 'function') o.geometry.dispose();
+          if (o.isSkinnedMesh && o.skeleton) skels.add(o.skeleton);
+        });
+      }
+      skels.forEach((s) => s.dispose());
+      // Se sueltan las piezas pesadas: si algo (un cierre o un escuchador) sigue apuntando a esta
+      // entidad, al menos ya no retiene el modelo, el Axie ni sus animaciones
+      for (const root of [this.group, this.companionGroup]) {
+        if (root) while (root.children.length) root.remove(root.children[0]);
+      }
+      this.mesh = null; this.actions = null; this.activeAction = null; this.toonOutline = null;
+      this.companionMesh = null; this.companionAxie = null; this.companionGroup = null;
+      this.navArrowGroup = null; this.navCrystalMesh = null; this.om = null;
+    } catch (e) {
+      console.warn('[PlayerEntity] dispose', e);
     }
   }
 }

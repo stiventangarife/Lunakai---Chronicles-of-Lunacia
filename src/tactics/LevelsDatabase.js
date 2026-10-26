@@ -1,13 +1,14 @@
 // LevelsDatabase.js - Catalog of all 10 Campaign Levels in Axie Tactics: Lunacia Chronicles
+import * as i18n from '../i18n/i18n.js';
 
 export const LEVELS_CONFIG = {
   1: {
     id: 1,
-    title: 'Defensa del Dojo',
-    subtitle: 'Combate guiado',
-    badgeText: 'Tutorial',
+    title: i18n.t('levels.dojoDefense.title'),
+    subtitle: i18n.t('levels.dojoDefense.subtitle'),
+    badgeText: i18n.t('levels.badgeTutorial'),
     biome: 'training_dojo',
-    biomeName: 'Maple Glade',
+    biomeName: i18n.t('levels.place.mapleGlade'),
     biomeIcon: '🥋',
     // Hito 37: el tutorial se juega en el Claro de Arces (10×10, mismas coordenadas que el Dojo:
     // todas las casillas del guion — (4,3), (3,4), (4,5), (4,6), (3,6), (3,7), (4,7) — están libres)
@@ -18,7 +19,7 @@ export const LEVELS_CONFIG = {
     enemies: [
       {
         id: 'quimera_scout',
-        name: 'Quimera Slime',
+        name: i18n.t('enemies.arch.slime.name'),
         type: 'slime',
         x: 4,
         z: 6,
@@ -31,7 +32,7 @@ export const LEVELS_CONFIG = {
       },
       {
         id: 'quimera_guard',
-        name: 'Quimera Guardián',
+        name: i18n.t('enemies.guardianChimera'),
         type: 'slime-defese',
         x: 4,
         z: 7,
@@ -57,17 +58,17 @@ export const LEVELS_CONFIG = {
   // Duelo de entrenamiento con el Maestro Paladill: termina cuando alguien baja al 30 % de vida.
   tut_duel: {
     id: 'tut_duel',
-    title: 'Duelo con Paladill',
-    subtitle: 'Entrenamiento',
-    badgeText: 'Tutorial',
+    title: i18n.t('levels.duel.title'),
+    subtitle: i18n.t('levels.duel.subtitle'),
+    badgeText: i18n.t('levels.badgeTutorial'),
     biome: 'training_dojo',
-    biomeName: 'Dojo de Lunacia',
+    biomeName: i18n.t('levels.place.lunaciaDojo'),
     battleMapId: 'forest_maple_glade',
     heroIds: ['kotaro'],
     sapidaePosition: { x: 4, z: 3 },
     heroPositions: [{ id: 'kotaro', x: 3, z: 4 }],
     enemies: [
-      { id: 'paladill_duel', name: 'Maestro Paladill', type: 'paladill', x: 4, z: 7, maxHP: 240, maxPA: 4, maxPM: 3, initiative: 40, scale: 1.25, spellIds: ['chimera_bite', 'chimera_bellow'] },
+      { id: 'paladill_duel', name: i18n.t('npcDefs.paladillName'), type: 'paladill', x: 4, z: 7, maxHP: 240, maxPA: 4, maxPM: 3, initiative: 40, scale: 1.25, spellIds: ['chimera_bite', 'chimera_bellow'] },
     ],
     obstacles: [],
     rewardRecruits: [],
@@ -79,19 +80,19 @@ export const LEVELS_CONFIG = {
   // Prueba de la Duo Ultimate: vínculo prestado al 100 % y Ultimate desde la ronda 1.
   tut_ult: {
     id: 'tut_ult',
-    title: 'Prueba de resonancia',
-    subtitle: 'Duo Ultimate',
-    badgeText: 'Tutorial',
+    title: i18n.t('levels.ult.title'),
+    subtitle: i18n.t('levels.ult.subtitle'),
+    badgeText: i18n.t('levels.badgeTutorial'),
     biome: 'training_dojo',
-    biomeName: 'Dojo de Lunacia',
+    biomeName: i18n.t('levels.place.lunaciaDojo'),
     battleMapId: 'forest_maple_glade',
     heroIds: ['kotaro'],
     sapidaePosition: { x: 4, z: 3 },
     heroPositions: [{ id: 'kotaro', x: 3, z: 4 }],
     enemies: [
-      { id: 'tut_slime_a', name: 'Quimera Slime', type: 'slime', x: 4, z: 6, maxHP: 70, maxPA: 3, maxPM: 2, initiative: 30, scale: 1.05, spellIds: ['chimera_bite'] },
-      { id: 'tut_slime_b', name: 'Quimera Slime', type: 'slime', x: 5, z: 7, maxHP: 70, maxPA: 3, maxPM: 2, initiative: 28, scale: 1.05, spellIds: ['chimera_bite'] },
-      { id: 'tut_slime_c', name: 'Quimera Guardián', type: 'slime-defese', x: 3, z: 7, maxHP: 90, maxPA: 3, maxPM: 2, initiative: 26, scale: 1.15, spellIds: ['chimera_bite'] },
+      { id: 'tut_slime_a', name: i18n.t('enemies.arch.slime.name'), type: 'slime', x: 4, z: 6, maxHP: 70, maxPA: 3, maxPM: 2, initiative: 30, scale: 1.05, spellIds: ['chimera_bite'] },
+      { id: 'tut_slime_b', name: i18n.t('enemies.arch.slime.name'), type: 'slime', x: 5, z: 7, maxHP: 70, maxPA: 3, maxPM: 2, initiative: 28, scale: 1.05, spellIds: ['chimera_bite'] },
+      { id: 'tut_slime_c', name: i18n.t('enemies.guardianChimera'), type: 'slime-defese', x: 3, z: 7, maxHP: 90, maxPA: 3, maxPM: 2, initiative: 26, scale: 1.15, spellIds: ['chimera_bite'] },
     ],
     obstacles: [],
     rewardRecruits: [],
@@ -103,11 +104,11 @@ export const LEVELS_CONFIG = {
 
   2: {
     id: 2,
-    title: 'Runic Valley Plains',
-    subtitle: 'First Duo Challenge',
-    badgeText: '2 vs 3 Weak',
+    title: i18n.t('levels.l2.title'),
+    subtitle: i18n.t('levels.l2.subtitle'),
+    badgeText: i18n.t('levels.l2.badge'),
     biome: 'lunacia_plains',
-    biomeName: 'Runic Valley of Lunacia',
+    biomeName: i18n.t('levels.place.runicValley'),
     biomeIcon: '🌿',
     heroIds: ['kotaro', 'bing'],
     heroPositions: [
@@ -117,7 +118,7 @@ export const LEVELS_CONFIG = {
     enemies: [
       {
         id: 'quimera_pup1',
-        name: 'slime-support',
+        name: i18n.t('enemies.arch.slime_support.name'),
         type: 'slime-support',
         x: 7,
         z: 5,
@@ -130,7 +131,7 @@ export const LEVELS_CONFIG = {
       },
       {
         id: 'quimera_pup2',
-        name: 'slime-attack',
+        name: i18n.t('enemies.arch.slime_attack.name'),
         type: 'slime-attack',
         x: 8,
         z: 4,
@@ -143,7 +144,7 @@ export const LEVELS_CONFIG = {
       },
       {
         id: 'quimera_pup3',
-        name: 'slime',
+        name: i18n.t('enemies.arch.slime.name'),
         type: 'slime',
         x: 6, z: 6,
         maxHP: 95,
@@ -165,11 +166,11 @@ export const LEVELS_CONFIG = {
 
   3: {
     id: 3,
-    title: 'Glacial Peaks',
-    subtitle: 'The Hero Trio',
-    badgeText: '3 vs 3 Squad',
+    title: i18n.t('levels.l3.title'),
+    subtitle: i18n.t('levels.l3.subtitle'),
+    badgeText: i18n.t('levels.l3.badge'),
     biome: 'frozen_peaks',
-    biomeName: 'Glacier of Lunacia',
+    biomeName: i18n.t('levels.place.glacier'),
     biomeIcon: '❄️',
     heroIds: ['kotaro', 'bing', 'pomodoro'],
     heroPositions: [
@@ -180,7 +181,7 @@ export const LEVELS_CONFIG = {
     enemies: [
       {
         id: 'quimera_frost1',
-        name: 'wolf-alpha',
+        name: i18n.t('enemies.arch.wolf_alpha.name'),
         type: 'wolf-alpha',
         x: 7,
         z: 6,
@@ -193,7 +194,7 @@ export const LEVELS_CONFIG = {
       },
       {
         id: 'quimera_frost2',
-        name: 'wolf-gray',
+        name: i18n.t('enemies.arch.wolf_gray.name'),
         type: 'wolf-gray',
         x: 8,
         z: 4,
@@ -206,7 +207,7 @@ export const LEVELS_CONFIG = {
       },
       {
         id: 'quimera_frost3',
-        name: 'treant-flower',
+        name: i18n.t('enemies.arch.treant_flower.name'),
         type: 'treant-flower',
         x: 6,
         z: 7,
@@ -230,11 +231,11 @@ export const LEVELS_CONFIG = {
 
   4: {
     id: 4,
-    title: 'Stone Runic Pass',
-    subtitle: 'Chimera Swarm',
-    badgeText: '3 vs 4 Horde',
+    title: i18n.t('levels.l4.title'),
+    subtitle: i18n.t('levels.l4.subtitle'),
+    badgeText: i18n.t('levels.l4.badge'),
     biome: 'lunacia_plains',
-    biomeName: 'Runic Valley of Lunacia',
+    biomeName: i18n.t('levels.place.runicValley'),
     biomeIcon: '🌿',
     heroIds: ['kotaro', 'bing', 'pomodoro'],
     heroPositions: [
@@ -245,7 +246,7 @@ export const LEVELS_CONFIG = {
     enemies: [
       {
         id: 'scout_a',
-        name: 'slime-attack',
+        name: i18n.t('enemies.arch.slime_attack.name'),
         type: 'slime-attack',
         x: 6,
         z: 5,
@@ -258,7 +259,7 @@ export const LEVELS_CONFIG = {
       },
       {
         id: 'scout_b',
-        name: 'slime-attack',
+        name: i18n.t('enemies.arch.slime_attack.name'),
         type: 'slime-attack',
         x: 7,
         z: 3,
@@ -271,7 +272,7 @@ export const LEVELS_CONFIG = {
       },
       {
         id: 'larva_a',
-        name: 'slime',
+        name: i18n.t('enemies.arch.slime.name'),
         type: 'slime',
         x: 8,
         z: 6,
@@ -284,7 +285,7 @@ export const LEVELS_CONFIG = {
       },
       {
         id: 'larva_b',
-        name: 'slime-defese',
+        name: i18n.t('enemies.arch.slime_defese.name'),
         type: 'slime-defese',
         x: 7,
         z: 7,
@@ -307,11 +308,11 @@ export const LEVELS_CONFIG = {
 
   5: {
     id: 5,
-    title: 'Deep Glacier: Puffy\'s Nest',
-    subtitle: 'First Glacial Mini-Boss',
-    badgeText: 'MINI-BOSS',
+    title: i18n.t('levels.l5.title'),
+    subtitle: i18n.t('levels.l5.subtitle'),
+    badgeText: i18n.t('levels.l5.badge'),
     biome: 'frozen_peaks',
-    biomeName: 'Glacier of Lunacia',
+    biomeName: i18n.t('levels.place.glacier'),
     biomeIcon: '❄️',
     heroIds: ['kotaro', 'bing', 'pomodoro'],
     heroPositions: [
@@ -322,7 +323,7 @@ export const LEVELS_CONFIG = {
     enemies: [
       {
         id: 'boss_puffy',
-        name: 'wolf-alpha',
+        name: i18n.t('enemies.arch.wolf_alpha.name'),
         type: 'wolf-alpha',
         x: 7,
         z: 5,
@@ -335,7 +336,7 @@ export const LEVELS_CONFIG = {
       },
       {
         id: 'guard_frost_a',
-        name: 'treant-flower',
+        name: i18n.t('enemies.arch.treant_flower.name'),
         type: 'treant-flower',
         x: 6,
         z: 7,
@@ -349,7 +350,7 @@ export const LEVELS_CONFIG = {
       },
       {
         id: 'guard_frost_b',
-        name: 'wolf-gray',
+        name: i18n.t('enemies.arch.wolf_gray.name'),
         type: 'wolf-gray',
         x: 8,
         z: 3,
@@ -372,11 +373,11 @@ export const LEVELS_CONFIG = {
 
   6: {
     id: 6,
-    title: 'Ancient Mystic Forest',
-    subtitle: 'Tactical Priority: Healers',
-    badgeText: '3 vs 3 Support',
+    title: i18n.t('levels.l6.title'),
+    subtitle: i18n.t('levels.l6.subtitle'),
+    badgeText: i18n.t('levels.l6.badge'),
     biome: 'mystic_grove',
-    biomeName: 'Grove of the Sages',
+    biomeName: i18n.t('levels.place.sagesGrove'),
     biomeIcon: '🌲',
     heroIds: ['kotaro', 'bing', 'pomodoro'],
     heroPositions: [
@@ -387,7 +388,7 @@ export const LEVELS_CONFIG = {
     enemies: [
       {
         id: 'quimera_tank',
-        name: 'dryad-fighter',
+        name: i18n.t('enemies.arch.dryad_fighter.name'),
         type: 'dryad-fighter',
         x: 5,
         z: 5,
@@ -400,7 +401,7 @@ export const LEVELS_CONFIG = {
       },
       {
         id: 'quimera_healer1',
-        name: 'dryad-mage',
+        name: i18n.t('enemies.arch.dryad_mage.name'),
         type: 'dryad-mage',
         x: 8,
         z: 6,
@@ -413,7 +414,7 @@ export const LEVELS_CONFIG = {
       },
       {
         id: 'quimera_healer2',
-        name: 'dryad-range',
+        name: i18n.t('enemies.arch.dryad_range.name'),
         type: 'dryad-range',
         x: 8,
         z: 3,
@@ -436,11 +437,11 @@ export const LEVELS_CONFIG = {
 
   7: {
     id: 7,
-    title: 'Shattered Rock Canyon',
-    subtitle: 'The Might of the Colossi',
-    badgeText: '3 vs 3 Savanna',
+    title: i18n.t('levels.l7.title'),
+    subtitle: i18n.t('levels.l7.subtitle'),
+    badgeText: i18n.t('levels.l7.badge'),
     biome: 'canyon_rock',
-    biomeName: 'Rocky Canyon of Lunacia',
+    biomeName: i18n.t('levels.place.rockyCanyon'),
     biomeIcon: '🏔️',
     heroIds: ['kotaro', 'bing', 'pomodoro'],
     heroPositions: [
@@ -451,7 +452,7 @@ export const LEVELS_CONFIG = {
     enemies: [
       {
         id: 'quimera_goliath1',
-        name: 'wolf-aquatic-alpha',
+        name: i18n.t('enemies.arch.wolf_aquatic_alpha.name'),
         type: 'wolf-aquatic-alpha',
         x: 7,
         z: 3,
@@ -464,7 +465,7 @@ export const LEVELS_CONFIG = {
       },
       {
         id: 'quimera_goliath2',
-        name: 'wolf-aquatic',
+        name: i18n.t('enemies.arch.wolf_aquatic.name'),
         type: 'wolf-aquatic',
         x: 7,
         z: 6,
@@ -477,7 +478,7 @@ export const LEVELS_CONFIG = {
       },
       {
         id: 'quimera_dunas',
-        name: 'slime-forest-a',
+        name: i18n.t('enemies.arch.slime_forest_a.name'),
         type: 'slime-forest-a',
         x: 8,
         z: 4,
@@ -500,11 +501,11 @@ export const LEVELS_CONFIG = {
 
   8: {
     id: 8,
-    title: 'Frozen Lake Crossing',
-    subtitle: 'Fury of the Polar Wind',
-    badgeText: '3 vs 4 Mixed',
+    title: i18n.t('levels.l8.title'),
+    subtitle: i18n.t('levels.l8.subtitle'),
+    badgeText: i18n.t('levels.l8.badge'),
     biome: 'frozen_peaks',
-    biomeName: 'Glacier of Lunacia',
+    biomeName: i18n.t('levels.place.glacier'),
     biomeIcon: '❄️',
     heroIds: ['kotaro', 'bing', 'pomodoro'],
     heroPositions: [
@@ -515,7 +516,7 @@ export const LEVELS_CONFIG = {
     enemies: [
       {
         id: 'quimera_frost_brawler',
-        name: 'wolf-alpha',
+        name: i18n.t('enemies.arch.wolf_alpha.name'),
         type: 'wolf-alpha',
         x: 6,
         z: 6,
@@ -528,7 +529,7 @@ export const LEVELS_CONFIG = {
       },
       {
         id: 'quimera_frost_shaman',
-        name: 'treant-flower',
+        name: i18n.t('enemies.arch.treant_flower.name'),
         type: 'treant-flower',
         x: 8,
         z: 7,
@@ -542,7 +543,7 @@ export const LEVELS_CONFIG = {
       },
       {
         id: 'quimera_frost_stalker1',
-        name: 'wolf-gray',
+        name: i18n.t('enemies.arch.wolf_gray.name'),
         type: 'wolf-gray',
         x: 7,
         z: 3,
@@ -555,7 +556,7 @@ export const LEVELS_CONFIG = {
       },
       {
         id: 'quimera_frost_stalker2',
-        name: 'wolf-gray',
+        name: i18n.t('enemies.arch.wolf_gray.name'),
         type: 'wolf-gray',
         x: 8,
         z: 4,
@@ -579,11 +580,11 @@ export const LEVELS_CONFIG = {
 
   9: {
     id: 9,
-    title: 'Crimson Fortress Threshold',
-    subtitle: 'Elite Dungeon Guard',
-    badgeText: '3 vs 3 Dungeon',
+    title: i18n.t('levels.l9.title'),
+    subtitle: i18n.t('levels.l9.subtitle'),
+    badgeText: i18n.t('levels.l9.badge'),
     biome: 'boss_arena',
-    biomeName: 'Fiery Catacombs',
+    biomeName: i18n.t('levels.place.fieryCatacombs'),
     biomeIcon: '🏰',
     heroIds: ['kotaro', 'bing', 'pomodoro'],
     heroPositions: [
@@ -594,7 +595,7 @@ export const LEVELS_CONFIG = {
     enemies: [
       {
         id: 'commander_brawler',
-        name: 'bear-dad',
+        name: i18n.t('enemies.arch.bear_dad.name'),
         type: 'bear-dad',
         x: 6,
         z: 5,
@@ -607,7 +608,7 @@ export const LEVELS_CONFIG = {
       },
       {
         id: 'commander_sniper',
-        name: 'slime-fusion',
+        name: i18n.t('enemies.arch.slime_fusion.name'),
         type: 'slime-fusion',
         x: 8,
         z: 3,
@@ -620,7 +621,7 @@ export const LEVELS_CONFIG = {
       },
       {
         id: 'commander_shaman',
-        name: 'bear-mom',
+        name: i18n.t('enemies.arch.bear_mom.name'),
         type: 'bear-mom',
         x: 8,
         z: 7,
@@ -643,11 +644,11 @@ export const LEVELS_CONFIG = {
 
   10: {
     id: 10,
-    title: 'Throne of the Supreme Chimera',
-    subtitle: 'Final Duel for Lunacia',
-    badgeText: 'FINAL BOSS',
+    title: i18n.t('levels.l10.title'),
+    subtitle: i18n.t('levels.l10.subtitle'),
+    badgeText: i18n.t('levels.l10.badge'),
     biome: 'boss_arena',
-    biomeName: 'Ceremonial Throne of Lunacia',
+    biomeName: i18n.t('levels.place.ceremonialThrone'),
     biomeIcon: '👑',
     heroIds: ['kotaro', 'bing', 'pomodoro'],
     heroPositions: [
@@ -658,7 +659,7 @@ export const LEVELS_CONFIG = {
     enemies: [
       {
         id: 'boss_werewolf',
-        name: 'werewolf-boss',
+        name: i18n.t('enemies.arch.werewolf_boss.name'),
         type: 'werewolf-boss',
         x: 7,
         z: 4,
@@ -671,7 +672,7 @@ export const LEVELS_CONFIG = {
       },
       {
         id: 'boss_guard_l',
-        name: 'bear-mom',
+        name: i18n.t('enemies.arch.bear_mom.name'),
         type: 'bear-mom',
         x: 6,
         z: 2,
@@ -684,7 +685,7 @@ export const LEVELS_CONFIG = {
       },
       {
         id: 'boss_guard_r',
-        name: 'bear-dad',
+        name: i18n.t('enemies.arch.bear_dad.name'),
         type: 'bear-dad',
         x: 6,
         z: 6,

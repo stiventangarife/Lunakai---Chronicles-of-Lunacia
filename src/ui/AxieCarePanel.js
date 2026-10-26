@@ -14,6 +14,7 @@ import { AxieCareService, PET_BOND, PET_COOLDOWN_MS, WALK_STEP_METERS, WALK_BOND
 import { portraitService } from '../tactics/CharacterPortraitService.js';
 import { ITEMS_DB } from '../tactics/ItemDatabase.js';
 import { toast } from './lk.js';
+import * as i18n from '../i18n/i18n.js';
 
 const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 const CLICK_SLOP = 6;           // px: más movimiento = arrastre de cámara, no clic
@@ -38,7 +39,7 @@ export function attachAxieCare(game) {
   panel.className = 'lk-ui lk-care';
   panel.hidden = true;
   panel.setAttribute('role', 'dialog');
-  panel.setAttribute('aria-label', 'Cuidar a tu Axie');
+  panel.setAttribute('aria-label', i18n.t('care.dialogLabel'));
   document.body.appendChild(panel);
   const fx = document.createElement('div');
   fx.className = 'lk-care-fx';
@@ -57,7 +58,7 @@ export function attachAxieCare(game) {
   const player = () => ow.player;
   const companion = () => player()?.companionGroup || null;
   const exploring = () => ow.state === 'EXPLORING' && !(typeof ow.isAnyModalOpen === 'function' && ow.isAnyModalOpen());
-  const companionName = () => player()?.companionName || game.equipmentManager?.heroesBase?.[service.companionId()]?.name || 'tu Axie';
+  const companionName = () => player()?.companionName || game.equipmentManager?.heroesBase?.[service.companionId()]?.name || i18n.t('care.yourAxie');
 
   /** Posición en pantalla de un punto sobre el compañero (alto en metros). */
   function screenOf(height = 1.5) {
@@ -92,10 +93,10 @@ export function attachAxieCare(game) {
   // ------------------------------------------------------------------ pintar
   // Estados del vínculo (maqueta «09 · Vínculo Supremo»): qué significa cada tramo en combate
   const STATES = [
-    { id: 'neglected', max: 25, t: 'Desatendido', c: '#FFB4AE', d: 'La sinergia con tu Sapidae se apaga y puede vacilar al empezar su turno.' },
-    { id: 'neutral', max: 50, t: 'Neutral', c: '#EED39A', d: 'Combate sin penalizaciones ni bonificaciones.' },
-    { id: 'loyal', max: 75, t: 'Fiel', c: '#A8F0B6', d: 'La sinergia Sapidae–Axie se activa por completo.' },
-    { id: 'soul', max: 100, t: 'Resonancia', c: '#FFB3CA', d: 'Escudo de afecto ante un golpe letal y +10 % de crítico.' },
+    { id: 'neglected', max: 25, t: i18n.t('care.stNeglected'), c: '#FFB4AE', d: i18n.t('care.stNeglectedDesc') },
+    { id: 'neutral', max: 50, t: i18n.t('care.stNeutral'), c: '#EED39A', d: i18n.t('care.stNeutralDesc') },
+    { id: 'loyal', max: 75, t: i18n.t('care.stLoyal'), c: '#A8F0B6', d: i18n.t('care.stLoyalDesc') },
+    { id: 'soul', max: 100, t: i18n.t('care.stSoul'), c: '#FFB3CA', d: i18n.t('care.stSoulDesc') },
   ];
   const ICO_HAND = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 13V5.5a1.5 1.5 0 0 1 3 0V12"/><path d="M11 11.5v-7a1.5 1.5 0 0 1 3 0V12"/><path d="M14 11.5V6a1.5 1.5 0 0 1 3 0v7.5"/><path d="M17 9.5a1.5 1.5 0 0 1 3 0V15a7 7 0 0 1-7 7h-1.2a7 7 0 0 1-5.4-2.6L3.3 15.6a1.6 1.6 0 0 1 2.4-2.1L8 15.5"/></svg>';
   const ICO_WALK = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="13" cy="4" r="2"/><path d="M7 22l3-7 3 2v5"/><path d="M10 15l-1-6 4-1 3 4 3 1"/><path d="M9 9l-3 3"/></svg>';
@@ -132,51 +133,51 @@ export function attachAxieCare(game) {
     const petPct = s.petReady ? 100 : Math.max(0, Math.min(100, (1 - s.petLeftMs / PET_COOLDOWN_MS) * 100));
     const walked = Math.round(WALK_STEP_METERS - s.walkToNext);
     const walkPct = (walked / WALK_STEP_METERS) * 100;
-    const foodIco = (ic) => (/[/.]/.test(String(ic || '')) ? `<img src="${esc(ic)}" alt="">` : esc(ic || '🍎'));
+    const foodIco = (ic) => (/[/.]/.test(String(ic || '')) ? `<img src="${esc(ic)}" alt="">` : esc(ic || '✦'));
     const foods = s.foods.length
-      ? s.foods.map((f) => `<button type="button" class="lk-care__food" data-food="${esc(f.id)}" ${s.max ? 'disabled' : ''} title="${s.max ? 'El vínculo ya está al 100 %: guarda la comida para más adelante' : esc(f.item.description || f.item.name)}">
+      ? s.foods.map((f) => `<button type="button" class="lk-care__food" data-food="${esc(f.id)}" ${s.max ? 'disabled' : ''} title="${s.max ? i18n.t('care.fullBondTitle') : esc(f.item.description || f.item.name)}">
             <span class="lk-care__food-ico">${foodIco(f.item.icon)}<em>×${f.count}</em></span>
-            <span class="lk-care__food-txt"><b>${esc(f.item.name)}</b><small>+${formatBond(f.bond)} % vínculo</small></span>
-            <span class="lk-care__food-go">${s.max ? 'Lleno' : 'Dar'}</span>
+            <span class="lk-care__food-txt"><b>${esc(f.item.name)}</b><small>${i18n.t('care.bondGain', { n: formatBond(f.bond) })}</small></span>
+            <span class="lk-care__food-go">${s.max ? i18n.t('care.full') : i18n.t('care.give')}</span>
           </button>`).join('')
-      : `<p class="lk-care__empty">No llevas comida. Cada victoria en combate te da una mandarina lunar.</p>`;
+      : `<p class="lk-care__empty">${i18n.t('care.noFood')}</p>`;
 
     panel.style.setProperty('--sc', st.c);
     panel.innerHTML = `
-      <button type="button" class="lk-care__x" data-act="close" aria-label="Cerrar" title="Cerrar (Esc)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+      <button type="button" class="lk-care__x" data-act="close" aria-label="${i18n.t('care.close')}" title="${i18n.t('care.closeEsc')}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
       <header class="lk-care__head">
         <span class="lk-care__por">${img ? `<img src="${img}" alt="">` : ''}</span>
-        <div><span class="lk-care__kick">Tu compañero</span><b>${esc(name)}</b></div>
+        <div><span class="lk-care__kick">${i18n.t('care.companion')}</span><b>${esc(name)}</b></div>
       </header>
 
-      <section class="lk-care__bond" aria-label="Vínculo ${formatBond(s.bond)} %">
+      <section class="lk-care__bond" aria-label="${i18n.t('care.bondAria', { n: formatBond(s.bond) })}">
         <div class="lk-care__moon ${s.max ? 'lk-is-full' : ''}">${moonSVG(s.bond)}<span>${formatBond(s.bond)}%</span></div>
         <div class="lk-care__state">
-          <span class="lk-care__kick">Vínculo</span>
+          <span class="lk-care__kick">${i18n.t('care.bond')}</span>
           <b>${esc(st.t)}</b>
           <p>${esc(st.d)}</p>
         </div>
       </section>
       <div class="lk-care__rail" aria-hidden="true">${STATES.map((x, i) => `<span class="${i === si ? 'lk-is-on' : i < si ? 'lk-is-past' : ''}" style="--c:${x.c}"><i></i>${x.t}</span>`).join('')}</div>
-      <div class="lk-care__duo ${s.max ? 'lk-is-ready' : ''}">${ICO_STAR}<span>${s.max ? '<b>Duo Ultimate lista.</b> Úsala en combate con el medallón dorado.' : `Al 100 % se desbloquea la <b>Duo Ultimate</b>. Te falta un ${formatBond(100 - s.bond)} %.`}</span></div>
+      <div class="lk-care__duo ${s.max ? 'lk-is-ready' : ''}">${ICO_STAR}<span>${s.max ? i18n.t('care.duoReady') : i18n.t('care.duoLocked', { n: formatBond(100 - s.bond) })}</span></div>
 
       <div class="lk-care__sec">
-        <span class="lk-care__label">Cuidar</span>
+        <span class="lk-care__label">${i18n.t('care.care')}</span>
         <button type="button" class="lk-care__pet ${s.petReady ? '' : 'lk-is-wait'}" data-act="pet" ${s.petReady ? '' : 'disabled'} style="--pp:${petPct.toFixed(1)}%">
           <span class="lk-care__pet-ico">${ICO_HAND}</span>
-          <span class="lk-care__pet-txt"><b>Acariciar</b><small>${s.petReady ? `+${PET_BOND} % vínculo` : `Disponible en ${fmtTime(s.petLeftMs)}`}</small></span>
-          <span class="lk-care__pet-go">${s.petReady ? 'Listo' : fmtTime(s.petLeftMs)}</span>
+          <span class="lk-care__pet-txt"><b>${i18n.t('care.pet')}</b><small>${s.petReady ? i18n.t('care.bondGain', { n: PET_BOND }) : i18n.t('care.availableIn', { t: fmtTime(s.petLeftMs) })}</small></span>
+          <span class="lk-care__pet-go">${s.petReady ? i18n.t('care.ready') : fmtTime(s.petLeftMs)}</span>
         </button>
       </div>
 
       <div class="lk-care__sec">
-        <span class="lk-care__label">Dar de comer</span>
+        <span class="lk-care__label">${i18n.t('care.feed')}</span>
         <div class="lk-care__foods">${foods}</div>
       </div>
 
       <div class="lk-care__sec lk-care__walk">
         <div class="lk-care__walk-row"><span class="lk-care__walk-ico">${ICO_WALK}</span>
-          <span class="lk-care__walk-txt"><b>Paseo juntos</b><small>${Math.max(0, WALK_STEP_METERS - walked)} m más para +${formatBond(WALK_BOND)} %</small></span>
+          <span class="lk-care__walk-txt"><b>${i18n.t('care.walk')}</b><small>${i18n.t('care.walkMore', { m: Math.max(0, WALK_STEP_METERS - walked), n: formatBond(WALK_BOND) })}</small></span>
           <span class="lk-care__walk-num">${walked}<i>/${WALK_STEP_METERS} m</i></span></div>
         <div class="lk-bar lk-bar--xp lk-care__walk-bar" style="--v:${walkPct.toFixed(1)}%"><i></i></div>
       </div>`;
@@ -206,7 +207,7 @@ export function attachAxieCare(game) {
     panel.hidden = false;
     render();
     place();
-    if (gift.length) toast(`¡Has recibido ${gift.length} mandarinas lunares para alimentar a ${companionName()}!`);
+    if (gift.length) toast(i18n.t('care.gift', { n: gift.length, name: companionName() }));
   }
   function hide() {
     open = false;
@@ -217,11 +218,11 @@ export function attachAxieCare(game) {
   function burst(text, kind = 'heart') {
     const p = screenOf(1.2);
     if (!p) return;
-    const icons = kind === 'heart' ? ['❤️', '💗', '💖'] : ['💗'];
+    const HEART = '<img src="./assets/ui/icons/heart.png" alt="" style="width:1em;height:1em;display:block">';
     for (let i = 0; i < (kind === 'heart' ? 6 : 2); i++) {
       const el = document.createElement('span');
       el.className = 'lk-care-heart';
-      el.textContent = icons[i % icons.length];
+      el.innerHTML = HEART;
       el.style.left = `${p.x + (Math.random() - 0.5) * 60}px`;
       el.style.top = `${p.y + (Math.random() - 0.5) * 20}px`;
       el.style.animationDelay = `${i * 70}ms`;
@@ -243,8 +244,8 @@ export function attachAxieCare(game) {
 
   service.onChange((res) => {
     if (res.kind === 'walk') {
-      burst(`+${res.gained} % vínculo`, 'walk');
-      toast(`Paseando con ${companionName()}: vínculo ${res.after}%`);
+      burst(i18n.t('care.bondGain', { n: res.gained }), 'walk');
+      toast(i18n.t('care.walking', { name: companionName(), n: res.after }));
     }
     if (open) render();
   });
@@ -257,12 +258,12 @@ export function attachAxieCare(game) {
     if (act === 'close') { hide(); return; }
     if (act === 'pet') {
       const r = service.pet();
-      if (r.ok) { game.audio?.playBuff?.(); burst(`+${r.gained} % vínculo`); }
+      if (r.ok) { game.audio?.playBuff?.(); burst(i18n.t('care.bondGain', { n: r.gained })); }
       return;
     }
     if (food) {
       const r = service.feed(food);
-      if (r.ok) { game.audio?.playBuff?.(); burst(`+${r.gained} % vínculo`); }
+      if (r.ok) { game.audio?.playBuff?.(); burst(i18n.t('care.bondGain', { n: r.gained })); }
     }
   });
 

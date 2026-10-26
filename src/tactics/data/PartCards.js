@@ -7,6 +7,8 @@
 // Valores: veneno 8 por acumulación · sangrado 12 · quemadura 20 · Frágil +25 % · Débil −20 %.
 // `adaptation` explica cada carta cuyo texto original no existe en el motor.
 
+import * as i18n from '../../i18n/i18n.js';
+
 export const PART_CARDS_LIST = [
   {"id":"part_beast_horn_arco","name":"Arco","officialName":"Arco","class":"beast","part":"horn","isPartCard":true,"paCost":2,"minRange":1,"maxRange":2,"requiresLoS":true,"isLinear":false,"targetType":"enemy","areaType":"single","effects":[{"type":"damage","min":58,"max":72}],"description":"58–72 de daño.","adaptation":"Inmune a reacciones/trampas: sin efecto en la demo.","art":"./assets/cards/beast-horn-12.webp"},
   {"id":"part_beast_horn_dual_blade","name":"Dual Blade","officialName":"Dual Blade","class":"beast","part":"horn","isPartCard":true,"paCost":2,"minRange":1,"maxRange":1,"requiresLoS":true,"isLinear":false,"targetType":"enemy","areaType":"single","effects":[{"type":"damage","min":54,"max":66},{"type":"status","status":"fragile","duration":2,"value":25}],"description":"54–66 de daño. Aplica Frágil (+25 % de daño recibido) (2 turnos).","art":"./assets/cards/beast-horn-10.webp"},
@@ -244,6 +246,8 @@ export const PART_CARDS_LIST = [
   {"id":"part_reptile_tail_tiny_dino","name":"Tiny Dino","officialName":"Tiny Dino t","class":"reptile","part":"tail","isPartCard":true,"paCost":2,"minRange":1,"maxRange":2,"requiresLoS":true,"isLinear":false,"targetType":"enemy","areaType":"single","effects":[{"type":"damage","min":54,"max":66}],"description":"54–66 de daño.","adaptation":"Retain eliminado.","art":"./assets/cards/reptile-tail-06.webp"},
   {"id":"part_reptile_tail_wall_gecko","name":"Wall Gecko","officialName":"Wall Gecko","class":"reptile","part":"tail","isPartCard":true,"paCost":2,"minRange":1,"maxRange":2,"requiresLoS":true,"isLinear":false,"targetType":"enemy","areaType":"single","effects":[{"type":"damage","min":54,"max":66},{"type":"selfDamage","amount":30},{"type":"status","status":"guarded","duration":2,"value":30,"target":"self"}],"description":"54–66 de daño. Pierdes 30 HP. −30 % de daño recibido al lanzador (2 turnos).","art":"./assets/cards/reptile-tail-02.webp"},
 ];
+// Textos visibles en el idioma activo (i18n/es|en/partCards.js); nombres oficiales sin traducir
+i18n.applyText(PART_CARDS_LIST, 'partCards', ['description', 'adaptation', 'balance']);
 
 /** id → carta */
 export const PART_CARDS = Object.fromEntries(PART_CARDS_LIST.map((c) => [c.id, c]));

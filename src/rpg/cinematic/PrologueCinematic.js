@@ -7,7 +7,8 @@
 //
 // Usa el renderer del juego (el bucle principal no dibuja mientras gameState === 'CINEMATIC'):
 // escena ortográfica → render target → pasada de papel (shader) → canvas. Narración en subtítulos (sin voz por ahora).
-// Música: CINEMATICA y, en el clímax, BATTLE_BOSS desde su parte más intensa.
+// Música (Hito 68): una sola pieza a medida (PROLOGO), desde el principio; su clímax cae en el «¡Resonad!» (1:04,2).
+// Antes sonaban CINEMATICA y, en el clímax, BATTLE_BOSS.
 //
 //   const cin = new PrologueCinematic({ renderer, audio, player, playerName, companionName });
 //   await cin.preload();          // modelos y logo (mientras sigue la pantalla de carga)
@@ -22,12 +23,14 @@ import {
   rng, paperCanvas, gradientCanvas, glowCanvas, sparkleCanvas, moonCanvas, crackPaths, heartCanvas, MOON_BITE, treeCanvas, islandsCanvas,
   friezeCanvas, totemCanvas, hillsCanvas, smokeCanvas, ringCanvas, raysCanvas, CONSTELLATIONS,
 } from './CinematicArt.js';
+import * as i18n from '../../i18n/i18n.js';
+import { PrologueVoice } from './PrologueVoice.js';
 
 // Corazones del friso (unidades de escena): adelanto hacia donde mira cada figura y ajuste de altura.
 // En el Axie se parte del hueso del tronco (MIX = 0 → tronco, 1 → cabeza): queda en el pecho, bajo la cara.
 const HEART_FWD_SAP = 0.22, HEART_UP_SAP = 0.05, HEART_FWD_AXIE = 0.26, HEART_UP_AXIE = -0.12, HEART_MIX_AXIE = 0;
 const VIEW_H = 10;
-const NARRATOR = 'Maestro Paladill';
+const NARRATOR = i18n.t('prologue.narrator');
 const LOGO_URL = './assets/ui/brand/lunakai-logo.webp';
 const MODELS = {
   sapF: 'sapidae-f-b', sapM: 'sapidae-m-c', axieA: 'kotaro', axieB: 'bing', axieC: 'pomodoro',
@@ -77,6 +80,38 @@ const INK_FS = /* glsl */`
     gl_FragColor = vec4(c, uOpacity);
     #include <colorspace_fragment>
   }`;
+// Memoria (23-oct): los modelos de la cinemática se dibujan como siluetas de tinta (inkMaterial), así que sus texturas
+// no se usan nunca. Se sueltan nada más cargar el modelo (unos 100 MB de imágenes decodificadas menos).
+const NO_TEX_MAT = new THREE.MeshBasicMaterial({ color: 0x000000 });
+NO_TEX_MAT.userData.shared = true;
+function stripTextures(gltf) {
+  const seen = new Set();
+  gltf?.scene?.traverse((o) => {
+    if (!o.isMesh) return;
+    for (const m of [].concat(o.material || [])) {
+      if (!m || seen.has(m)) continue;
+      seen.add(m);
+      for (const k in m) {
+        const t = m[k];
+        if (!t || !t.isTexture || seen.has(t)) continue;
+        seen.add(t);
+        if (typeof ImageBitmap !== 'undefined' && t.image instanceof ImageBitmap) t.image.close();
+        t.dispose();
+      }
+      m.dispose();
+    }
+    o.material = NO_TEX_MAT;
+  });
+}
+
+/** Al terminar: geometrías y esqueletos de los modelos cargados para la cinemática. */
+function releaseModel(gltf) {
+  gltf?.scene?.traverse((o) => {
+    if (o.geometry) o.geometry.dispose();
+    if (o.isSkinnedMesh && o.skeleton) o.skeleton.dispose();
+  });
+}
+
 function inkMaterial(ink = '#1a0f08') {
   return new THREE.ShaderMaterial({
     uniforms: { uInk: { value: new THREE.Color(ink) }, uRim: { value: new THREE.Color('#ffd27a') }, uRimAmt: { value: 0 }, uOpacity: { value: 1 } },
@@ -114,20 +149,25 @@ const POST_FS = /* glsl */`
 
 /** Guion: planos con su tiempo (s) y la narración. */
 const SHOTS = [
-  { id: 'stars', t0: 0, t1: 10, sub: 'Escuchad, jóvenes Sapidae. Todo empezó con la luz de Atia.' },
-  { id: 'moon', t0: 10, t1: 19, sub: 'Bajo su luna nació Lunacia… y nosotros con ella.' },
-  { id: 'frieze', t0: 19, t1: 30, sub: 'A cada Sapidae, un Axie. Un vínculo para siempre.' },
-  { id: 'chimeras', t0: 30, t1: 39, sub: 'Pero donde hay vida, llega la corrupción.' },
-  { id: 'crack', t0: 39, t1: 47, sub: 'La luna se rompió… y sus esquirlas cayeron sobre las islas.' },
-  { id: 'resist', t0: 47, t1: 55, sub: 'Con ellas resistimos. Con ellas nos hicimos fuertes.' },
+  { id: 'stars', t0: 0, t1: 10, sub: i18n.t('prologue.subStars') },
+  { id: 'moon', t0: 10, t1: 19, sub: i18n.t('prologue.subMoon') },
+  { id: 'frieze', t0: 19, t1: 30, sub: i18n.t('prologue.subFrieze') },
+  { id: 'chimeras', t0: 30, t1: 39, sub: i18n.t('prologue.subChimeras') },
+  { id: 'crack', t0: 39, t1: 47, sub: i18n.t('prologue.subCrack') },
+  { id: 'resist', t0: 47, t1: 55, sub: i18n.t('prologue.subResist') },
   { id: 'finale', t0: 55, t1: 73, sub: null },
 ];
 const TOTAL = 73;
+// PROLOGO dura 67,8 s: los primeros 9,7 s son el inicio de la pieza alargado (con fundido) y después va la pieza
+// original, cuyo clímax cae así justo en el destello del «¡Resonad!» (64,2). Suena desde el principio.
+const PROLOGO_MUSIC_AT = 0;
 // Subtítulos del final (tiempos relativos al plano)
+// Hito 68: la voz de «la sombra…» dura 4,9 s → entra antes (0,3) y «una nueva luz…» un poco después (5,3), así las dos
+// caben completas antes del destello (9,2)
 const FINALE_SUBS = [
-  { a: 0.6, b: 4.4, text: 'Pero la sombra siempre regresa… más grande que nunca.' },
-  { a: 4.8, b: 9.0, text: 'Y una nueva luz se alza para enfrentarla.' },
-  { a: 9.2, b: 11.6, text: '¡Resonad!', big: true },
+  { a: 0.3, b: 5.0, text: i18n.t('prologue.finaleShadow') },
+  { a: 5.3, b: 9.0, text: i18n.t('prologue.finaleLight') },
+  { a: 9.2, b: 11.6, text: i18n.t('prologue.finaleResonate'), big: true },
 ];
 
 export class PrologueCinematic {
@@ -157,7 +197,7 @@ export class PrologueCinematic {
     const tick = () => { done++; onProgress?.(done / (keys.length + 1)); };
     await Promise.all([
       ...keys.map(([k, file]) => loader.loadAsync(`./assets/models/${file}.glb`)
-        .then((g) => { this.gltf[k] = g; }).catch((e) => console.warn('[Cinemática] Modelo', file, e)).finally(tick)),
+        .then((g) => { stripTextures(g); this.gltf[k] = g; }).catch((e) => console.warn('[Cinemática] Modelo', file, e)).finally(tick)),
       new Promise((res) => {
         const img = new Image();
         img.onload = () => { this.logoImg = img; res(); };
@@ -166,6 +206,9 @@ export class PrologueCinematic {
       }).finally(tick),
     ]);
     this._buildTextures();
+    // Voces del narrador del idioma activo (Hito 68); sin ellas la cinemática sigue solo con subtítulos
+    this.voice = new PrologueVoice(this.audio);
+    try { await this.voice.load(); } catch (e) { console.warn('[Cinemática] Voces', e); }
     this.loaded = true;
   }
 
@@ -212,7 +255,7 @@ export class PrologueCinematic {
       this._resolve = resolve;
       this._setupGL();
       this._setupDOM();
-      this._music('CINEMATICA');
+      this._musicOn = false; // PROLOGO entra en _update, a los PROLOGO_MUSIC_AT s
       this.time = 0;
       this._last = performance.now();
       this.running = true;
@@ -221,7 +264,7 @@ export class PrologueCinematic {
   }
 
   /** Salta a un segundo (pruebas). */
-  seek(sec) { this.time = Math.max(0, Math.min(TOTAL - 0.01, sec)); this._shotIdx = -1; }
+  seek(sec) { this.time = Math.max(0, Math.min(TOTAL - 0.01, sec)); this._shotIdx = -1; this.voice?.reset(this.time); this._musicOn = false; }
 
   _setupGL() {
     const r = this.renderer;
@@ -267,8 +310,8 @@ export class PrologueCinematic {
     el.id = 'lk-cine';
     el.className = 'lk-cine';
     el.innerHTML = `
-      <div class="lk-cine__bar lk-cine__bar--top"><span class="lk-cine__kicker"><i></i>Prólogo · Crónicas de Lunacia</span>
-        <button type="button" class="lk-cine__skip" data-ref="skip">Saltar <kbd>Esc</kbd>
+      <div class="lk-cine__bar lk-cine__bar--top"><span class="lk-cine__kicker"><i></i>${i18n.t('prologue.kicker')}</span>
+        <button type="button" class="lk-cine__skip" data-ref="skip">${i18n.t('prologue.skip')} <kbd>Esc</kbd>
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 6l6 6-6 6M13 6l6 6-6 6"/></svg></button></div>
       <div class="lk-cine__sub" aria-live="polite"><small data-ref="who">${NARRATOR}</small><p data-ref="sub"></p></div>
       <div class="lk-cine__bar lk-cine__bar--bot"><span class="lk-cine__prog"><i data-ref="prog"></i></span></div>`;
@@ -313,6 +356,8 @@ export class PrologueCinematic {
     const start = performance.now();
     const from = this.post.uniforms.uFade.value;
     this.post.uniforms.uFadeCol.value.set('#000');
+    this.voice?.stopAll();
+    if (this.voice) { this.voice.duck = 1; this.voice._applyDuck(true); }
     this.audio?.music?.stop?.(skipped ? 500 : 1400);
     this._ending = () => {
       const k = Math.min(1, (performance.now() - start) / fadeMs);
@@ -324,6 +369,7 @@ export class PrologueCinematic {
 
   _cleanup() {
     this.running = false;
+    this.voice?.dispose();
     window.removeEventListener('keydown', this._onKey, true);
     window.removeEventListener('resize', this._onResize);
     this._disposeShot();
@@ -332,8 +378,17 @@ export class PrologueCinematic {
     r.toneMapping = this._saved.toneMapping; r.toneMappingExposure = this._saved.exposure; r.autoClear = this._saved.autoClear;
     r.setClearColor(this._saved.clearColor, this._saved.clearAlpha);
     this.rt?.dispose(); this.post?.dispose();
-    this._disposables.forEach((d) => d.dispose?.());
+    this._disposables.forEach((d) => {
+      d.dispose?.();
+      // los lienzos de los fondos dibujados: se vacían para que el navegador suelte su memoria ya
+      const img = d.image;
+      if (typeof HTMLCanvasElement !== 'undefined' && img instanceof HTMLCanvasElement) { img.width = 0; img.height = 0; }
+    });
     this._disposables = [];
+    Object.values(this.gltf).forEach(releaseModel);
+    this.gltf = {};
+    this.textures = {};
+    this.logoImg = null;
     if (this.dom) {
       this.dom.classList.remove('lk-is-on');
       const d = this.dom; setTimeout(() => d.remove(), 600);
@@ -393,6 +448,11 @@ export class PrologueCinematic {
     if (!this._ending) U.uFade.value = 1 - Math.min(fadeIn, fadeOut);
     U.uFadeCol.value.set(s.id === 'chimeras' || s.id === 'crack' || s.id === 'resist' ? '#0c0202' : '#120b05');
     U.uTime.value = this.time;
+    if (!this._ending) this.voice?.update(t, dt);
+    if (!this._ending && !this._musicOn && t >= PROLOGO_MUSIC_AT) {
+      this._musicOn = true;
+      this._music('PROLOGO', { fadeDuration: 400, volumeMultiplier: 0.95, startAt: Math.max(0, t - PROLOGO_MUSIC_AT) });
+    }
     U.uFlash.value = Math.max(0, U.uFlash.value - dt * 2.2);
     this[`_upd_${s.id}`]?.(lt, len, dt, this._shotState);
     // subtítulo del plano
@@ -423,6 +483,7 @@ export class PrologueCinematic {
       if (o.geometry && !o.geometry.userData.shared) o.geometry.dispose();
       const mats = Array.isArray(o.material) ? o.material : o.material ? [o.material] : [];
       mats.forEach((m) => { if (!m.userData.shared) m.dispose(); });
+      if (o.isSkinnedMesh && o.skeleton) o.skeleton.dispose(); // la textura de huesos del clon
     });
     (this._shotState?.mixers || []).forEach((m) => m.stopAllAction());
     this._shotGroup = null;
@@ -873,13 +934,18 @@ export class PrologueCinematic {
     const ground = -3.9;
     const p = this.player;
     const clips = p?.actions ? Object.values(p.actions).filter(Boolean).map((a) => a.getClip?.()).filter(Boolean) : null;
-    S.hero = (p?.mesh && this._silhouette(g, null, { src: p.mesh, clips, height: 3.6, x: -13, y: ground, face: 1, ink: '#0a0403', anim: 'walk' }))
-      || this._silhouette(g, 'sapF', { height: 3.6, x: -13, y: ground, face: 1, ink: '#0a0403', anim: 'walk' });
+    // Hito 64 · «¡Resonad!» es del equipo: el Axie camina delante (del lado del Señor) y se dibuja por delante
+    S.hero = (p?.mesh && this._silhouette(g, null, { src: p.mesh, clips, height: 3.6, x: -14.8, y: ground, face: 1, ink: '#0a0403', anim: 'walk' }))
+      || this._silhouette(g, 'sapF', { height: 3.6, x: -14.8, y: ground, face: 1, ink: '#0a0403', anim: 'walk' });
     let comp = null;
-    try { if (p?.companionMesh) comp = this._silhouette(g, null, { src: p.companionMesh, height: 1.9, x: -14.8, y: ground, face: 1, ink: '#0a0403' }); } catch (e) { console.warn('[Cinemática] Compañero', e); }
-    S.comp = comp || this._silhouette(g, 'axieA', { height: 1.9, x: -14.8, y: ground, face: 1, ink: '#0a0403', anim: 'walk' });
+    try { if (p?.companionMesh) comp = this._silhouette(g, null, { src: p.companionMesh, height: 1.9, x: -13, y: ground, z: 0.6, face: 1, ink: '#0a0403' }); } catch (e) { console.warn('[Cinemática] Compañero', e); }
+    S.comp = comp || this._silhouette(g, 'axieA', { height: 1.9, x: -13, y: ground, z: 0.6, face: 1, ink: '#0a0403', anim: 'walk' });
     S.hand = this._sprite(g, this.textures.sparkle, 0.2, { z: 6, opacity: 0, additive: true });
     S.handGlow = this._sprite(g, this.textures.glowGold, 1, { z: 5, opacity: 0 });
+    // brillo del Axie y el hilo de luz que lo une a la mano del Sapidae (el vínculo)
+    S.axSpark = this._sprite(g, this.textures.sparkle, 0.2, { z: 6, opacity: 0, additive: true });
+    S.axGlow = this._sprite(g, this.textures.glowGold, 1, { z: 5, opacity: 0 });
+    S.bond = Array.from({ length: 12 }, () => this._sprite(g, this.textures.sparkle, 0.35, { z: 6, opacity: 0, additive: true }));
     S.wave = this._plane(g, this.textures.ring, 1, 1, { z: 6, opacity: 0, additive: true });
     S.wave2 = this._plane(g, this.textures.ring, 1, 1, { z: 6, opacity: 0, additive: true });
     S.motes = this._points(g, 160, { seed: 121, size: 4, color: '#ffd88a', opacity: 0, z: 3 });
@@ -897,10 +963,10 @@ export class PrologueCinematic {
     const U = this.post.uniforms;
     const IGNITE = 9.2, SLAM = 11.6;
     // música: el clímax entra con la sombra
-    if (!S.music && lt > 0.2) { S.music = true; this._music('BATTLE_BOSS', { startAt: 10.5, fadeDuration: 1500, volumeMultiplier: 1.0 }); }
+    // (Hito 68: ya no se cambia a BATTLE_BOSS; la pieza PROLOGO llega aquí a su clímax)
     // subtítulos
     const sub = FINALE_SUBS.find((s) => lt >= s.a && lt < s.b);
-    this._setSub(sub ? sub.text : null, { big: Boolean(sub?.big), who: sub?.big ? (this.playerName || 'Sapidae') : NARRATOR });
+    this._setSub(sub ? sub.text : null, { big: Boolean(sub?.big), who: NARRATOR }); // «¡Resonad!» también lo dice el narrador (decisión del usuario)
 
     // a · se alza el Señor de las Quimeras
     const rise = easeOut((lt - 0.3) / 3.6);
@@ -923,14 +989,30 @@ export class PrologueCinematic {
 
     // b · llega el héroe con su Axie
     const walk = easeOut((lt - 4.4) / 4.0);
-    S.hero.root.position.x = lerp(-13, -5.2, walk);
-    S.comp.root.position.x = lerp(-14.8, -7.0, walk);
+    S.hero.root.position.x = lerp(-14.8, -6.6, walk);
+    S.comp.root.position.x = lerp(-13, -4.4, walk);
     S.comp.pivot.position.y = walk < 1 && lt > 4.4 ? Math.abs(Math.sin(lt * 9)) * 0.18 : 0;
     if (lt > 8.4 && !S.stopped) { S.stopped = true; S.hero.play('idle'); S.comp.play?.('idle'); }
 
     // c · la esquirla se enciende: rojo → oro
     const hx = S.hero.root.position.x + 0.62, hy = S.hero.root.position.y + 2.05;
+    const ax = S.comp.root.position.x + 0.1, ay = S.comp.root.position.y + 1.05;   // pecho del Axie
+    const mx = (hx + ax) / 2, my = (hy + ay) / 2 + 0.25;                            // la luz nace entre los dos
     const ign = smooth(IGNITE - 0.6, IGNITE, lt);
+    const link = smooth(IGNITE - 1.4, IGNITE - 0.4, lt);
+    S.axSpark.position.set(ax, ay, 6); S.axGlow.position.set(ax, ay, 5);
+    S.axSpark.material.opacity = Math.max(link * 0.8, ign);
+    S.axSpark.scale.setScalar(0.3 + Math.max(link * 0.6, ign * 1.4) + Math.sin(lt * 13 + 1) * 0.15 * ign);
+    S.axGlow.material.opacity = Math.max(link * 0.5, ign * 0.9);
+    S.axGlow.scale.setScalar(1 + Math.max(link, ign) * 4.2);
+    S.bond.forEach((b, i) => {
+      const k = (i + 1) / (S.bond.length + 1);
+      const arc = Math.sin(k * Math.PI) * 0.35;
+      b.position.set(lerp(hx, ax, k), lerp(hy, ay, k) + arc, 6);
+      const tw = 0.6 + Math.sin(lt * 10 - k * 9) * 0.4;
+      b.material.opacity = link * (1 - smooth(IGNITE + 0.6, IGNITE + 1.6, lt)) * tw;
+      b.scale.setScalar(0.25 + tw * 0.25);
+    });
     S.hand.position.set(hx, hy, 6); S.handGlow.position.set(hx, hy, 5);
     S.hand.material.opacity = ign;
     S.hand.scale.setScalar(0.3 + ign * 1.6 + Math.sin(lt * 14) * 0.15 * ign);
@@ -944,7 +1026,7 @@ export class PrologueCinematic {
     const gold = smooth(IGNITE, IGNITE + 1.4, lt);
     S.bgGold.material.opacity = gold;
     S.rays.material.opacity = gold * 0.55;
-    S.rays.position.set(hx, hy, -40);
+    S.rays.position.set(mx, my, -40);
     S.rays.rotation.z = lt * 0.12;
     // antes de encenderse, un filo rojo los separa del fondo oscuro; después, oro
     [S.hero, S.comp].forEach((h) => h && (gold > 0.02 ? h.setRim(gold, '#ffe39a') : h.setRim(0.45, '#ff4a2a')));
@@ -952,7 +1034,7 @@ export class PrologueCinematic {
     [[S.wave, IGNITE, 1.1], [S.wave2, IGNITE + 0.25, 1.3]].forEach(([w, t0, d]) => {
       const k = (lt - t0) / d;
       w.visible = k > 0 && k < 1;
-      w.position.set(hx, hy, 6);
+      w.position.set(mx, my, 6);
       w.scale.setScalar(0.5 + easeOut(k) * 26);
       w.material.opacity = (1 - k) * 0.9;
     });
@@ -964,9 +1046,9 @@ export class PrologueCinematic {
     U.uVig.value = lerp(0.75, 0.5, gold);
 
     // cámara: plano general → se acerca al héroe al encenderse → se abre para el logo
-    if (lt < IGNITE) { this.cam.zoom = lerp(0.92, 1.08, easeInOut(lt / IGNITE)); this.cam.x = lerp(1.2, -1.6, smooth(4.0, 9.0, lt)); this.cam.y = lerp(-0.4, -0.6, lt / IGNITE); }
-    else if (lt < SLAM) { this.cam.zoom = lerp(1.08, 1.22, easeOut((lt - IGNITE) / 1.2)); this.cam.x = lerp(-1.6, -2.4, easeOut((lt - IGNITE) / 1.5)); this.cam.y = -0.6; }
-    else { const k = easeOut((lt - SLAM) / 0.8); this.cam.zoom = lerp(1.22, 1.0, k); this.cam.x = lerp(-2.4, 0, k); this.cam.y = lerp(-0.6, 0, k); }
+    if (lt < IGNITE) { this.cam.zoom = lerp(0.92, 1.08, easeInOut(lt / IGNITE)); this.cam.x = lerp(1.2, -1.9, smooth(4.0, 9.0, lt)); this.cam.y = lerp(-0.4, -0.6, lt / IGNITE); }
+    else if (lt < SLAM) { this.cam.zoom = lerp(1.08, 1.22, easeOut((lt - IGNITE) / 1.2)); this.cam.x = lerp(-1.9, -2.9, easeOut((lt - IGNITE) / 1.5)); this.cam.y = -0.6; }
+    else { const k = easeOut((lt - SLAM) / 0.8); this.cam.zoom = lerp(1.22, 1.0, k); this.cam.x = lerp(-2.9, 0, k); this.cam.y = lerp(-0.6, 0, k); }
 
     // d · LUNAKAI
     if (S.logo) {

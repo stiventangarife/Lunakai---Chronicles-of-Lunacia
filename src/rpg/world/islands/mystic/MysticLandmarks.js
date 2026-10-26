@@ -3,18 +3,19 @@ import { mergeGeometries } from '../../../../../vendor/utils/BufferGeometryUtils
 import { getSoftToonRamp } from '../../demo_scena/genshin/GenshinMaterials.js';
 import { createSeededRandom } from '../../demo_scena/MathUtils.js';
 import { mergeStaticByMaterial } from '../../../../render/StaticMerge.js';
+import { placeIslandProps } from '../kit/IslandProps.js';
 
 /**
- * MysticLandmarks — places of the Mystic improvement plan, built with stylised primitives
- * (placeholders until the final assets are chosen; same recipe as the Savanna / Arctic):
+ * MysticLandmarks — places of the Mystic improvement plan. Hito 57: GLB models (islands/kit/IslandProps.js)
+ * for the house, the islet statue and a decorative statue; the rest are stylised primitives:
  *   1. Observatorio Astral : slate tower in two bodies with cornices, outer spiral stair, glowing
  *                            windows, amethyst dome with a brass telescope, armillary sphere
  *                            with turning rings and two rune lanterns (replaces the old tower).
- *   2. Casa del astrólogo  : stone + timber cottage with a violet roof, star finials, glowing
- *                            windows and a small crystal garden.
+ *   2. Casa del astrólogo  : house.glb (the Forest house) + a small amethyst crystal garden.
  *   3. Islote del estanque : mossy islet in the centre of the luminous swamp with a glowing
- *                            weeping willow (hanging strands) and a small ancient rune pillar
- *                            in front of it, facing the Spiritual Shaman.
+ *                            weeping willow (hanging strands) and statue_mystic in front of it
+ *                            (was a primitive rune pillar), facing the Spiritual Shaman.
+ *   4. Estatua             : statue_mystic at the Observatory door.
  * Each solid landmark is one vertex-coloured merged mesh (+ one glow mesh).
  */
 export const MYSTIC_SITES = {
@@ -99,6 +100,7 @@ export class MysticLandmarks {
     this._buildObservatory();
     this._buildHouse();
     this._buildIslet();
+    this._buildModels();
     // Partes fijas y opacas (cuerpos de piedra y ventanas que brillan): una malla por material para
     // los cuatro lugares. Los anillos de la esfera armilar giran, así que se quedan sueltos; los
     // cristales translúcidos y las hebras del sauce no se combinan (StaticMerge ya los salta).
@@ -218,85 +220,53 @@ export class MysticLandmarks {
 
   // 2. Astrologer's cottage (front = local +Z)
   _buildHouse() {
+    // House: GLB (see _buildModels). Crystal garden beside it: stone ring with moss + amethyst points
     const H = MYSTIC_SITES.house;
-    const w = 5.2, d = 4.2, h = 2.9;
+    const gx = -5.2, gz = 2.6;   // local to the house (front = +Z), clear of the 6.9 m wide house.glb
     const parts = [];
-    const glow = [];
-    parts.push([box(w + 0.5, 1.6, d + 0.5, 0, -0.45, 0), C.slateDark]);              // foundation
-    parts.push([box(w, 1.2, d, 0, 0.95, 0), C.slate]);                               // stone base
-    parts.push([box(w - 0.1, h - 1.2, d - 0.1, 0, 1.55 + (h - 1.2) / 2, 0), C.plaster]);
-    // Timber frame
-    for (const sx of [-1, 1]) for (const sz of [-1, 1]) parts.push([box(0.22, h - 1.1, 0.22, sx * (w / 2 - 0.05), 1.5 + (h - 1.1) / 2, sz * (d / 2 - 0.05)), C.wood]);
-    for (const sz of [-1, 1]) {
-      parts.push([box(w + 0.1, 0.18, 0.2, 0, 1.6, sz * (d / 2 + 0.02)), C.wood]);
-      parts.push([box(w + 0.1, 0.18, 0.2, 0, h, sz * (d / 2 + 0.02)), C.wood]);
-      parts.push([rod(0.07, [-w / 2 + 0.2, 1.65, sz * (d / 2 + 0.06)], [-0.9, h - 0.05, sz * (d / 2 + 0.06)], 4), C.wood]);
-      parts.push([rod(0.07, [w / 2 - 0.2, 1.65, sz * (d / 2 + 0.06)], [0.9, h - 0.05, sz * (d / 2 + 0.06)], 4), C.wood]);
-    }
-    // Steep gable roof (ridge along X) with darker trim and star finials
-    const a = 0.62, half = d / 2 + 0.6, L = half / Math.cos(a), rise = half * Math.tan(a);
-    for (const s of [1, -1]) {
-      const slab = box(w + 1.0, 0.22, L, 0, 0, 0);
-      slab.rotateX(s * a);
-      slab.translate(0, h + rise / 2, s * half / 2);
-      parts.push([slab, C.roof]);
-      parts.push([rod(0.1, [-w / 2 - 0.5, h - 0.08, s * (half - 0.05)], [w / 2 + 0.5, h - 0.08, s * (half - 0.05)], 6), C.roofDark]);
-      // Shingle rows
-      for (let k = 1; k < 5; k++) {
-        const t = k / 5;
-        const zz = s * half * (1 - t), yy = h + rise * t + 0.14;
-        parts.push([rod(0.06, [-w / 2 - 0.45, yy, zz], [w / 2 + 0.45, yy, zz], 4), C.roofDark]);
-      }
-    }
-    parts.push([rod(0.13, [-w / 2 - 0.55, h + rise + 0.05, 0], [w / 2 + 0.55, h + rise + 0.05, 0], 6), C.roofDark]);
-    const tri = new THREE.Shape();
-    tri.moveTo(-d / 2, 0); tri.lineTo(d / 2, 0); tri.lineTo(0, (d / 2) * Math.tan(a)); tri.closePath();
-    for (const s of [1, -1]) {
-      const gable = new THREE.ExtrudeGeometry(tri, { depth: 0.16, bevelEnabled: false });
-      gable.rotateY(Math.PI / 2);
-      gable.translate(s * (w / 2) - 0.08, h, 0);
-      parts.push([gable, C.plaster]);
-      parts.push([star(0.32, s * (w / 2 + 0.5), h + rise + 0.45, 0), C.trim]);
-      glow.push([new THREE.CircleGeometry(0.42, 16).rotateY(s * Math.PI / 2).translate(s * (w / 2 + 0.1), h + 0.7, 0), C.glowWarm]);
-    }
-    // Chimney
-    parts.push([box(0.7, rise + 1.8, 0.7, -1.4, h + (rise + 1.8) / 2 - 0.4, -0.7), C.slateDark]);
-    parts.push([box(0.85, 0.15, 0.85, -1.4, h + rise + 1.0, -0.7), C.stoneLight]);
-    // Door, round window, side windows, step, lantern
-    parts.push([box(1.1, 2.0, 0.14, 0.7, 1.0, d / 2 + 0.06), C.door]);
-    glow.push([new THREE.TorusGeometry(0.58, 0.05, 4, 16, Math.PI).translate(0.7, 2.0, d / 2 + 0.12), C.glowGold]);
-    glow.push([box(0.85, 0.8, 0.08, -1.3, 2.05, d / 2 + 0.07), C.glowWarm]);
-    parts.push([box(1.05, 0.12, 0.2, -1.3, 1.6, d / 2 + 0.1), C.wood]);
-    parts.push([box(0.08, 0.8, 0.12, -1.3, 2.05, d / 2 + 0.11), C.wood]);
-    for (const sx of [-1, 1]) glow.push([box(0.08, 0.75, 0.8, sx * (w / 2 + 0.03), 2.1, -0.3), C.glowWarm]);
-    parts.push([box(1.6, 0.18, 0.7, 0.7, 0.09, d / 2 + 0.45), C.stoneLight]);
-    parts.push([cyl(0.05, 0.05, 0.6, 5, 1.55, 2.6, d / 2 + 0.25), C.wood]);
-    glow.push([new THREE.OctahedronGeometry(0.16, 0).scale(1, 1.4, 1).translate(1.55, 2.2, d / 2 + 0.25), C.glowCyan]);
-    // Crystal garden: stone ring with moss + small amethyst points (separate amethyst meshes)
-    const gx = -w / 2 - 1.8, gz = d / 2 + 0.6;
     for (let i = 0; i < 9; i++) {
       const aa = (i / 9) * Math.PI * 2;
-      parts.push([ball(0.22, gx + Math.cos(aa) * 1.1, 0.08, gz + Math.sin(aa) * 1.1, 1.2, 0.7, 1, 0), C.slateDark]);
+      parts.push([ball(0.22, Math.cos(aa) * 1.1, 0.08, Math.sin(aa) * 1.1, 1.2, 0.7, 1, 0), C.slateDark]);
     }
-    parts.push([cyl(1.0, 1.05, 0.12, 12, gx, 0.06, gz), C.moss]);
-    const g = this._place(parts, glow, H.x, H.z, H.yaw, 'Mystic_AstrologerHouse', 3.0, 0.05);
+    parts.push([cyl(1.0, 1.05, 0.12, 12, 0, 0.06, 0), C.moss]);
+    const [wx, wz] = this._toWorld(H.x, H.z, H.yaw, gx, gz);
+    const g = this._place(parts, null, wx, wz, H.yaw, 'Mystic_CrystalGarden', 1.2, 0.05);
     const rng = createSeededRandom(5150);
     const cg = new THREE.Group();
     for (let i = 0; i < 6; i++) {
       const c = new THREE.Mesh(new THREE.OctahedronGeometry(0.22, 0), this.amethyst);
       const aa = rng() * Math.PI * 2, rr = rng() * 0.7;
-      c.position.set(gx + Math.cos(aa) * rr, 0.35 + rng() * 0.2, gz + Math.sin(aa) * rr);
+      c.position.set(Math.cos(aa) * rr, 0.35 + rng() * 0.2, Math.sin(aa) * rr);
       c.scale.set(0.8, 2.2 + rng() * 1.6, 0.8);
       c.rotation.set((rng() - 0.5) * 0.5, rng() * 3, (rng() - 0.5) * 0.5);
       cg.add(c);
     }
     g.add(cg);
-    this.zone.addCollider(H.x, H.z, 3.3);
-    const [wx, wz] = this._toWorld(H.x, H.z, H.yaw, gx, gz);
     this.zone.addCollider(wx, wz, 1.2);
   }
 
-  // 3. Swamp islet: glowing weeping willow + ancient rune pillar
+  /**
+   * GLB pieces (Hito 57), in their own group (they arrive after mergeStaticByMaterial). Colliders are registered
+   * now; the models appear when loaded (shared `#islas` cache with the Savanna and the Arctic).
+   */
+  _buildModels() {
+    const S = MYSTIC_SITES;
+    const O = S.observatory;
+    const [ox, oz] = this._toWorld(O.x, O.z, O.yaw, 3.8, 6.2);   // beside the right lantern of the door
+    const list = [
+      { model: 'house', ...S.house, name: 'Mystic_AstrologerHouse' },
+      { model: 'statue_mystic', x: S.pillar.x, z: S.pillar.z, yaw: S.pillar.yaw, name: 'Mystic_IsletStatue' },
+      { model: 'statue_mystic', x: ox, z: oz, yaw: O.yaw, name: 'Mystic_ObservatoryStatue' }
+    ];
+    this.props = new THREE.Group();
+    this.props.name = 'MysticProps';
+    this.zone.group.add(this.props);
+    const res = placeIslandProps(this.props, list, { height: this.height, plinthColor: 0x5c5f88 });
+    res.colliders.forEach(([x, z, r]) => this.zone.addCollider(x, z, r));
+    this.ready = res.ready;
+  }
+
+  // 3. Swamp islet: glowing weeping willow (statue in front: _buildModels)
   _buildIslet() {
     const I = MYSTIC_SITES.islet;
     const rng = createSeededRandom(6262);
@@ -380,26 +350,7 @@ export class MysticLandmarks {
     strands.name = 'MysticWillowStrands';
     this.zone.addCollider(I.x, I.z, 1.4);
 
-    // Ancient rune pillar in front of the willow (facing the shaman)
-    const P = MYSTIC_SITES.pillar;
-    const pp = [];
-    const pg = [];
-    pp.push([box(1.1, 0.35, 1.1, 0, 0.12, 0), C.slateDark]);
-    pp.push([cyl(0.36, 0.42, 1.5, 8, 0, 1.05, 0), C.stoneLight]);
-    const broken = cyl(0.36, 0.36, 0.45, 8, 0, 0, 0);
-    broken.rotateZ(0.25);
-    broken.translate(0.05, 1.95, 0);
-    pp.push([broken, C.stoneLight]);
-    pp.push([ball(0.3, 0.6, 0.12, 0.35, 1, 0.6, 1, 0), C.stoneLight]);               // fallen chunk
-    pp.push([ball(0.25, 0.0, 2.2, 0.0, 1.3, 0.35, 1.2, 1), C.mossLight]);
-    for (const y of [0.65, 1.15, 1.6]) pg.push([new THREE.TorusGeometry(0.4, 0.035, 4, 20).rotateX(Math.PI / 2).translate(0, y, 0), C.rune]);
-    for (let i = 0; i < 4; i++) {
-      const a = (i / 4) * Math.PI * 2;
-      pg.push([box(0.12, 0.28, 0.04, Math.sin(a) * 0.4, 0.9 + (i % 2) * 0.45, Math.cos(a) * 0.4, a), C.rune]);
-    }
-    const pgp = this._place(pp, pg, P.x, P.z, P.yaw, 'Mystic_RunePillar', 0.6, 0.08);
-    void pgp;
-    this.zone.addCollider(P.x, P.z, 0.6);
+    // In front of the willow, facing the shaman: statue_mystic (GLB, see _buildModels; was a rune pillar)
   }
 
   update() {

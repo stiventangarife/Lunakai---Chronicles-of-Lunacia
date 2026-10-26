@@ -2,8 +2,8 @@
 
 Bienvenido al repositorio de documentación técnica, arquitectura y especificaciones de **Lunakai: Chronicles of Lunacia** (anteriormente *Axie Tactics*), un RPG táctico 3D con exploración de mundo abierto (*Overworld*) estilizado y combates estratégicos por turnos basado en la propiedad intelectual de Axie Infinity.
 
-> **Estado actual (22-oct-2026) — versión de prueba:** el mundo jugable son las **5 grandes islas** con dirección de arte Genshin: Bosque, Sabana, Ártico, Mística y **Genesis** (la antigua Mazmorra, rediseñada en el Hito 24).
-> - **Viaje entre islas:** se habla con el barquero **Pomodoro** en la playa de cada isla; los portales cardinales están retirados.
+> **Estado actual (23-oct-2026) — versión de prueba:** el mundo jugable son las **5 grandes islas** con dirección de arte Genshin: Bosque, Sabana, Ártico, Mística y **Genesis** (la antigua Mazmorra, rediseñada en el Hito 24).
+> - **Viaje entre islas:** se habla con el barquero **Kawa** en la playa de cada isla (hasta el Hito 51 era Pomodoro; se llamó Kappa hasta el Hito 56); los portales cardinales están retirados.
 > - **Cuentas y nube (Hito 25):** inicio de sesión con Sky Mavis o correo y guardado en Supabase; falta la configuración del servidor.
 > - **Motor de combate nuevo (Hitos 26–32):**
 >   - eventos separados de los VFX;
@@ -17,10 +17,18 @@ Bienvenido al repositorio de documentación técnica, arquitectura y especificac
 > - **Economía (Hitos 43–46):** Forja (crear y evolucionar), Tienda del Mercader Ochi, runas y charms con efecto en combate, recolección (pesca, tala, minería y flores) y la lista de ítems del Excel.
 > - **Personaje (Hito 47):** el jugador es **Ema** o **Kai**, con peinado, ojos, boca y colores.
 > - **Inicio de partida (Hito 48):** cinemática del prólogo con final épico y tutorial en 7 fases con el Maestro Paladill (se puede saltar).
+> - **Estatuas de Genesis (Hito 58):** en el Jardín Real, el peluche en el centro y siete estatuas de armas a su alrededor (lanza, hacha, doble, mando, bastón, arco y maná); el Espíritu de Atia es ahora la estatua `atias.glb`.
+> - **Modelos de la Mística (Hito 57):** la casa del Bosque para el astrólogo, `statue_mystic` frente al sauce del pantano (en lugar del pilar de runas) y en la puerta del Observatorio; la flor del pantano ya no está dentro del agua.
+> - **Modelos del Ártico (Hito 56):** casa del Bosque en Pomodoro, el Ermitaño y el Campamento Boreal; tienda para el Chef Boreal; tótem de hielo en el valle de las quimeras; altar de Atia en una zona nueva junto al camino de la playa; banderas y tótem de decoración. Los edificios en pendiente llevan zócalo de piedra (también en la Sabana).
+> - **Modelos de la Sabana (Hito 55):** la casa del Bosque en el campamento de Bing y en lugar de la fragua de Baruk, el altar de Atia en lugar del altar del Sol, un tótem junto a la casa de Bing, una tabla de surf en la playa y la balsa flotando junto al barquero.
+> - **Tutorial y runas como objetos (Hito 54):** el tutorial ya no anuncia el 30 % del duelo, pide cerrar la Forja antes de la recompensa, llena el vínculo con la caricia y la comida y resalta la habilidad del charm. Las runas y los charms ahora se tienen: caen neutros en los combates, salen de las bolsas de runa y de charm de la Forja (de clase, al azar) y se venden en la tienda.
+> - **Memoria y rendimiento (Hito 53):** la cinemática del prólogo ya no guarda las texturas de sus modelos y lo libera todo al terminar; las variantes ocultas del Sapidae (peinados, cabezas, camisas, expresiones) no vuelven a la tarjeta gráfica después de un combate. En el mundo abierto, sombras uno de cada dos fotogramas, sin sombra en la vegetación pequeña y las farolas, un solo esqueleto para el Sapidae del jugador y brillo a media resolución.
+> - **Armas del mixer (Hito 52):** espadas, arcos y bastones de la librería del mixer (un nivel por Tier) en la mano del Sapidae y del Axie, cada uno con su arma; el Axie usa las animaciones del arma. En el Sapidae van en la mano derecha, por el puño y hacia delante, y miden lo mismo en Ema y en Kai.
+> - **Pueblo del Bosque (Hito 51):** el camino de la Isla del Bosque es ahora un pueblo con dojo (y el Maestro Paladill), tienda de Ochi, Forja con su árbol y el Guardián de los Pergaminos, casas, altar de Atia, tótem, parada con bus y farolas; puesto de pescado y balsa junto al barquero, que ahora es **Kawa**. El antiguo Dojō Secreto se retiró y su patio vuelve a tener hierba. Tras la cinemática, la cámara aparece detrás del jugador, frente a Paladill.
 > - **Tutorial guiado (Hito 50):** el tutorial y sus combates señalan cada acción con flecha y resaltado y bloquean todo lo demás hasta hacerla; corazones y media luna en la cinemática, tienda en (-77, 3.7) y slimes ocultos durante el tutorial.
 > - **Rendimiento (Hito 49):** optimización isla por isla y de los tableros de combate sin cambiar la imagen: texturas a 1024, carga diferida, horizonte combinado, menos memoria de GPU (~1220 → ~400 MB) y combates sin tirones al mover la cámara o lanzar habilidades.
 >
-> Los hitos 2, 3, 6, 9, 10, 11 y 21 describen sistemas históricos y llevan una nota de estado al principio. Los hitos 4, 12, 14, 15, 29, 30, 42, 43, 44, 45 y 48 llevan una nota de actualización con lo que cambió después. Donde aparece "Mazmorra", hoy es Genesis.
+> Los hitos 2, 3, 6, 9, 10, 11 y 21 describen sistemas históricos y llevan una nota de estado al principio. Los hitos 4, 12, 14, 15, 29, 30, 42, 43, 44, 45, 48 y 49 llevan una nota de actualización con lo que cambió después. Donde aparece "Mazmorra", hoy es Genesis.
 
 ---
 
@@ -129,7 +137,7 @@ Bienvenido al repositorio de documentación técnica, arquitectura y especificac
     - Modal de mapas dual (`[M]`): Pestaña Mapa Mundi y Pestaña Mapa de la Isla.
     - Botón de mapa insular contextual activo únicamente para la isla donde se encuentra el jugador.
     - Minimapa radar circular en pantalla (`MinimapHUD.js`) con cono de visión y rotación dinámica orientada en tiempo real.
-    - Actualización: viaje entre islas con el barquero Pomodoro (`FerryTravelUI.js`) en la playa de cada isla.
+    - Actualización: viaje entre islas con el barquero (`FerryTravelUI.js`) en la playa de cada isla: Pomodoro hasta el Hito 51, ahora Kawa (Kappa hasta el Hito 56).
 
 19. [**Hito 19: Islas Lejanas del Horizonte, Balizas de Misión y Determinismo Procedimental**](HITO_19_ISLAS_LEJANAS_HORIZONTE_Y_DETERMINISMO_SEMILLAS.md)
     - Islas lejanas visibles en 360° en el horizonte con shaders atmosféricos sin coste en GPU (`DistantIsland.js`).
@@ -180,7 +188,7 @@ Bienvenido al repositorio de documentación técnica, arquitectura y especificac
     - Auditoría de NPC y monstruos sobre los terrenos reales, con anclas de patrulla validadas por isla y nodos de misión apoyados en el suelo.
     - Mundo demo 1.0.0 retirado: menos objetos, mallas, memoria y tiempo de arranque.
     - Zonas de esquina fusionadas en sus islas.
-    - Barquero Pomodoro en lugar de las flechas de teleport.
+    - Barquero Pomodoro en lugar de las flechas de teleport (desde el Hito 51 es Kappa, Kawa desde el Hito 56).
     - Corrección del spawn de la Quimera Picuda (misión “Hunt of the Beaked Chimera”).
 
 24. [**Hito 24: Mejora de Biomas (Bosque, Sabana, Ártico, Mística) y Rediseño de Genesis**](HITO_24_MEJORA_BIOMAS_SABANA_ARTICO_MISTICA_GENESIS.md)
@@ -326,6 +334,64 @@ Bienvenido al repositorio de documentación técnica, arquitectura y especificac
     - Guía con velo, hueco, flecha y frase en cada paso del tutorial (Mochila, Forja, vínculo, runas); solo responden el objetivo y sus teclas, y el panel se desplaza solo hasta él.
     - Combates guiados: casillas, cartas, Pasar turno y Ultimate bloqueados fuera de su paso; duelo y prueba de la Ultimate con guía calculada por turno (`TutorialManager.startDynamic`).
     - Cinemática con corazones en el pecho y luna en media luna; elegir personaje sin modelos superpuestos; tienda en (-77.0, 3.7); solo Paladill habla y los slimes se ocultan durante el tutorial.
+51. [**Hito 51: Pueblo del Bosque**](HITO_51_PUEBLO_DEL_BOSQUE.md)
+    - Pueblo a lo largo del camino del Bosque con los modelos de `assets/environment` (dojo, tienda, Forja, 4 casas, altar, tótem, parada, bus, 6 farolas), puesto de pescado y balsa en el embarcadero; claros en la hierba y sin árboles encima.
+    - Ochi en la tienda, Paladill en el dojo, árbol de la Forja junto a ella; Kawa es el barquero y el Guardián de los Pergaminos abre la Forja.
+    - Se libera al salir del Bosque; relieve de los GLB a 512; fuga de esqueletos de los NPC corregida; sin pétalos sobre el dojo; cámara tras la cinemática detrás del jugador.
+52. [**Hito 52: Armas del mixer en el Sapidae y en el Axie**](HITO_52_ARMAS_DEL_MIXER.md)
+    - Espadas (niveles 1, 2, 4, 5), arcos y bastones (1–4) por Tier; cada personaje lleva su arma.
+    - Sapidae: mano derecha, mango por el puño, hacia delante; tamaño compensado aunque la animación escale el hueso (Kai).
+    - Axie: arma y animaciones del mixer; las armas que se cambian liberan su esqueleto.
+53. [**Hito 53: Memoria y rendimiento**](HITO_53_MEMORIA_TUTORIAL.md)
+    - Cinemática sin texturas de modelos y liberada al terminar; variantes ocultas del Sapidae fuera de la GPU también después de los combates.
+    - Mundo abierto: sombras uno de cada dos fotogramas, vegetación pequeña y farolas sin sombra, un esqueleto para el Sapidae del jugador y brillo a media resolución.
+54. [**Hito 54: Ajustes del tutorial y runas y charms como objetos**](HITO_54_TUTORIAL_Y_RUNAS_COMO_OBJETOS.md)
+    - Tutorial: sin el 30 % del duelo, moneda de oro real, «Cierra la Forja» antes de la recompensa, avisos ocultos durante los diálogos, vínculo al 100 % con caricia y comida, consejo de la Ultimate con retrato y paso del charm guiado.
+    - Bolsa de runas y charms por partida: botín neutro en combate, bolsas de clase en la Forja (se abren en la Mochila) y venta en la tienda.
+55. [**Hito 55: Modelos GLB en la Sabana**](HITO_55_MODELOS_DE_LA_SABANA.md)
+    - Casa del Bosque (campamento de Bing y casa de Baruk, sin fragua), altar de Atia, tótem, tabla de surf y balsa en el embarcadero de Kawa.
+    - Clave de caché `#sabana` (el Bosque descarga los suyos), piezas estáticas y mapas de normales a 512.
+56. [**Hito 56: Modelos GLB en el Ártico**](HITO_56_MODELOS_DEL_ARTICO.md)
+    - Casas, tienda del Chef, tótem de hielo en el valle, altar de Atia en una zona nueva, banderas (entrada, tienda, campamento) y tótem en Pomodoro.
+    - Kit compartido `islands/kit/IslandProps.js` (caché `#islas`, zócalo de piedra en pendiente); casas de la Sabana sin enterrar.
+57. [**Hito 57: Modelos GLB en la Isla Mística**](HITO_57_MODELOS_DE_LA_MISTICA.md)
+    - Casa del astrólogo, estatua del islote, estatua en el Observatorio; flor del pantano en la orilla.
+58. [**Hito 58: Estatuas GLB en Genesis**](HITO_58_ESTATUAS_DE_GENESIS.md)
+    - Peluche en el centro de la plaza y siete estatuas de armas en el círculo de 17 m (en lugar del tótem y los seis monumentos); Espíritu de Atia con el modelo `atias.glb`.
+59. [**Hito 59: Dos idiomas (español / inglés)**](HITO_59_DOS_IDIOMAS.md)
+    - Sistema `src/i18n` (1466 claves por idioma), inglés por defecto, cambio de idioma con guardado y recarga; interfaz completa traducida (Fases 0 y 1). Historia, datos y mensajes del sistema quedan para las Fases 2–4.
+60. [**Hito 60: Dos idiomas · historia**](HITO_60_IDIOMAS_HISTORIA.md)
+    - Misiones, diálogos de NPC, tutorial y cinemáticas en español e inglés (2136 claves por idioma); cargos traducidos, nombres propios iguales; la navegación lee la versión inglesa del paso (`i18n.en`) y se comporta igual en los dos idiomas.
+61. [**Hito 61: Dos idiomas · datos del juego**](HITO_61_IDIOMAS_DATOS.md)
+    - Objetos, habilidades, estados, héroes, descripciones de cartas, runas y charms, enemigos, niveles y creador en los dos idiomas (3501 claves); nombres oficiales de Axie en inglés; `i18n.applyText` para listas grandes sin reescribir los datos.
+62. [**Hito 62: Dos idiomas · mensajes del sistema**](HITO_62_IDIOMAS_SISTEMA.md)
+    - Texto flotante de combate, avisos de tienda, Forja y recolección, cuenta y nube, y restos (3597 claves por idioma); cartel de zona por id; decimales según el idioma; barrido final de lo que queda sin traducir a propósito.
+63. [**Hito 63: Seguimiento de misiones desactivable**](HITO_63_SEGUIMIENTO_DESACTIVABLE.md)
+    - Pulsar «Siguiendo» desactiva el seguimiento (sin flecha, marcador ni pista en el HUD); se reactiva con «Seguir» o al empezar un nuevo capítulo; no se puede apagar en el tutorial; se guarda en la partida.
+64. [**Hito 64: Revisión de Ema, musgo, flechas y abetos**](HITO_64_REVISION_EMA_MUSGO_FLECHAS_ARBOLES.md)
+    - Rosalba pasa a llamarse Ema (el nombre por defecto del jugador es Lunara); el musgo aparece sin tirón; flecha de misión solo con la misión activa; abetos de tala del Ártico reubicados y marcados con 🪓; Xia y el Cartero reubicados.
+65. [**Hito 65: Casillas de combate**](HITO_65_CASILLAS_COMBATE.md)
+    - Al elegir una carta se ve todo su alcance aunque no haya enemigos (rojo; gris apagado sin línea de visión; objetivos con pulso; área naranja). Movimiento en azul con ruta y destino en verde. Capas instanciadas: repintado de 0,02 ms, 60 fps estables.
+66. [**Hito 66: Colisiones del Bosque, agua poco profunda y río de mar a mar**](HITO_66_COLISIONES_BOSQUE_AGUA_RIO.md)
+    - Rejilla espacial de colisiones (consultas hasta 15× más rápidas, mismos resultados); troncos, rocas y Gran Árbol con colisión; agua caminable hasta la rodilla con ondas, salpicaduras y chapoteo; el río llega al mar del norte, con puente nuevo en el pueblo y vados al norte y al sur; la vegetación de la isla sale idéntica.
+67. [**Hito 67: Final de la cinemática con el «¡Resonad!» del equipo**](HITO_67_FINAL_CINEMATICA_RESONAD.md)
+    - El Axie delante del Sapidae, un hilo de luz los une y el destello nace entre los dos; el grito lo dice el narrador (Maestro Paladill) y el guion de voces queda con una sola toma.
+68. [**Hito 68: Voces y música nueva del prólogo**](HITO_68_VOCES_Y_MUSICA_PROLOGO.md)
+    - Voces del narrador en español sincronizadas con los subtítulos (volumen igualado, música que baja bajo la voz); pieza musical a medida cuyo clímax cae en el «¡Resonad!».
+69. [**Hito 69: Colisiones de la Sabana, mar y oasis caminables**](HITO_69_COLISIONES_SABANA.md)
+    - 192 objetos nuevos con colisión (palmeras, acacias, árboles secos, cactus, montículos altos y agujas sueltas); las paredes de las mesetas no se suben (las rampas sí); mar hasta la rodilla y oasis somero que se cruza entero, ambos con ondas. Toda la isla sigue siendo alcanzable.
+70. [**Hito 70: Deslizamiento al chocar (sin atascos)**](HITO_70_DESLIZAMIENTO_COLISIONES.md)
+    - Al chocar en diagonal contra troncos, rocas, vallas, edificios, la orilla o un acantilado, el personaje desliza por el borde con fricción según el ángulo; rodea los troncos de frente; se para limpio en rincones y huecos estrechos. Ya no queda nunca dentro de una colisión. Sirve para todas las islas y para los monstruos.
+71. [**Hito 71: Colisiones del Ártico**](HITO_71_COLISIONES_ARTICO.md)
+    - 213 objetos nuevos con colisión (abetos y árboles anchos —también los lejanos del LOD—, árboles secos, bloques de hielo, rocas de mineral y rocas de más de 0,7 m); cuernos, acantilado de la costa y pared de hielo del sur no se suben; mar hasta la rodilla en las plataformas del sur; el hielo del lago, el estanque y los ríos se sigue caminando. Base común para Mística y Génesis.
+72. [**Hito 72: Colisiones de Mística**](HITO_72_COLISIONES_MISTICA.md)
+    - 133 objetos nuevos con colisión (árboles, agujas y cúmulos de amatista, rocas de más de 0,7 m); el pantano luminoso se cruza entero con el agua a media pierna (se llega al islote del sauce); mar hasta la rodilla; pendientes de más de 35° (tramos de costa, borde del observatorio) no se suben. Setas, flores y arbustos se atraviesan.
+73. [**Hito 73: Colisiones de Génesis**](HITO_73_COLISIONES_GENESIS.md)
+    - 67 árboles con colisión en el tronco; cristales de la cantera con su huella exacta; troncos huecos con colisión de punta a punta; mar hasta la rodilla. Cierra la revisión de colisiones de las cinco islas (Bosque, Sabana, Ártico, Mística y Génesis).
+74. [**Hito 74: Bolsas, oro de combate, opciones en combate, cámara y misiones de Génesis**](HITO_74_MEJORAS_VARIAS.md)
+    - Bolsas con icono propio y cobradas en SLP (runas 80, charms 50); lo que sale de la bolsa se ve en la estantería con la marca «Nuevo»; 20–45 de oro por combate ganado contra quimeras; el menú de opciones funciona en combate; la cámara ya no se mete en casas ni rocas (brazo con colisión) y ve a través de los árboles; Kotaro y Tripp tienen su propio grupo de monstruos con flecha.
+75. [**Hito 75: Escuadrón con tus Axies, sin emojis y runas Ronin**](HITO_75_ESCUADRON_EMOJIS_RONIN.md)
+    - El Escuadrón se abre al reclutar a Bing, con un mini-tutorial de 3 pasos (abrir, colocar a Bing, «Cargar mis Axies»); los demás Axies de tu cuenta de Sky Mavis entran a la colección en nivel 1 y se pueden poner de principal o de apoyo; fuera los emojis de textos, HUD, mapa y combate; las runas y charms NFT de tu cuenta dan una copia jugable con la insignia R (no se venden). Diseño técnico del Mercado entre jugadores ([DISENO_TIENDA_JUGADORES.md](DISENO_TIENDA_JUGADORES.md)).
 
 ---
 

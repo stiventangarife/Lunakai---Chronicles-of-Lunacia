@@ -1,5 +1,6 @@
 // QuestInteractablesManager.js - Manages interactive quest gathering and encounter nodes in the Overworld
 import * as THREE from 'three';
+import * as i18n from '../../i18n/i18n.js';
 
 export class QuestInteractablesManager {
   constructor(scene, questManager, audioSystem, overworldManager) {
@@ -34,7 +35,27 @@ export class QuestInteractablesManager {
   loadForZone(zoneKey) {
     this.clear();
     this.currentZoneKey = zoneKey;
+    this._spawnQuestNodes(zoneKey);
+  }
 
+  /**
+   * Hito 64: al aceptar o avanzar una misión solo se rehacen los objetos de misión (musgo, setas, polvo estelar).
+   * loadForZone() reconstruía además todo lo que se engancha a ella (pueblo, dojo, Forja, puesto, puntos de
+   * recolección): eso era el tirón al aceptar la misión de Ema.
+   */
+  refreshQuestNodes(zoneKey = this.currentZoneKey) {
+    const keep = [];
+    for (const node of this.nodes) {
+      if (node.questNode) { this._disposeNodeGroup(node.group); this.scene.remove(node.group); }
+      else keep.push(node);
+    }
+    this.nodes = keep;
+    if (this.nearbyNode && this.nearbyNode.questNode) { this.nearbyNode = null; this.hidePrompt(); }
+    this.currentZoneKey = zoneKey;
+    this._spawnQuestNodes(zoneKey);
+  }
+
+  _spawnQuestNodes(zoneKey) {
     if (!this.questManager) return;
 
     // 1. Zone [2, 2] - Forest Elixir: Glowing Moss Plant near the stream
@@ -137,19 +158,20 @@ export class QuestInteractablesManager {
     // y three.js recompila TODOS los shaders iluminados (tirón). El brillo lo dan el material emisivo y el bloom.
 
     // Nameplate Sprite
-    const sprite = this._createLabelSprite('🌿 Luminous Moss Sprout', '#34d399');
+    const sprite = this._createLabelSprite(i18n.t('story.mossSproutLabel'), '#34d399');
     sprite.position.set(0, 2.1, 0);
     group.add(sprite);
 
     this.scene.add(group);
 
     this.nodes.push({
+      questNode: true,
       id: 'luminous_moss_plant',
       type: 'plant_guardian',
       group,
       bulb,
       radius: 2.8,
-      promptText: 'Examine Glowing Sprout',
+      promptText: i18n.t('story.mossSproutPrompt'),
       onInteract: () => {
         // Trigger surprise slime combat guarding the plant!
         if (this.overworldManager && typeof this.overworldManager.triggerDirectQuestBattle === 'function') {
@@ -198,20 +220,21 @@ export class QuestInteractablesManager {
 
     // Label Sprite
     const currentCount = this.gatheredCounts.blizzard_mushrooms.size;
-    const sprite = this._createLabelSprite(`🍄 Polar Mushroom (${currentCount}/3)`, '#38bdf8');
+    const sprite = this._createLabelSprite(i18n.t('story.mushroomLabel', { n: currentCount }), '#38bdf8');
     sprite.position.set(0, 1.55, 0);
     group.add(sprite);
 
     this.scene.add(group);
 
     this.nodes.push({
+      questNode: true,
       id: spot.id,
       type: 'gathering_mushroom',
       group,
       cap,
       labelSprite: sprite,
       radius: 2.5,
-      promptText: `Gather Polar Mushroom (${this.gatheredCounts.blizzard_mushrooms.size}/3)`,
+      promptText: i18n.t('story.mushroomPrompt', { n: this.gatheredCounts.blizzard_mushrooms.size }),
       onInteract: () => {
         this.gatheredCounts.blizzard_mushrooms.add(spot.id);
         if (this.audio && typeof this.audio.playItemGet === 'function') {
@@ -229,10 +252,10 @@ export class QuestInteractablesManager {
           if (n.type === 'gathering_mushroom' && n.labelSprite) {
             n.group.remove(n.labelSprite);
             n.labelSprite.material.dispose();
-            n.labelSprite = this._createLabelSprite(`🍄 Polar Mushroom (${count}/3)`, '#38bdf8');
+            n.labelSprite = this._createLabelSprite(i18n.t('story.mushroomLabel', { n: count }), '#38bdf8');
             n.labelSprite.position.set(0, 1.55, 0);
             n.group.add(n.labelSprite);
-            n.promptText = `Gather Polar Mushroom (${count}/3)`;
+            n.promptText = i18n.t('story.mushroomPrompt', { n: count });
           }
         });
 
@@ -241,11 +264,11 @@ export class QuestInteractablesManager {
             this.questManager.advanceStep('quest_blizzard_stew', 'gather_frost_mushrooms', true);
           }
           if (this.overworldManager && typeof this.overworldManager._showBannerMessage === 'function') {
-            this.overworldManager._showBannerMessage('🍄 POLAR MUSHROOMS GATHERED (3/3)!', 'Bring the ingredients to Chef Boreal at [2, 1] [E].');
+            this.overworldManager._showBannerMessage(i18n.t('story.mushroomsDoneTitle'), i18n.t('story.mushroomsDoneDesc'));
           }
         } else {
           if (this.overworldManager && typeof this.overworldManager._showBannerMessage === 'function') {
-            this.overworldManager._showBannerMessage(`🍄 Polar Mushroom Gathered (${count}/3)`, 'Keep searching around the snowy terrain.');
+            this.overworldManager._showBannerMessage(i18n.t('story.mushroomGotTitle', { n: count }), i18n.t('story.mushroomGotDesc'));
           }
         }
       }
@@ -286,20 +309,21 @@ export class QuestInteractablesManager {
 
     // Label Sprite
     const currentCount = this.gatheredCounts.fallen_stardust.size;
-    const sprite = this._createLabelSprite(`✨ Stardust (${currentCount}/3)`, '#c084fc');
+    const sprite = this._createLabelSprite(i18n.t('story.stardustLabel', { n: currentCount }), '#c084fc');
     sprite.position.set(0, 1.75, 0);
     group.add(sprite);
 
     this.scene.add(group);
 
     this.nodes.push({
+      questNode: true,
       id: spot.id,
       type: 'gathering_stardust',
       group,
       crystal,
       labelSprite: sprite,
       radius: 2.5,
-      promptText: `Gather Stardust (${this.gatheredCounts.fallen_stardust.size}/3)`,
+      promptText: i18n.t('story.stardustPrompt', { n: this.gatheredCounts.fallen_stardust.size }),
       onInteract: () => {
         this.gatheredCounts.fallen_stardust.add(spot.id);
         if (this.audio && typeof this.audio.playItemGet === 'function') {
@@ -317,10 +341,10 @@ export class QuestInteractablesManager {
           if (n.type === 'gathering_stardust' && n.labelSprite) {
             n.group.remove(n.labelSprite);
             n.labelSprite.material.dispose();
-            n.labelSprite = this._createLabelSprite(`✨ Stardust (${count}/3)`, '#c084fc');
+            n.labelSprite = this._createLabelSprite(i18n.t('story.stardustLabel', { n: count }), '#c084fc');
             n.labelSprite.position.set(0, 1.75, 0);
             n.group.add(n.labelSprite);
-            n.promptText = `Gather Stardust (${count}/3)`;
+            n.promptText = i18n.t('story.stardustPrompt', { n: count });
           }
         });
 
@@ -329,11 +353,11 @@ export class QuestInteractablesManager {
             this.questManager.advanceStep('quest_fallen_stardust', 'gather_stardust', true);
           }
           if (this.overworldManager && typeof this.overworldManager._showBannerMessage === 'function') {
-            this.overworldManager._showBannerMessage('✨ STARDUST GATHERED (3/3)!', 'Bring the fragments to the Astral Astrologer at [1, 2] [E].');
+            this.overworldManager._showBannerMessage(i18n.t('story.stardustDoneTitle'), i18n.t('story.stardustDoneDesc'));
           }
         } else {
           if (this.overworldManager && typeof this.overworldManager._showBannerMessage === 'function') {
-            this.overworldManager._showBannerMessage(`✨ Star Fragment Obtained (${count}/3)`, 'Follow the arcane lights in the nebula.');
+            this.overworldManager._showBannerMessage(i18n.t('story.stardustGotTitle', { n: count }), i18n.t('story.stardustGotDesc'));
           }
         }
       }

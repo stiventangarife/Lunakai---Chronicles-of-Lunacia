@@ -6,6 +6,7 @@ import { generatePackForBiome } from './world/BiomeEnemyCatalog.js';
 import { applyToonOutline } from './stylized/ToonOutline.js';
 import { createQuestBeaconArrow3D } from './world/ZoneTransitionManager.js';
 import { createEnemyNameplate, createEnemyAlertSprite } from './ui/EnemyNameplate.js';
+import * as i18n from '../i18n/i18n.js';
 
 export class WanderingMonsters {
   constructor(scene, collisionSystem, audioSystem) {
@@ -38,8 +39,8 @@ export class WanderingMonsters {
     this.isCombatEnabled = true;
     const slime = await this.spawnMonster({
       id: 'slime_garden_1',
-      name: 'slime',
-      badge: '👾',
+      name: i18n.t('enemies.arch.slime.name'),
+      badge: 'chimera',
       tier: 1,
       modelType: 'slime',
       x: -4.0,
@@ -393,12 +394,12 @@ export class WanderingMonsters {
       const leader = pack.leader;
 
       let displayName = leader.name;
-      let badge = '👾';
+      let badge = 'chimera';
       if (forcedLeader) {
-        badge = '👑';
+        badge = 'boss';
       } else if (pack.packSize > 1) {
         displayName = `${pack.packTitle} (x${pack.packSize})`;
-        badge = '🐺';
+        badge = 'alpha';
       }
 
       await this.spawnMonster({
@@ -429,12 +430,12 @@ export class WanderingMonsters {
       if (mg.forcedLeader) pack.isBoss = true; // Hito 35: mapa de jefe
       const leader = pack.leader;
       let displayName = leader.name;
-      let badge = '👾';
+      let badge = 'chimera';
       if (mg.forcedLeader) {
-        badge = '👑';
+        badge = 'boss';
       } else if (pack.packSize > 1) {
         displayName = `${pack.packTitle} (x${pack.packSize})`;
-        badge = '🐺';
+        badge = 'alpha';
       }
       await this.spawnMonster({
         id: `mob_${pack.packId}_${mg.logicalZone}`,
@@ -459,7 +460,9 @@ export class WanderingMonsters {
 
     // Special Quest Encounters for Sabana / Yermos Áridos (old [3, 1], now part of the Savanna island)
     const questMobSpots = islandLayout && islandLayout.questMobs ? islandLayout.questMobs : null;
-    if ((gx === 3 && gy === 1) || questMobSpots) {
+    // Hito 74: combates de las misiones de Genesis (Kotaro y Tripp)
+    if (gx === 2 && gy === 3) await this.ensureGenesisQuestMonsters();
+    if ((gx === 3 && gy === 1) || (questMobSpots && questMobSpots.mob_armored_chimera)) {
       const spotOf = (id, fx, fz, legacyPatrol) => {
         const a = questMobSpots && questMobSpots[id];
         if (!a) return { x: fx, z: fz, patrol: legacyPatrol };
@@ -479,8 +482,8 @@ export class WanderingMonsters {
         ]);
         const mobArmored = await this.spawnMonster({
           id: 'mob_armored_chimera',
-          name: '🛡️ Armored Chimera (Quest)',
-          badge: '🛡️',
+          name: `${i18n.t('enemies.questMob', { name: i18n.t('enemies.armoredChimera') })}`,
+          badge: 'armored',
           tier: 2,
           modelType: 'wolf-aquatic-alpha',
           x: armoredSpot.x,
@@ -499,6 +502,7 @@ export class WanderingMonsters {
           const arrow = createQuestBeaconArrow3D(2.1);
           mobArmored.group.add(arrow);
           mobArmored.questArrow = arrow;
+          mobArmored.questArrowFor = { questId: 'quest_nomad_steel', stepId: 'gather_ores' };
         }
       }
 
@@ -514,8 +518,8 @@ export class WanderingMonsters {
         ]);
         const mobBeaked = await this.spawnMonster({
           id: 'mob_beaked_chimera',
-          name: '🦅 Alpha Beaked Chimera (Quest)',
-          badge: '🦅',
+          name: `${i18n.t('enemies.questMob', { name: i18n.t('enemies.alphaBeakedChimera') })}`,
+          badge: 'beaked',
           tier: 2,
           // 'bird-early' is an Axie hero (no overworld .glb): it fell back to a sphere half sunk in the ground.
           // The overworld marker uses the pack's winged member model, tinted amber.
@@ -536,9 +540,58 @@ export class WanderingMonsters {
           const arrow = createQuestBeaconArrow3D(2.0);
           mobBeaked.group.add(arrow);
           mobBeaked.questArrow = arrow;
+          mobBeaked.questArrowFor = { questId: 'quest_hunt_beaked_chimera', stepId: 'defeat_beaked_alpha' };
         }
       }
     }
+  }
+
+  /**
+   * Hito 74 · Genesis: cada misión tiene su propio combate, marcado con flecha, y solo aparece mientras hace falta.
+   *  · Guardianes de Genesis (Kotaro): en la avenida del este, con «El Umbral de Genesis» activa.
+   *  · Guardián de Cristal (Tripp): en la cantera rosa, tras hablar con Tripp y hasta recuperar el pico.
+   * Se puede llamar en cualquier momento (al entrar en la isla o al aceptar la misión): no duplica.
+   */
+  async ensureGenesisQuestMonsters() {
+    const qm = this.questManager || (typeof window !== 'undefined' ? window.overworldManager?.questManager : null);
+    if (!qm) return;
+    const spots = ISLAND_MONSTER_LAYOUT['2_3']?.questMobs || {};
+    const stepOf = (qid, sid) => qm.getQuest(qid)?.objective?.steps?.find((s) => s.id === sid);
+    const needGuards = (() => { const q = qm.getQuest('quest_sulfur_threshold'); const s = stepOf('quest_sulfur_threshold', 'defeat_sulfur_guards'); return q && q.status === 'active' && s && !s.done; })();
+    const needCrystal = (() => { const q = qm.getQuest('quest_forgotten_miner_relic'); const t = stepOf('quest_forgotten_miner_relic', 'talk_miner'); const s = stepOf('quest_forgotten_miner_relic', 'find_golden_pickaxe'); return q && q.status === 'active' && t?.done && s && !s.done; })();
+    const spawnQuestPack = async (id, spot, leaderId, minSize, nameKey, badge, tint, questId, stepId) => {
+      if (!spot || this.monsters.some((m) => m.id === id)) return;
+      let pack = generatePackForBiome('dungeon', [2, 3], leaderId);
+      for (let k = 0; k < 6 && pack.packSize < minSize; k++) pack = generatePackForBiome('dungeon', [2, 3], leaderId);
+      pack.isBoss = true;
+      const leader = pack.leader;
+      const mob = await this.spawnMonster({
+        id,
+        name: `${i18n.t('enemies.questMob', { name: i18n.t(nameKey) })}`,
+        badge,
+        tier: pack.tier,
+        modelType: leader.type,
+        x: spot.x,
+        z: spot.z,
+        scale: (leader.scale || 1) * 1.15,
+        tintColor: tint,
+        packData: pack,
+        biome: 'dungeon',
+        patrolPoints: patrolAround(spot).map((p) => new THREE.Vector3(p.x, 0, p.z)),
+        detectionRadius: 8.0,
+        encounterRadius: 2.1,
+        patrolSpeed: 1.5,
+        chaseSpeed: 4.4
+      });
+      if (mob && mob.group && !mob.questArrow) {
+        const arrow = createQuestBeaconArrow3D(2.2);
+        mob.group.add(arrow);
+        mob.questArrow = arrow;
+        mob.questArrowFor = { questId, stepId };
+      }
+    };
+    if (needGuards) await spawnQuestPack('mob_genesis_guardians', spots.mob_genesis_guardians, 'bear_dad', 2, 'enemies.genesisGuardians', 'guardians', 0xc4b5fd, 'quest_sulfur_threshold', 'defeat_sulfur_guards');
+    if (needCrystal) await spawnQuestPack('mob_crystal_guardian', spots.mob_crystal_guardian, 'bear_mom', 1, 'enemies.crystalGuardian', 'crystal', 0xf9a8d4, 'quest_forgotten_miner_relic', 'find_golden_pickaxe');
   }
 
   async ensureSavannahQuestMonsters() {
@@ -549,8 +602,8 @@ export class WanderingMonsters {
       if (!this.monsters.some(m => m.id === 'mob_beaked_chimera')) {
         const mobBeaked = await this.spawnMonster({
           id: 'mob_beaked_chimera',
-          name: '🦅 Alpha Beaked Chimera (Quest)',
-          badge: '🦅',
+          name: `${i18n.t('enemies.questMob', { name: i18n.t('enemies.alphaBeakedChimera') })}`,
+          badge: 'beaked',
           tier: 2,
           modelType: 'wolf-aquatic',
           x: -40.0,
@@ -569,6 +622,7 @@ export class WanderingMonsters {
           const arrow = createQuestBeaconArrow3D(2.0);
           mobBeaked.group.add(arrow);
           mobBeaked.questArrow = arrow;
+          mobBeaked.questArrowFor = { questId: 'quest_hunt_beaked_chimera', stepId: 'defeat_beaked_alpha' };
         }
       }
     }
@@ -597,7 +651,7 @@ export class WanderingMonsters {
     await this.spawnMonster({
       id: `mob_boss_${zoneKey}_${Date.now().toString(36)}`,
       name: `${pack.packTitle}`,
-      badge: '👑',
+      badge: 'boss',
       tier: pack.tier,
       modelType: leader.type,
       x: preset.x,
@@ -1026,7 +1080,14 @@ export class WanderingMonsters {
       }
 
       // 3D overhead beacon arrow tracking
-      if (m.questArrow && typeof m.questArrow.updateAnimation === 'function') {
+      if (m.questArrow && m.questArrowFor) {
+        // Hito 64: la flecha solo se ve con su misión aceptada y el paso pendiente (antes salía sin aceptarla)
+        const qa = this.questManager || (typeof window !== 'undefined' ? window.overworldManager?.questManager : null);
+        const q = qa?.getQuest?.(m.questArrowFor.questId);
+        const st = q?.objective?.steps?.find((x) => x.id === m.questArrowFor.stepId);
+        m.questArrow.visible = !!(q && q.status === 'active' && (!st || !st.done));
+      }
+      if (m.questArrow && m.questArrow.visible !== false && typeof m.questArrow.updateAnimation === 'function') {
         m.questArrow.updateAnimation(dt);
       }
     });

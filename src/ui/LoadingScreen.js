@@ -4,17 +4,19 @@
 // que usa ZoneTransitionManager (zone-loading-title / subtitle / badge / icon / hint) y la clase
 // .zone-loading-container, para que ese gestor siga mostrando y ocultando la cortina exactamente igual.
 
+import * as i18n from '../i18n/i18n.js';
+
 const MOON = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 3a9 9 0 1 0 6 15.7A7.5 7.5 0 1 1 15 3z" fill="currentColor"/></svg>';
 
 // Consejos sobre mecánicas reales del juego
 const TIPS = [
-  'Pulsa K para elegir tu escuadrón: el Sapidae y tres axies combaten juntos. El principal gana el 80 % de la experiencia y los apoyos el 60 %.',
-  'En la mochila (tecla I) haz doble clic en un objeto para equiparlo, o arrástralo a su ranura.',
-  'Cada nivel te da 3 puntos de atributo: repártelos en la mochila entre Vitalidad, Ferocidad, Agilidad y Esencia.',
-  'Sigue una misión desde la Crónica (tecla J) y el HUD te indicará el camino hasta su objetivo.',
-  'El mapa del mundo (tecla M) muestra las nueve regiones de Lunacia y dónde te espera cada misión.',
-  'El equipo del Sapidae también cuenta en combate: un buen sombrero o una buena espada cambian la pelea.',
-  'Si tu escuadrón cae, el vínculo con tu compañero principal se resiente. Prepárate antes de cruzar a una zona nueva.'
+  i18n.t('common.tip1'),
+  i18n.t('common.tip2'),
+  i18n.t('common.tip3'),
+  i18n.t('common.tip4'),
+  i18n.t('common.tip5'),
+  i18n.t('common.tip6'),
+  i18n.t('common.tip7')
 ];
 
 function skySVG() {
@@ -50,10 +52,10 @@ export function initLoadingScreen() {
     <div class="lk-load__shade" aria-hidden="true"></div>
     <img class="lk-load__logo" src="./assets/ui/brand/lunakai-logo.webp" alt="Lunakai">
     <div class="lk-load__bottom">
-      <div class="lk-tip-card"><span class="lk-label">Consejo de Paladill</span><p data-ref="tip"></p></div>
+      <div class="lk-tip-card"><span class="lk-label">${i18n.t('common.paladillTip')}</span><p data-ref="tip"></p></div>
       <span class="lk-moon-spin" aria-hidden="true">${MOON}</span>
-      <div class="lk-load-bar" role="progressbar" aria-label="Cargando zona">
-        <div class="lk-row2"><span>Cargando · <span id="zone-loading-subtitle">Lunacia</span></span><span id="zone-loading-badge" class="lk-load__brand">LUNAKAI</span></div>
+      <div class="lk-load-bar" role="progressbar" aria-label="${i18n.t('common.loadingZone')}">
+        <div class="lk-row2"><span>${i18n.t('common.loading')} · <span id="zone-loading-subtitle">Lunacia</span></span><span id="zone-loading-badge" class="lk-load__brand">LUNAKAI</span></div>
         <div class="lk-trk"><span class="lk-fill"></span><span class="lk-moon">${MOON}</span></div>
       </div>
     </div>

@@ -174,7 +174,12 @@ export class GenesisNature {
           }
           // small branch stubs
           parts.push([rod(0.06, [x, y + r * 1.6, z], [x + Math.cos(rot + 1.2) * 0.4, y + r * 1.6 + 0.45, z - Math.sin(rot + 1.2) * 0.4], 4), WOOD_DARK]);
-          this.zone.addCollider(x, z, Math.min(1.2, len * 0.35));
+          // Hito 73: colisión a lo largo de todo el tronco (antes un círculo en el centro: los extremos se atravesaban)
+          const nLog = Math.max(2, Math.ceil(len / (r * 1.6)));
+          for (let k = 0; k <= nLog; k++) {
+            const t = (k / nLog - 0.5) * (len - r * 0.6);
+            this.zone.addCollider(x + Math.cos(rot) * t, z - Math.sin(rot) * t, r + 0.08);
+          }
           logs++;
         } else if (kind < 0.65) {
           // Stump with rings and roots

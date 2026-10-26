@@ -96,6 +96,16 @@ class AxieMixerService {
   }
 
   /**
+   * Hito 75: runas y charms NFT (las «Ronin», ERC-1155) de las direcciones Ronin del jugador con sesión de Sky Mavis.
+   * Devuelve { owners, runes: [{ tokenId, tokenAddress, total, name, description, imageUrl }], charms: [...] }.
+   */
+  async fetchOwnedItems() {
+    const token = await authService.getAccessToken();
+    const res = await supabaseFetch(NET_CONFIG.functions.axieData, { method: 'POST', token, body: { op: 'items' } });
+    return { owners: res?.owners || [], runes: Array.isArray(res?.runes) ? res.runes : [], charms: Array.isArray(res?.charms) ? res.charms : [] };
+  }
+
+  /**
    * Ajusta las partes del descriptor al catálogo 3D: si «S{skin}_{Clase}{variante}_L{nivel}_{Tipo}» no existe,
    * prueba el otro nivel, después la skin normal (0) y por último la skin normal de nivel 1.
    * Devuelve { descriptor, fixes: [{ type, requested, used }] } (used = null si no hay ninguna).

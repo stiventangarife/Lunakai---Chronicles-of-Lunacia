@@ -1,0 +1,26 @@
+// HUD del mundo abierto (minimapa, rótulos, placas, barca)
+export default {
+  "hud.biomeArctic": "Ártico",
+  "hud.biomeForest": "Bosque",
+  "hud.biomeGenesis": "Génesis",
+  "hud.biomeMystic": "Mística",
+  "hud.biomeSavannah": "Sabana",
+  "hud.chimera": "Quimera",
+  "hud.comeBackLater": "Volver más tarde",
+  "hud.defeat": "DERROTA",
+  "hud.ferryAsk": "¿Hacia dónde ponemos rumbo?",
+  "hud.ferryBye": "Como quieras. Aquí estaré cuando cambie la marea.",
+  "hud.ferrySails": "Kawa iza las velas...",
+  "hud.ferrySetSail": "¡Rumbo a {place}! Agárrate fuerte, que hoy sopla el viento del este.",
+  "hud.ferryTitle": "Barquero de Lunacia",
+  "hud.islandMapM": "Mapa de la isla [M]",
+  "hud.level": "Nivel",
+  "hud.notNow": "Ahora no",
+  "hud.plateLv": "NV. {n}",
+  "hud.platePack": "GRUPO ×{n}",
+  "hud.victory": "VICTORIA",
+  "hud.youAreHere": "Estás aquí",
+  "hud.zoneDiscovered": "Zona descubierta",
+  "hud.zoomIn": "Acercar",
+  "hud.zoomOut": "Alejar"
+};

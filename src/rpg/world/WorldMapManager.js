@@ -7,6 +7,7 @@ import { MAP_REGISTRY, getZoneByCoord, ISLANDS_REGISTRY } from './MapRegistry.js
 import { BiomeThemeManager, BIOMES } from './BiomeThemeManager.js';
 import { ZoneTransitionManager } from './ZoneTransitionManager.js';
 import { WorldMapModal } from './WorldMapModal.js';
+import * as i18n from '../../i18n/i18n.js';
 
 export class WorldMapManager {
   constructor(overworldManager) {
@@ -30,6 +31,13 @@ export class WorldMapManager {
     this.decorationManager = decorationManager;
     this.skybox = skybox;
     this.particleManager = particleManager;
+    // Hito 50: al cargar otra partida, el gestor de pasos de zona anterior se retira de la escena (antes
+    // su grupo se quedaba en ella, y con él todo el gestor, en cada carga)
+    if (this.transitionManager?.portalsGroup) {
+      const g = this.transitionManager.portalsGroup;
+      this.scene.remove(g);
+      g.traverse((o) => { if (o.geometry) o.geometry.dispose(); });
+    }
     this.biomeManager = new BiomeThemeManager(this.scene, stylizedEnv, decorationManager, skybox, particleManager);
     this.transitionManager = new ZoneTransitionManager(this.scene, this.audio, this.om);
     if (!this.worldMapModal) {
@@ -597,7 +605,7 @@ export class WorldMapManager {
   exportSaveData() {
     return {
       mapId: this.currentMapId,
-      name: this.currentMapDef?.name || 'Valle del Dojo',
+      name: this.currentMapDef?.name || i18n.t('places.zone22Title'),
       coords: [this.currentMapDef?.gx ?? 3, this.currentMapDef?.gy ?? 3],
       playerPos: this.om.player ? {
         x: this.om.player.position.x,

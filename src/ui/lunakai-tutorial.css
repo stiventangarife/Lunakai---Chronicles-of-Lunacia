@@ -121,3 +121,11 @@ body .lk-tut.tutorial-spotlight-banner { z-index: 2147483003 !important; }
 }
 /* La guía también se ve con la Mochila abierta (lunakai-ui.css ocultaba el velo antiguo en ese caso) */
 body:has(.lk-bag-layer:not(.hidden)) #tutorial-focus-overlay.lk-tut-guide:not(.hidden) { display: block !important; }
+
+/* Hito 54: con un diálogo abierto no se ven los avisos de interacción («E · Usar la forja», «Hablar con…») */
+body.lk-dialog-open #npc-interaction-prompt,
+body.lk-dialog-open .lk-interact-prompt { display: none !important; }
+/* Hito 54: el consejo de Paladill en combate muestra su retrato */
+#lk-tut-coach.lk-ctut--hint .lk-ctut__card { grid-template-columns: auto minmax(0, 1fr); align-items: center; gap: 12px; text-align: left; }
+#lk-tut-coach.lk-ctut--hint .lk-ctut__coach { display: block; }
+#lk-tut-coach.lk-ctut--hint .lk-ctut__head { justify-content: flex-start; }

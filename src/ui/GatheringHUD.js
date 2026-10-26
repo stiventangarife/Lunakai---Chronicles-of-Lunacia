@@ -17,6 +17,7 @@ import { MATERIALS } from '../tactics/data/EconomyCatalog.js';
 import { ITEMS_DB } from '../tactics/ItemDatabase.js';
 import { matSvg } from './ForgePanel.js';
 import { esc, toast as lkToast } from './lk.js';
+import * as i18n from '../i18n/i18n.js';
 
 export function attachGathering(game) {
   const ow = game?.overworldManager;
@@ -30,7 +31,7 @@ export function attachGathering(game) {
   root.innerHTML = `
     <div class="lk-gather__bar" role="status" aria-live="polite" hidden>
       <span class="lk-gather__ico" aria-hidden="true"></span>
-      <span class="lk-gather__txt"><b></b><small>Esc para cancelar</small></span>
+      <span class="lk-gather__txt"><b></b><small>${i18n.t('gatherHud.escCancel')}</small></span>
       <span class="lk-gather__track" aria-hidden="true"><i></i></span>
     </div>
     <div class="lk-gather__loot" role="status" aria-live="polite"></div>`;
@@ -65,8 +66,8 @@ export function attachGathering(game) {
       if (!loot?.length) return;
       lootEl.innerHTML = `<div class="lk-gather__card" style="--g:${GATHER_KINDS[def.kind]?.color || '#D3AE6C'}"><small>${esc(def.name)}</small>${loot.map((l) => {
         const m = MATERIALS[l.id] || ITEMS_DB[l.id] || {};
-        const ico = m.glyph && !m.icon ? matSvg(m.glyph, '') : /\.(png|jpe?g|webp|svg)$/i.test(m.icon || '') ? `<img src="${esc(m.icon)}" alt="" style="width:26px;height:26px;object-fit:contain">` : `<span style="font-size:17px;line-height:1">${esc(m.icon || '🎁')}</span>`;
-        return `<div class="lk-gather__row ${l.rare ? 'lk-is-rare' : ''}"><span class="lk-gather__mi" aria-hidden="true">${ico}</span><b>+${l.n}</b><span>${esc(m.name || l.id)}</span>${l.rare ? '<em>¡Raro!</em>' : ''}</div>`;
+        const ico = m.glyph && !m.icon ? matSvg(m.glyph, '') : /\.(png|jpe?g|webp|svg)$/i.test(m.icon || '') ? `<img src="${esc(m.icon)}" alt="" style="width:26px;height:26px;object-fit:contain">` : `<span style="font-size:17px;line-height:1">${esc(m.icon || '✦')}</span>`;
+        return `<div class="lk-gather__row ${l.rare ? 'lk-is-rare' : ''}"><span class="lk-gather__mi" aria-hidden="true">${ico}</span><b>+${l.n}</b><span>${esc(m.name || l.id)}</span>${l.rare ? `<em>${i18n.t('gatherHud.rare')}</em>` : ''}</div>`;
       }).join('')}</div>`;
       lootEl.classList.remove('lk-is-on'); void lootEl.offsetWidth; lootEl.classList.add('lk-is-on');
       clearTimeout(lootTimer);
@@ -87,11 +88,11 @@ export function attachGathering(game) {
     const lock = ow.tutorialManager?.lockMessage?.('gather', def.id); // Hito 48: solo el árbol de la Forja durante el tutorial
     if (lock) { hud.toast(lock, true); return true; }
     hookController();
-    if (!service.isAvailable(def.id)) { hud.toast(item.node?.promptText || 'Agotado', true); return true; }
+    if (!service.isAvailable(def.id)) { hud.toast(item.node?.promptText || i18n.t('gatherHud.depleted'), true); return true; }
     const kind = GATHER_KINDS[def.kind];
     const ctx = { ow, player: ow.player, service, nodes, hud, onEnd: (s) => { if (session === s) session = null; } };
     if (kind.actor === 'axie') {
-      if (!AxieSession.canRun(ow.player)) { hud.toast('Necesitas a tu Axie compañero', true); return true; }
+      if (!AxieSession.canRun(ow.player)) { hud.toast(i18n.t('gatherHud.needAxie'), true); return true; }
       session = new AxieSession(ctx, item);
     } else {
       session = new SapidaeSession(ctx, item);
@@ -189,12 +190,12 @@ export function attachGathering(game) {
       const row = document.createElement('div');
       row.className = 'landmark-row lk-wmap__poi lk-wmap__gather';
       row.innerHTML = `<div class="landmark-icon" style="color:${k.color}">${matSvg(k.icon, '')}</div>
-        <div class="landmark-info"><span class="landmark-name">${esc(k.label)} · ${ds.length === 1 ? esc(ds[0].name) : `${ds.length} puntos`}</span>
-        <span class="landmark-desc">${ready.length ? `${ready.length} listo${ready.length > 1 ? 's' : ''}` : `Vuelve en ${formatWait(next)}`} · ${k.actor === 'axie' ? 'lo hace tu Axie' : 'lo hace tu Sapidae'}</span></div>`;
+        <div class="landmark-info"><span class="landmark-name">${esc(k.label)} · ${ds.length === 1 ? esc(ds[0].name) : i18n.t('gatherHud.points', { n: ds.length })}</span>
+        <span class="landmark-desc">${ready.length ? (ready.length > 1 ? i18n.t('gatherHud.readyMany', { n: ready.length }) : i18n.t('gatherHud.readyOne', { n: ready.length })) : i18n.t('gatherHud.backIn', { t: formatWait(next) })} · ${k.actor === 'axie' ? i18n.t('gatherHud.byAxie') : i18n.t('gatherHud.bySapidae')}</span></div>`;
       const target = ready[0] || ds[0];
       if (here && modal.chart?.focus) {
         row.style.cursor = 'pointer';
-        row.title = 'Ver en el mapa de la isla';
+        row.title = i18n.t('gatherHud.viewOnMap');
         row.addEventListener('click', () => { if (modal.currentTab !== 'island') modal.switchTab?.('island'); modal.chart?.focus?.(target.x, target.z, 160); });
       }
       list.appendChild(row);

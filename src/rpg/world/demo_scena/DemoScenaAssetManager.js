@@ -95,7 +95,7 @@ export class DemoScenaAssetManager {
       //{ key: 'ancient_archway', url: './assets/environment/ancient_archway.glb' },
       //{ key: 'column_1', url: './assets/environment/column.glb' },
       //{ key: 'statue_atia', url: './assets/models/statue_atia.glb' },
-      { key: 'stylized_dojo', url: './assets/models/stylized_dojo.glb' },
+      // stylized_dojo retirado (Hito 51): el dojo es ahora el del pueblo del Bosque (ForestVillage)
 
       // 7. Assets Estilizados Genshin (Flores, Briznas y Árboles Anime)
       { key: 'stylized_flowers', url: './assets/stylized/flowers.glb' },

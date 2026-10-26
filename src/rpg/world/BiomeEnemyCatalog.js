@@ -1,9 +1,10 @@
 // BiomeEnemyCatalog.js - Enemy Archetypes, Stats & Procedural Pack Generator with Monotonic Biome Hierarchy
+import * as i18n from '../../i18n/i18n.js';
 
 export const BIOME_TIER_CONFIG = {
   forest: {
     tier: 1,
-    name: 'Forest',
+    name: i18n.t('enemies.tierForest'),
     hpMultiplier: 1.0,
     damageBonus: 0,
     shieldBonus: 20,
@@ -11,7 +12,7 @@ export const BIOME_TIER_CONFIG = {
   },
   savannah: {
     tier: 2,
-    name: 'Savannah',
+    name: i18n.t('enemies.tierSavannah'),
     hpMultiplier: 1.35,
     damageBonus: 18,
     shieldBonus: 40,
@@ -19,7 +20,7 @@ export const BIOME_TIER_CONFIG = {
   },
   arctic: {
     tier: 3,
-    name: 'Arctic',
+    name: i18n.t('enemies.tierArctic'),
     hpMultiplier: 2.1,
     damageBonus: 36,
     shieldBonus: 75,
@@ -27,7 +28,7 @@ export const BIOME_TIER_CONFIG = {
   },
   mystic: {
     tier: 4,
-    name: 'Mystic',
+    name: i18n.t('enemies.tierMystic'),
     hpMultiplier: 2.6,   // Fase 5 (equilibrio): antes 3.0 / +55 / +110
     damageBonus: 45,
     shieldBonus: 95,
@@ -35,7 +36,7 @@ export const BIOME_TIER_CONFIG = {
   },
   dungeon: {
     tier: 5,
-    name: 'Genesis',
+    name: i18n.t('enemies.tierGenesis'),
     hpMultiplier: 3.3,   // Fase 5 (equilibrio): antes 4.2 / +80 / +160 (salto de ×5 desde el Ártico)
     damageBonus: 60,
     shieldBonus: 125,
@@ -298,6 +299,9 @@ export const ENEMY_ARCHETYPES = {
   get kibo_dungeon() { return this.bear_dad; },
   get sapidae_dungeon() { return this.werewolf_boss; }
 };
+// Nombres visibles en el idioma activo (enemies.arch.<id>.name). `name` solo se muestra (placa, combate, minimapa):
+// el modelo, la IA y el botín usan `type` / `id`.
+i18n.applyText(ENEMY_ARCHETYPES, 'enemies.arch', ['name']);
 
 // Biome-specific spawn tables with weighted distributions
 export const BIOME_SPAWN_POOLS = {
@@ -400,9 +404,9 @@ export function generatePackForBiome(biome, [gx, gy], forcedLeaderArchetypeId = 
 
   let packTitle = leaderArchetype.name;
   if (packSize === 2) {
-    packTitle = `Duo: ${leaderArchetype.name}`;
+    packTitle = i18n.t('enemies.packDuo', { name: leaderArchetype.name });
   } else if (packSize === 3) {
-    packTitle = `Pack of ${leaderArchetype.name}`;
+    packTitle = i18n.t('enemies.packOf', { name: leaderArchetype.name });
   }
 
   return {

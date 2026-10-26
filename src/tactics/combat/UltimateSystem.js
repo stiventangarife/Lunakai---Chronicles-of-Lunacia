@@ -14,14 +14,15 @@
 // Eventos: ultimate:ready (setup), ultimate:used.
 
 import { triadOf } from './Elements.js';
+import * as i18n from '../../i18n/i18n.js';
 
 export const ULTIMATE_PA_COST = 6;
 export const ULTIMATE_MIN_ROUND = 2;
 
 export const ULTIMATES = {
   duo_destructiva: {
-    id: 'duo_destructiva', name: 'Embestida Destructiva', triad: 'assault', isUltimate: true,
-    icon: '⚔️', // sin arte propio todavía
+    id: 'duo_destructiva', name: i18n.t('spells.ult.duo_destructiva.name'), triad: 'assault', isUltimate: true,
+    icon: '✦', // sin arte propio todavía
     paCost: ULTIMATE_PA_COST, minRange: 1, maxRange: 4, requiresLoS: true, isLinear: true,
     targetType: 'enemy', areaType: 'single', sound: 'push', fixedRange: true,
     baseMinDamage: 150, baseMaxDamage: 170, pushDistance: 3,
@@ -29,11 +30,11 @@ export const ULTIMATES = {
       { type: 'damage', min: 150, max: 170 },
       { type: 'push', distance: 3, collisionDamage: 60 },
     ],
-    description: 'Sapidae y Axie cargan juntos en línea recta: 150-170 de daño y empujan 3 casillas. Si choca contra un obstáculo o una unidad, 60 de daño de impacto a los dos.'
+    description: i18n.t('spells.ult.duo_destructiva.description')
   },
   duo_gaia: {
-    id: 'duo_gaia', name: 'Égida de Gaia', triad: 'bastion', isUltimate: true,
-    icon: '🌳',
+    id: 'duo_gaia', name: i18n.t('spells.ult.duo_gaia.name'), triad: 'bastion', isUltimate: true,
+    icon: '✦',
     paCost: ULTIMATE_PA_COST, minRange: 0, maxRange: 0, requiresLoS: false, isLinear: false,
     targetType: 'self', areaType: 'circle3', sound: 'heal',
     baseMinHeal: 60, baseMaxHeal: 60, shieldAmount: 80,
@@ -42,11 +43,11 @@ export const ULTIMATES = {
       { type: 'shield', amount: 80, target: 'alliesInArea' },
       { type: 'heal', amount: 60, target: 'alliesInArea' },
     ],
-    description: 'Un árbol rúnico protege al escuadrón: todos los aliados a 3 casillas o menos ganan +80 de escudo, se curan 60 HP y pierden sus estados negativos.'
+    description: i18n.t('spells.ult.duo_gaia.description')
   },
   duo_maelstrom: {
-    id: 'duo_maelstrom', name: 'Maelstrom Celeste', triad: 'torrent', isUltimate: true,
-    icon: '🌀',
+    id: 'duo_maelstrom', name: i18n.t('spells.ult.duo_maelstrom.name'), triad: 'torrent', isUltimate: true,
+    icon: '✦',
     paCost: ULTIMATE_PA_COST, minRange: 1, maxRange: 5, requiresLoS: true, isLinear: false,
     targetType: 'any', areaType: 'cross2', sound: 'buff', fixedRange: true,
     baseMinDamage: 100, baseMaxDamage: 120,
@@ -55,7 +56,7 @@ export const ULTIMATES = {
       { type: 'resource', pm: -2, when: 'nextTurn', target: 'enemiesInArea' },
       { type: 'resource', pa: -1, when: 'turnAfterNext', target: 'enemiesInArea' },
     ],
-    description: 'Tormenta de maná en cruz de 2 casillas: 100-120 de daño a los enemigos, −2 PM en su próximo turno y −1 PA en el siguiente.'
+    description: i18n.t('spells.ult.duo_maelstrom.description')
   },
 };
 
@@ -68,16 +69,16 @@ export function ultimateForClass(axieClass) {
 }
 
 const REASONS = {
-  ok: 'Lista',
-  none: 'Sin Ultimate',
-  tutorial: 'No disponible en el tutorial',
-  not_sapidae: 'La lanza el Sapidae',
-  bond: 'Vínculo insuficiente',
-  round: 'Disponible desde la ronda 2',
-  used: 'Ya usada en este combate',
-  axie_down: 'Tu Axie principal ha caído',
-  pa: 'Necesita 6 PA',
-  not_turn: 'No es tu turno',
+  ok: i18n.t('spells.ultReason.ok'),
+  none: i18n.t('spells.ultReason.none'),
+  tutorial: i18n.t('spells.ultReason.tutorial'),
+  not_sapidae: i18n.t('spells.ultReason.not_sapidae'),
+  bond: i18n.t('spells.ultReason.bond'),
+  round: i18n.t('spells.ultReason.round'),
+  used: i18n.t('spells.ultReason.used'),
+  axie_down: i18n.t('spells.ultReason.axie_down'),
+  pa: i18n.t('spells.ultReason.pa'),
+  not_turn: i18n.t('spells.ultReason.not_turn'),
 };
 
 export class UltimateSystem {

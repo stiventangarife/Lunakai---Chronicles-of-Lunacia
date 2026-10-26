@@ -7,17 +7,19 @@
 // API sin cambios: playEncounter(onBlackout, onComplete, info?) y playReturn(onBlackout, onComplete).
 // `info` (opcional): { title, subtitle } — p. ej. { subtitle: 'Slime Espina ×3 · Valle del Dojō' }.
 
+import * as i18n from '../i18n/i18n.js';
+
 const SWORDS = '<svg viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 8l26 26M8 12l4-4"/><path d="M52 8L26 34M56 12l-4-4"/><path d="M30 38l-6 6M34 38l6 6"/><path d="M20 40l-8 8 4 4 8-8M44 40l8 8-4 4-8-8"/><path d="M38 30l4 4M26 30l-4 4"/></svg>';
 const MOON = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 3a9 9 0 1 0 6 15.7A7.5 7.5 0 1 1 15 3z" fill="currentColor"/></svg>';
 
 // Consejos de combate (mecánicas reales del juego)
 const TIPS = [
-  'Cada carta gasta PA. Si te sobran al final del turno, guarda una defensa para el turno enemigo.',
-  'Pasa el cursor sobre una unidad para ver su vida, sus PA, PM y estados sin abrir nada.',
-  'Las teclas 1–6 lanzan las habilidades del héroe activo; Espacio pasa el turno.',
-  'El Vínculo Supremo se carga con el combate: úsalo cuando el enemigo esté junto a tu axie principal.',
-  'Atacar por la espalda o el flanco hace más daño; mira hacia dónde apuntan las quimeras.',
-  'Si tu escuadrón cae, el vínculo con tu axie principal baja. Cúralo en el campamento antes de volver.',
+  i18n.t('story.tip1'),
+  i18n.t('story.tip2'),
+  i18n.t('story.tip3'),
+  i18n.t('story.tip4'),
+  i18n.t('story.tip5'),
+  i18n.t('story.tip6'),
 ];
 
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -58,8 +60,8 @@ export class BattleTransition {
         <div class="lk-cine__title" data-text="${esc(title)}">${esc(title)}</div><div class="lk-cine__line"><i></i></div>
         ${subtitle ? `<div class="lk-cine__sub">${esc(subtitle)}</div>` : ''}</div>
       <div class="lk-btl__load" role="status">
-        <div class="lk-tip-card"><span class="lk-label">Consejo de combate</span><p>${esc(tip)}</p></div>
-        <div class="lk-btl__bar"><span class="lk-moon-spin" aria-hidden="true">${MOON}</span><span>Preparando el campo de batalla…</span><i class="lk-btl__trk"><i></i></i></div>
+        <div class="lk-tip-card"><span class="lk-label">${i18n.t('story.tipLabel')}</span><p>${esc(tip)}</p></div>
+        <div class="lk-btl__bar"><span class="lk-moon-spin" aria-hidden="true">${MOON}</span><span>${i18n.t('story.preparingField')}</span><i class="lk-btl__trk"><i></i></i></div>
       </div>`;
   }
 
@@ -81,7 +83,7 @@ export class BattleTransition {
     this._tip = (this._tip + 1) % TIPS.length;
     const el = this.overlayEl;
     el.className = 'lk-ui lk-cine lk-btl lk-btl--in';
-    el.innerHTML = this._encounterHTML(info.title || '¡COMBATE!', info.subtitle || '', TIPS[this._tip]);
+    el.innerHTML = this._encounterHTML(info.title || i18n.t('story.battleTitle'), info.subtitle || '', TIPS[this._tip]);
     void el.offsetWidth;
     el.classList.add('lk-is-play');
 
@@ -112,7 +114,7 @@ export class BattleTransition {
     const el = this.overlayEl;
     el.className = 'lk-ui lk-cine lk-btl lk-btl--back';
     el.innerHTML = `<div class="lk-btl__night" aria-hidden="true"><div class="lk-vista lk-vista--night"><div class="lk-mt lk-mt1"></div><div class="lk-mt lk-mt2"></div><div class="lk-haze"></div><div class="lk-mt lk-mt3"></div></div></div>
-      <div class="lk-btl__back" role="status"><span class="lk-moon-spin" aria-hidden="true">${MOON}</span><span>Volviendo a Lunacia…</span></div>`;
+      <div class="lk-btl__back" role="status"><span class="lk-moon-spin" aria-hidden="true">${MOON}</span><span>${i18n.t('story.returning')}</span></div>`;
     void el.offsetWidth;
     el.classList.add('lk-is-play', 'lk-is-cover');
     await wait(fast ? 80 : 500);

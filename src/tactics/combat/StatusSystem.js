@@ -10,51 +10,53 @@
 // - Sin contadores ni cargas: volver a aplicar un estado renueva su duración y se queda con el valor mayor
 //   (salvo el veneno, que suma su daño hasta un máximo).
 
+import * as i18n from '../../i18n/i18n.js';
+
 export const STATUS_DEFS = {
   // Daño periódico al inicio del turno de la unidad
-  poison:    { label: 'Veneno',      icon: '☠️', kind: 'debuff', dot: true, stack: 'add', maxValue: 60 },
-  bleed:     { label: 'Sangrado',    icon: '🩸', kind: 'debuff', dot: true },
-  burn:      { label: 'Quemadura',   icon: '🔥', kind: 'debuff', dot: true },
+  poison:    { label: i18n.t('status.poison'),      icon: '◉', kind: 'debuff', dot: true, stack: 'add', maxValue: 60 },
+  bleed:     { label: i18n.t('status.bleed'),    icon: '◈', kind: 'debuff', dot: true },
+  burn:      { label: i18n.t('status.burn'),   icon: '▲', kind: 'debuff', dot: true },
 
   // Control
-  stun:      { label: 'Aturdido',    icon: '💫', kind: 'debuff', skipTurn: true },
-  sleep:     { label: 'Dormido',     icon: '💤', kind: 'debuff', skipTurn: true, breaksOnDamage: true },
-  fear:      { label: 'Miedo',       icon: '😱', kind: 'debuff', blocksDamageSpells: true },
-  taunt:     { label: 'Provocación', icon: '🎯', kind: 'buff' },   // los enemigos deben atacar a esta unidad si pueden
+  stun:      { label: i18n.t('status.stun'),    icon: '✶', kind: 'debuff', skipTurn: true },
+  sleep:     { label: i18n.t('status.sleep'),     icon: 'z', kind: 'debuff', skipTurn: true, breaksOnDamage: true },
+  fear:      { label: i18n.t('status.fear'),       icon: '!', kind: 'debuff', blocksDamageSpells: true },
+  taunt:     { label: i18n.t('status.taunt'), icon: '◎', kind: 'buff' },   // los enemigos deben atacar a esta unidad si pueden
 
   // Modificadores de daño (value = %)
-  fragile:   { label: 'Frágil',      icon: '💔', kind: 'debuff', mod: { damageTakenPct: +1 }, defaultValue: 25 },
-  weak:      { label: 'Debilitado',  icon: '🔻', kind: 'debuff', mod: { damageDealtPct: -1 }, defaultValue: 20 },
-  empowered: { label: 'Potenciado',  icon: '🔺', kind: 'buff',   mod: { damageDealtPct: +1 }, defaultValue: 15 },
-  guarded:   { label: 'Protegido',   icon: '🛡️', kind: 'buff',   mod: { damageTakenPct: -1 }, defaultValue: 20 },
-  guardedRanged: { label: 'Cobertura', icon: '🌿', kind: 'buff', mod: { rangedDamageTakenPct: -1 }, defaultValue: 30 },
-  critUp:    { label: 'Crítico +',   icon: '✨', kind: 'buff',   mod: { critPct: +1 }, defaultValue: 20 },
+  fragile:   { label: i18n.t('status.fragile'),      icon: '◇', kind: 'debuff', mod: { damageTakenPct: +1 }, defaultValue: 25 },
+  weak:      { label: i18n.t('status.weak'),  icon: '▼', kind: 'debuff', mod: { damageDealtPct: -1 }, defaultValue: 20 },
+  empowered: { label: i18n.t('status.empowered'),  icon: '▲', kind: 'buff',   mod: { damageDealtPct: +1 }, defaultValue: 15 },
+  guarded:   { label: i18n.t('status.guarded'),   icon: '■', kind: 'buff',   mod: { damageTakenPct: -1 }, defaultValue: 20 },
+  guardedRanged: { label: i18n.t('status.guardedRanged'), icon: '▣', kind: 'buff', mod: { rangedDamageTakenPct: -1 }, defaultValue: 30 },
+  critUp:    { label: i18n.t('status.critUp'),   icon: '✦', kind: 'buff',   mod: { critPct: +1 }, defaultValue: 20 },
 
   // Alcance (value = casillas)
-  rangeDown: { label: 'Alcance −',   icon: '🎯', kind: 'debuff', mod: { range: -1 }, defaultValue: 1 },
-  rangeUp:   { label: 'Alcance +',   icon: '🔭', kind: 'buff',   mod: { range: +1 }, defaultValue: 1 },
+  rangeDown: { label: i18n.t('status.rangeDown'),   icon: '⇣', kind: 'debuff', mod: { range: -1 }, defaultValue: 1 },
+  rangeUp:   { label: i18n.t('status.rangeUp'),   icon: '⇡', kind: 'buff',   mod: { range: +1 }, defaultValue: 1 },
 
   // Otros
-  healBlock: { label: 'Herida',      icon: '🚫', kind: 'debuff', blocksHealing: true },
-  reflect:   { label: 'Espinas',     icon: '🌵', kind: 'buff' },   // devuelve `value` de daño a quien golpee cuerpo a cuerpo
-  immune:    { label: 'Inmune',      icon: '🌟', kind: 'buff', immuneTo: ['stun', 'sleep', 'fear'] },
-  regen:     { label: 'Regeneración', icon: '💚', kind: 'buff', hot: true },   // cura `value` al empezar su turno
-  soulLink:  { label: 'Lazo',        icon: '🔗', kind: 'buff' },              // reparte a medias el daño con `partner`
+  healBlock: { label: i18n.t('status.healBlock'),      icon: '⊘', kind: 'debuff', blocksHealing: true },
+  reflect:   { label: i18n.t('status.reflect'),     icon: '⟲', kind: 'buff' },   // devuelve `value` de daño a quien golpee cuerpo a cuerpo
+  immune:    { label: i18n.t('status.immune'),      icon: '✧', kind: 'buff', immuneTo: ['stun', 'sleep', 'fear'] },
+  regen:     { label: i18n.t('status.regen'), icon: '✚', kind: 'buff', hot: true },   // cura `value` al empezar su turno
+  soulLink:  { label: i18n.t('status.soulLink'),        icon: '∞', kind: 'buff' },              // reparte a medias el daño con `partner`
 
   // Fase 4 (cartas de partes)
-  jinx:      { label: 'Gafe',        icon: '🐈‍⬛', kind: 'debuff', mod: { critPct: -1 }, defaultValue: 100 }, // sin críticos
-  nurtured:  { label: 'Nutrido',     icon: '🌱', kind: 'buff',   mod: { healTakenPct: +1 }, defaultValue: 20 },
-  retaliate: { label: 'Represalia',  icon: '↩️', kind: 'buff' },   // devuelve `value` de daño al próximo atacante (una vez)
-  barrier:   { label: 'Barrera',     icon: '🔰', kind: 'buff' },   // anula el próximo golpe hasta `value` (una vez)
-  reflectPct:{ label: 'Reflejo',     icon: '🪞', kind: 'buff' },   // devuelve el `value` % del daño recibido
-  unmovable: { label: 'Arraigado',   icon: '⚓', kind: 'buff' },   // no puede ser empujado ni atraído
-  ward:      { label: 'Guarda',      icon: '🛡️', kind: 'buff' },   // reacción al recibir un golpe (st.data), una vez
+  jinx:      { label: i18n.t('status.jinx'),        icon: '×', kind: 'debuff', mod: { critPct: -1 }, defaultValue: 100 }, // sin críticos
+  nurtured:  { label: i18n.t('status.nurtured'),     icon: '+', kind: 'buff',   mod: { healTakenPct: +1 }, defaultValue: 20 },
+  retaliate: { label: i18n.t('status.retaliate'),  icon: '↩️', kind: 'buff' },   // devuelve `value` de daño al próximo atacante (una vez)
+  barrier:   { label: i18n.t('status.barrier'),     icon: '⬡', kind: 'buff' },   // anula el próximo golpe hasta `value` (una vez)
+  reflectPct:{ label: i18n.t('status.reflectPct'),     icon: '⟳', kind: 'buff' },   // devuelve el `value` % del daño recibido
+  unmovable: { label: i18n.t('status.unmovable'),   icon: '⊥', kind: 'buff' },   // no puede ser empujado ni atraído
+  ward:      { label: i18n.t('status.ward'),      icon: '◆', kind: 'buff' },   // reacción al recibir un golpe (st.data), una vez
 
   // Recursos del próximo turno (se aplican al empezar el turno de la unidad)
-  drained:   { label: 'PA −',        icon: '🔵', kind: 'debuff', turnStart: { pa: -1 } },
-  slowed:    { label: 'PM −',        icon: '🟢', kind: 'debuff', turnStart: { pm: -1 } },
-  energized: { label: 'PA +',        icon: '🔵', kind: 'buff',   turnStart: { pa: +1 } },
-  hasted:    { label: 'PM +',        icon: '🟢', kind: 'buff',   turnStart: { pm: +1 } },
+  drained:   { label: i18n.t('status.drained'),        icon: 'PA−', kind: 'debuff', turnStart: { pa: -1 } },
+  slowed:    { label: i18n.t('status.slowed'),        icon: 'PM−', kind: 'debuff', turnStart: { pm: -1 } },
+  energized: { label: i18n.t('status.energized'),        icon: 'PA+', kind: 'buff',   turnStart: { pa: +1 } },
+  hasted:    { label: i18n.t('status.hasted'),        icon: 'PM+', kind: 'buff',   turnStart: { pm: +1 } },
 };
 
 export class StatusSystem {

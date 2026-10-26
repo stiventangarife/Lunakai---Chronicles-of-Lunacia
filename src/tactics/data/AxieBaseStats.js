@@ -14,29 +14,30 @@ import { PART_SPELLS } from './PartCards.js';
 import { STARTER_SPELLS } from './StarterCards.js';
 import { COLLECTION_SPELLS } from './CollectionCards.js';
 import { VARIANT_SPELLS } from './VariantCards.js';
+import * as i18n from '../../i18n/i18n.js';
 
 export const BASE_PA = 6;
 export const BASE_PM = 3;
 
 export const CLASS_BASE = {
-  beast:   { hp: 300, initiative: 95,  label: 'Bestia' },
-  bird:    { hp: 260, initiative: 115, label: 'Pájaro' },
-  plant:   { hp: 340, initiative: 80,  label: 'Planta' },
-  aquatic: { hp: 280, initiative: 105, label: 'Acuático' },
-  reptile: { hp: 320, initiative: 85,  label: 'Reptil' },
-  bug:     { hp: 290, initiative: 95,  label: 'Bicho' },
-  mech:    { hp: 310, initiative: 90,  label: 'Mech' },
-  dawn:    { hp: 290, initiative: 100, label: 'Dawn' },
-  dusk:    { hp: 290, initiative: 100, label: 'Dusk' },
+  beast:   { hp: 300, initiative: 95,  label: i18n.t('heroes.axieClass.beast') },
+  bird:    { hp: 260, initiative: 115, label: i18n.t('heroes.axieClass.bird') },
+  plant:   { hp: 340, initiative: 80,  label: i18n.t('heroes.axieClass.plant') },
+  aquatic: { hp: 280, initiative: 105, label: i18n.t('heroes.axieClass.aquatic') },
+  reptile: { hp: 320, initiative: 85,  label: i18n.t('heroes.axieClass.reptile') },
+  bug:     { hp: 290, initiative: 95,  label: i18n.t('heroes.axieClass.bug') },
+  mech:    { hp: 310, initiative: 90,  label: i18n.t('heroes.axieClass.mech') },
+  dawn:    { hp: 290, initiative: 100, label: i18n.t('heroes.axieClass.dawn') },
+  dusk:    { hp: 290, initiative: 100, label: i18n.t('heroes.axieClass.dusk') },
 };
 const DEFAULT_CLASS = { hp: 300, initiative: 95, label: 'Axie' };
 
 export const ROLES = {
-  guardian: { label: 'Defensor',    hp: 40,  initiative: -10 },
-  support:  { label: 'Apoyo',       hp: 0,   initiative: 5 },
-  marksman: { label: 'Tirador',     hp: -20, initiative: 10 },
-  striker:  { label: 'Luchador',    hp: 20,  initiative: 0 },
-  balanced: { label: 'Equilibrado', hp: 0,   initiative: 0 },
+  guardian: { label: i18n.t('heroes.role.guardian'),    hp: 40,  initiative: -10 },
+  support:  { label: i18n.t('heroes.role.support'),       hp: 0,   initiative: 5 },
+  marksman: { label: i18n.t('heroes.role.marksman'),     hp: -20, initiative: 10 },
+  striker:  { label: i18n.t('heroes.role.striker'),    hp: 20,  initiative: 0 },
+  balanced: { label: i18n.t('heroes.role.balanced'), hp: 0,   initiative: 0 },
 };
 
 const CARDS = { ...PART_SPELLS, ...STARTER_SPELLS, ...COLLECTION_SPELLS };

@@ -11,6 +11,7 @@
 
 import { STATUS_DEFS } from './StatusSystem.js';
 import { elementalMultiplier } from './Elements.js';
+import * as i18n from '../../i18n/i18n.js';
 
 const dist = (a, b) => Math.abs(a.gridX - b.gridX) + Math.abs(a.gridZ - b.gridZ);
 
@@ -75,7 +76,7 @@ export function forecast(sm, caster, spell, cell) {
       const hi = hitDamage(sm, ctx, u, spell.baseMaxDamage ?? spell.baseMinDamage, e);
       const a = absorb(sm, u, lo.amount), b = absorb(sm, u, hi.amount);
       const ev = sm.runeCharms ? sm.runeCharms.evasionChance(caster, u, dist(caster, u)) : 0;
-      if (ev > 0) row(u).notes.push(`Puede esquivar (${Math.round(ev * 100)} %)`);
+      if (ev > 0) row(u).notes.push(i18n.t('combatFx.mayDodge', { n: Math.round(ev * 100) }));
       row(u).damage = { min: lo.amount, max: hi.amount, critMax: Math.round(hi.amount * critMult(sm, caster, u)), hits: 1, elemental: lo.elemental, lethal: a.toHP >= u.currentHP, mayKill: b.toHP >= u.currentHP, shieldMin: a.toShield, shieldMax: b.toShield };
     } else if (u && spell.baseMinHeal) {
       row(u).heal = spell.baseMinHeal;
@@ -91,18 +92,18 @@ export function forecast(sm, caster, spell, cell) {
       const r = row(t);
       switch (e.type) {
         case 'damage': {
-          if (e.if && !sm.effects.check(e.if, ctx, t)) { r.notes.push('Condición no cumplida: sin daño extra'); break; }
+          if (e.if && !sm.effects.check(e.if, ctx, t)) { r.notes.push(i18n.t('combatFx.conditionUnmet')); break; }
           const hits = e.hits === 'spent' ? Math.max(1, ctx.spent || 1) : Math.max(1, e.hits || 1);
           const lo = hitDamage(sm, ctx, t, e.min ?? e.amount ?? 0, e);
           const hi = hitDamage(sm, ctx, t, e.max ?? e.amount ?? 0, e);
           const prev = r.damage || { min: 0, max: 0, critMax: 0, hits: 0, elemental: lo.elemental };
           r.damage = { ...prev, min: prev.min + lo.amount * hits, max: prev.max + hi.amount * hits, critMax: prev.critMax + Math.round(hi.amount * critMult(sm, caster, t, e)) * hits, hits: prev.hits + hits, elemental: lo.elemental, pierce: Math.max(e.pierceShield || 0, prev.pierce || 0, sm.runeCharms ? sm.runeCharms.pierce(caster, dist(caster, t)) : 0) };
           const ev = sm.runeCharms ? sm.runeCharms.evasionChance(caster, t, dist(caster, t)) : 0;
-          if (ev > 0 && !r.notes.some((n) => n.startsWith('Puede esquivar'))) r.notes.push(`Puede esquivar (${Math.round(ev * 100)} %)`);
+          if (ev > 0 && !r.notes.some((n) => n.startsWith(i18n.t('combatFx.mayDodgePrefix')))) r.notes.push(i18n.t('combatFx.mayDodge', { n: Math.round(ev * 100) }));
           break;
         }
         case 'heal': {
-          if (sm.statuses.has(t, 'healBlock')) { r.notes.push('Herida: no puede curarse'); break; }
+          if (sm.statuses.has(t, 'healBlock')) { r.notes.push(i18n.t('combatFx.cannotHeal')); break; }
           let amt = Math.round((e.amount ?? e.min ?? 0) * sm._getSpellMultiplier(caster, spell));
           if (caster.supportPower) amt = Math.round(amt * (1 + caster.supportPower / 100));
           amt = Math.round(amt * (1 + sm.statuses.mod(t, 'healTakenPct') / 100));
@@ -122,13 +123,13 @@ export function forecast(sm, caster, spell, cell) {
             const left = Math.max(0, t.shield - (r.shieldBroken || 0) - (r.damage ? r.damage.min : 0)); // el daño previo de la carta ya gasta escudo
             const broken = Math.min(left, e.amount != null ? e.amount : Math.round(left * (e.percent || 0)));
             r.shieldBroken = (r.shieldBroken || 0) + broken;
-            r.notes.push(`Rompe ${broken} de escudo`);
+            r.notes.push(i18n.t('combatFx.breaksShield', { n: broken }));
           }
           break;
-        case 'push': r.notes.push(`Empuje ${e.distance} casillas`); break;
-        case 'cleanse': r.notes.push('Quita perjuicios'); break;
-        case 'dispel': r.notes.push('Quita beneficios'); break;
-        case 'drain': r.notes.push(`Te curas el ${Math.round((e.percent || 0) * 100)} % del daño`); break;
+        case 'push': r.notes.push(i18n.t('combatFx.pushTiles', { n: e.distance })); break;
+        case 'cleanse': r.notes.push(i18n.t('combatFx.removesDebuffs')); break;
+        case 'dispel': r.notes.push(i18n.t('combatFx.removesBuffs')); break;
+        case 'drain': r.notes.push(i18n.t('combatFx.drain', { n: Math.round((e.percent || 0) * 100) })); break;
         default: break;
       }
     }
@@ -151,8 +152,8 @@ export function forecast(sm, caster, spell, cell) {
 
 /** Texto corto de la ventaja elemental para la interfaz. */
 export function elementalLabel(mult) {
-  if (mult > 1.001) return { text: `Ventaja de clase +${Math.round((mult - 1) * 100)} %`, kind: 'good' };
-  if (mult < 0.999) return { text: `Desventaja de clase −${Math.round((1 - mult) * 100)} %`, kind: 'bad' };
+  if (mult > 1.001) return { text: i18n.t('combatFx.classAdvantage', { n: Math.round((mult - 1) * 100) }), kind: 'good' };
+  if (mult < 0.999) return { text: i18n.t('combatFx.classDisadvantage', { n: Math.round((1 - mult) * 100) }), kind: 'bad' };
   return null;
 }
 

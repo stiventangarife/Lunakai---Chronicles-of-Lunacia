@@ -27,16 +27,25 @@ import { SAPIDAE_BASES, DEFAULT_SAPIDAE_MODEL } from '../SapidaeModels.js';
 import { CharacterPreviewDiorama } from './CharacterPreviewDiorama.js';
 import { sprite, toast, tooltip, esc } from '../../ui/lk.js';
 import { accountManager } from '../../net/AccountManager.js';
+import * as i18n from '../../i18n/i18n.js';
+import { MAP_REGISTRY } from '../world/MapRegistry.js';
+
+// Nombre de la zona de una ranura en el idioma actual (la ranura guarda el nombre del momento en que se guardó)
+const zoneLabel = (z) => (z && z.mapId && MAP_REGISTRY[z.mapId] && MAP_REGISTRY[z.mapId].name) || (z && z.name) || '';
+
+// Etiqueta corta de peinado/cuernos del creador antiguo (i18n/*/creator.js): «Cuernos de Bestia» → «de Bestia»,
+// «Beast Horns» → «Beast». Solo cambia lo que se muestra; los datos guardados son los ids.
+const shortLabel = (s) => String(s || '').replace(/^Cuernos /, '').replace(/^Cornamenta de /, '').replace(/^Corte /, '').replace(/ Horns$/, '');
 
 // Creación de personaje (etapa 5)
-const CC_STEPS = ['Clase', 'Apariencia', 'Compañero', 'Nombre'];
+const CC_STEPS = [i18n.t('startCreator.stepClass'), i18n.t('startCreator.stepLook'), i18n.t('startCreator.stepCompanion'), i18n.t('startCreator.stepName')];
 const CC_STARTERS = ['beast_rage', 'bird_early'];
 const CC_COLORS = { crafter: '#C98A3B', shepard: '#E86AB0', lunalogist: '#5BB6C9', stargazer: '#8A6CE0' };
 const CC_ICON = (n) => `./assets/ui/icons/${n}.png`;
 const CC_PART_CLASSES = ['beast', 'bird', 'plant', 'aquatic', 'bug', 'reptile'];
 
 export const RANDOM_NAMES = [
-  'Ema', 'Lunara', 'Vael', 'Kaelen', 'Zephyr', 'Solis', 'Nyx', 'Astrid',
+  'Lunara', 'Vael', 'Kaelen', 'Zephyr', 'Solis', 'Nyx', 'Astrid',
   'Tatsumi', 'Sylas', 'Orion', 'Caelum', 'Lyra', 'Mira', 'Riven', 'Thorne',
   'Aeron', 'Kael', 'Finn', 'Elowen', 'Bryn', 'Kaelis'
 ];
@@ -70,21 +79,21 @@ export const CLASS_PORTRAITS = {
 };
 
 export const AXIE_BODY_PARTS = [
-  { id: 'eyes', name: 'Eyes', icon: './assets/parts/beast-eyes.png' },
-  { id: 'ears', name: 'Ears', icon: './assets/parts/beast-ears.png' },
-  { id: 'mouth', name: 'Mouth', icon: './assets/parts/beast-mouth.png' },
-  { id: 'horn', name: 'Horn', icon: './assets/parts/beast-horn.png' },
-  { id: 'back', name: 'Back', icon: './assets/parts/beast-back.png' },
-  { id: 'tail', name: 'Tail', icon: './assets/parts/beast-tail.png' }
+  { id: 'eyes', name: i18n.t('startCreator.partEyes'), icon: './assets/parts/beast-eyes.png' },
+  { id: 'ears', name: i18n.t('startCreator.partEars'), icon: './assets/parts/beast-ears.png' },
+  { id: 'mouth', name: i18n.t('startCreator.partMouth'), icon: './assets/parts/beast-mouth.png' },
+  { id: 'horn', name: i18n.t('startCreator.partHorn'), icon: './assets/parts/beast-horn.png' },
+  { id: 'back', name: i18n.t('startCreator.partBack'), icon: './assets/parts/beast-back.png' },
+  { id: 'tail', name: i18n.t('startCreator.partTail'), icon: './assets/parts/beast-tail.png' }
 ];
 
 export const AXIE_BODY_PARTS_MAP = {
-  eyes: { name: 'Eyes', icon: './assets/parts/beast-eyes.png' },
-  ears: { name: 'Ears', icon: './assets/parts/beast-ears.png' },
-  mouth: { name: 'Mouth', icon: './assets/parts/beast-mouth.png' },
-  horn: { name: 'Horn', icon: './assets/parts/beast-horn.png' },
-  back: { name: 'Back', icon: './assets/parts/beast-back.png' },
-  tail: { name: 'Tail', icon: './assets/parts/beast-tail.png' }
+  eyes: { name: i18n.t('startCreator.partEyes'), icon: './assets/parts/beast-eyes.png' },
+  ears: { name: i18n.t('startCreator.partEars'), icon: './assets/parts/beast-ears.png' },
+  mouth: { name: i18n.t('startCreator.partMouth'), icon: './assets/parts/beast-mouth.png' },
+  horn: { name: i18n.t('startCreator.partHorn'), icon: './assets/parts/beast-horn.png' },
+  back: { name: i18n.t('startCreator.partBack'), icon: './assets/parts/beast-back.png' },
+  tail: { name: i18n.t('startCreator.partTail'), icon: './assets/parts/beast-tail.png' }
 };
 
 export const ITEM_ICONS = {
@@ -255,7 +264,7 @@ export class StartScreenUI {
 
     // Wizard & Customization state
     this.currentWizardStep = 1;
-    this.playerName = 'Ema';
+    this.playerName = 'Lunara'; // Hito 64: «Ema» es ahora la herbolaria del Dojo
     this.selectedSapidaeModel = DEFAULT_SAPIDAE_MODEL; // Ema (21-oct)
     this.selectedSapidaeClass = 'crafter';
     this.selectedCompanionKey = 'beast_rage';
@@ -315,77 +324,77 @@ export class StartScreenUI {
       <div class="lk-vista lk-vista--night"><div class="lk-mt lk-mt1"></div><div class="lk-mt lk-mt2"></div><div class="lk-haze"></div><div class="lk-mt lk-mt3"></div></div>
       ${this._skySVG()}
 
-      <section class="lk-start__login" aria-label="Inicio de sesión">
+      <section class="lk-start__login" aria-label="${i18n.t('start.loginAria')}">
         <div class="lk-lang-mini">${langSeg('')}</div>
         <div class="lk-login">
           <img class="lk-login__logo" src="./assets/ui/brand/lunakai-logo.webp" alt="Lunakai: Chronicles of Lunacia">
           <div class="lk-login__card" data-ref="loginCard" data-state="idle">
-            <h3 class="lk-idle">Bienvenido a Lunacia</h3>
-            <p class="lk-idle">Tu cuenta guarda tu progreso en la nube: sigue tu aventura en cualquier dispositivo. Si ya tienes cuenta de Sky Mavis, no necesitas registrarte otra vez.</p>
-            <button class="lk-btn-sso lk-idle" data-act="sso"><span class="lk-ico">${SHIELD}</span><span><b>Continuar con Sky Mavis</b><small>Cuenta de Sky Mavis · Ronin</small></span><span class="lk-arr">→</span></button>
-            <button class="lk-btn lk-btn-secondary-wood lk-email-btn lk-idle" data-act="emailStart"><span class="lk-b-ico"><img class="lk-ai" src="${I('mail')}" alt=""></span>Entrar con correo electrónico</button>
-            <ul class="lk-perks lk-idle"><li>Progreso en la nube</li><li>Sin billetera ni compras</li><li>Sin frases semilla</li></ul>
-            <div class="lk-or lk-idle">o</div>
-            <button class="lk-btn lk-btn-secondary-wood lk-guest lk-idle" data-act="guest"><span class="lk-b-ico"><img class="lk-ai" src="${I('friend')}" alt=""></span>Jugar como invitado</button>
-            <small class="lk-guest-note lk-idle">Empiezas con un axie inicial y el progreso se guarda solo en este dispositivo. Podrás vincular tu cuenta más tarde sin perderlo.</small>
+            <h3 class="lk-idle">${i18n.t('start.welcomeTitle')}</h3>
+            <p class="lk-idle">${i18n.t('start.welcomeText')}</p>
+            <button class="lk-btn-sso lk-idle" data-act="sso"><span class="lk-ico">${SHIELD}</span><span><b>${i18n.t('start.ssoBtn')}</b><small>${i18n.t('start.ssoSub')}</small></span><span class="lk-arr">→</span></button>
+            <button class="lk-btn lk-btn-secondary-wood lk-email-btn lk-idle" data-act="emailStart"><span class="lk-b-ico"><img class="lk-ai" src="${I('mail')}" alt=""></span>${i18n.t('start.emailBtn')}</button>
+            <ul class="lk-perks lk-idle"><li>${i18n.t('start.perkCloud')}</li><li>${i18n.t('start.perkNoWallet')}</li><li>${i18n.t('start.perkNoSeed')}</li></ul>
+            <div class="lk-or lk-idle">${i18n.t('start.or')}</div>
+            <button class="lk-btn lk-btn-secondary-wood lk-guest lk-idle" data-act="guest"><span class="lk-b-ico"><img class="lk-ai" src="${I('friend')}" alt=""></span>${i18n.t('start.playGuest')}</button>
+            <small class="lk-guest-note lk-idle">${i18n.t('start.guestNote')}</small>
             <form class="lk-login__email" data-ref="emailForm" novalidate>
-              <button type="button" class="lk-text-btn lk-login__back" data-act="emailBack"><span aria-hidden="true">‹</span> Volver</button>
+              <button type="button" class="lk-text-btn lk-login__back" data-act="emailBack"><span aria-hidden="true">‹</span> ${i18n.t('start.back')}</button>
               <span class="lk-login__seal"><img class="lk-ai" src="${I('mail')}" alt=""></span>
-              <b>Entrar con correo</b>
-              <p>Te enviaremos un enlace para entrar. Si es tu primera vez, tu cuenta se crea sola.</p>
-              <label class="lk-login__label" for="lk-email-input">Correo electrónico</label>
-              <input class="lk-input" id="lk-email-input" type="email" name="email" data-ref="emailInput" placeholder="tu@correo.com" autocomplete="email" autocapitalize="off" spellcheck="false" required>
+              <b>${i18n.t('start.emailTitle')}</b>
+              <p>${i18n.t('start.emailText')}</p>
+              <label class="lk-login__label" for="lk-email-input">${i18n.t('start.emailLabel')}</label>
+              <input class="lk-input" id="lk-email-input" type="email" name="email" data-ref="emailInput" placeholder="${i18n.t('start.emailPlaceholder')}" autocomplete="email" autocapitalize="off" spellcheck="false" required>
               <small class="lk-login__msg" data-ref="emailMsg" role="alert"></small>
-              <button type="submit" class="lk-btn lk-btn-primary-gold lk-login__cta" data-ref="emailSend"><span class="lk-b-ico"><img class="lk-ai" src="${I('mail')}" alt=""></span><span data-ref="emailSendTxt">Enviarme el enlace</span></button>
+              <button type="submit" class="lk-btn lk-btn-primary-gold lk-login__cta" data-ref="emailSend"><span class="lk-b-ico"><img class="lk-ai" src="${I('mail')}" alt=""></span><span data-ref="emailSendTxt">${i18n.t('start.sendLink')}</span></button>
             </form>
             <form class="lk-login__code" data-ref="codeForm" novalidate>
-              <button type="button" class="lk-text-btn lk-login__back" data-act="emailStart"><span aria-hidden="true">‹</span> Cambiar correo</button>
+              <button type="button" class="lk-text-btn lk-login__back" data-act="emailStart"><span aria-hidden="true">‹</span> ${i18n.t('start.changeEmail')}</button>
               <span class="lk-login__seal lk-is-sent"><img class="lk-ai" src="${I('mail')}" alt=""><i>✓</i></span>
-              <b>Revisa tu correo</b>
-              <p>Enviamos un enlace a <strong class="lk-login__addr" data-ref="codeEmail"></strong>. Ábrelo en este navegador y entrarás sin hacer nada más.</p>
-              <div class="lk-login__waiting">${MOON}<span>Esperando que abras el enlace…</span></div>
-              <a class="lk-btn lk-btn-secondary-wood lk-btn--sm lk-login__mailapp" data-ref="mailApp" href="#" target="_blank" rel="noopener" hidden><span class="lk-b-ico"><img class="lk-ai" src="${I('share')}" alt=""></span><span data-ref="mailAppTxt">Abrir el correo</span></a>
-              <div class="lk-or">¿Trae un código?</div>
+              <b>${i18n.t('start.checkEmail')}</b>
+              <p>${i18n.t('start.sentText', { email: '<strong class="lk-login__addr" data-ref="codeEmail"></strong>' })}</p>
+              <div class="lk-login__waiting">${MOON}<span>${i18n.t('start.waitingLink')}</span></div>
+              <a class="lk-btn lk-btn-secondary-wood lk-btn--sm lk-login__mailapp" data-ref="mailApp" href="#" target="_blank" rel="noopener" hidden><span class="lk-b-ico"><img class="lk-ai" src="${I('share')}" alt=""></span><span data-ref="mailAppTxt">${i18n.t('start.openMail')}</span></a>
+              <div class="lk-or">${i18n.t('start.hasCode')}</div>
               <label class="lk-otp" data-ref="otp">
-                <input type="text" name="code" data-ref="codeInput" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]*" maxlength="6" aria-label="Código de 6 dígitos" required>
+                <input type="text" name="code" data-ref="codeInput" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]*" maxlength="6" aria-label="${i18n.t('start.codeAria')}" required>
                 <span class="lk-otp__cells" aria-hidden="true">${'<i></i>'.repeat(6)}</span>
               </label>
               <small class="lk-login__msg" data-ref="codeMsg" role="alert"></small>
-              <button type="submit" class="lk-btn lk-btn-primary-gold lk-login__cta" data-ref="codeSend" disabled><span class="lk-b-ico"><img class="lk-ai" src="${I('tick')}" alt=""></span>Entrar con el código</button>
-              <p class="lk-login__resend">¿No llegó? Mira en spam o <button type="button" class="lk-text-btn" data-act="emailResend" data-ref="resendBtn">reenvíalo</button></p>
+              <button type="submit" class="lk-btn lk-btn-primary-gold lk-login__cta" data-ref="codeSend" disabled><span class="lk-b-ico"><img class="lk-ai" src="${I('tick')}" alt=""></span>${i18n.t('start.codeBtn')}</button>
+              <p class="lk-login__resend">${i18n.t('start.resendPrefix')} <button type="button" class="lk-text-btn" data-act="emailResend" data-ref="resendBtn">${i18n.t('start.resend')}</button></p>
             </form>
-            <div class="lk-login__wait">${MOON}<b data-ref="waitTitle">Conectando con Sky Mavis…</b><p data-ref="waitText">Te llevamos a la página de inicio de sesión de Sky Mavis.</p><button class="lk-text-btn" data-act="ssoCancel">Cancelar</button></div>
-            <div class="lk-login__err"><span class="lk-err-ring">!</span><b data-ref="errTitle">No pudimos conectar</b><p data-ref="errText">La ventana de inicio de sesión se cerró o no hubo respuesta. Tu progreso no se ha perdido.</p><div class="lk-acts"><button class="lk-btn lk-btn-primary-gold lk-btn--sm" data-act="retry"><span class="lk-b-ico"><img class="lk-ai" src="${I('replay')}" alt=""></span>Reintentar</button><button class="lk-btn lk-btn-secondary-wood lk-btn--sm" data-act="guest"><span class="lk-b-ico"><img class="lk-ai" src="${I('friend')}" alt=""></span>Jugar como invitado</button></div><button class="lk-text-btn" data-act="errBack">Volver al inicio</button></div>
-            <div class="lk-login__ok"><span class="lk-ok-ring">✓</span><b>Sesión iniciada</b><span class="lk-wallet-chip" data-ref="wallet"></span><p data-ref="okText">Cargando tus aventuras…</p></div>
+            <div class="lk-login__wait">${MOON}<b data-ref="waitTitle">${i18n.t('start.ssoConnecting')}</b><p data-ref="waitText">${i18n.t('start.ssoRedirect')}</p><button class="lk-text-btn" data-act="ssoCancel">${i18n.t('start.cancel')}</button></div>
+            <div class="lk-login__err"><span class="lk-err-ring">!</span><b data-ref="errTitle">${i18n.t('start.errConnect')}</b><p data-ref="errText">${i18n.t('start.errConnectText')}</p><div class="lk-acts"><button class="lk-btn lk-btn-primary-gold lk-btn--sm" data-act="retry"><span class="lk-b-ico"><img class="lk-ai" src="${I('replay')}" alt=""></span>${i18n.t('start.retry')}</button><button class="lk-btn lk-btn-secondary-wood lk-btn--sm" data-act="guest"><span class="lk-b-ico"><img class="lk-ai" src="${I('friend')}" alt=""></span>${i18n.t('start.playGuest')}</button></div><button class="lk-text-btn" data-act="errBack">${i18n.t('start.backToStart')}</button></div>
+            <div class="lk-login__ok"><span class="lk-ok-ring">✓</span><b>${i18n.t('start.signedIn')}</b><span class="lk-wallet-chip" data-ref="wallet"></span><p data-ref="okText">${i18n.t('start.loadingAdventures')}</p></div>
           </div>
-          <div class="lk-login__foot"><span class="lk-on">Lunacia en línea</span><span>Demo 1 (Build V0.2.0)</span></div>
+          <div class="lk-login__foot"><span class="lk-on">${i18n.t('start.online')}</span><span>Demo 1 (Build V0.2.0)</span></div>
         </div>
       </section>
 
-      <section class="lk-start__select" aria-label="Selección de aventura">
+      <section class="lk-start__select" aria-label="${i18n.t('start.selectAria')}">
         <header class="lk-sel-top">
           <img class="lk-lg" src="./assets/ui/brand/lunakai-logo.webp" alt="Lunakai">
           ${langSeg('')}
           <div class="lk-start__acct"><button class="lk-acct" data-ref="acct" aria-haspopup="menu"></button>
-            <div class="lk-kmenu" data-ref="acctMenu" role="menu"><button data-act="switchAccount">Cambiar de cuenta</button><button data-act="logout">Cerrar sesión</button></div></div>
-          <button class="lk-btn-circle-icon" data-act="options" aria-label="Opciones"><img class="lk-ai" src="${I('setting')}" alt=""></button>
+            <div class="lk-kmenu" data-ref="acctMenu" role="menu"><button data-act="switchAccount">${i18n.t('start.switchAccount')}</button><button data-act="logout">${i18n.t('start.logout')}</button></div></div>
+          <button class="lk-btn-circle-icon" data-act="options" aria-label="${i18n.t('start.options')}"><img class="lk-ai" src="${I('setting')}" alt=""></button>
         </header>
-        <div class="lk-guest-banner" data-ref="guestBanner" hidden><img class="lk-ai" src="${I('info')}" alt="">Juegas como invitado: tus aventuras se guardan solo en este dispositivo.<button class="lk-btn lk-btn-moon lk-btn--sm" data-act="link"><span class="lk-b-ico" style="width:28px;height:28px">${SHIELD.replace('<svg ', '<svg style="width:16px;height:16px" ')}</span>Vincular cuenta</button></div>
-        <div class="lk-guest-banner lk-sync-banner" data-ref="syncBanner" hidden><img class="lk-ai" src="${I('info')}" alt=""><span data-ref="syncText">No pudimos sincronizar con la nube. Se muestran las aventuras guardadas en este dispositivo y se reintentará solo.</span><button class="lk-btn lk-btn-moon lk-btn--sm" data-act="syncRetry">Reintentar</button></div>
+        <div class="lk-guest-banner" data-ref="guestBanner" hidden><img class="lk-ai" src="${I('info')}" alt="">${i18n.t('start.guestBanner')}<button class="lk-btn lk-btn-moon lk-btn--sm" data-act="link"><span class="lk-b-ico" style="width:28px;height:28px">${SHIELD.replace('<svg ', '<svg style="width:16px;height:16px" ')}</span>${i18n.t('start.linkAccount')}</button></div>
+        <div class="lk-guest-banner lk-sync-banner" data-ref="syncBanner" hidden><img class="lk-ai" src="${I('info')}" alt=""><span data-ref="syncText">${i18n.t('start.syncFail')}</span><button class="lk-btn lk-btn-moon lk-btn--sm" data-act="syncRetry">${i18n.t('start.retry')}</button></div>
         <div class="lk-sel-body">
-          <div class="lk-sel-head"><h3>Elige tu aventura</h3><small><kbd>←</kbd><kbd>→</kbd> elegir · <kbd>Enter</kbd> jugar</small></div>
-          <div class="lk-slots" id="start-slots-grid" role="listbox" aria-label="Ranuras de aventura"></div>
+          <div class="lk-sel-head"><h3>${i18n.t('start.chooseAdventure')}</h3><small>${i18n.t('start.keysHint')}</small></div>
+          <div class="lk-slots" id="start-slots-grid" role="listbox" aria-label="${i18n.t('start.slotsAria')}"></div>
         </div>
-        <div class="lk-sel-foot"><div class="lk-sel-summary" data-ref="summary"></div><button class="lk-btn lk-btn-primary-gold lk-btn--lg" data-act="play"><span class="lk-b-ico" data-ref="playIco"></span><span data-ref="playTxt">Continuar aventura</span></button></div>
-        <div class="lk-sel-legal"><span>Demo 1 (Build V0.2.0) · Sistema táctico Sapidae de 4 clases</span></div>
+        <div class="lk-sel-foot"><div class="lk-sel-summary" data-ref="summary"></div><button class="lk-btn lk-btn-primary-gold lk-btn--lg" data-act="play"><span class="lk-b-ico" data-ref="playIco"></span><span data-ref="playTxt">${i18n.t('start.continue')}</span></button></div>
+        <div class="lk-sel-legal"><span>Demo 1 (Build V0.2.0) · ${i18n.t('start.legalSystem')}</span></div>
       </section>
 
       <div class="lk-confirm" id="lk-delete-confirm" role="alertdialog" aria-labelledby="lk-del-title">
         <div class="lk-confirm__card">
-          <h4 id="lk-del-title">¿Eliminar esta aventura?</h4>
+          <h4 id="lk-del-title">${i18n.t('start.delTitle')}</h4>
           <p data-ref="delText"></p>
-          <span class="lk-warn">No se puede deshacer. Tus axies y su AXP no se ven afectados.</span>
-          <div class="lk-acts"><button class="lk-btn lk-btn-secondary-wood lk-btn--sm" data-act="delCancel"><span class="lk-b-ico">${sprite('i-close')}</span>Cancelar</button><button class="lk-btn lk-btn-danger-red lk-btn--sm lk-hold" data-act="delHold"><span class="lk-fill"></span><span class="lk-b-ico"><img class="lk-ai" src="${I('trash')}" alt=""></span>Mantén pulsado para eliminar</button></div>
+          <span class="lk-warn">${i18n.t('start.delWarn')}</span>
+          <div class="lk-acts"><button class="lk-btn lk-btn-secondary-wood lk-btn--sm" data-act="delCancel"><span class="lk-b-ico">${sprite('i-close')}</span>${i18n.t('start.cancel')}</button><button class="lk-btn lk-btn-danger-red lk-btn--sm lk-hold" data-act="delHold"><span class="lk-fill"></span><span class="lk-b-ico"><img class="lk-ai" src="${I('trash')}" alt=""></span>${i18n.t('start.delHold')}</button></div>
         </div>
       </div>
 
@@ -406,9 +415,9 @@ export class StartScreenUI {
       root.classList.add('lk-guest-only');
       const card = this._ref('loginCard');
       const intro = card.querySelector(':scope > p.lk-idle');
-      if (intro) intro.textContent = 'Versión de prueba: entra como invitado. Tu progreso se guarda en este dispositivo.';
+      if (intro) intro.textContent = i18n.t('start.guestOnlyIntro');
       const note = card.querySelector('.lk-guest-note');
-      if (note) note.textContent = 'Empiezas con un axie inicial. Las cuentas en la nube llegarán en una próxima versión.';
+      if (note) note.textContent = i18n.t('start.guestOnlyNote');
       const guestBtn = card.querySelector('.lk-guest');
       if (guestBtn) guestBtn.classList.replace('lk-btn-secondary-wood', 'lk-btn-primary-gold');
     }
@@ -418,7 +427,7 @@ export class StartScreenUI {
     const heroModal = document.createElement('div');
     heroModal.id = 'hero-select-modal';
     heroModal.className = 'lk-ui lk-cc-layer hidden';
-    heroModal.innerHTML = '<div class="lk-screen lk-cc-screen" id="dofus-studio-container" role="dialog" aria-label="Creación de personaje"></div>';
+    heroModal.innerHTML = '<div class="lk-screen lk-cc-screen" id="dofus-studio-container" role="dialog" aria-label="' + i18n.t('startCreator.dialogAria') + '"></div>';
     document.body.appendChild(heroModal);
     this.heroSelectModal = heroModal;
 
@@ -455,11 +464,13 @@ export class StartScreenUI {
   // ---------------------------------------------------------------- sesión e idioma
   /** Sesión actual para la interfaz: { mode: 'guest' | 'skymavis' | 'email', name, ... } o null. */
   _getSession() { return accountManager.getSessionView(); }
-  _getLang() { try { return JSON.parse(localStorage.getItem('axie_lk_prefs') || '{}').lang || 'es'; } catch { return 'es'; } }
+  _getLang() { return i18n.lang(); }   // idioma fijado al cargar la página (i18n.js)
   _setLang(v) {
     try { const p = JSON.parse(localStorage.getItem('axie_lk_prefs') || '{}'); p.lang = v; localStorage.setItem('axie_lk_prefs', JSON.stringify(p)); } catch { /* nada */ }
     this.container.querySelectorAll('[data-ref="lang"] button').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.v === v)));
     toast(v === 'en' ? 'Language: English' : 'Idioma: español');
+    // Recarga guiada: los textos se fijan al cargar la página (en la pantalla de inicio no hay partida que guardar)
+    if (v !== i18n.lang()) setTimeout(() => location.reload(), 700);
   }
 
   _setLoginState(st) { this._ref('loginCard').dataset.state = st; }
@@ -479,7 +490,7 @@ export class StartScreenUI {
 
     const isCallback = /[?&](code|error)=/.test(window.location.search) || /access_token=|error_code=/.test(window.location.hash);
     if (isCallback || this._hasStoredAuth()) {
-      this._setWait('Verificando tu cuenta…', isCallback ? 'Terminando el inicio de sesión con Sky Mavis.' : 'Recuperando tu sesión y tus aventuras.');
+      this._setWait(i18n.t('start.verifying'), isCallback ? i18n.t('start.finishingSso') : i18n.t('start.restoring'));
     }
 
     let res;
@@ -489,13 +500,13 @@ export class StartScreenUI {
 
     if (res.status === 'unverified') {
       this._lastRetry = 'boot';
-      this._showError('No pudimos verificar tu sesión', `${accountManager.describeError(res.error)} No entraremos a tu cuenta hasta poder comprobarla.`);
+      this._showError(i18n.t('start.errVerify'), `${accountManager.describeError(res.error)} ${i18n.t('start.errVerifyText')}`);
       return;
     }
 
     if (res.error) {
       this._lastRetry = 'sso';
-      this._showError(res.error.code === 'session_expired' ? 'Tu sesión caducó' : 'No pudimos iniciar sesión', accountManager.describeError(res.error));
+      this._showError(res.error.code === 'session_expired' ? i18n.t('start.sessionExpired') : i18n.t('start.errSignIn'), accountManager.describeError(res.error));
       return;
     }
 
@@ -523,7 +534,7 @@ export class StartScreenUI {
     const view = this._getSession();
     const n = saveSlotManager.getSlots().filter((s) => s.data).length;
     this._ref('wallet').innerHTML = `<span class="lk-av">${esc(view.name[0] || '?').toUpperCase()}</span>${esc(view.name)}${view.roninShort ? ` <code>${esc(view.roninShort)}</code>` : ''}`;
-    this._ref('okText').textContent = n ? `Cargando tus ${n === 1 ? 'aventura' : `${n} aventuras`}…` : 'Preparando tu primera aventura…';
+    this._ref('okText').textContent = n ? (n === 1 ? i18n.t('start.loadingOne') : i18n.t('start.loadingMany', { n })) : i18n.t('start.preparingFirst');
     this._setLoginState('ok');
     if (res.fresh) await new Promise((r) => setTimeout(r, 900));
 
@@ -538,32 +549,32 @@ export class StartScreenUI {
     const syncBanner = this._ref('syncBanner');
     syncBanner.hidden = res.syncOk !== false;
     (res.notices || []).forEach((t) => toast(t));
-    toast(res.fresh ? `Sesión iniciada · ${view.providerLabel}` : `Bienvenido de nuevo, ${view.name}`);
+    toast(res.fresh ? i18n.t('start.toastSignedIn', { provider: view.providerLabel }) : i18n.t('start.welcomeBack', { name: view.name }));
   }
 
   async _offerGuestImport(offer) {
-    const plural = offer.guestCount === 1 ? 'una aventura' : `${offer.guestCount} aventuras`;
+    const plural = offer.guestCount === 1 ? i18n.t('start.importOne') : i18n.t('start.importMany', { n: offer.guestCount });
     let choice = await this._ask({
-      title: 'Aventuras de invitado encontradas',
-      text: `En este dispositivo tienes ${plural} jugadas como invitado. ¿Quieres guardarlas en tu cuenta para no perderlas?`,
-      actions: [{ id: 'skip', label: 'Ahora no' }, { id: 'import', label: 'Guardar en mi cuenta', primary: true }],
+      title: i18n.t('start.importTitle'),
+      text: i18n.t('start.importText', { plural }),
+      actions: [{ id: 'skip', label: i18n.t('start.notNow') }, { id: 'import', label: i18n.t('start.saveToAccount'), primary: true }],
     });
     if (choice !== 'import') return;
 
     let strategy = 'fill';
     if (!offer.fits) {
       choice = await this._ask({
-        title: 'No caben todas',
-        text: `Tu cuenta ya tiene ${offer.accountCount} de 3 ranuras ocupadas. Puedo guardar solo las que caben en ranuras libres, o reemplazar las de tu cuenta por las de este dispositivo.`,
-        actions: [{ id: 'fill', label: 'Solo las que caben', primary: true }, { id: 'replace', label: 'Reemplazar las de la cuenta', danger: true }],
+        title: i18n.t('start.noFitTitle'),
+        text: i18n.t('start.noFitText', { n: offer.accountCount }),
+        actions: [{ id: 'fill', label: i18n.t('start.onlyFit'), primary: true }, { id: 'replace', label: i18n.t('start.replaceAccount'), danger: true }],
       });
       strategy = choice === 'replace' ? 'replace' : 'fill';
     }
     try {
       const r = await accountManager.importGuest(strategy);
-      toast(r.skipped ? `${r.imported} guardadas en tu cuenta · ${r.skipped} no cabían` : `${r.imported === 1 ? 'Aventura guardada' : 'Aventuras guardadas'} en tu cuenta`);
+      toast(r.skipped ? i18n.t('start.importedSkipped', { n: r.imported, skipped: r.skipped }) : (r.imported === 1 ? i18n.t('start.importedOne') : i18n.t('start.importedMany')));
     } catch (err) {
-      toast(`No se pudieron subir ahora: ${accountManager.describeError(err)} Se reintentará.`, true);
+      toast(i18n.t('start.importFail', { error: accountManager.describeError(err) }), true);
     }
   }
 
@@ -588,15 +599,15 @@ export class StartScreenUI {
     if (this.audio && typeof this.audio.playConfirm === 'function') this.audio.playConfirm();
     if (!accountManager.skyMavisConfigured) {
       this._lastRetry = 'sso';
-      this._showError('Sky Mavis no disponible', 'El inicio con Sky Mavis aún no está configurado en esta versión. Puedes entrar con tu correo o jugar como invitado.');
+      this._showError(i18n.t('start.ssoUnavailable'), i18n.t('start.ssoUnavailableText'));
       return;
     }
-    this._setWait('Conectando con Sky Mavis…', 'Te llevamos a la página de inicio de sesión de Sky Mavis. Volverás aquí automáticamente.', true);
+    this._setWait(i18n.t('start.ssoConnecting'), i18n.t('start.ssoRedirectBack'), true);
     try {
       await accountManager.startSkyMavis({ linkGuest: Boolean(this._linkGuest) });
     } catch (err) {
       this._lastRetry = 'sso';
-      this._showError('No pudimos conectar', accountManager.describeError(err));
+      this._showError(i18n.t('start.errConnect'), accountManager.describeError(err));
     }
   }
 
@@ -604,7 +615,7 @@ export class StartScreenUI {
   _emailStart() {
     if (!accountManager.configured) {
       this._lastRetry = 'email';
-      this._showError('Cuentas no disponibles', 'Las cuentas en la nube aún no están configuradas en esta versión. Puedes jugar como invitado.');
+      this._showError(i18n.t('start.accountsUnavailable'), i18n.t('start.accountsUnavailableText'));
       return;
     }
     this._ref('emailMsg').textContent = '';
@@ -632,13 +643,13 @@ export class StartScreenUI {
     msg.textContent = '';
     const raw = String(input.value || '').trim();
     if (!resend && !/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(raw)) {
-      msg.textContent = 'Escribe un correo válido, por ejemplo nombre@gmail.com.';
+      msg.textContent = i18n.t('start.invalidEmail');
       input.focus();
       return;
     }
     btn.disabled = true;
     const txt = this._ref('emailSendTxt');
-    if (!resend && txt) txt.textContent = 'Enviando…';
+    if (!resend && txt) txt.textContent = i18n.t('start.sending');
     try {
       accountManager.auth.setPendingLinkGuest(Boolean(this._linkGuest));
       this._email = await accountManager.sendEmailCode(input.value);
@@ -649,13 +660,13 @@ export class StartScreenUI {
       this._ref('codeInput').value = '';
       this._renderOtp();
       this._ref('codeMsg').textContent = '';
-      if (resend) toast('Te enviamos un correo nuevo');
+      if (resend) toast(i18n.t('start.resent'));
       this._setLoginState('code');
       setTimeout(() => this._ref('codeInput').focus(), 30);
     } catch (err) {
       msg.textContent = accountManager.describeError(err);
     } finally {
-      if (txt) txt.textContent = 'Enviarme el enlace';
+      if (txt) txt.textContent = i18n.t('start.sendLink');
       if (!resend || !this._resendLeft) btn.disabled = false;
     }
   }
@@ -664,11 +675,11 @@ export class StartScreenUI {
   _setMailApp(email) {
     const dom = String(email || '').split('@')[1]?.toLowerCase() || '';
     const P = [
-      [/^(gmail|googlemail)\.com$/, 'Abrir Gmail', 'https://mail.google.com/mail/u/0/#search/in%3Aanywhere+newer_than%3A1h'],
-      [/^(outlook|hotmail|live|msn)\.[a-z.]+$/, 'Abrir Outlook', 'https://outlook.live.com/mail/'],
-      [/^(yahoo|ymail)\.[a-z.]+$/, 'Abrir Yahoo Mail', 'https://mail.yahoo.com/'],
-      [/^(icloud|me|mac)\.com$/, 'Abrir iCloud Mail', 'https://www.icloud.com/mail'],
-      [/^proton(mail)?\.(me|com)$/, 'Abrir Proton Mail', 'https://mail.proton.me/'],
+      [/^(gmail|googlemail)\.com$/, i18n.t('start.openMailApp', { app: 'Gmail' }), 'https://mail.google.com/mail/u/0/#search/in%3Aanywhere+newer_than%3A1h'],
+      [/^(outlook|hotmail|live|msn)\.[a-z.]+$/, i18n.t('start.openMailApp', { app: 'Outlook' }), 'https://outlook.live.com/mail/'],
+      [/^(yahoo|ymail)\.[a-z.]+$/, i18n.t('start.openMailApp', { app: 'Yahoo Mail' }), 'https://mail.yahoo.com/'],
+      [/^(icloud|me|mac)\.com$/, i18n.t('start.openMailApp', { app: 'iCloud Mail' }), 'https://www.icloud.com/mail'],
+      [/^proton(mail)?\.(me|com)$/, i18n.t('start.openMailApp', { app: 'Proton Mail' }), 'https://mail.proton.me/'],
     ].find(([re]) => re.test(dom));
     const a = this._ref('mailApp');
     a.hidden = !P;
@@ -681,8 +692,8 @@ export class StartScreenUI {
     clearInterval(this._resendT);
     this._resendLeft = sec;
     const tick = () => {
-      if (this._resendLeft <= 0) { clearInterval(this._resendT); btn.disabled = false; btn.textContent = 'reenvíalo'; return; }
-      btn.disabled = true; btn.textContent = `reenvíalo en ${this._resendLeft} s`;
+      if (this._resendLeft <= 0) { clearInterval(this._resendT); btn.disabled = false; btn.textContent = i18n.t('start.resend'); return; }
+      btn.disabled = true; btn.textContent = i18n.t('start.resendIn', { n: this._resendLeft });
       this._resendLeft--;
     };
     tick();
@@ -733,16 +744,16 @@ export class StartScreenUI {
     if (this.audio && typeof this.audio.playSelect === 'function') this.audio.playSelect();
     accountManager.enterGuest();
     this._showSelect(this._getSession(), true);
-    toast('Entraste como invitado');
+    toast(i18n.t('start.enteredGuest'));
   }
 
   async _logout({ thenLogin = true } = {}) {
     let res = await accountManager.signOut();
     if (res.pending) {
       const choice = await this._ask({
-        title: 'Hay progreso sin guardar en la nube',
-        text: 'No pudimos subir tus últimos cambios. Si cierras sesión ahora, se perderán en este dispositivo.',
-        actions: [{ id: 'stay', label: 'Seguir conectado', primary: true }, { id: 'force', label: 'Cerrar igualmente', danger: true }],
+        title: i18n.t('start.unsyncedTitle'),
+        text: i18n.t('start.unsyncedText'),
+        actions: [{ id: 'stay', label: i18n.t('start.staySignedIn'), primary: true }, { id: 'force', label: i18n.t('start.signOutAnyway'), danger: true }],
       });
       if (choice !== 'force') return;
       res = await accountManager.signOut({ force: true });
@@ -752,7 +763,7 @@ export class StartScreenUI {
     this.container.dataset.view = 'login';
     this._setLoginState('idle');
     // Con Sky Mavis, el navegador va a cerrar también su sesión y vuelve aquí (AuthService.signOut).
-    if (thenLogin) toast(res.redirecting ? 'Cerrando sesión en Sky Mavis…' : 'Sesión cerrada');
+    if (thenLogin) toast(res.redirecting ? i18n.t('start.signingOutSso') : i18n.t('start.signedOut'));
   }
 
   _retry() {
@@ -769,12 +780,12 @@ export class StartScreenUI {
     acct.classList.toggle('lk-is-guest', guest);
     const sub = guest ? '' : [session.providerLabel, session.roninShort || session.email].filter(Boolean).join(' · ');
     acct.innerHTML = guest
-      ? '<span class="lk-av">?</span><span><b>Invitado</b><small>Progreso local</small></span>'
+      ? '<span class="lk-av">?</span><span><b>' + i18n.t('start.guest') + '</b><small>' + i18n.t('start.localProgress') + '</small></span>'
       : `<span class="lk-av">${esc((session.name || '?')[0]).toUpperCase()}</span><span><b>${esc(session.name)}</b><small>${esc(sub)}</small></span>`;
     this._ref('guestBanner').hidden = !guest;
     if (GUEST_ONLY) this._ref('guestBanner').hidden = true;
     this.container.querySelector('[data-act="switchAccount"]').hidden = guest || GUEST_ONLY;
-    this.container.querySelector('[data-act="logout"]').textContent = guest ? 'Salir del modo invitado' : 'Cerrar sesión';
+    this.container.querySelector('[data-act="logout"]').textContent = guest ? i18n.t('start.exitGuest') : i18n.t('start.logout');
     this.container.dataset.view = 'select';
     if (animate) { this.container.classList.remove('lk-view-in'); void this.container.offsetWidth; this.container.classList.add('lk-view-in'); }
     this.refreshSlots();
@@ -801,11 +812,11 @@ export class StartScreenUI {
         case 'emailBack': this._setLoginState('idle'); break;
         case 'emailResend': this._emailSend(true); break;
         case 'logout': menu.classList.remove('lk-is-on'); this._logout(); break;
-        case 'switchAccount': menu.classList.remove('lk-is-on'); this._logout({ thenLogin: false }).then(() => toast('Inicia sesión con otra cuenta')); break;
+        case 'switchAccount': menu.classList.remove('lk-is-on'); this._logout({ thenLogin: false }).then(() => toast(i18n.t('start.signInOther'))); break;
         case 'syncRetry': {
           btn.disabled = true;
           accountManager.cloud.pullAll()
-            .then(({ notices }) => { this._ref('syncBanner').hidden = true; this.refreshSlots(); notices.forEach((t) => toast(t)); toast('Sincronizado con la nube'); })
+            .then(({ notices }) => { this._ref('syncBanner').hidden = true; this.refreshSlots(); notices.forEach((t) => toast(t)); toast(i18n.t('start.synced')); })
             .catch((err) => toast(accountManager.describeError(err), true))
             .finally(() => { btn.disabled = false; });
           break;
@@ -815,12 +826,12 @@ export class StartScreenUI {
           this._linkGuest = true;
           root.dataset.view = 'login';
           this._setLoginState('idle');
-          toast('Elige cómo vincular: Sky Mavis o correo');
+          toast(i18n.t('start.chooseLink'));
           break;
         }
         case 'options': {
           const sm = window.overworldManager?.settingsModal;
-          if (sm && typeof sm.open === 'function') sm.open(); else toast('Las opciones estarán disponibles en un momento');
+          if (sm && typeof sm.open === 'function') sm.open(); else toast(i18n.t('start.optionsSoon'));
           break;
         }
         case 'play': this._playSelected(); break;
@@ -836,7 +847,7 @@ export class StartScreenUI {
     ['focus', 'blur', 'keyup', 'click'].forEach((ev) => otpIn.addEventListener(ev, () => this._renderOtp(false)));
     this._ref('emailInput').addEventListener('input', () => { this._ref('emailMsg').textContent = ''; });
     // Si la sesión caduca durante la partida, se avisa (el progreso local de la cuenta se conserva).
-    accountManager.onSessionExpired = () => toast('Tu sesión caducó: inicia sesión de nuevo para seguir guardando en la nube', true);
+    accountManager.onSessionExpired = () => toast(i18n.t('start.expiredToast'), true);
 
     // Teclado: ← → para elegir, Enter para jugar
     root.addEventListener('keydown', (e) => {
@@ -873,7 +884,7 @@ export class StartScreenUI {
           this._slotToDelete = null;
           this.refreshSlots();
           if (this.audio && typeof this.audio.playCollision === 'function') this.audio.playCollision();
-          toast(`Aventura de ${data?.playerName || 'la ranura ' + id} eliminada`);
+          toast(data?.playerName ? i18n.t('start.deleted', { name: data.playerName }) : i18n.t('start.deletedSlot', { n: id }));
         }
       }, 1400);
     };
@@ -896,12 +907,12 @@ export class StartScreenUI {
   _when(ts) {
     if (!ts) return '';
     const d = new Date(ts), now = new Date();
-    const hm = d.toLocaleTimeString('es', { hour: '2-digit', minute: '2-digit' });
+    const hm = d.toLocaleTimeString(i18n.lang(), { hour: '2-digit', minute: '2-digit' });
     const day = (x) => new Date(x.getFullYear(), x.getMonth(), x.getDate()).getTime();
     const diff = Math.round((day(now) - day(d)) / 86400000);
-    if (diff === 0) return `Hoy, ${hm}`;
-    if (diff === 1) return `Ayer, ${hm}`;
-    return d.toLocaleDateString('es', { day: 'numeric', month: 'short' }) + `, ${hm}`;
+    if (diff === 0) return i18n.t('start.today', { time: hm });
+    if (diff === 1) return i18n.t('start.yesterday', { time: hm });
+    return d.toLocaleDateString(i18n.lang(), { day: 'numeric', month: 'short' }) + `, ${hm}`;
   }
 
   refreshSlots() {
@@ -921,8 +932,8 @@ export class StartScreenUI {
       const common = `role="option" tabindex="${selected ? 0 : -1}" aria-selected="${selected}" data-slot-id="${slotInfo.id}"`;
       if (!slotInfo.data) {
         return `<div class="lk-slot lk-is-empty" ${common}>
-          <div class="lk-slot__top"><span class="lk-slot__n">Ranura ${slotInfo.id}</span></div>
-          <div class="lk-new"><span class="lk-plus"><span>+</span></span><b>Nueva aventura</b><small>Crea tu Sapidae, elige su clase y tu axie compañero.</small></div>
+          <div class="lk-slot__top"><span class="lk-slot__n">${i18n.t('start.slot', { n: slotInfo.id })}</span></div>
+          <div class="lk-new"><span class="lk-plus"><span>+</span></span><b>${i18n.t('start.newAdventure')}</b><small>${i18n.t('start.newAdventureText')}</small></div>
         </div>`;
       }
       const data = slotInfo.data;
@@ -934,14 +945,14 @@ export class StartScreenUI {
         || hero.image || null;
       const axCls = axieClassKey(hero.class || hero.heroKey || hero.archetype) || 'beast';
       return `<div class="lk-slot" ${common}>
-        <div class="lk-slot__top"><span class="lk-slot__n">Ranura ${slotInfo.id}</span>${slotInfo.id === recentId ? '<span class="lk-recent">Última partida</span>' : ''}
-          <button class="lk-kebab" aria-label="Más opciones de la ranura ${slotInfo.id}"><svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><circle cx="5" cy="12" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="19" cy="12" r="2"/></svg></button>
-          <div class="lk-kmenu" role="menu"><button data-k="play">Jugar</button><button class="lk-del" data-k="del">Eliminar…</button></div></div>
+        <div class="lk-slot__top"><span class="lk-slot__n">${i18n.t('start.slot', { n: slotInfo.id })}</span>${slotInfo.id === recentId ? `<span class="lk-recent">${i18n.t('start.lastPlayed')}</span>` : ''}
+          <button class="lk-kebab" aria-label="${i18n.t('start.slotMore', { n: slotInfo.id })}"><svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><circle cx="5" cy="12" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="19" cy="12" r="2"/></svg></button>
+          <div class="lk-kmenu" role="menu"><button data-k="play">${i18n.t('start.play')}</button><button class="lk-del" data-k="del">${i18n.t('start.delete')}</button></div></div>
         <div class="lk-slot__art" style="--biome:${this._biomeOf(data.zone)}"><span class="lk-mt"></span>
           <span class="lk-med lk-is-sapi" style="--cc:var(--lk-lumen-500)"><img class="slot-fullbody-img" src="${sapidaePortrait}" alt=""></span>
           ${axiePortrait ? `<span class="lk-med" style="--cc:var(--lk-class-${axCls})"><img src="${axiePortrait}" alt="" onerror="this.style.display='none'"></span>` : ''}
-          <span class="lk-loc"><img src="${I('map')}" alt="" style="width:14px;height:14px;vertical-align:-3px;margin-right:4px">${data.zone?.name || 'Valle del Dojo'}</span></div>
-        <div class="lk-slot__info"><div class="lk-nm"><b>${data.playerName || 'Sapidae'}</b><span class="lk-lv">XP Nv ${data.level || 1}</span></div>
+          <span class="lk-loc"><img src="${I('map')}" alt="" style="width:14px;height:14px;vertical-align:-3px;margin-right:4px">${zoneLabel(data.zone) || i18n.t('start.defaultZone')}</span></div>
+        <div class="lk-slot__info"><div class="lk-nm"><b>${data.playerName || 'Sapidae'}</b><span class="lk-lv">${i18n.t('start.xpLevel', { n: data.level || 1 })}</span></div>
           <span class="lk-row"><img src="${I('friend')}" alt="">Sapidae · <em>${classDef.name}</em></span>
           <span class="lk-row"><img src="${getAxieClassIcon(hero.class || hero.heroKey || hero.archetype)}" alt=""><em>${hero.name || 'Shinji'}</em> #${hero.axieId || '10455'}</span>
           <span class="lk-when">${this._when(data.lastSaved || data.createdAt)}</span></div>
@@ -952,10 +963,10 @@ export class StartScreenUI {
     const d = saveSlotManager.getSlot(sel);
     const playIco = this._ref('playIco'), playTxt = this._ref('playTxt'), summary = this._ref('summary');
     if (playIco) playIco.innerHTML = `<img class="lk-ai" src="${I(d ? 'resume' : 'add')}" alt="">`;
-    if (playTxt) playTxt.textContent = d ? 'Continuar aventura' : 'Crear aventura';
+    if (playTxt) playTxt.textContent = d ? i18n.t('start.continue') : i18n.t('start.create');
     if (summary) summary.innerHTML = d
-      ? `<b>${d.playerName || 'Sapidae'}</b> con ${(d.hero && d.hero.name) || 'Shinji'} · ${d.zone?.name || 'Valle del Dojo'} · Nv ${d.level || 1}`
-      : '<b>Ranura libre</b> · empieza una historia nueva';
+      ? i18n.t('start.summary', { name: d.playerName || 'Sapidae', axie: (d.hero && d.hero.name) || 'Shinji', zone: zoneLabel(d.zone) || i18n.t('start.defaultZone'), lv: d.level || 1 })
+      : i18n.t('start.freeSlot');
 
     grid.querySelectorAll('.lk-slot').forEach((el) => {
       const id = +el.dataset.slotId;
@@ -980,7 +991,7 @@ export class StartScreenUI {
       const id = +b.closest('.lk-slot').dataset.slotId;
       b.parentElement.classList.remove('lk-is-on');
       const data = saveSlotManager.getSlot(id);
-      if (b.dataset.k === 'del') this._confirmDeleteSlot(id, `${data?.playerName || 'Sapidae'} con ${data?.hero?.name || 'su axie'}`);
+      if (b.dataset.k === 'del') this._confirmDeleteSlot(id, i18n.t('start.delWho', { name: data?.playerName || 'Sapidae', axie: data?.hero?.name || i18n.t('start.theirAxie') }));
       else this._playSlot(id);
     }));
   }
@@ -1020,29 +1031,29 @@ export class StartScreenUI {
     container.innerHTML = `
       <div class="lk-vista lk-vista--night"><div class="lk-mt lk-mt1"></div><div class="lk-mt lk-mt2"></div><div class="lk-haze"></div><div class="lk-mt lk-mt3"></div></div>
       <header class="lk-cc-top">
-        <button type="button" class="lk-btn lk-btn-secondary-wood lk-btn--sm" data-cc="back"><span class="lk-b-ico">${sprite('i-back')}</span>Ranuras</button>
-        <nav class="lk-stepper" data-ref="steps" aria-label="Pasos"></nav>
-        <span class="lk-slotpill">Ranura ${this.pendingSlotId || 1}</span>
+        <button type="button" class="lk-btn lk-btn-secondary-wood lk-btn--sm" data-cc="back"><span class="lk-b-ico">${sprite('i-back')}</span>${i18n.t('startCreator.slots')}</button>
+        <nav class="lk-stepper" data-ref="steps" aria-label="${i18n.t('startCreator.stepsAria')}"></nav>
+        <span class="lk-slotpill">${i18n.t('start.slot', { n: this.pendingSlotId || 1 })}</span>
       </header>
       <div class="lk-cc-body">
         <div class="lk-cc-stage">
           <div id="dofus-3d-canvas-container" class="lk-cc-canvas"></div>
           <div class="lk-cc-badges"><div class="lk-cls-badge" data-ref="badge"></div><div class="lk-stat-chips" data-ref="stats"></div></div>
           <div class="lk-cc-scene"></div>
-          <div class="lk-cc-rot"><button type="button" class="lk-btn-circle-icon" data-cc="rotL" aria-label="Girar a la izquierda">${sprite('i-rotate').replace('<svg ', '<svg style="transform:scaleX(-1)" ')}</button><span>Arrastra o usa las flechas para girar</span><button type="button" class="lk-btn-circle-icon" data-cc="rotR" aria-label="Girar a la derecha">${sprite('i-rotate')}</button></div>
+          <div class="lk-cc-rot"><button type="button" class="lk-btn-circle-icon" data-cc="rotL" aria-label="${i18n.t('startCreator.rotLeft')}">${sprite('i-rotate').replace('<svg ', '<svg style="transform:scaleX(-1)" ')}</button><span>${i18n.t('startCreator.rotHint')}</span><button type="button" class="lk-btn-circle-icon" data-cc="rotR" aria-label="${i18n.t('startCreator.rotRight')}">${sprite('i-rotate')}</button></div>
         </div>
         <div class="lk-cc-panel">
           <div class="lk-cc-pane" data-step="1"></div>
           <div class="lk-cc-pane" data-step="2" hidden></div>
           <div class="lk-cc-pane" data-step="3" hidden></div>
           <div class="lk-cc-pane" data-step="4" hidden></div>
-          <div class="lk-cc-foot"><button type="button" class="lk-btn lk-btn-secondary-wood lk-btn--sm" data-cc="prev"><span class="lk-b-ico">${sprite('i-back')}</span>Atrás</button><span class="lk-sp"></span><button type="button" class="lk-btn lk-btn-primary-gold" data-cc="next"><span class="lk-b-ico">${sprite('i-back').replace('<svg ', '<svg style="transform:scaleX(-1)" ')}</span><span data-ref="nextTxt">Siguiente</span></button></div>
+          <div class="lk-cc-foot"><button type="button" class="lk-btn lk-btn-secondary-wood lk-btn--sm" data-cc="prev"><span class="lk-b-ico">${sprite('i-back')}</span>${i18n.t('startCreator.prev')}</button><span class="lk-sp"></span><button type="button" class="lk-btn lk-btn-primary-gold" data-cc="next"><span class="lk-b-ico">${sprite('i-back').replace('<svg ', '<svg style="transform:scaleX(-1)" ')}</span><span data-ref="nextTxt">${i18n.t('startCreator.next')}</span></button></div>
         </div>
       </div>
       <div class="lk-confirm" data-ref="picker" role="dialog" aria-labelledby="lk-ax-pick-title">
         <div class="lk-confirm__card lk-pick-card">
-          <div class="lk-pick-head"><h4 id="lk-ax-pick-title">Elige uno de tus axies</h4><button type="button" class="lk-btn-close-x" data-cc="pickClose" aria-label="Cerrar">${sprite('i-close')}</button></div>
-          <p>Axies de tu cuenta Sky Mavis. Llegan con su nivel AXP y sus partes; podrás cambiarlo después en el Escuadrón.</p>
+          <div class="lk-pick-head"><h4 id="lk-ax-pick-title">${i18n.t('startCreator.pickTitle')}</h4><button type="button" class="lk-btn-close-x" data-cc="pickClose" aria-label="${i18n.t('startCreator.close')}">${sprite('i-close')}</button></div>
+          <p>${i18n.t('startCreator.pickLead')}</p>
           <div class="lk-ax-grid" data-ref="pickGrid"></div>
         </div>
       </div>`;
@@ -1056,10 +1067,10 @@ export class StartScreenUI {
   _ccRole(c) { const m = String(c.archetype || '').match(/\(([^)]+)\)/); return m ? m[1] : (c.title || ''); }
   _ccNameState() {
     const v = String(this.playerName || '').trim();
-    if (v.length < 3) return ['err', 'Mínimo 3 letras'];
-    if (v.length > 14) return ['err', 'Máximo 14 letras'];
-    if (!/^[A-Za-zÁÉÍÓÚÜÑáéíóúüñ' -]+$/.test(v)) return ['err', 'Solo letras, espacios, guion o apóstrofo'];
-    return ['ok', 'Nombre disponible'];
+    if (v.length < 3) return ['err', i18n.t('startCreator.nameMin')];
+    if (v.length > 14) return ['err', i18n.t('startCreator.nameMax')];
+    if (!/^[A-Za-zÁÉÍÓÚÜÑáéíóúüñ' -]+$/.test(v)) return ['err', i18n.t('startCreator.nameChars')];
+    return ['ok', i18n.t('startCreator.nameOk')];
   }
 
   _ccRenderAll() {
@@ -1085,7 +1096,7 @@ export class StartScreenUI {
     const next = this.heroSelectModal.querySelector('[data-cc="next"]');
     if (prev) prev.disabled = this.ccStep === 1;
     const last = this.ccStep === 4;
-    this._ccRef('nextTxt').textContent = last ? 'Comenzar aventura' : `Siguiente: ${CC_STEPS[this.ccStep]}`;
+    this._ccRef('nextTxt').textContent = last ? i18n.t('startCreator.begin') : i18n.t('startCreator.nextStep', { step: CC_STEPS[this.ccStep] });
     if (next) { next.disabled = last && this._ccNameState()[0] !== 'ok'; next.classList.toggle('lk-btn--lg', last); }
   }
 
@@ -1104,18 +1115,18 @@ export class StartScreenUI {
     const c = this._ccClass();
     const badge = this._ccRef('badge'), stats = this._ccRef('stats');
     if (badge) badge.innerHTML = `${this._ccCrest(c)}<span><b>${c.name}</b><small>${this._ccRole(c)}</small></span>`;
-    if (stats) stats.innerHTML = `<span><img src="${CC_ICON('heart')}" alt="">${c.maxHP}<small>Vida</small></span><span><img src="${CC_ICON('pa')}" alt="">${c.maxPA}<small>PA</small></span><span>${sprite('i-pm')}${c.maxPM}<small>PM</small></span><span>${c.initiative}<small>Ini</small></span>`;
+    if (stats) stats.innerHTML = `<span><img src="${CC_ICON('heart')}" alt="">${c.maxHP}<small>${i18n.t('startCreator.statHp')}</small></span><span><img src="${CC_ICON('pa')}" alt="">${c.maxPA}<small>${i18n.t('startCreator.statAp')}</small></span><span>${sprite('i-pm')}${c.maxPM}<small>${i18n.t('startCreator.statMp')}</small></span><span>${c.initiative}<small>${i18n.t('startCreator.statIni')}</small></span>`;
   }
 
   _ccRenderClass() {
     const pane = this.heroSelectModal.querySelector('.lk-cc-pane[data-step="1"]');
     if (!pane) return;
     const cur = this._ccClass();
-    pane.innerHTML = `<h4>Elige tu clase</h4><p class="lk-lead">Define tus 6 hechizos y tu papel en el escuadrón. Podrás verla siempre en la vista previa.</p>
+    pane.innerHTML = `<h4>${i18n.t('startCreator.chooseClass')}</h4><p class="lk-lead">${i18n.t('startCreator.classLead')}</p>
       <div class="lk-cls-grid">${Object.values(SAPIDAE_CLASSES).map((c) => `<button type="button" class="lk-cls-card" aria-pressed="${c.id === cur.id}" data-cc="class" data-k="${c.id}">${this._ccCrest(c)}<b>${c.name}</b><small>${this._ccRole(c)}</small></button>`).join('')}</div>
-      <div class="lk-cls-info"><span class="lk-role">${this._ccRole(cur)}</span><p>${cur.description || ''}</p><span class="lk-label">Hechizos de clase (6)</span>
+      <div class="lk-cls-info"><span class="lk-role">${this._ccRole(cur)}</span><p>${cur.description || ''}</p><span class="lk-label">${i18n.t('startCreator.classSpells')}</span>
         <div class="lk-spells">${(cur.spellPreviews || []).map((s, i) => `<button type="button" class="lk-spell" style="--cc:${CC_COLORS[cur.id] || '#C98A3B'}" data-tip="class" data-i="${i}" aria-label="${s.name}"><img src="${s.icon}" alt="" loading="lazy" onerror="this.style.display='none'"><b>${i + 1}</b></button>`).join('')}</div>
-        <span class="lk-tip-hint">Pasa el ratón o mantén pulsado para ver cada hechizo</span></div>`;
+        <span class="lk-tip-hint">${i18n.t('startCreator.spellHint')}</span></div>`;
   }
 
   _ccRenderLook() {
@@ -1124,22 +1135,22 @@ export class StartScreenUI {
     if (SAPIDAE_BASES[this.selectedSapidaeModel]) { this._ccRenderLookV2(pane); return; }
     const cz = this.customization;
     const named = (list, v) => (list.find((x) => x.id === v || x.hex === v) || {}).name;
-    const short = (s) => String(s || '').replace(/^Cuernos /, '').replace(/^Cornamenta de /, '').replace(/^Corte /, '');
+    const short = shortLabel;
     const swatches = (list, part, cur) => {
       const curL = String(cur || 'original').toLowerCase();
       const known = list.some((c) => String(c.hex).toLowerCase() === curL);
       const free = !known && curL.startsWith('#') ? cur : (list.find((c) => String(c.hex).toLowerCase() === curL)?.sample || list[0]?.sample || '#ffffff');
-      return `<div class="lk-cc-swatches">${list.map((c) => `<button type="button" class="lk-cc-sw" style="--c:${c.sample}" aria-pressed="${String(c.hex).toLowerCase() === curL}" aria-label="${c.name}" title="${c.name}" data-cc="color" data-part="${part}" data-c="${c.hex}"></button>`).join('')}<label class="lk-sw-custom" title="Color libre"><input type="color" value="${free}" data-part="${part}" aria-label="Color libre"></label></div>`;
+      return `<div class="lk-cc-swatches">${list.map((c) => `<button type="button" class="lk-cc-sw" style="--c:${c.sample}" aria-pressed="${String(c.hex).toLowerCase() === curL}" aria-label="${c.name}" title="${c.name}" data-cc="color" data-part="${part}" data-c="${c.hex}"></button>`).join('')}<label class="lk-sw-custom" title="${i18n.t('startCreator.freeColor')}"><input type="color" value="${free}" data-part="${part}" aria-label="${i18n.t('startCreator.freeColor')}"></label></div>`;
     };
-    const colorName = (list, v) => named(list, v) || (String(v).startsWith('#') ? String(v).toUpperCase() : 'Original');
+    const colorName = (list, v) => named(list, v) || (String(v).startsWith('#') ? String(v).toUpperCase() : i18n.t('startCreator.original'));
     const opts = (list, cat, icons) => `<div class="lk-opts">${list.map((o) => `<button type="button" class="lk-opt" aria-pressed="${cz[cat] === o.id}" data-cc="trait" data-cat="${cat}" data-v="${o.id}" title="${o.desc || o.name}">${icons && icons[o.id] ? icons[o.id] : ''}${short(o.name)}</button>`).join('')}</div>`;
-    pane.innerHTML = `<div style="display:flex;justify-content:space-between;align-items:center;gap:10px"><h4>Apariencia</h4><button type="button" class="lk-btn lk-btn-secondary-wood lk-btn--sm" data-cc="random"><span class="lk-b-ico"><img class="lk-ai" src="${CC_ICON('rotate')}" alt=""></span>Aleatorio</button></div>
-      <p class="lk-lead">Los cambios se ven al instante en tu Sapidae.</p>
-      <div class="lk-opt-sec lk-base-seg"><div class="lk-hd"><span class="lk-label">Base</span></div><div class="lk-segmented"><button type="button" aria-pressed="${this.selectedSapidaeModel === 'sapidae-f-a'}" data-cc="base" data-v="sapidae-f-a">Femenina</button><button type="button" aria-pressed="${this.selectedSapidaeModel === 'sapidae-m-a'}" data-cc="base" data-v="sapidae-m-a">Masculina</button></div></div>
-      <div class="lk-opt-sec"><div class="lk-hd"><span class="lk-label">Peinado</span><em>${short(named(HAIR_STYLES, cz.hairStyle))} · ${colorName(HAIR_COLORS, cz.hair)}</em></div>${opts(HAIR_STYLES, 'hairStyle', ITEM_ICONS.hair)}${swatches(HAIR_COLORS, 'hair', cz.hair)}</div>
-      <div class="lk-opt-sec"><div class="lk-hd"><span class="lk-label">Ojos</span><em>${named(EYE_SHAPES, cz.eyeShape) || ''} · ${colorName(PUPIL_COLORS, cz.eyes)}</em></div>${opts(EYE_SHAPES, 'eyeShape', ITEM_ICONS.eyes)}${swatches(PUPIL_COLORS, 'eyes', cz.eyes)}</div>
-      <div class="lk-opt-sec"><div class="lk-hd"><span class="lk-label">Cuernos</span><em>${short(named(HORN_STYLES, cz.horns))} · ${colorName(HORN_COLORS, cz.hornColor)}</em></div>${opts(HORN_STYLES, 'horns', ITEM_ICONS.horns)}${swatches(HORN_COLORS, 'hornColor', cz.hornColor)}</div>
-      <div class="lk-opt-sec"><div class="lk-hd"><span class="lk-label">Color del atuendo</span><em>${colorName(SUIT_COLORS, cz.suitColor)}</em></div>${swatches(SUIT_COLORS, 'suitColor', cz.suitColor)}</div>`;
+    pane.innerHTML = `<div style="display:flex;justify-content:space-between;align-items:center;gap:10px"><h4>${i18n.t('startCreator.stepLook')}</h4><button type="button" class="lk-btn lk-btn-secondary-wood lk-btn--sm" data-cc="random"><span class="lk-b-ico"><img class="lk-ai" src="${CC_ICON('rotate')}" alt=""></span>${i18n.t('startCreator.random')}</button></div>
+      <p class="lk-lead">${i18n.t('startCreator.lookLead')}</p>
+      <div class="lk-opt-sec lk-base-seg"><div class="lk-hd"><span class="lk-label">${i18n.t('startCreator.base')}</span></div><div class="lk-segmented"><button type="button" aria-pressed="${this.selectedSapidaeModel === 'sapidae-f-a'}" data-cc="base" data-v="sapidae-f-a">${i18n.t('startCreator.female')}</button><button type="button" aria-pressed="${this.selectedSapidaeModel === 'sapidae-m-a'}" data-cc="base" data-v="sapidae-m-a">${i18n.t('startCreator.male')}</button></div></div>
+      <div class="lk-opt-sec"><div class="lk-hd"><span class="lk-label">${i18n.t('startCreator.hairStyle')}</span><em>${short(named(HAIR_STYLES, cz.hairStyle))} · ${colorName(HAIR_COLORS, cz.hair)}</em></div>${opts(HAIR_STYLES, 'hairStyle', ITEM_ICONS.hair)}${swatches(HAIR_COLORS, 'hair', cz.hair)}</div>
+      <div class="lk-opt-sec"><div class="lk-hd"><span class="lk-label">${i18n.t('startCreator.partEyes')}</span><em>${named(EYE_SHAPES, cz.eyeShape) || ''} · ${colorName(PUPIL_COLORS, cz.eyes)}</em></div>${opts(EYE_SHAPES, 'eyeShape', ITEM_ICONS.eyes)}${swatches(PUPIL_COLORS, 'eyes', cz.eyes)}</div>
+      <div class="lk-opt-sec"><div class="lk-hd"><span class="lk-label">${i18n.t('startCreator.horns')}</span><em>${short(named(HORN_STYLES, cz.horns))} · ${colorName(HORN_COLORS, cz.hornColor)}</em></div>${opts(HORN_STYLES, 'horns', ITEM_ICONS.horns)}${swatches(HORN_COLORS, 'hornColor', cz.hornColor)}</div>
+      <div class="lk-opt-sec"><div class="lk-hd"><span class="lk-label">${i18n.t('startCreator.outfitColor')}</span><em>${colorName(SUIT_COLORS, cz.suitColor)}</em></div>${swatches(SUIT_COLORS, 'suitColor', cz.suitColor)}</div>`;
   }
 
   /** Género de la base elegida (f = Ema, m = Kai). */
@@ -1169,32 +1180,32 @@ export class StartScreenUI {
   _ccRenderLookV2(pane) {
     const cz = this.customization, g = this._ccGender(), L = this._ccLookV2();
     const named = (list, v) => (list.find((x) => x.hex === v) || {}).name;
-    const colorName = (list, v) => (!v || v === 'original' ? 'Original' : named(list, v) || (String(v).startsWith('#') ? String(v).toUpperCase() : 'Original'));
+    const colorName = (list, v) => (!v || v === 'original' ? i18n.t('startCreator.original') : named(list, v) || (String(v).startsWith('#') ? String(v).toUpperCase() : i18n.t('startCreator.original')));
     // Muestra de «Original» con el color real de cada base (el pelo de Kai no es carmesí)
     const HAIR_ORIG = { m: { a: '#f0c24f', b: '#d9822b', c: '#e9e5dc', d: '#4d4038', e: '#8b9cb2' }, f: { a: '#f2b847', b: '#a8641f', c: '#e4e1db', d: '#4f4438', e: '#7e8ea3' } };
     const ORIG = { f: { hair: HAIR_ORIG.f[L.hair.id] || '#f2b847', eyes: '#7a4a24', hornColor: '#d6904c', suitColor: '#3fc3c7' }, m: { hair: HAIR_ORIG.m[L.hair.id] || '#f0c24f', eyes: '#7a4a24', hornColor: '#d6904c', suitColor: '#d9503a' } }[g];
     const swatches = (list0, part, cur) => {
-      const list = list0.map((c) => (c.hex === 'original' && ORIG[part] ? { ...c, name: 'Original', sample: ORIG[part] } : c));
+      const list = list0.map((c) => (c.hex === 'original' && ORIG[part] ? { ...c, name: i18n.t('startCreator.original'), sample: ORIG[part] } : c));
       const curL = String(cur || 'original').toLowerCase();
       const known = list.some((c) => String(c.hex).toLowerCase() === curL);
       const free = !known && curL.startsWith('#') ? cur : (list.find((c) => String(c.hex).toLowerCase() === curL)?.sample || list[0]?.sample || '#ffffff');
-      return `<div class="lk-cc-swatches">${list.map((c) => `<button type="button" class="lk-cc-sw" style="--c:${c.sample}" aria-pressed="${String(c.hex).toLowerCase() === curL}" aria-label="${c.name}" title="${c.name}" data-cc="color" data-part="${part}" data-c="${c.hex}"></button>`).join('')}<label class="lk-sw-custom" title="Color libre"><input type="color" value="${free}" data-part="${part}" aria-label="Color libre"></label></div>`;
+      return `<div class="lk-cc-swatches">${list.map((c) => `<button type="button" class="lk-cc-sw" style="--c:${c.sample}" aria-pressed="${String(c.hex).toLowerCase() === curL}" aria-label="${c.name}" title="${c.name}" data-cc="color" data-part="${part}" data-c="${c.hex}"></button>`).join('')}<label class="lk-sw-custom" title="${i18n.t('startCreator.freeColor')}"><input type="color" value="${free}" data-part="${part}" aria-label="${i18n.t('startCreator.freeColor')}"></label></div>`;
     };
     // Opción con su imagen (assets/ui/creator): peinados y atuendos renderizados del modelo; ojos y boca del atlas de la cara
     const img = (file, kind) => `<img src="./assets/ui/creator/${file}.webp" alt="" loading="lazy" class="lk-opt-img lk-opt-img--${kind}">`;
     const opts = (list, cat, cur, kind, fileOf) => `<div class="lk-opts">${list.map((o) => `<button type="button" class="lk-opt lk-opt--img" aria-pressed="${cur === o.id}" data-cc="trait" data-cat="${cat}" data-v="${o.id}" title="${o.desc || o.name}">${img(fileOf(o), kind)}<span>${o.name}</span></button>`).join('')}</div>`;
     const who = g === 'm' ? 'kai' : 'ema', kai = Boolean(PIECE_SETS[g]); // por piezas: camisa fija (solo color); el color de pelo tiñe también la cabeza
     const bases = Object.entries(SAPIDAE_BASES).map(([k, b]) => `<button type="button" aria-pressed="${this.selectedSapidaeModel === k}" data-cc="base" data-v="${k}">${b.label} · ${b.name}</button>`).join('');
-    pane.innerHTML = `<div style="display:flex;justify-content:space-between;align-items:center;gap:10px"><h4>Apariencia</h4><button type="button" class="lk-btn lk-btn-secondary-wood lk-btn--sm" data-cc="random"><span class="lk-b-ico"><img class="lk-ai" src="${CC_ICON('rotate')}" alt=""></span>Aleatorio</button></div>
-      <p class="lk-lead">Los cambios se ven al instante en tu Sapidae.</p>
-      <div class="lk-opt-sec lk-base-seg"><div class="lk-hd"><span class="lk-label">Base</span></div><div class="lk-segmented">${bases}</div></div>
-      <div class="lk-opt-sec"><div class="lk-hd"><span class="lk-label">Peinado</span><em>${L.hair.name} · ${colorName(HAIR_COLORS, cz.hair)}</em></div>${opts(L.lists.hair, 'hairStyle', L.hair.id, 'look', (o) => o.img)}${swatches(HAIR_COLORS, 'hair', cz.hair)}</div>
-      <div class="lk-opt-sec"><div class="lk-hd"><span class="lk-label">Expresión</span><em>${L.eyes.name} · ${L.mouth.name}</em></div>
-        <div class="lk-hd" style="margin-top:2px"><small>Ojos</small></div>${opts(L.lists.eyes, 'eyeExpr', L.eyes.id, 'eyes', (o) => o.img || `eyes_${who}_${o.id}`)}
-        <div class="lk-hd"><small>Boca</small></div>${opts(L.lists.mouth, 'mouthExpr', L.mouth.id, 'mouth', (o) => o.img || `mouth_${o.id}`)}</div>
-      <div class="lk-opt-sec"><div class="lk-hd"><span class="lk-label">Color de ojos</span><em>${colorName(PUPIL_COLORS, cz.eyes)}</em></div>${swatches(PUPIL_COLORS, 'eyes', cz.eyes)}</div>
-      <div class="lk-opt-sec"><div class="lk-hd"><span class="lk-label">Color de cuernos</span><em>${colorName(HORN_COLORS, cz.hornColor)}</em></div>${swatches(HORN_COLORS, 'hornColor', cz.hornColor)}</div>
-      <div class="lk-opt-sec"><div class="lk-hd"><span class="lk-label">${kai ? 'Color de camisa' : 'Atuendo'}</span><em>${kai ? '' : `${L.outfit.name} · `}${colorName(SUIT_COLORS, cz.suitColor)}</em></div>${kai ? '' : opts(L.lists.outfit, 'outfit', L.outfit.id, 'look', (o) => o.img)}${swatches(SUIT_COLORS, 'suitColor', cz.suitColor)}</div>`;
+    pane.innerHTML = `<div style="display:flex;justify-content:space-between;align-items:center;gap:10px"><h4>${i18n.t('startCreator.stepLook')}</h4><button type="button" class="lk-btn lk-btn-secondary-wood lk-btn--sm" data-cc="random"><span class="lk-b-ico"><img class="lk-ai" src="${CC_ICON('rotate')}" alt=""></span>${i18n.t('startCreator.random')}</button></div>
+      <p class="lk-lead">${i18n.t('startCreator.lookLead')}</p>
+      <div class="lk-opt-sec lk-base-seg"><div class="lk-hd"><span class="lk-label">${i18n.t('startCreator.base')}</span></div><div class="lk-segmented">${bases}</div></div>
+      <div class="lk-opt-sec"><div class="lk-hd"><span class="lk-label">${i18n.t('startCreator.hairStyle')}</span><em>${L.hair.name} · ${colorName(HAIR_COLORS, cz.hair)}</em></div>${opts(L.lists.hair, 'hairStyle', L.hair.id, 'look', (o) => o.img)}${swatches(HAIR_COLORS, 'hair', cz.hair)}</div>
+      <div class="lk-opt-sec"><div class="lk-hd"><span class="lk-label">${i18n.t('startCreator.expression')}</span><em>${L.eyes.name} · ${L.mouth.name}</em></div>
+        <div class="lk-hd" style="margin-top:2px"><small>${i18n.t('startCreator.partEyes')}</small></div>${opts(L.lists.eyes, 'eyeExpr', L.eyes.id, 'eyes', (o) => o.img || `eyes_${who}_${o.id}`)}
+        <div class="lk-hd"><small>${i18n.t('startCreator.partMouth')}</small></div>${opts(L.lists.mouth, 'mouthExpr', L.mouth.id, 'mouth', (o) => o.img || `mouth_${o.id}`)}</div>
+      <div class="lk-opt-sec"><div class="lk-hd"><span class="lk-label">${i18n.t('startCreator.eyeColor')}</span><em>${colorName(PUPIL_COLORS, cz.eyes)}</em></div>${swatches(PUPIL_COLORS, 'eyes', cz.eyes)}</div>
+      <div class="lk-opt-sec"><div class="lk-hd"><span class="lk-label">${i18n.t('startCreator.hornColor')}</span><em>${colorName(HORN_COLORS, cz.hornColor)}</em></div>${swatches(HORN_COLORS, 'hornColor', cz.hornColor)}</div>
+      <div class="lk-opt-sec"><div class="lk-hd"><span class="lk-label">${kai ? i18n.t('startCreator.shirtColor') : i18n.t('startCreator.outfit')}</span><em>${kai ? '' : `${L.outfit.name} · `}${colorName(SUIT_COLORS, cz.suitColor)}</em></div>${kai ? '' : opts(L.lists.outfit, 'outfit', L.outfit.id, 'look', (o) => o.img)}${swatches(SUIT_COLORS, 'suitColor', cz.suitColor)}</div>`;
   }
 
   _ccRenderAxie() {
@@ -1204,18 +1215,19 @@ export class StartScreenUI {
     const guest = (this._getSession && this._getSession()?.mode) !== 'skymavis';
     const portraitOf = (h) => portraitService.getPortraitSync(h.axieId) || h.image || `./assets/portraits/${h.heroKey}.png`;
     const clsKey = (h) => axieClassKey(h.class || h.heroKey) || 'beast';
-    const card = (h) => `<button type="button" aria-pressed="${h.heroKey === this.selectedCompanionKey}" data-cc="axie" data-k="${h.heroKey}"><span class="lk-med" style="--cc:var(--lk-class-${clsKey(h)})"><img src="${portraitOf(h)}" alt=""></span><b>${h.name}</b><small><img src="${getAxieClassIcon(h.class || h.heroKey)}" alt="">${h.class}</small></button>`;
+    const clsName = (h) => i18n.t(`heroes.axieClass.${clsKey(h)}`); // `class` es dato (Beast…): se muestra traducido
+    const card = (h) => `<button type="button" aria-pressed="${h.heroKey === this.selectedCompanionKey}" data-cc="axie" data-k="${h.heroKey}"><span class="lk-med" style="--cc:var(--lk-class-${clsKey(h)})"><img src="${portraitOf(h)}" alt=""></span><b>${h.name}</b><small><img src="${getAxieClassIcon(h.class || h.heroKey)}" alt="">${clsName(h)}</small></button>`;
     const custom = this._customCompanion && this._customCompanion.heroKey === this.selectedCompanionKey;
     const mine = custom
-      ? `<button type="button" class="lk-is-mine" aria-pressed="true" data-cc="mine"><span class="lk-med" style="--cc:var(--lk-class-${clsKey(comp)})"><img src="${portraitOf(comp)}" alt=""></span><b>${comp.name}</b><small><img src="${getAxieClassIcon(comp.class)}" alt="">${comp.class} · <span class="lk-chg">Cambiar</span></small><span class="lk-mine-tag">Tu axie</span></button>`
-      : `<button type="button" class="lk-pick-mine" data-cc="mine"><span class="lk-pm-ico"><img class="lk-ai" src="${CC_ICON('collection')}" alt=""></span><b>Mis axies</b><small>${guest || (!this._ownedLoading && !this.ownedAxies?.length) ? 'Cargar un Axie por su ID' : (this.ownedAxies?.length ? `Elige uno de tus ${this.ownedAxies.length} o carga uno por su ID` : 'Tu colección de Sky Mavis')}</small></button>`;
+      ? `<button type="button" class="lk-is-mine" aria-pressed="true" data-cc="mine"><span class="lk-med" style="--cc:var(--lk-class-${clsKey(comp)})"><img src="${portraitOf(comp)}" alt=""></span><b>${comp.name}</b><small><img src="${getAxieClassIcon(comp.class)}" alt="">${clsName(comp)} · <span class="lk-chg">${i18n.t('startCreator.change')}</span></small><span class="lk-mine-tag">${i18n.t('startCreator.yourAxie')}</span></button>`
+      : `<button type="button" class="lk-pick-mine" data-cc="mine"><span class="lk-pm-ico"><img class="lk-ai" src="${CC_ICON('collection')}" alt=""></span><b>${i18n.t('startCreator.myAxies')}</b><small>${guest || (!this._ownedLoading && !this.ownedAxies?.length) ? i18n.t('startCreator.loadById') : (this.ownedAxies?.length ? i18n.t('startCreator.pickOrLoad', { n: this.ownedAxies.length }) : i18n.t('startCreator.collection'))}</small></button>`;
     const parts = (s, idx) => { const k = (s.part || AXIE_BODY_PARTS[idx]?.id || '').toLowerCase(); return AXIE_BODY_PARTS_MAP[k] || null; };
     const axieSkills = this._ccAxieSkills(comp);
-    pane.innerHTML = `<h4>Axie compañero</h4><p class="lk-lead">Será tu axie principal: te sigue por Lunacia y con él desatas el Vínculo Supremo. Elige uno inicial o uno de tus propios axies.</p>
+    pane.innerHTML = `<h4>${i18n.t('startCreator.companionTitle')}</h4><p class="lk-lead">${i18n.t('startCreator.companionLead')}</p>
       <div class="lk-ax-pick">${CC_STARTERS.map((k) => HERO_ROSTER.find((h) => h.heroKey === k)).filter(Boolean).map(card).join('')}${mine}</div>
-      <div class="lk-cls-info"><span class="lk-role">${String(comp.archetype || '').replace(/^.*\(([^)]+)\).*$/, '$1') || comp.class}</span><p>${comp.description || ''}</p><span class="lk-label">Cartas de sus partes (6)</span>
-        <div class="lk-spells">${axieSkills === 'loading' ? '<span class="lk-tip-hint">Cargando cartas…</span>' : axieSkills.map((s, i) => { const p = parts(s, i); return `<button type="button" class="lk-spell" style="--cc:var(--lk-class-${clsKey(comp)})" data-tip="axie" data-i="${i}" aria-label="${s.name}${p ? ` (${p.name})` : ''}"><img src="${s.icon}" alt="" loading="lazy" onerror="this.style.display='none'"><img class="lk-spell-part" src="./assets/parts/${s.cls || this._ccAxieCls(comp)}-${this._ccPartOf(s, i)}.png" alt=""></button>`; }).join('')}</div>
-        <span class="lk-tip-hint">Pasa el ratón o mantén pulsado para ver cada carta</span></div>`;
+      <div class="lk-cls-info"><span class="lk-role">${String(comp.archetype || '').replace(/^.*\(([^)]+)\).*$/, '$1') || clsName(comp)}</span><p>${comp.description || ''}</p><span class="lk-label">${i18n.t('startCreator.partCards')}</span>
+        <div class="lk-spells">${axieSkills === 'loading' ? `<span class="lk-tip-hint">${i18n.t('startCreator.loadingCards')}</span>` : axieSkills.map((s, i) => { const p = parts(s, i); return `<button type="button" class="lk-spell" style="--cc:var(--lk-class-${clsKey(comp)})" data-tip="axie" data-i="${i}" aria-label="${s.name}${p ? ` (${p.name})` : ''}"><img src="${s.icon}" alt="" loading="lazy" onerror="this.style.display='none'"><img class="lk-spell-part" src="./assets/parts/${s.cls || this._ccAxieCls(comp)}-${this._ccPartOf(s, i)}.png" alt=""></button>`; }).join('')}</div>
+        <span class="lk-tip-hint">${i18n.t('startCreator.cardHint')}</span></div>`;
   }
 
   _ccRenderName() {
@@ -1223,7 +1235,7 @@ export class StartScreenUI {
     if (!pane) return;
     const c = this._ccClass(), comp = this._ccCompanion(), cz = this.customization;
     const sample = (list, v) => (list.find((x) => String(x.hex).toLowerCase() === String(v || 'original').toLowerCase()) || {}).sample || v;
-    const short = (s) => String(s || '').replace(/^Cuernos /, '').replace(/^Cornamenta de /, '').replace(/^Corte /, '');
+    const short = shortLabel;
     const [st, msg] = this._ccNameState();
     const name = String(this.playerName || '');
     const focused = document.activeElement && document.activeElement.id === 'dofus-char-name';
@@ -1234,15 +1246,15 @@ export class StartScreenUI {
       this._ccRenderSteps();
       return;
     }
-    pane.innerHTML = `<h4>Nombre y confirmación</h4><p class="lk-lead">Así te llamarán los habitantes de Lunacia.</p>
+    pane.innerHTML = `<h4>${i18n.t('startCreator.nameTitle')}</h4><p class="lk-lead">${i18n.t('startCreator.nameLead')}</p>
       <div class="lk-name-field">
-        <div class="lk-name-row"><input class="lk-input ${st === 'err' ? 'lk-is-bad' : ''}" id="dofus-char-name" maxlength="14" value="${name.replace(/"/g, '&quot;')}" autocomplete="off" aria-describedby="lk-cc-name-help"><button type="button" class="lk-btn-circle-icon" data-cc="dice" aria-label="Sugerir un nombre"><img class="lk-ai" src="${CC_ICON('rotate')}" alt=""></button></div>
+        <div class="lk-name-row"><input class="lk-input ${st === 'err' ? 'lk-is-bad' : ''}" id="dofus-char-name" maxlength="14" value="${name.replace(/"/g, '&quot;')}" autocomplete="off" aria-describedby="lk-cc-name-help"><button type="button" class="lk-btn-circle-icon" data-cc="dice" aria-label="${i18n.t('startCreator.suggestName')}"><img class="lk-ai" src="${CC_ICON('rotate')}" alt=""></button></div>
         <div class="lk-name-help" id="lk-cc-name-help" data-ref="nameHelp"><span class="lk-${st}">${msg}</span><span>${name.length}/14</span></div>
       </div>
-      <div class="lk-summary"><span class="lk-label" style="color:var(--lk-gilt-300)">Resumen</span>
-        <div><span>Clase</span><b>${this._ccCrest(c, 20)}${c.name}</b><button type="button" class="lk-edit" data-cc="step" data-s="1">Editar</button></div>
-        <div><span>Aspecto</span><b><i class="lk-dot" style="--c:${sample(HAIR_COLORS, cz.hair)}"></i><i class="lk-dot" style="--c:${sample(PUPIL_COLORS, cz.eyes)}"></i><i class="lk-dot" style="--c:${sample(HORN_COLORS, cz.hornColor)}"></i><i class="lk-dot" style="--c:${sample(SUIT_COLORS, cz.suitColor)}"></i>${SAPIDAE_BASES[this.selectedSapidaeModel] ? (({ hair, outfit, eyes }) => `${hair.name} · ${outfit.name} · ${eyes.name}`)(this._ccLookV2()) : `${short((HAIR_STYLES.find((h) => h.id === cz.hairStyle) || {}).name)} · ${short((HORN_STYLES.find((h) => h.id === cz.horns) || {}).name)}`}</b><button type="button" class="lk-edit" data-cc="step" data-s="2">Editar</button></div>
-        <div><span>Compañero</span><b><img src="${getAxieClassIcon(comp.class || comp.heroKey)}" alt="">${comp.name}</b><button type="button" class="lk-edit" data-cc="step" data-s="3">Editar</button></div>
+      <div class="lk-summary"><span class="lk-label" style="color:var(--lk-gilt-300)">${i18n.t('startCreator.summary')}</span>
+        <div><span>${i18n.t('startCreator.stepClass')}</span><b>${this._ccCrest(c, 20)}${c.name}</b><button type="button" class="lk-edit" data-cc="step" data-s="1">${i18n.t('startCreator.edit')}</button></div>
+        <div><span>${i18n.t('startCreator.look')}</span><b><i class="lk-dot" style="--c:${sample(HAIR_COLORS, cz.hair)}"></i><i class="lk-dot" style="--c:${sample(PUPIL_COLORS, cz.eyes)}"></i><i class="lk-dot" style="--c:${sample(HORN_COLORS, cz.hornColor)}"></i><i class="lk-dot" style="--c:${sample(SUIT_COLORS, cz.suitColor)}"></i>${SAPIDAE_BASES[this.selectedSapidaeModel] ? (({ hair, outfit, eyes }) => `${hair.name} · ${outfit.name} · ${eyes.name}`)(this._ccLookV2()) : `${short((HAIR_STYLES.find((h) => h.id === cz.hairStyle) || {}).name)} · ${short((HORN_STYLES.find((h) => h.id === cz.horns) || {}).name)}`}</b><button type="button" class="lk-edit" data-cc="step" data-s="2">${i18n.t('startCreator.edit')}</button></div>
+        <div><span>${i18n.t('startCreator.stepCompanion')}</span><b><img src="${getAxieClassIcon(comp.class || comp.heroKey)}" alt="">${comp.name}</b><button type="button" class="lk-edit" data-cc="step" data-s="3">${i18n.t('startCreator.edit')}</button></div>
       </div>`;
     this._ccRenderSteps();
   }
@@ -1265,16 +1277,16 @@ export class StartScreenUI {
   /** Panel «Cargar un Axie por su ID» (19-oct; UX 20-oct): campo con «#», admite pegar el enlace del Axie,
    *  estados claros (buscando · no encontrado · encontrado) y vista previa antes de elegirlo de compañero. */
   _ccOpenIdPicker() {
-    this._ccPickerTexts('Cargar un Axie por su ID', 'Escribe el número de cualquier Axie de Lunacia, o pega su enlace. Llega con su modelo, su clase y las cartas de sus partes.');
+    this._ccPickerTexts(i18n.t('startCreator.loadById'), i18n.t('startCreator.loadByIdLead'));
     this._ccFound = null;
-    const back = this.ownedAxies?.length ? '<button type="button" class="lk-ax-id__back" data-cc="pickBackList">← Volver a mis axies</button>' : '';
+    const back = this.ownedAxies?.length ? `<button type="button" class="lk-ax-id__back" data-cc="pickBackList">${i18n.t('startCreator.backToMine')}</button>` : '';
     const grid = this._ccRef('pickGrid');
     grid.innerHTML = `<div class="lk-ax-id" style="grid-column:1/-1">
         <form class="lk-ax-id__form" data-ref="idForm" novalidate>
-          <label class="lk-ax-id__field" for="lk-ax-id-input"><span class="lk-ax-id__hash" aria-hidden="true">#</span><input id="lk-ax-id-input" type="text" inputmode="numeric" autocomplete="off" spellcheck="false" maxlength="120" placeholder="11968787" aria-label="ID del Axie" aria-describedby="lk-ax-id-help"></label>
-          <button type="submit" class="lk-btn lk-btn-primary-gold" data-ref="idGo" disabled><span class="lk-b-ico"><img class="lk-ai" src="${CC_ICON('search')}" alt=""></span><span data-ref="idGoTxt">Buscar</span></button>
+          <label class="lk-ax-id__field" for="lk-ax-id-input"><span class="lk-ax-id__hash" aria-hidden="true">#</span><input id="lk-ax-id-input" type="text" inputmode="numeric" autocomplete="off" spellcheck="false" maxlength="120" placeholder="11968787" aria-label="${i18n.t('startCreator.idAria')}" aria-describedby="lk-ax-id-help"></label>
+          <button type="submit" class="lk-btn lk-btn-primary-gold" data-ref="idGo" disabled><span class="lk-b-ico"><img class="lk-ai" src="${CC_ICON('search')}" alt=""></span><span data-ref="idGoTxt">${i18n.t('startCreator.search')}</span></button>
         </form>
-        <p class="lk-ax-id__help" id="lk-ax-id-help">El ID es el número de la dirección del Axie: <code>app.axieinfinity.com/…/axies/<b>11968787</b></code></p>
+        <p class="lk-ax-id__help" id="lk-ax-id-help">${i18n.t('startCreator.idHelp')} <code>app.axieinfinity.com/…/axies/<b>11968787</b></code></p>
         <div class="lk-ax-id__out" data-ref="pickStatus" aria-live="polite"></div>
         ${back}</div>`;
     this._ccRef('picker').classList.add('lk-is-on');
@@ -1298,7 +1310,7 @@ export class StartScreenUI {
     const busy = state === 'loading' || state === 'adopting';
     if (input) { input.readOnly = busy; input.closest('.lk-ax-id__field')?.classList.toggle('lk-is-bad', state === 'error'); input.setAttribute('aria-invalid', String(state === 'error')); }
     if (go) { go.disabled = busy || !this._ccParseAxieId(input?.value); go.classList.toggle('lk-is-busy', state === 'loading'); }
-    if (txt) txt.textContent = state === 'loading' ? 'Buscando…' : 'Buscar';
+    if (txt) txt.textContent = state === 'loading' ? i18n.t('startCreator.searching') : i18n.t('startCreator.search');
     if (state === 'loading' || state === 'adopting') {
       out.className = 'lk-ax-id__out lk-is-wait';
       out.innerHTML = `<span class="lk-ax-id__spin" aria-hidden="true"></span><span>${esc(msg)}</span>`;
@@ -1312,8 +1324,8 @@ export class StartScreenUI {
       out.className = 'lk-ax-id__out lk-is-found';
       out.innerHTML = `<div class="lk-ax-id__card" style="--cc:var(--lk-class-${cls})">
           <span class="lk-ax-id__art">${img ? `<img src="${esc(img)}" alt="" onerror="this.remove()">` : ''}</span>
-          <div class="lk-ax-id__info"><small>Axie #${esc(hero.axieId)}${hero.axpLevel ? ` · AXP nivel ${hero.axpLevel}` : ''}</small><b>${esc(hero.name)}</b><span class="lk-ax-id__cls"><img src="${getAxieClassIcon(hero.class)}" alt="">${esc(hero.class)}</span></div>
-          <div class="lk-ax-id__acts"><button type="button" class="lk-btn lk-btn-primary-gold lk-btn--sm" data-cc="adoptFound">Elegir de compañero</button><button type="button" class="lk-ax-id__again" data-cc="idAgain">Buscar otro</button></div>
+          <div class="lk-ax-id__info"><small>Axie #${esc(hero.axieId)}${hero.axpLevel ? ` · ${i18n.t('startCreator.axpLevel', { n: hero.axpLevel })}` : ''}</small><b>${esc(hero.name)}</b><span class="lk-ax-id__cls"><img src="${getAxieClassIcon(hero.class)}" alt="">${esc(hero.class)}</span></div>
+          <div class="lk-ax-id__acts"><button type="button" class="lk-btn lk-btn-primary-gold lk-btn--sm" data-cc="adoptFound">${i18n.t('startCreator.adopt')}</button><button type="button" class="lk-ax-id__again" data-cc="idAgain">${i18n.t('startCreator.searchAgain')}</button></div>
         </div>`;
       setTimeout(() => out.querySelector('[data-cc="adoptFound"]')?.focus(), 30);
     } else {
@@ -1327,17 +1339,17 @@ export class StartScreenUI {
     const id = this._ccParseAxieId(raw);
     const input = this._ccRef('pickGrid')?.querySelector('#lk-ax-id-input');
     if (input && id && input.value !== id) input.value = id;
-    if (!id) { this._ccIdState('error', { msg: 'Escribe el número (ID) del Axie.' }); input?.focus(); return; }
+    if (!id) { this._ccIdState('error', { msg: i18n.t('startCreator.idEmpty') }); input?.focus(); return; }
     if (this._ccLoadingId) return;
     this._ccLoadingId = id;
     this._ccFound = null;
     try {
-      this._ccIdState('loading', { msg: `Buscando el Axie #${id} en Lunacia…` });
+      this._ccIdState('loading', { msg: i18n.t('startCreator.idSearching', { id }) });
       let data = null;
       try { data = await axieMixerService.fetchAxieData(id); } catch { data = null; }
       if (this._ccLoadingId !== id) return;
       if (!data || !(data.newGenes || data.genes)) {
-        this._ccIdState('error', { msg: navigator.onLine === false ? 'Sin conexión: no se pudo consultar Sky Mavis. Inténtalo de nuevo.' : `No existe ningún Axie con el ID #${id}. Revisa el número.` });
+        this._ccIdState('error', { msg: navigator.onLine === false ? i18n.t('startCreator.offline') : i18n.t('startCreator.idNotFound', { id }) });
         input?.focus(); input?.select();
         return;
       }
@@ -1353,9 +1365,9 @@ export class StartScreenUI {
     const data = this._ccFound; if (!data || this._ccAdopting) return;
     this._ccAdopting = true;
     try {
-      await this._ccAdoptAxie(data, (t) => this._ccIdState('adopting', { msg: t }), `Axie #${data.id} cargado por su ID.`);
+      await this._ccAdoptAxie(data, (t) => this._ccIdState('adopting', { msg: t }), i18n.t('startCreator.descById', { id: data.id }));
     } catch {
-      this._ccIdState('error', { msg: 'No se pudieron calcular sus cartas. Inténtalo de nuevo.' });
+      this._ccIdState('error', { msg: i18n.t('startCreator.cardsFail') });
     } finally {
       this._ccAdopting = false;
     }
@@ -1378,7 +1390,7 @@ export class StartScreenUI {
   /** Calcula sus cartas de partes (con colecciones) y su vida/iniciativa, y lo pone de compañero. */
   async _ccAdoptAxie(data, say = () => {}, description = null) {
     const hero = this._ccHeroFromAxieData(data, description);
-    say('Calculando las cartas de sus partes…');
+    say(i18n.t('startCreator.calcCards'));
     const resolver = typeof window !== 'undefined' ? window.lunakaiParts : null;
     const res = resolver ? await resolver.resolve(hero).catch(() => null) : null;
     Object.assign(hero, axieBaseStats(hero.class, res?.ids || []));
@@ -1386,7 +1398,7 @@ export class StartScreenUI {
     this._customCompanion = hero;
     this._ccRef('picker').classList.remove('lk-is-on');
     this._ccSetCompanion(hero);
-    toast(`${hero.name} será tu compañero${cols.length ? ` · partes de colección: ${cols.join(', ')}` : ''}`);
+    toast(i18n.t('startCreator.companionSet', { name: hero.name }) + (cols.length ? i18n.t('startCreator.collectionParts', { list: cols.join(', ') }) : ''));
     return hero;
   }
 
@@ -1396,7 +1408,7 @@ export class StartScreenUI {
     this._ownedLoading = true;
     try {
       const list = await axieMixerService.fetchOwnedAxies();
-      this.setOwnedAxies(list.map((a) => ({ ...this._ccHeroFromAxieData(a, `Axie #${a.id} de tu cuenta.`), data: a })));
+      this.setOwnedAxies(list.map((a) => ({ ...this._ccHeroFromAxieData(a, i18n.t('startCreator.descOwned', { id: a.id })), data: a })));
     } catch (err) {
       console.warn('[StartScreenUI] No se pudieron cargar tus Axies:', err?.code || err);
       this._ownedError = err;
@@ -1407,13 +1419,14 @@ export class StartScreenUI {
   }
 
   _ccOpenPicker() {
-    this._ccPickerTexts('Elige uno de tus axies', 'Axies de tu cuenta Sky Mavis. Llegan con su nivel AXP y sus partes; podrás cambiarlo después en el Escuadrón.');
+    this._ccPickerTexts(i18n.t('startCreator.pickTitle'), i18n.t('startCreator.pickLead'));
     const list = this.ownedAxies || [];
     const grid = this._ccRef('pickGrid');
     const clsKey = (h) => axieClassKey(h.class || h.heroKey) || 'beast';
-    grid.innerHTML = list.map((a, i) => `<button type="button" class="lk-ax-card ${a.heroKey === this.selectedCompanionKey ? 'lk-is-sel' : ''}" data-cc="pickAxie" data-i="${i}" style="--cc:var(--lk-class-${clsKey(a)});cursor:pointer"><span class="lk-med" style="--cc:var(--lk-class-${clsKey(a)})"><img src="${portraitService.getPortraitSync(a.axieId) || a.image || ''}" alt=""></span><b>${a.name}</b><small><img src="${getAxieClassIcon(a.class)}" alt="">${a.class}${a.axpLevel ? ` · AXP ${a.axpLevel}` : ''}</small></button>`).join('')
+    const clsName = (h) => i18n.t(`heroes.axieClass.${clsKey(h)}`); // `class` es dato (Beast…): se muestra traducido
+    grid.innerHTML = list.map((a, i) => `<button type="button" class="lk-ax-card ${a.heroKey === this.selectedCompanionKey ? 'lk-is-sel' : ''}" data-cc="pickAxie" data-i="${i}" style="--cc:var(--lk-class-${clsKey(a)});cursor:pointer"><span class="lk-med" style="--cc:var(--lk-class-${clsKey(a)})"><img src="${portraitService.getPortraitSync(a.axieId) || a.image || ''}" alt=""></span><b>${a.name}</b><small><img src="${getAxieClassIcon(a.class)}" alt="">${clsName(a)}${a.axpLevel ? ` · AXP ${a.axpLevel}` : ''}</small></button>`).join('')
       // También con cuenta: cargar cualquier Axie por su ID (19-oct)
-      + `<button type="button" class="lk-ax-card" data-cc="pickById" style="--cc:var(--lk-gilt-300);cursor:pointer"><span class="lk-med" style="--cc:var(--lk-gilt-300);display:grid;place-items:center;font-size:22px;font-weight:700">#</span><b>Cargar por ID</b><small>Cualquier Axie de Lunacia</small></button>`;
+      + `<button type="button" class="lk-ax-card" data-cc="pickById" style="--cc:var(--lk-gilt-300);cursor:pointer"><span class="lk-med" style="--cc:var(--lk-gilt-300);display:grid;place-items:center;font-size:22px;font-weight:700">#</span><b>${i18n.t('startCreator.loadByIdShort')}</b><small>${i18n.t('startCreator.anyAxie')}</small></button>`;
     this._ccRef('picker').classList.add('lk-is-on');
     this.heroSelectModal.querySelector('[data-cc="pickClose"]')?.focus();
   }
@@ -1450,25 +1463,27 @@ export class StartScreenUI {
   /** Ficha táctica del sistema de diseño: arte, icono de parte o clase, coste, alcance, visión y efecto. */
   _ccSpellTip(s, color, lead, label) {
     const abs = (u) => { try { return new URL(u, document.baseURI).href; } catch { return u; } };
-    const cost = String(s.cost || '').replace(/\s*AP\b/i, ' PA');
+    const cost = String(s.cost || '').replace(/\s*AP\b/i, ` ${i18n.t('startCreator.statAp')}`);
     const range = String(s.range || '');
     const type = String(s.type || '');
     const desc = String(s.desc || '');
-    const noLos = typeof s.noLos === 'boolean' ? s.noLos : (/aura|salto|teletransp|^0$/i.test(range) || /aura|salto|movilidad|autopropi|potenciador/i.test(type));
+    // Las reglas de abajo leen la versión española de los textos (los traducidos se buscan en el diccionario)
+    const rangeEs = i18n.inLang(range, 'es'), typeEs = i18n.inLang(type, 'es'), descEs = i18n.inLang(desc, 'es');
+    const noLos = typeof s.noLos === 'boolean' ? s.noLos : (/aura|salto|teletransp|^0$/i.test(rangeEs) || /aura|salto|movilidad|autopropi|potenciador/i.test(typeEs));
     let eff = s.eff || null;
-    const dmg = desc.match(/(\d+(?:\s*[-–]\s*\d+)?)\s*de\s*daño/i);
-    const heal = desc.match(/(?:cura|restaura|recupera)[^0-9+]*\+?(\d+(?:\s*[-–]\s*\d+)?)/i) || desc.match(/\+?(\d+(?:\s*[-–]\s*\d+)?)\s*de\s*(?:vida|curación|salud)/i);
-    const shield = desc.match(/\+?(\d+(?:\s*[-–]\s*\d+)?)\s*de\s*escudo/i);
+    const dmg = descEs.match(/(\d+(?:\s*[-–]\s*\d+)?)\s*de\s*daño/i);
+    const heal = descEs.match(/(?:cura|restaura|recupera)[^0-9+]*\+?(\d+(?:\s*[-–]\s*\d+)?)/i) || descEs.match(/\+?(\d+(?:\s*[-–]\s*\d+)?)\s*de\s*(?:vida|curación|salud)/i);
+    const shield = descEs.match(/\+?(\d+(?:\s*[-–]\s*\d+)?)\s*de\s*escudo/i);
     if (eff) { /* cartas de partes: efecto ya calculado */ }
-    else if (dmg) eff = ['Daño', dmg[1].replace(/\s*[-–]\s*/, '–')];
-    else if (heal) eff = ['Curación', `+${heal[1].replace(/\s*[-–]\s*/, '–')}`];
-    else if (shield) eff = ['Escudo', `+${shield[1].replace(/\s*[-–]\s*/, '–')}`];
+    else if (dmg) eff = [i18n.t('startCreator.damage'), dmg[1].replace(/\s*[-–]\s*/, '–')];
+    else if (heal) eff = [i18n.t('startCreator.heal'), `+${heal[1].replace(/\s*[-–]\s*/, '–')}`];
+    else if (shield) eff = [i18n.t('startCreator.shield'), `+${shield[1].replace(/\s*[-–]\s*/, '–')}`];
     const vision = `<img class="lk-ai" src="${CC_ICON('vision')}" alt="">`;
-    return `<div class="lk-tooltip-tactical" style="--c:${color};--art:url('${abs(s.icon)}')"><header class="lk-has-art">${lead || ''}<div><small>${label ? `${label} · ` : ''}${type || 'Hechizo'}</small><b>${s.name}</b></div></header>`
+    return `<div class="lk-tooltip-tactical" style="--c:${color};--art:url('${abs(s.icon)}')"><header class="lk-has-art">${lead || ''}<div><small>${label ? `${label} · ` : ''}${type || i18n.t('startCreator.spell')}</small><b>${s.name}</b></div></header>`
       + '<div class="lk-tt-body"><div class="lk-tt-stats">'
-      + `<span class="lk-tt-stat"><i class="lk-tl"><img class="lk-ai" src="${CC_ICON('pa')}" alt="">Coste</i><b>${cost || '—'}</b></span>`
-      + `<span class="lk-tt-stat"><i class="lk-tl"><img class="lk-ai" src="${CC_ICON('range')}" alt="">Alcance</i><b>AL ${range.replace('-', '–') || '—'}</b></span>`
-      + `<span class="lk-tt-stat"><i class="lk-tl">${noLos ? `<span class="lk-nolos-ai">${vision}</span>` : vision}Visión</i><b>${noLos ? 'No requiere' : 'Requiere'}</b></span>`
+      + `<span class="lk-tt-stat"><i class="lk-tl"><img class="lk-ai" src="${CC_ICON('pa')}" alt="">${i18n.t('startCreator.cost')}</i><b>${cost || '—'}</b></span>`
+      + `<span class="lk-tt-stat"><i class="lk-tl"><img class="lk-ai" src="${CC_ICON('range')}" alt="">${i18n.t('startCreator.range')}</i><b>${i18n.t('startCreator.rangeAbbr')} ${range.replace('-', '–') || '—'}</b></span>`
+      + `<span class="lk-tt-stat"><i class="lk-tl">${noLos ? `<span class="lk-nolos-ai">${vision}</span>` : vision}${i18n.t('startCreator.sight')}</i><b>${noLos ? i18n.t('startCreator.notRequired') : i18n.t('startCreator.required')}</b></span>`
       + (eff ? `<span class="lk-tt-stat">${eff[0]}<b>${eff[1]}</b></span>` : '')
       + `</div><p>${desc}</p></div></div>`;
   }
@@ -1482,13 +1497,13 @@ export class StartScreenUI {
     if (!comp || !resolver || !(comp.axieId || comp.genes)) return comp?.skills || [];
     const ids = resolver.idsFor(comp);
     if (ids) {
-      const TYPE = { enemy: 'Ataque', ally: 'Apoyo', self: 'Sobre sí mismo', empty: 'Casilla vacía', any: 'Cualquier casilla' };
+      const TYPE = { enemy: i18n.t('startCreator.tAttack'), ally: i18n.t('startCreator.tSupport'), self: i18n.t('startCreator.tSelf'), empty: i18n.t('startCreator.tEmpty'), any: i18n.t('startCreator.tAny') };
       return ids.map((id) => SPELLS_DB[id]).filter(Boolean).map((sp) => ({
         id: sp.id, name: sp.name, part: sp.part, cls: sp.iconClass || sp.class, icon: sp.icon || sp.partIcon,
         cost: `${sp.paCost} AP`, range: sp.minRange === sp.maxRange ? String(sp.maxRange) : `${sp.minRange}-${sp.maxRange}`,
-        type: `${TYPE[sp.targetType] || 'Carta'}${sp.stage >= 2 ? ' · Nivel 2' : ''}`, desc: sp.description || '', noLos: sp.requiresLoS === false,
-        eff: sp.baseMinDamage ? ['Daño', sp.baseMinDamage === sp.baseMaxDamage ? `${sp.baseMinDamage}` : `${sp.baseMinDamage}–${sp.baseMaxDamage}`]
-          : sp.baseMinHeal ? ['Curación', `+${sp.baseMinHeal}`] : sp.shieldAmount ? ['Escudo', `+${sp.shieldAmount}`] : null,
+        type: `${TYPE[sp.targetType] || i18n.t('startCreator.card')}${sp.stage >= 2 ? ` · ${i18n.t('startCreator.level2')}` : ''}`, desc: sp.description || '', noLos: sp.requiresLoS === false,
+        eff: sp.baseMinDamage ? [i18n.t('startCreator.damage'), sp.baseMinDamage === sp.baseMaxDamage ? `${sp.baseMinDamage}` : `${sp.baseMinDamage}–${sp.baseMaxDamage}`]
+          : sp.baseMinHeal ? [i18n.t('startCreator.heal'), `+${sp.baseMinHeal}`] : sp.shieldAmount ? [i18n.t('startCreator.shield'), `+${sp.shieldAmount}`] : null,
       }));
     }
     this._ccPartsTried = this._ccPartsTried || {};
@@ -1512,12 +1527,12 @@ export class StartScreenUI {
     const i = +el.dataset.i;
     if (el.dataset.tip === 'class') {
       const c = this._ccClass(), s = (c.spellPreviews || [])[i];
-      if (s) tooltip.show(el, this._ccSpellTip(s, CC_COLORS[c.id] || '#C98A3B', `<span class="lk-tt-crest">${this._ccCrest(c, 40)}</span>`, 'Hechizo'));
+      if (s) tooltip.show(el, this._ccSpellTip(s, CC_COLORS[c.id] || '#C98A3B', `<span class="lk-tt-crest">${this._ccCrest(c, 40)}</span>`, i18n.t('startCreator.spell')));
     } else {
       const comp = this._ccCompanion(), list = this._ccAxieSkills(comp), s = Array.isArray(list) ? list[i] : null;
       if (!s) return;
       const cls = s.cls || this._ccAxieCls(comp), part = this._ccPartOf(s, i);
-      const PART = { eyes: 'Ojos', ears: 'Orejas', mouth: 'Boca', horn: 'Cuerno', back: 'Espalda', tail: 'Cola' };
+      const PART = { eyes: i18n.t('startCreator.partEyes'), ears: i18n.t('startCreator.partEars'), mouth: i18n.t('startCreator.partMouth'), horn: i18n.t('startCreator.partHorn'), back: i18n.t('startCreator.partBack'), tail: i18n.t('startCreator.partTail') };
       tooltip.show(el, this._ccSpellTip(s, `var(--lk-class-${cls})`, `<img class="lk-part-ico lk-tt-part" src="./assets/parts/${cls}-${part}.png" alt="${PART[part] || part}">`, PART[part] || part));
     }
   }
@@ -1573,7 +1588,7 @@ export class StartScreenUI {
           const guest = this._getSession?.()?.mode !== 'skymavis';
           // Invitado o cuenta por correo (19-oct): se prueba cualquier Axie escribiendo su ID (colecciones Japan, Xmas…)
           if (guest) { this._ccOpenIdPicker(); break; }
-          if (this._ownedLoading) { toast('Cargando tus Axies de Sky Mavis…'); break; }
+          if (this._ownedLoading) { toast(i18n.t('startCreator.loadingOwned')); break; }
           if (!this.ownedAxies || !this.ownedAxies.length) {
             // Cuenta sin Axies (o sin poder cargarlos): se puede cargar cualquier Axie por su ID (19-oct)
             if (this._ownedError) { this._ownedError = null; this._loadOwnedAxies(); }
@@ -1586,7 +1601,7 @@ export class StartScreenUI {
         case 'pickAxie': {
           const h = (this.ownedAxies || [])[+el.dataset.i];
           // Igual que la carga por ID: cartas de partes, colecciones, vida e iniciativa de su clase y rol
-          if (h) this._ccAdoptAxie(h.data || h, () => {}, `Axie #${h.axieId} de tu cuenta.`);
+          if (h) this._ccAdoptAxie(h.data || h, () => {}, i18n.t('startCreator.descOwned', { id: h.axieId }));
           break;
         }
         case 'pickClose': this._ccRef('picker').classList.remove('lk-is-on'); break;
@@ -1670,7 +1685,7 @@ export class StartScreenUI {
     this.selectedSapidaeClass = this.selectedSapidaeClass || 'crafter';
     this.selectedSapidaeModel = SAPIDAE_BASES[this.selectedSapidaeModel] ? this.selectedSapidaeModel : DEFAULT_SAPIDAE_MODEL;
     this.selectedCompanionKey = this.selectedCompanionKey || 'beast_rage';
-    this.playerName = this.playerName || 'Ema';
+    this.playerName = this.playerName || 'Lunara';
 
     if (!CC_STARTERS.includes(this.selectedCompanionKey) && !this._customCompanion) this.selectedCompanionKey = CC_STARTERS[0];
     this.ccStep = 1;
@@ -1753,11 +1768,11 @@ export class StartScreenUI {
     this._launchGameWithSlot(slot, false);
   }
 
-  _confirmDeleteSlot(slotId, heroName = 'esta aventura') {
+  _confirmDeleteSlot(slotId, heroName = i18n.t('start.thisAdventure')) {
     this._slotToDelete = slotId;
     const data = saveSlotManager.getSlot(slotId);
     const txt = this._ref('delText');
-    if (txt) txt.innerHTML = `Se borrará la aventura de <b>${heroName}</b> (Ranura ${slotId}${data?.zone?.name ? `, ${data.zone.name}` : ''}).`;
+    if (txt) txt.innerHTML = i18n.t('start.delText', { name: heroName, n: slotId, zone: data?.zone?.name ? `, ${zoneLabel(data.zone)}` : '' });
     this.confirmModal.classList.add('lk-is-on');
     setTimeout(() => this.confirmModal.querySelector('[data-act="delCancel"]')?.focus(), 30);
   }

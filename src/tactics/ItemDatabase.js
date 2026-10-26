@@ -6,6 +6,7 @@
 // Curva de estadísticas: Raro ×1,25 · Épico ×1,5 · Místico ×2 sobre la Común de su línea; el bastón Místico da +1 PA
 // y las botas Místicas +1 PM. Iconos: assets/equippable/<id>.webp.
 import { TIER0_ITEMS } from './data/EconomyCatalog.js';
+import * as i18n from '../i18n/i18n.js';
 export const ITEMS_DB = {
   // ==========================================
   // --- 1. EQUIPO (Raro · Épico · Místico) ---
@@ -183,7 +184,7 @@ export const ITEMS_DB = {
     tier: 2,
     stats: {},
     effect: { heal: 100 },
-    description: 'Medicinal flask with moss extract and healing dew crafted by Rosalba. Instantly restores 100 HP to the selected hero.'
+    description: 'Medicinal flask with moss extract and healing dew crafted by Ema. Instantly restores 100 HP to the selected hero.'
   },
   potion_health_large: {
     id: 'potion_health_large',
@@ -224,6 +225,33 @@ export const ITEMS_DB = {
     stats: {},
     effect: { bond: 5 },
     description: 'Receta casera del Valle del Dojo, todavía tibia. +5 % de vínculo con tu Axie.'
+  },
+  // ==========================================
+  // --- BOLSAS DE RUNA Y DE CHARM (Hito 54: se crean en la Forja y se abren desde la Mochila) ---
+  // ==========================================
+  rune_bag: {
+    id: 'rune_bag',
+    name: 'Bolsa de runa',
+    category: 'bag',
+    slot: 'consumable',
+    icon: './assets/consumable/bag_rune.webp', // Hito 74
+    rarity: 'epic',
+    tier: 2,
+    stats: {},
+    effect: { openBag: 'runes' },
+    description: 'Ábrela en la Mochila: dentro hay una runa de clase al azar (Acuático, Bestia, Pájaro, Bicho, Planta o Reptil).'
+  },
+  charm_bag: {
+    id: 'charm_bag',
+    name: 'Bolsa de charm',
+    category: 'bag',
+    slot: 'consumable',
+    icon: './assets/consumable/bag_charms.webp', // Hito 74
+    rarity: 'rare',
+    tier: 1,
+    stats: {},
+    effect: { openBag: 'charms' },
+    description: 'Ábrela en la Mochila: dentro hay un charm de clase al azar (Acuático, Bestia, Pájaro, Bicho, Planta o Reptil).'
   },
   food_feast: {
     id: 'food_feast',
@@ -286,7 +314,7 @@ export const ITEMS_DB = {
     rarity: 'common',
     tier: 1,
     stats: {},
-    description: 'Glow-in-the-dark plant sprout required by Rosalba to purify her elixirs.'
+    description: 'Glow-in-the-dark plant sprout required by Ema to purify her elixirs.'
   },
   frost_mushrooms: {
     id: 'frost_mushrooms',
@@ -355,10 +383,11 @@ export const ITEMS_DB = {
     description: 'Key forged in elemental magma. Unlocks the arcane seal of the final Crypt Catacombs.'
   }
 };
+i18n.applyText(ITEMS_DB, 'items', ['name', 'description']);
 
 // Piezas Comunes (Tier 0): las que se crean en la Forja, se compran en la Tienda o se ganan en misiones y combates.
 Object.values(TIER0_ITEMS).forEach((t) => {
-  if (!ITEMS_DB[t.id]) ITEMS_DB[t.id] = { ...t, icon: t.icon || '🔨' };
+  if (!ITEMS_DB[t.id]) ITEMS_DB[t.id] = { ...t, icon: t.icon || './assets/ui/icons/build.png' };
 });
 
 // El equipo tiene 4 niveles y la rareza va ligada al nivel: Tier 0 Común · Tier 1 Raro · Tier 2 Épico · Tier 3 Místico.

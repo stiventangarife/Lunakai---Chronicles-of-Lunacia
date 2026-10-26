@@ -87,11 +87,17 @@ export class Terrain {
     }
 
     // 5. ZONA 3: CAUCE DEL RÍO Y RIBERAS NATURALES (Nace en manantial norte Z: -115)
-    const { riverCenterX, riverHalfWidth } = WaterManager.getRiverBounds(z);
+    const { riverCenterX, riverHalfWidth: rhw0 } = WaterManager.getRiverBounds(z);
+    // Estuario norte (Hito 66): el cauce se abre al llegar al mar, igual que el agua
+    const riverHalfWidth = (this.legacyHeights || x >= riverCenterX) ? rhw0 : rhw0 * WaterManager.getNorthMouthFactor(z); // solo hacia el oeste
     const distToRiver = Math.abs(x - riverCenterX);
 
-    if (z >= -115) {
-      const riverSourceBlend = smoothstep(-115.0, -95.0, z);
+    // Hito 66: el río llega al mar del norte y tiene vados. Con legacyHeights = true se calcula el terreno de antes
+    // (PropsManager lo usa al colocar la vegetación, para que la isla salga idéntica; ver PropsManager).
+    const ext = !this.legacyHeights;
+    const riverZ0 = ext ? WaterManager.RIVER_CARVE_Z0 : WaterManager.RIVER_Z_SPRING;
+    if (z >= riverZ0) {
+      const riverSourceBlend = ext ? 1.0 : smoothstep(-115.0, -95.0, z);
       const waterY = WaterManager.getRiverWaterHeight(z);
 
       const bankWidth = 10.0; // Ancho suave y generoso de orilla (10m) para pendiente ultraligera
@@ -113,13 +119,19 @@ export class Terrain {
         riverH = edgeY * (1.0 - smoothT) + targetH * smoothT;
       }
 
+      // Vados: el lecho sube hasta dejar FORD_DEPTH m de agua (solo dentro del cauce)
+      if (ext && distToRiver <= riverHalfWidth) {
+        const ford = WaterManager.getFordFactor(x, z, this.roadManager);
+        if (ford > 0) riverH += (Math.max(riverH, waterY - WaterManager.FORD_DEPTH) - riverH) * ford;
+      }
+
       h = h * (1.0 - riverSourceBlend) + riverH * riverSourceBlend;
     }
 
     // Aplanado sutil del camino (excluyendo el cauce y la ribera del río)
     if (this.roadManager) {
       const rf = this.roadManager.getRoadFactor(x, z);
-      if (rf > 0.05 && (z < -115 || distToRiver > riverHalfWidth + 2.0)) {
+      if (rf > 0.05 && (z < riverZ0 || distToRiver > riverHalfWidth + 2.0)) {
         const smoothH = (this.getHeightRaw(x - 2, z) + this.getHeightRaw(x + 2, z)) * 0.5;
         h = h * (1.0 - rf * 0.35) + smoothH * (rf * 0.35);
       }

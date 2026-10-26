@@ -1,4 +1,5 @@
 import { playerSapidaeModel } from './SapidaeModels.js';
+import * as i18n from '../i18n/i18n.js';
 // SaveSlotManager.js - Manages 3 persistent adventure save slots in localStorage
 export const HERO_ROSTER = [
   {
@@ -376,6 +377,28 @@ export const SAPIDAE_CLASSES = {
   }
 };
 
+// Textos de héroes y clases en el idioma activo (i18n/*/heroes.js). Los ids, clases y el nombre de clase del Sapidae no cambian.
+for (const h of HERO_ROSTER) {
+  for (const f of ['archetype', 'description']) { const k = `heroes.${h.heroKey}.${f}`, v = i18n.t(k); if (v !== k) h[f] = v; }
+  i18n.applyText(h.skills, `heroes.${h.heroKey}.skill`, ['name', 'partName', 'type', 'desc', 'range']);
+}
+i18n.applyText(SAPIDAE_CLASSES, 'heroes.class', ['title', 'archetype', 'description']);
+for (const c of Object.values(SAPIDAE_CLASSES)) i18n.applyText(c.spellPreviews, `heroes.class.${c.id}.spell`, ['name', 'type', 'desc', 'range']);
+
+/**
+ * Textos visibles de un héroe guardado (slot.hero) en el idioma actual: la partida guarda una copia con los textos del
+ * idioma en que se creó; aquí se toman de HERO_ROSTER (por heroKey, y cada habilidad por id) y, si no está, de la copia.
+ * Devuelve { archetype, description, skills }.
+ */
+export function heroDisplayText(hero) {
+  const base = hero && HERO_ROSTER.find((h) => h.heroKey === hero.heroKey);
+  const skills = (hero?.skills || base?.skills || []).map((s) => {
+    const b = base?.skills?.find((x) => x.id === s.id);
+    return b ? { ...s, name: b.name, partName: b.partName, type: b.type, desc: b.desc, range: b.range } : s;
+  });
+  return { archetype: base?.archetype ?? hero?.archetype ?? '', description: base?.description ?? hero?.description ?? '', skills };
+}
+
 // Invitado: la clave histórica (conserva el progreso que ya existía en el dispositivo).
 const STORAGE_KEY = 'axie_tactics_adventure_slots_v1';
 // Cuenta: una caché local separada por usuario, para que cambiar de cuenta nunca mezcle ni muestre progreso ajeno.
@@ -634,7 +657,7 @@ export class SaveSlotManager {
       isSapidae: true,
       sapidaeModel: playerSapidaeModel(heroTemplate.sapidaeModel || 'sapidae-f-ema'),
       sapidaePortrait: heroTemplate.sapidaePortrait || null,
-      playerName: heroTemplate.playerName || 'Ema',
+      playerName: heroTemplate.playerName || 'Lunara',
       sapidaeClass: heroTemplate.sapidaeClass || 'crafter',
       customization: heroTemplate.customization || {
         useOriginalTextures: true,
@@ -716,6 +739,7 @@ export class SaveSlotManager {
     if (progressData.tutorialProgress) slot.tutorialProgress = progressData.tutorialProgress;
     if (progressData.unlockedHeroes) slot.unlockedHeroes = progressData.unlockedHeroes;
     if (progressData.squad !== undefined) slot.squad = progressData.squad;
+    if (progressData.accountAxies) slot.accountAxies = progressData.accountAxies; // Hito 75: Axies de la cuenta
     if (progressData.inventory) slot.inventory = progressData.inventory;
     if (progressData.equipped) slot.equipped = progressData.equipped;
     if (progressData.progression) slot.progression = progressData.progression;

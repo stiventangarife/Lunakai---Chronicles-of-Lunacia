@@ -11,6 +11,8 @@
 // `desc` = efecto en combate (tactics/combat/RuneCharmEffects.js, guía «Matriz de runas y catálogo de charms»).
 // Las 27 runas de las clases secretas (Mech, Dawn, Dusk) no están en la guía: siguen sin efecto (`desc` vacío).
 
+import * as i18n from '../../i18n/i18n.js';
+
 export const PP_MAX = 15;
 
 export const RUNES = [
@@ -645,6 +647,8 @@ export const RUNES = [
 "desc": "+55 de vida máxima y +10 % de daño cuerpo a cuerpo."
 }
 ];
+// Textos visibles en el idioma activo (i18n/es|en/runesCharms.js); los nombres no se traducen
+i18n.applyText(RUNES, 'runesCharms.rune', ['desc']);
 
 export const CHARMS = [
 {
@@ -1368,6 +1372,7 @@ export const CHARMS = [
 "desc": "La carta aplica Veneno de 10 (2 turnos)."
 }
 ];
+i18n.applyText(CHARMS, 'runesCharms.charm', ['desc']);
 
 export const RUNE_BY_ID = Object.fromEntries(RUNES.map((r) => [r.id, r]));
 export const CHARM_BY_ID = Object.fromEntries(CHARMS.map((c) => [c.id, c]));

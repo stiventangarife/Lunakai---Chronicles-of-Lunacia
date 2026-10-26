@@ -4,12 +4,49 @@ import { fbm2D } from '../../demo_scena/grassShader.js';
 import { GrandIslandZone, loadGLTF } from '../GrandIslandZone.js';
 import { smooth } from '../kit/IslandTerrainData.js';
 import { crystalMaterial, islandRockMaterial } from '../kit/IslandMaterials.js';
-import { toonifyGroup } from '../kit/IslandArtLayer.js';
+import { placeIslandProps } from '../kit/IslandProps.js';
 import { IslandParticles } from '../kit/IslandParticles.js';
 import { ARCTIC_SITES, nearArcticSite } from './ArcticSites.js';
 import { ArcticLandmarks } from './ArcticLandmarks.js';
 import { ArcticIce, iceWalkHeight } from './ArcticIce.js';
 import { ArcticTreeLOD } from './ArcticTreeLOD.js';
+import { buildPropColliders } from '../kit/IslandPropColliders.js';
+
+// Hito 71 · colisiones del Ártico. Sin colisión (se pisan): losas de permafrost, baldosas, escarcha de las orillas,
+// carámbanos del suelo, niebla y peces bajo el hielo. Los icebergs están en agua honda (no se llega).
+const ARCTIC_PROP_RULES = [
+  { test: /^IslandTreeTrunk_dead/, kind: 'dead', band: 0.8, rMin: 0.3, rMax: 1.0 },
+  // (rocas, bloques de hielo y menas de cristal: huella exacta en ARCTIC_HULL_RULES, Hito 71d)
+];
+
+// Hito 71d: objetos irregulares con su huella exacta (corte de la malla a ras de suelo, contorno de segmentos): los
+// extremos de los bloques de hielo, las menas (base y cristales) y las rocas no se atraviesan ni dejan paredes invisibles
+const ARCTIC_HULL_RULES = [
+  { test: /^arctic_Rock/, kind: 'rock', minH: 0.7 },
+  { test: /^ArcticIceBlocks/, kind: 'ice', minH: 0.4 },
+  { test: /^ArcticOreRocks/, kind: 'ore' },          // menas: todas, también las pequeñas (71c)
+  { test: /^ArcticOreCrystals/, kind: 'orecrystal', minH: 0.3 },
+];
+
+/**
+ * Troncos de los abetos y árboles anchos: el LOD reordena sus instancias según la cámara (las lejanas solo existen
+ * como silueta simplificada), así que se leen de sus matrices completas guardadas, no de lo que se dibuja ahora.
+ */
+function arcticTreeTrunks(zone) {
+  const lod = zone.treeLOD;
+  if (!lod || !lod.entries) return [];
+  const g = new THREE.Group();
+  for (const e of lod.entries) {
+    if (!/^IslandTreeTrunk_/.test(e.mesh.name || '')) continue;
+    const im = new THREE.InstancedMesh(e.mesh.geometry, e.mesh.material, e.n);
+    im.name = e.mesh.name;
+    im.instanceMatrix.array.set(e.matrices);
+    if (e.mesh.parent) { e.mesh.parent.updateMatrixWorld(true); im.matrix.copy(e.mesh.parent.matrixWorld); }
+    im.matrixAutoUpdate = false;
+    g.add(im);
+  }
+  return buildPropColliders(g, [{ test: /^IslandTreeTrunk_(conifer|broad)/, kind: 'tree', band: 0.8, rMin: 0.3, rMax: 1.0 }], { islandR: 200 });
+}
 
 /**
  * Isla del Ártico (Hito 23) — "Los Cuernos de la Escarcha Eterna".
@@ -21,7 +58,7 @@ import { ArcticTreeLOD } from './ArcticTreeLOD.js';
  *  - Centre: U-shaped glacial valley running north → south, frozen river in its floor.
  *  - Frozen permafrost lake by the Boreal Cooking Camp; stepped ice shelves on the south coast
  *    and drifting icebergs.
- *  - POIs (NPCs keep their quest positions): Valley of Eternal Frost (ice totems between the
+ *  - POIs (NPCs keep their quest positions): Valley of Eternal Frost (totem_ice between the
  *    horns), Pomodoro's Greenhouse (green oasis under a glass dome), Boreal Cooking Camp.
  *  - Ice crystals & permafrost: the Arctic pack rocks (16–24 tris) stretched into shards with
  *    a glowing ice material, clustered at the foot of boulders.
@@ -29,9 +66,9 @@ import { ArcticTreeLOD } from './ArcticTreeLOD.js';
  * Mejora del bioma (plan del Ártico): frosty straw grass (no green), cold-blue shadows and a
  * cyan haze with low mist banks, translucent ice blocks with icicles, translucent lake / rivers
  * with frozen fish (walkable ice), frosted flagstones, ore veins instead of the ice shards
- * (visual only), Pomodoro's house + campfire + frost farm, Chef Boreal's market stall, the
- * Glacial Hermit's cabin + frozen pond and the Altar de Atia in place of the frost totems
- * (see ArcticSites / ArcticLandmarks / ArcticIce).
+ * (visual only), Pomodoro's house + campfire + frost farm, Chef Boreal's shop, the
+ * Glacial Hermit's house + frozen pond, totem_ice in the frost valley and the Altar de Atia in a
+ * clearing by the beach path (Hito 56: GLB models; see ArcticSites / ArcticLandmarks / ArcticIce).
  */
 const N1 = new SimplexNoise(9131);
 const N2 = new SimplexNoise(4471);
@@ -543,7 +580,7 @@ async function buildArctic(zone) {
     g.add(inst);
   }
 
-  // --- POI 1: Valley of Eternal Frost — the frost totems are replaced by the Altar de Atia,
+  // --- POI 1: Valley of Eternal Frost — totem_ice where the frost chimeras patrol (Hito 56),
   //     built at their centre (ArcticLandmarks).
 
   // --- POI 2: Pomodoro's Greenhouse — glass dome over a green garden
@@ -553,6 +590,8 @@ async function buildArctic(zone) {
   dome.position.set(GREENHOUSE.x, gy, GREENHOUSE.z);
   dome.name = 'PomodoroGreenhouseDome';
   g.add(dome);
+  // Hito 71b: el invernadero está cerrado (los cultivos se ven a través del cristal); el camino de al lado sigue libre
+  zone.addCollider(GREENHOUSE.x, GREENHOUSE.z, GREENHOUSE.r - 1.5);
   const frameMat = new THREE.MeshToonMaterial({ color: 0x8a6a4a });
   const ribs = new THREE.Group();
   for (let i = 0; i < 8; i++) {
@@ -566,7 +605,7 @@ async function buildArctic(zone) {
   ribs.position.set(GREENHOUSE.x, gy, GREENHOUSE.z);
   g.add(ribs);
 
-  // --- POI 3: Boreal Cooking Camp — Arctic house, snowman, campfire with warm light & smoke
+  // --- POI 3: Boreal Cooking Camp — campfire with warm light & smoke (its house stands by Pomodoro's)
   const cy = arcticHeight(CAMP.x, CAMP.z);
   const fire = new THREE.Mesh(new THREE.ConeGeometry(0.45, 1.0, 6), new THREE.MeshBasicMaterial({ color: 0xff8a2a }));
   fire.position.set(CAMP.x - 3, cy + 0.45, CAMP.z + 1.5);
@@ -590,30 +629,20 @@ async function buildArctic(zone) {
   const smoke = new IslandParticles(g, { mode: 'sand', count: 60, velocity: [0.15, 1.1, 0.05], size: 9, colorA: 0xe8eef6, colorB: 0xcfd8e4, opacity: 0.35, sway: 0.25, box: [3, 10, 3], additive: false });
   const smokeCentre = new THREE.Vector3(CAMP.x - 3, cy + 3.6, CAMP.z + 1.5);
   zone.updatables.push((dt) => smoke.update(dt, smokeCentre));
-  const house = await loadGLTF('./assets/environment/house_artic.glb');
-  if (house) {
-    const h = house.scene.clone(true);
-    const bb = new THREE.Box3().setFromObject(h);
-    const s = 7.5 / Math.max(bb.max.x - bb.min.x, bb.max.z - bb.min.z);
-    h.scale.setScalar(s);
-    h.position.set(CAMP.x - 11, cy - bb.min.y * s, CAMP.z - 4);
-    h.rotation.y = 0.9;
-    toonifyGroup(h);
-    g.add(h);
-    zone.addCollider(CAMP.x - 11, CAMP.z - 4, 3.4);
+  // House of the Boreal camp: house.glb (the Forest house, shared `#islas` cache) + flag.glb at its front corner.
+  // Hito 56: replaces house_artic.glb (3.6 MB). It stands next to Pomodoro's house (ArcticSites.campHouse), away
+  // from the frozen lake.
+  {
+    const H = ARCTIC_SITES.campHouse;
+    const c = Math.cos(H.yaw), s = Math.sin(H.yaw);
+    const fx = H.x - 4.4 * c + 3.2 * s, fz = H.z + 4.4 * s + 3.2 * c;   // local (−4.4, +3.2): front corner
+    const props = placeIslandProps(g, [
+      { model: 'house', ...H, name: 'Arctic_CampHouse' },
+      { model: 'flag', x: fx, z: fz, yaw: H.yaw, name: 'Arctic_CampFlag' }
+    ], { height: arcticHeight, plinthColor: 0x8a93a3 });
+    props.colliders.forEach(([x, z, r]) => zone.addCollider(x, z, r));
   }
-  const snowman = await loadGLTF('./assets/environment/snowman_artic.glb');
-  if (snowman) {
-    const sm = snowman.scene.clone(true);
-    const bb = new THREE.Box3().setFromObject(sm);
-    const s = 1.9 / (bb.max.y - bb.min.y);
-    sm.scale.setScalar(s);
-    sm.position.set(CAMP.x + 4, cy - bb.min.y * s, CAMP.z - 6);
-    sm.rotation.y = 2.4;
-    toonifyGroup(sm);
-    g.add(sm);
-    zone.addCollider(CAMP.x + 4, CAMP.z - 6, 0.8);
-  }
+  // (Hito 56: the camp snowman, snowman_artic.glb — 3.1 MB, 12k triangles — is no longer loaded)
 
   // --- Drifting icebergs off the coast
   const bergMat = islandRockMaterial(null, { base: 0xe9f4fb, shadow: 0x8fb8e0, top: 0xffffff, topAmount: 1.0, streaks: 0.4 });
@@ -676,7 +705,10 @@ export function createArcticIsland(om) {
     rocks: [],
     rockStyle: { base: 0x8c97a8, shadow: 0x6f7fa6, top: 0xf4f8ff, topAmount: 1.0, streaks: 0.9 },
     build: buildArctic,
-    profile: (zone) => arcticProfile(zone)
+    profile: (zone) => arcticProfile(zone),
+    // Hito 71: cuernos, acantilado de la costa y pared de hielo del sur (> 35°) no se suben; mar hasta la rodilla
+    // (solo se entra por las plataformas del sur); el hielo del lago, el estanque y los ríos se camina
+    collision: { propRules: ARCTIC_PROP_RULES, hullRules: ARCTIC_HULL_RULES, extraProps: arcticTreeTrunks, slopeMax: 35, wadeMax: 0.5 }
   };
   return new GrandIslandZone(om, def);
 }
