@@ -1317,6 +1317,29 @@ body.state-combat .lk-gather { display: none; }
 .lk-gather__row.lk-is-rare b, .lk-gather__row.lk-is-rare .lk-gather__mi { color: var(--lk-gilt-300, #EED39A); }
 .lk-gather__row em { margin-left: auto; padding: 1px 7px; border-radius: 99px; font: 900 .58rem/1.4 var(--lk-font-ui); font-style: normal; letter-spacing: .08em; text-transform: uppercase; color: #3D2C0E; background: var(--lk-gilt-300, #EED39A); }
 @media (prefers-reduced-motion: reduce) { .lk-gather__loot { transition: none; } }
+/* Hito 87: reto de pesca */
+.lk-gather__bar.lk-is-fish .lk-gather__track { display: none; }
+.lk-fish { order: -1; pointer-events: auto; cursor: pointer; touch-action: manipulation; display: flex; flex-direction: column; align-items: center; gap: 7px; min-width: 280px; padding: 10px 16px 9px; border-radius: 14px; background: rgba(18, 24, 41, .92); box-shadow: inset 0 0 0 1px rgba(95, 182, 232, .45), 0 10px 24px rgba(0, 0, 0, .4); color: var(--lk-ivory-50); font-family: var(--lk-font-ui); text-align: center; user-select: none; }
+.lk-fish[hidden] { display: none; }
+.lk-fish__txt { font: 900 1rem/1.15 var(--lk-font-ui); letter-spacing: .01em; }
+.lk-fish__keys { font: 700 .66rem/1 var(--lk-font-ui); color: #8D97AF; }
+.lk-fish__track { display: none; position: relative; width: 260px; max-width: 70vw; height: 14px; border-radius: 99px; background: rgba(255, 255, 255, .1); box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .08); }
+.lk-fish.lk-has-track .lk-fish__track { display: block; }
+.lk-fish__zone { position: absolute; top: 0; bottom: 0; border-radius: 99px; background: rgba(111, 208, 140, .45); box-shadow: inset 0 0 0 1px rgba(111, 208, 140, .8); }
+.lk-fish__zone b { position: absolute; top: 0; bottom: 0; left: 50%; width: var(--p, 28%); transform: translateX(-50%); border-radius: 99px; background: var(--lk-gilt-300, #EED39A); box-shadow: 0 0 8px rgba(238, 211, 154, .8); }
+.lk-fish__mark { position: absolute; top: -4px; bottom: -4px; width: 4px; margin-left: -2px; border-radius: 2px; background: #fff; box-shadow: 0 0 0 1px rgba(11, 15, 28, .8), 0 0 8px rgba(255, 255, 255, .8); }
+.lk-fish[data-state="bite"] { box-shadow: inset 0 0 0 2px var(--lk-gilt-300, #EED39A), 0 0 22px rgba(238, 211, 154, .45), 0 10px 24px rgba(0, 0, 0, .4); animation: lk-fish-bite .35s ease-in-out infinite alternate; }
+.lk-fish[data-state="bite"] .lk-fish__txt { color: var(--lk-gilt-300, #EED39A); font-size: 1.15rem; }
+.lk-fish.lk-is-miss .lk-fish__txt { color: #FFB3A6; }
+.lk-fish[data-state="caught"] { box-shadow: inset 0 0 0 1px rgba(111, 208, 140, .9), 0 10px 24px rgba(0, 0, 0, .4); }
+.lk-fish[data-state="caught"] .lk-fish__txt { color: #B9F5C3; }
+.lk-fish[data-state="perfect"] { box-shadow: inset 0 0 0 2px var(--lk-gilt-300, #EED39A), 0 0 26px rgba(238, 211, 154, .55), 0 10px 24px rgba(0, 0, 0, .4); }
+.lk-fish[data-state="perfect"] .lk-fish__txt { color: var(--lk-gilt-300, #EED39A); }
+.lk-fish[data-state="lost"] { box-shadow: inset 0 0 0 1px rgba(255, 140, 120, .6), 0 10px 24px rgba(0, 0, 0, .4); }
+.lk-fish[data-state="lost"] .lk-fish__txt { color: #FFCFC6; font-size: .9rem; }
+.lk-fish[data-state="lost"] .lk-fish__keys, .lk-fish[data-state="caught"] .lk-fish__keys, .lk-fish[data-state="perfect"] .lk-fish__keys { display: none; }
+@keyframes lk-fish-bite { from { transform: scale(1); } to { transform: scale(1.05); } }
+@media (prefers-reduced-motion: reduce) { .lk-fish[data-state="bite"] { animation: none; } }
 #world-map-modal .lk-wmap__gather .landmark-icon svg { width: 20px; height: 20px; }
 /* Materiales en la mochila (bolsa de la Forja) */
 .lk-bag .lk-it .lk-mat-art, .lk-tt-art .lk-mat-art { display: grid; place-items: center; width: 100%; height: 100%; }
@@ -1517,3 +1540,9 @@ body:has(#help-modal:not(.hidden)) #turn-banner { visibility: hidden; }
 /* Oro con el ícono de moneda (assets/currency/gold.png) en lugar de la bolita dibujada */
 img.lk-coin { width: 15px; height: 15px; object-fit: contain; background: none; box-shadow: none; border-radius: 0; vertical-align: -3px; filter: drop-shadow(0 1px 1px rgba(0,0,0,.35)); }
 .lk-btn .lk-b-ico .lk-cur-ico { width: 22px; height: 22px; object-fit: contain; }
+
+/* Hito 80 · iconos de los estados alterados (assets/ui/buff y debuff) */
+.lk-st-ico { width: 16px; height: 16px; object-fit: contain; flex: none; vertical-align: -3px; }
+#ui-overlay .lk-cb-st .lk-st-ico { width: 15px; height: 15px; }
+.lk-cb-ut .lk-cb-ut-st .lk-st-ico { width: 16px; height: 16px; margin-left: -4px; }
+.lk-fc-chip .lk-st-ico { width: 14px; height: 14px; vertical-align: -3px; }

@@ -5,6 +5,7 @@
 import { saveSlotManager } from '../SaveSlotManager.js';
 import { asset, sprite, toast } from '../../ui/lk.js';
 import * as i18n from '../../i18n/i18n.js';
+import { access, accessDefaults } from '../../ui/AccessPrefs.js';
 
 const K = {
   quality: 'axie_tactics_graphics_quality',
@@ -23,10 +24,13 @@ const AUDIO_DEFAULTS = { master: 100, music: 75, sfx: 80, amb: 60 };
 const PREF_DEFAULTS = {
   mute: { master: false, music: false, sfx: false, amb: false },
   bgMute: true, duckDialog: false,
-  lang: i18n.DEFAULT_LANG, textSize: 'normal', textSpeed: 'normal',
-  contrast: false, reduceMotion: false, shake: true
+  lang: i18n.DEFAULT_LANG,
+  // Lectura, visión y movimiento (Hito 85): los valores por defecto los da AccessPrefs (la primera vez,
+  // «Reducir movimiento» y «Alto contraste» siguen al sistema operativo). AccessPrefs aplica todo al juego.
+  ...accessDefaults()
 };
-const TEXT_SPEED_MS = { slow: 40, normal: 22, instant: 1 };
+const ACCESS_SWITCHES = ['contrast', 'reduceMotion', 'shake'];
+const ACCESS_SEGS = ['textSize', 'textSpeed', 'autoAdvance', 'colorblind'];
 
 const read = (k, fallback) => { try { const v = localStorage.getItem(k); return v === null ? fallback : v; } catch { return fallback; } };
 const readJSON = (k, fallback) => { try { return { ...fallback, ...JSON.parse(localStorage.getItem(k) || '{}') }; } catch { return { ...fallback }; } };
@@ -148,9 +152,11 @@ export class SettingsModal {
               <div class="lk-group"><span class="lk-label">${i18n.t('settings.reading')}</span>
                 ${seg('textSize', i18n.t('settings.textSize'), i18n.t('settings.textSizeDesc'), [['normal', i18n.t('settings.normal')], ['large', i18n.t('settings.large')], ['xlarge', i18n.t('settings.xlarge')]])}
                 ${seg('textSpeed', i18n.t('settings.textSpeed'), i18n.t('settings.textSpeedDesc'), [['slow', i18n.t('settings.slow')], ['normal', i18n.t('settings.normal')], ['instant', i18n.t('settings.instant')]])}
+                ${seg('autoAdvance', i18n.t('settings.autoAdvance'), i18n.t('settings.autoAdvanceDesc'), [['off', i18n.t('settings.off')], ['normal', i18n.t('settings.normal')], ['slow', i18n.t('settings.slow')]])}
               </div>
               <div class="lk-group"><span class="lk-label">${i18n.t('settings.vision')}</span>
                 ${sw('contrast', i18n.t('settings.contrast'), i18n.t('settings.contrastDesc'), false)}
+                ${seg('colorblind', i18n.t('settings.colorblind'), i18n.t('settings.colorblindDesc'), [['off', i18n.t('settings.off')], ['rg', i18n.t('settings.cbRG')], ['tri', i18n.t('settings.cbTri')]])}
                 ${sw('reduceMotion', i18n.t('settings.reduceMotion'), i18n.t('settings.reduceMotionDesc'), false)}
                 ${sw('shake', i18n.t('settings.shake'), i18n.t('settings.shakeDesc'), true)}
               </div>
@@ -194,6 +200,18 @@ export class SettingsModal {
     this._applyPrefs();
     this._setupBackgroundMute();
     this._setupDialogDuck();
+    // Hito 85: otros sistemas pueden cambiar una preferencia (el botón «Auto» del diálogo): se refleja aquí
+    access.onChange((a) => {
+      const p = a.prefs;
+      for (const k of [...ACCESS_SWITCHES, ...ACCESS_SEGS]) {
+        if (this.prefs[k] === p[k]) continue;
+        this.prefs[k] = p[k];
+        const el = this.$(`[data-k="${k}"]`);
+        if (!el) continue;
+        if (el.classList.contains('lk-segmented')) this._paintSeg(el, p[k]);
+        else el.setAttribute('aria-checked', String(Boolean(p[k])));
+      }
+    });
   }
 
   // ---------------------------------------------------------------- eventos
@@ -381,7 +399,11 @@ export class SettingsModal {
     const master = v('master');
     const duck = this._ducked ? 0.35 : 1;
     if (a.music && typeof a.music.setVolume === 'function') a.music.setVolume(master * v('music') * duck);
-    if (a.masterGain && a.ctx && !a.isMuted) a.masterGain.gain.setValueAtTime(master * v('sfx') * 0.25, a.ctx.currentTime);
+    // Hito 91: el bus de efectos tiene su base en TacticalAudio (SFX_BASE); aquí solo el nivel de Opciones
+    if (typeof a.setSfxVolume === 'function') a.setSfxVolume(master * v('sfx'));
+    else if (a.masterGain && a.ctx && !a.isMuted) a.masterGain.gain.setValueAtTime(master * v('sfx') * 0.25, a.ctx.currentTime);
+    // Hito 86: el canal «Ambiente» por fin suena (viento, agua, fauna, hogueras…: AmbienceManager)
+    if (typeof a.setAmbientVolume === 'function') a.setAmbientVolume(master * v('amb') * duck);
     this._emit();
   }
 
@@ -427,8 +449,7 @@ export class SettingsModal {
     root.dataset.lkText = this.prefs.textSize;
     root.classList.toggle('lk-reduce-motion', !!this.prefs.reduceMotion);
     root.classList.toggle('lk-high-contrast', !!this.prefs.contrast);
-    const ds = window.overworldManager?.dialogSystem;
-    if (ds && 'typingSpeed' in ds) ds.typingSpeed = TEXT_SPEED_MS[this.prefs.textSpeed] ?? 22;
+    // Velocidad del texto, avance automático, daltonismo, temblor…: AccessPrefs los aplica al recibir 'lk:settings'
     this._emit();
   }
 
@@ -450,9 +471,10 @@ export class SettingsModal {
       this._savePrefs(); this._applyAudio();
     }
     if (k === 'acc') {
-      ['lang', 'textSize', 'textSpeed', 'contrast', 'reduceMotion', 'shake'].forEach((p) => { this.prefs[p] = PREF_DEFAULTS[p]; });
+      const def = { ...PREF_DEFAULTS, ...accessDefaults() };
+      ['lang', ...ACCESS_SEGS, ...ACCESS_SWITCHES].forEach((p) => { this.prefs[p] = def[p]; });
       this.$$('.lk-segmented[data-k]').forEach((g) => this._paintSeg(g, this.prefs[g.dataset.k]));
-      ['contrast', 'reduceMotion', 'shake'].forEach((p) => this.$(`[data-k="${p}"]`).setAttribute('aria-checked', String(this.prefs[p])));
+      ACCESS_SWITCHES.forEach((p) => this.$(`[data-k="${p}"]`).setAttribute('aria-checked', String(this.prefs[p])));
       this._savePrefs();
       if (this.prefs.lang !== i18n.lang()) { this._reloadForLanguage(this.prefs.lang); return; }
     }

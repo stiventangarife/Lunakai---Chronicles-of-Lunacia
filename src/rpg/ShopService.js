@@ -14,6 +14,7 @@ import { RUNE_BY_ID, CHARM_BY_ID } from '../tactics/data/RunesCharms.js';
 import { RuneCharmService } from './RuneCharmService.js';
 import { runeCharmArt } from '../ui/RuneCharmArt.js';
 import * as i18n from '../i18n/i18n.js';
+import { EconomyService } from '../net/EconomyService.js';
 
 export const EQ_SLOTS = ['weapon', 'hat', 'shield', 'body', 'boots'];
 const HOUR_MS = 3600 * 1000;
@@ -133,41 +134,73 @@ class ShopServiceImpl {
     return true;
   }
 
-  buy(shopId, id, qty = 1) {
+  buy(shopId, id, qty = 1, { serverPaid = false } = {}) {
     const st = this._state(shopId), it = itemOf(id); if (!st || !it) return { ok: false, why: i18n.t('notices.shop.notForSale') };
     if (!(id in st.stock)) return { ok: false, why: i18n.t('notices.shop.notForSale') };
     const left = st.stock[id];
     if (left !== null && left < qty) return { ok: false, why: i18n.t('notices.shop.notEnoughStock') };
     const cost = buyPrice(it) * qty;
-    if (cost > this.gold()) return { ok: false, why: i18n.t('notices.shop.needGold', { n: cost - this.gold() }) };
-    this.em.addGold(-cost);
+    if (!serverPaid && cost > this.gold()) return { ok: false, why: i18n.t('notices.shop.needGold', { n: cost - this.gold() }) };
+    if (!serverPaid) this.em.addGold(-cost);
     if (left !== null) st.stock[id] = left - qty;
     this._give(id, qty);
     this._commit();
     return { ok: true, it, qty, cost };
   }
 
-  sell(shopId, id, qty = 1) {
+  sell(shopId, id, qty = 1, { serverPaid = false } = {}) {
     const st = this._state(shopId), it = itemOf(id); if (!st || !it) return { ok: false, why: i18n.t('notices.shop.unknownItem') };
     const block = this.sellBlock(shopId, it); if (block) return { ok: false, why: block };
     if (this.sellable(id) < qty) return { ok: false, why: this.have(id) >= qty ? (rcParse(id) ? i18n.t('notices.shop.equippedAxie') : i18n.t('notices.shop.inForge')) : i18n.t('notices.shop.notEnoughOwned') };
     const gain = sellPrice(it) * qty;
     if (!this._take(id, qty)) return { ok: false, why: i18n.t('notices.shop.notEnoughOwned') };
-    this.em.addGold(gain);
+    if (!serverPaid) this.em.addGold(gain);
     st.buyback.unshift({ id, qty, paid: gain });
     st.buyback = st.buyback.slice(0, BUYBACK_SLOTS);
     this._commit();
     return { ok: true, it, qty, gain };
   }
 
-  rebuy(shopId, index) {
+  rebuy(shopId, index, { serverPaid = false } = {}) {
     const st = this._state(shopId), b = st?.buyback[index]; if (!b) return { ok: false };
-    if (b.paid > this.gold()) return { ok: false, why: i18n.t('notices.shop.needGold', { n: b.paid - this.gold() }) };
-    this.em.addGold(-b.paid);
+    if (!serverPaid && b.paid > this.gold()) return { ok: false, why: i18n.t('notices.shop.needGold', { n: b.paid - this.gold() }) };
+    if (!serverPaid) this.em.addGold(-b.paid);
     st.buyback.splice(index, 1);
     this._give(b.id, b.qty);
     this._commit();
     return { ok: true, it: itemOf(b.id), qty: b.qty };
+  }
+
+  // ------------------------------------------------------------------ Hito 76: con cuenta, el servidor cobra y paga
+  async buyAsync(shopId, id, qty = 1) {
+    if (!EconomyService.active) return this.buy(shopId, id, qty);
+    const st = this._state(shopId), it = itemOf(id); if (!st || !it || !(id in st.stock)) return { ok: false, why: i18n.t('notices.shop.notForSale') };
+    const left = st.stock[id]; if (left !== null && left < qty) return { ok: false, why: i18n.t('notices.shop.notEnoughStock') };
+    const res = await EconomyService.shopBuy(id, qty);
+    if (res.error === 'unavailable') return this.buy(shopId, id, qty); // funciones sin desplegar: en local
+    if (!res.ok) return { ok: false, why: EconomyService.why(res) };
+    return this.buy(shopId, id, qty, { serverPaid: true });
+  }
+
+  async sellAsync(shopId, id, qty = 1) {
+    if (!EconomyService.active) return this.sell(shopId, id, qty);
+    const st = this._state(shopId), it = itemOf(id); if (!st || !it) return { ok: false, why: i18n.t('notices.shop.unknownItem') };
+    const block = this.sellBlock(shopId, it); if (block) return { ok: false, why: block };
+    if (this.sellable(id) < qty) return this.sell(shopId, id, qty); // mismo mensaje de siempre
+    const res = await EconomyService.shopSell(id, qty);
+    if (res.error === 'unavailable') return this.sell(shopId, id, qty);
+    if (!res.ok) return { ok: false, why: EconomyService.why(res) };
+    const r = this.sell(shopId, id, qty, { serverPaid: true });
+    return r.ok ? { ...r, gain: res.gain ?? r.gain } : r;
+  }
+
+  async rebuyAsync(shopId, index) {
+    if (!EconomyService.active) return this.rebuy(shopId, index);
+    const b = this._state(shopId)?.buyback[index]; if (!b) return { ok: false };
+    const res = await EconomyService.shopRebuy(b.id, b.qty);
+    if (res.error === 'unavailable') return this.rebuy(shopId, index);
+    if (!res.ok) return { ok: false, why: EconomyService.why(res) };
+    return this.rebuy(shopId, index, { serverPaid: true });
   }
 
   _commit() {

@@ -9,12 +9,22 @@ export class FloatingCombatText {
     this.tempVec = new THREE.Vector3();
   }
 
-  spawn(worldPos, text, type = 'damage') {
+  /**
+   * @param {{ icon?: string, alt?: string }} [opts] Hito 81: icono delante del texto (avisos de estados). `alt` es el
+   *   símbolo de texto, que se ve si la imagen no carga.
+   *   `size` (Hito 89): tamaño relativo (0,8–1,7) según lo fuerte que fue el golpe.
+   */
+  spawn(worldPos, text, type = 'damage', opts = {}) {
     const el = document.createElement('div');
     const isCrit = type === 'crit' || (type === 'damage' && (text.includes('CRIT') || text.includes('CRÍTICO')));
     const isCollision = type === 'collision';
     el.className = 'floating-text float-' + (isCrit ? 'crit' : (isCollision ? 'collision' : type));
-    el.textContent = text;
+    if (opts.icon) {
+      const img = document.createElement('img');
+      img.className = 'float-st-ico';
+      img.src = opts.icon; img.alt = opts.alt || ''; img.draggable = false;
+      el.append(img, document.createTextNode(text));
+    } else el.textContent = text;
     el.style.display = 'none';
     this.container.appendChild(el);
 
@@ -32,8 +42,9 @@ export class FloatingCombatText {
       gravity: 7.2, // Pulls number down after apex
       opacity: 1.0,
       life: 0,
-      maxLife: isCrit ? 1.6 : (isCollision ? 1.5 : 1.4),
-      scale: 0.3
+      maxLife: (isCrit ? 1.6 : (isCollision ? 1.5 : 1.4)) + Math.max(0, (opts.size || 1) - 1) * 0.5,
+      scale: 0.3,
+      size: Math.max(0.7, Math.min(1.45, opts.size || 1)),   // Hito 89: golpes grandes, números grandes
     };
 
     this.items.push(item);
@@ -95,7 +106,7 @@ export class FloatingCombatText {
 
       const tilt = item.isCrit ? (Math.sin(item.life * 16) * 7 * Math.max(0, 1 - progress * 1.8)) : 0;
       item.el.style.display = 'block';
-      item.el.style.transform = `translate3d(${x}px, ${y}px, 0) translate(-50%, -50%) scale(${item.scale}) rotate(${tilt}deg)`;
+      item.el.style.transform = `translate3d(${x}px, ${y}px, 0) translate(-50%, -50%) scale(${item.scale * item.size}) rotate(${tilt}deg)`;
       item.el.style.opacity = item.opacity;
     }
   }

@@ -6,6 +6,7 @@ import { RenderPass } from '../../vendor/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from '../../vendor/postprocessing/UnrealBloomPass.js';
 import { OutputPass } from '../../vendor/postprocessing/OutputPass.js';
 import { TransientLightPool } from './combat/TransientLightPool.js';
+import { access } from '../ui/AccessPrefs.js';
 
 export class SceneManager {
   constructor(canvasContainer) {
@@ -25,8 +26,16 @@ export class SceneManager {
     this.targetLookAt = new THREE.Vector3(0, 0, 0);
     this.currentLookAt = new THREE.Vector3(0, 0, 0);
     
-    this.shakeIntensity = 0;
+    this.shakeIntensity = 0;   // (Hito 89: ya no se usa; queda por compatibilidad)
     this.shakeDecay = 0.9;
+    // Hito 89: temblor por «trauma» (0–1). Cada golpe suma trauma; el temblor es trauma² (los golpes pequeños apenas
+    // mueven, los grandes sí) con un ruido suave (no saltos al azar) en X, Y y un poco de giro. Baja 1,4 por segundo,
+    // igual a cualquier velocidad de fotogramas.
+    this.trauma = 0;
+    this._shakeT = 0;
+    this._shakeSeed = Math.random() * 100;
+    // Hito 89: pausa de impacto (hit-stop): las unidades se congelan unas centésimas al recibir un golpe
+    this._hitStop = 0;
 
     this.renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
     this.renderer.debug.checkShaderErrors = false;
@@ -636,7 +645,34 @@ export class SceneManager {
   }
 
   shake(intensity = 0.25) {
-    this.shakeIntensity = Math.max(this.shakeIntensity, intensity);
+    // Hito 85: Opciones › Accesibilidad › Temblor de cámara (0 = apagado; la mitad con «Reducir movimiento»)
+    const k = access.shakeScale;
+    if (!(k > 0)) return;
+    // Hito 89: misma escala de antes (0,12 golpe flojo … 0,65 golpe final), ahora como trauma acumulable
+    this.trauma = Math.min(1, this.trauma + intensity * 2.2 * k);
+  }
+
+  /** Hito 89: congela las unidades `sec` segundos (pausa de impacto). La cámara, los efectos y los textos siguen. */
+  hitStop(sec = 0.05) {
+    this._hitStop = Math.max(this._hitStop, Math.min(0.16, sec));
+  }
+
+  /** Paso de tiempo de las unidades este fotograma: 0 durante la pausa de impacto (lo usa main.js). */
+  unitDt(dt) {
+    if (this._hitStop > 0) { this._hitStop = Math.max(0, this._hitStop - dt); return 0; }
+    return dt;
+  }
+
+  /** Desplazamiento del temblor este fotograma: { x, y, roll } (ruido suave de dos senos por eje). */
+  _shakeOffset(dt) {
+    if (this.trauma <= 0.0005) { this.trauma = 0; return null; }
+    this._shakeT += dt;
+    const t = this._shakeT, s = this._shakeSeed;
+    const n = (f1, f2, ph) => (Math.sin(t * f1 + ph) * 0.6 + Math.sin(t * f2 + ph * 1.7) * 0.4);
+    const a = this.trauma * this.trauma;
+    const out = { x: 0.6 * a * n(31, 47, s), y: 0.45 * a * n(37, 53, s + 11), roll: 0.022 * a * n(23, 41, s + 23) };
+    this.trauma = Math.max(0, this.trauma - 1.4 * dt);
+    return out;
   }
 
   updateCameraPosition(dt = 0.016, lerpFactor = null) {
@@ -671,13 +707,10 @@ export class SceneManager {
     this.currentElevation = THREE.MathUtils.lerp(this.currentElevation, this.cameraElevation, factor);
     this.currentLookAt.lerp(this.targetLookAt, factor);
 
-    let shakeX = 0;
-    let shakeY = 0;
-    if (this.shakeIntensity > 0.001) {
-      shakeX = (Math.random() - 0.5) * this.shakeIntensity;
-      shakeY = (Math.random() - 0.5) * this.shakeIntensity;
-      this.shakeIntensity *= this.shakeDecay;
-    }
+    // Hito 89: temblor por trauma (suave y frame-rate independiente) en lugar de saltos al azar cada fotograma
+    const sh = this._shakeOffset(dt);
+    const shakeX = sh ? sh.x : 0;
+    const shakeY = sh ? sh.y : 0;
 
     const camX = this.currentLookAt.x + Math.sin(this.currentAngle) * this.currentDistance + shakeX;
     const camZ = this.currentLookAt.z + Math.cos(this.currentAngle) * this.currentDistance;
@@ -689,6 +722,7 @@ export class SceneManager {
       this.currentLookAt.y,
       this.currentLookAt.z
     );
+    if (sh && sh.roll) this.camera.rotateZ(sh.roll);
   }
 
   render(time, dt = 0.016) {

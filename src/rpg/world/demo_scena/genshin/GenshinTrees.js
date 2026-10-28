@@ -1,6 +1,38 @@
 import * as THREE from 'three';
 import { mergeGeometries } from '../../../../../vendor/utils/BufferGeometryUtils.js';
 import { createSeededRandom, SimplexNoise } from '../MathUtils.js';
+import { LightingManager } from '../LightingManager.js';
+
+// Viento del follaje: el mismo código en el material visible y en el de sombras (Hito 84).
+const FOLIAGE_SWAY_PARS = /* glsl */ `
+  uniform float uTime;
+  attribute float aSway;`;
+const FOLIAGE_SWAY_VERTEX = /* glsl */ `
+  {
+    vec3 base = vec3(0.0);
+    #ifdef USE_INSTANCING
+      base = (instanceMatrix * vec4(0.0, 0.0, 0.0, 1.0)).xyz;
+    #endif
+    float ph = base.x * 0.21 + base.z * 0.17;
+    float sway = aSway;
+    transformed.x += (sin(uTime * 1.3 + ph) * 0.10 + sin(uTime * 3.7 + ph * 2.0 + position.y) * 0.03) * sway;
+    transformed.z += (cos(uTime * 1.1 + ph) * 0.08) * sway;
+  }`;
+/** Material de follaje → su material de profundidad con viento. */
+const FOLIAGE_SWAY_DEPTH = new WeakMap();
+function makeFoliageSwayDepth(time) {
+  // three le copia en cada uso el mapa, el alphaTest y la cara del material de follaje (getDepthMaterial).
+  const d = new THREE.MeshDepthMaterial({ depthPacking: THREE.RGBADepthPacking });
+  d.name = 'GenshinFoliageDepthSway';
+  d.onBeforeCompile = (shader) => {
+    shader.uniforms.uTime = time;
+    shader.vertexShader = shader.vertexShader
+      .replace('#include <common>', `#include <common>\n${FOLIAGE_SWAY_PARS}`)
+      .replace('#include <begin_vertex>', `#include <begin_vertex>\n${FOLIAGE_SWAY_VERTEX}`);
+  };
+  d.customProgramCacheKey = () => 'genshin-foliage-depth-sway-v1';
+  return d;
+}
 
 /**
  * GenshinTrees — Bulky, organic, brush-stroke trees (Mondstadt / Liyue mood).
@@ -254,21 +286,11 @@ export class GenshinTrees {
       shader.uniforms.uSunDirW = { value: sun };
       shader.vertexShader = shader.vertexShader
         .replace('#include <common>', `#include <common>
-          uniform float uTime;
-          attribute float aSway;
+          ${FOLIAGE_SWAY_PARS}
           varying vec3 vWorldPosF;
           varying vec3 vCrownNormalW;`)
         .replace('#include <begin_vertex>', `#include <begin_vertex>
-          {
-            vec3 base = vec3(0.0);
-            #ifdef USE_INSTANCING
-              base = (instanceMatrix * vec4(0.0, 0.0, 0.0, 1.0)).xyz;
-            #endif
-            float ph = base.x * 0.21 + base.z * 0.17;
-            float sway = aSway;
-            transformed.x += (sin(uTime * 1.3 + ph) * 0.10 + sin(uTime * 3.7 + ph * 2.0 + position.y) * 0.03) * sway;
-            transformed.z += (cos(uTime * 1.1 + ph) * 0.08) * sway;
-          }`)
+          ${FOLIAGE_SWAY_VERTEX}`)
         .replace('#include <worldpos_vertex>', `#include <worldpos_vertex>
           {
             vec4 wpF = vec4(transformed, 1.0);
@@ -299,7 +321,17 @@ export class GenshinTrees {
     };
     // Unique key so three.js does not share the program with an unpatched toon material
     m.customProgramCacheKey = () => 'genshin-foliage-v1';
+    FOLIAGE_SWAY_DEPTH.set(m, makeFoliageSwayDepth(time));
     return m;
+  }
+
+  /**
+   * Material de profundidad con el mismo viento que el follaje (Hito 84), o undefined si el material no
+   * es de follaje. Sin él, el pase de sombras dibujaba las hojas quietas mientras se veían moviéndose:
+   * la copa se hacía sombra a sí misma en sitios distintos cada fotograma y "hervía".
+   */
+  static swayDepthFor(mat) {
+    return FOLIAGE_SWAY_DEPTH.get(mat);
   }
 
   // ---------------------------------------------------------------------------
@@ -861,6 +893,7 @@ export class GenshinTrees {
       im.setColorAt(0, trunkTintTmp);
       im.instanceColor.setUsage(THREE.DynamicDrawUsage);
       if (GenshinTrees.LOD_ENABLED) im.customDepthMaterial = this._depthFor(mat);
+      else if (FOLIAGE_SWAY_DEPTH.has(mat)) im.customDepthMaterial = FOLIAGE_SWAY_DEPTH.get(mat);
       im.count = 0;
       im.visible = false;
       im.userData.mainCount = 0;
@@ -910,6 +943,29 @@ export class GenshinTrees {
     this._tryInstallHook = tryInstall;
   }
 
+  /**
+   * Copia de la cámara de sombras de la luz, colocada como la colocará el pase de sombras
+   * (LightShadow.updateMatrices de three r160), sin tocar light.shadow.
+   */
+  _shadowCullCamera(light) {
+    const src = light.shadow.camera;
+    let c = this._shadowCam;
+    if (!c) {
+      c = this._shadowCam = new THREE.OrthographicCamera();
+      this._shadowLook = new THREE.Vector3();
+    }
+    if (c.left !== src.left || c.right !== src.right || c.top !== src.top || c.bottom !== src.bottom || c.near !== src.near || c.far !== src.far) {
+      c.left = src.left; c.right = src.right; c.top = src.top; c.bottom = src.bottom;
+      c.near = src.near; c.far = src.far;
+      c.updateProjectionMatrix();
+    }
+    c.position.setFromMatrixPosition(light.matrixWorld);
+    this._shadowLook.setFromMatrixPosition(light.target.matrixWorld);
+    c.lookAt(this._shadowLook);
+    c.updateMatrixWorld();
+    return c;
+  }
+
   _shadowLight() {
     // Luz que proyecta sombra y se ve de verdad (ella y todos sus padres visibles)
     const usable = (o) => {
@@ -948,8 +1004,11 @@ export class GenshinTrees {
     const light = this._shadowLight();
     let useShadow = false;
     if (light && light.shadow && light.shadow.camera) {
-      light.shadow.updateMatrices(light); // lo mismo que hará el pase de sombras a continuación
-      const sc = light.shadow.camera;
+      // Hito 83: la zona de sombras se calcula en una cámara propia. Antes se llamaba a
+      // light.shadow.updateMatrices(light), que cambia la matriz con la que se LEEN las sombras; en los
+      // fotogramas en que el mapa no se recalcula (uno de cada dos, Hito 53) el mapa viejo se leía con
+      // la matriz nueva y las sombras parpadeaban al caminar.
+      const sc = LightingManager.debug.legacy ? (light.shadow.updateMatrices(light), light.shadow.camera) : this._shadowCullCamera(light);
       this._pm.multiplyMatrices(sc.projectionMatrix, sc.matrixWorldInverse);
       this._shadowFrustum.setFromProjectionMatrix(this._pm);
       useShadow = true;

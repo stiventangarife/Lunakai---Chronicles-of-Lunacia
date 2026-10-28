@@ -10,7 +10,7 @@ export default {
   "enemies.arch.wolf_aquatic_alpha.name": "Alpha Aquatic Wolf",
   "enemies.arch.wolf_gray.name": "Gray Wolf",
   "enemies.arch.wolf_alpha.name": "Alpha Wolf",
-  "enemies.arch.treant_flower.name": "Blossom Treant",
+  "enemies.arch.treant_flower.name": "Slime Knight",
   "enemies.arch.dryad_fighter.name": "Dryad Warrior",
   "enemies.arch.dryad_mage.name": "Dryad Mage",
   "enemies.arch.dryad_range.name": "Dryad Archer",

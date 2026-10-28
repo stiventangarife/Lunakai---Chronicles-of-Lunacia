@@ -10,7 +10,7 @@ export default {
   "enemies.arch.wolf_aquatic_alpha.name": "Lobo Acuático Alfa",
   "enemies.arch.wolf_gray.name": "Lobo Gris",
   "enemies.arch.wolf_alpha.name": "Lobo Alfa",
-  "enemies.arch.treant_flower.name": "Treant Florido",
+  "enemies.arch.treant_flower.name": "Slime Caballero",
   "enemies.arch.dryad_fighter.name": "Dríade Guerrera",
   "enemies.arch.dryad_mage.name": "Dríade Maga",
   "enemies.arch.dryad_range.name": "Dríade Arquera",

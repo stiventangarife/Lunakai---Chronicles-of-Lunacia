@@ -9,6 +9,7 @@
 //   · El grupo (×3) va como dato aparte, no pegado al nombre.
 import * as THREE from 'three';
 import * as i18n from '../../i18n/i18n.js';
+import { access } from '../../ui/AccessPrefs.js';
 
 const W = 512, H = 136;
 const FONT_NAME = "'Marcellus', Georgia, serif";
@@ -148,6 +149,7 @@ export function createEnemyNameplate(config) {
   const mat = new THREE.SpriteMaterial({ map: tex, transparent: true, depthWrite: false, opacity: 0 });
   const sprite = new THREE.Sprite(mat);
   sprite.scale.set(2.5, 2.5 * H / W, 1);
+  access.trackWorldLabel(sprite); // Hito 85: crece con «Tamaño del texto»
   sprite.renderOrder = 10;
   sprite.visible = false;
 

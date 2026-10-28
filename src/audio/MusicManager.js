@@ -14,6 +14,22 @@ export const MUSIC_TRACKS = {
   DEFEAT: './assets/sounds/DEFEAT_THEME.mp3'
 };
 
+/**
+ * Hito 91 (mezcla): sonoridad medida de cada pista (LUFS integrados, ffmpeg ebur128) y nivel común al que se igualan.
+ * Las pistas venían a niveles muy distintos: el combate (−13,5) y la victoria (−12,2) sonaban 6–8 dB más fuertes que
+ * los temas de las islas (−18,6 a −20,9) y tapaban los efectos. Cada pista se baja hasta MUSIC_TARGET_LUFS (nunca se
+ * sube: el volumen de un <audio> no pasa de 1). Si se cambia un archivo, volver a medirlo y actualizar su valor.
+ */
+export const MUSIC_TARGET_LUFS = -20.5;
+export const TRACK_LUFS = {
+  CINEMATICA: -21.0, PROLOGO: -21.5, FOREST: -18.7, SAVANNA: -18.6, ARCTIC: -20.9, MYSTIC: -20.8, MAZMORRA: -20.1,
+  BATTLE: -13.5, BATTLE_BOSS: -15.0, VICTORY: -12.2, DEFEAT: -15.8,
+};
+export function trackGain(key) {
+  const l = TRACK_LUFS[key];
+  return Number.isFinite(l) ? Math.min(1, Math.pow(10, (MUSIC_TARGET_LUFS - l) / 20)) : 1;
+}
+
 export const BIOME_TO_TRACK = {
   forest: 'FOREST',
   training_dojo: 'FOREST',
@@ -99,6 +115,7 @@ export class MusicManager {
     if (!MUSIC_TRACKS[trackKey]) return;
 
     // If already playing this track smoothly, simply update target volume if needed
+    volumeMultiplier *= trackGain(trackKey);   // Hito 91: todas las pistas al mismo nivel
     if (this.currentKey === trackKey && this.currentAudio && !this.currentAudio.paused) {
       this.currentVolumeMultiplier = volumeMultiplier;
       const targetVol = this.isMuted ? 0 : this.masterVolume * this.currentVolumeMultiplier;

@@ -18,12 +18,12 @@ export const ITEMS_DB = {
     stats: { hp: 19 },
     description: 'Paja trenzada con lana del Ártico. Fresco y resistente.'
   },
-  arcane_ring: {
-    id: 'arcane_ring', name: 'Corona arcana', slot: 'hat', line: 'hat',
+  arcane_ring: { // Hito 92: era un aro; ahora es el casco de bronce (pieza hat_bronze del modelo). El id se conserva por las partidas guardadas.
+    id: 'arcane_ring', name: 'Casco de bronce', slot: 'hat', line: 'hat',
     icon: './assets/equippable/arcane_ring.webp',
     rarity: 'epic', tier: 2,
     stats: { hp: 22 },
-    description: 'Aro de plata que zumba con energía de las dríadas.'
+    description: 'Casco de bronce con forma de jabalí, templado con savia de druida.'
   },
   crown_of_lunacia: {
     id: 'crown_of_lunacia', name: 'Corona de Lunacia', slot: 'hat', line: 'hat',

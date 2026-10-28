@@ -1143,10 +1143,10 @@ export const SPELLS_DB = {
     description: 'Chilling gale punishing in a cross (5 tiles).'
   },
 
-  // --- 10. Treant Flower (Ártico) ---
+  // --- 10. Slime Knight / Slime Caballero (Ártico; Hito 94, id interno treant_flower) ---
   treant_flower_slam: {
     id: 'treant_flower_slam',
-    name: 'Frozen Root Strike',
+    name: 'Frosted Mace Smash',
     icon: './assets/skills/mobs/treant-flower/flowering-treant-02-00.png',
     paCost: 3,
     minRange: 1,
@@ -1158,11 +1158,11 @@ export const SPELLS_DB = {
     baseMinDamage: 42,
     baseMaxDamage: 54,
     sound: 'melee',
-    description: 'Crushing blow from frost-covered roots.'
+    description: 'Crushing blow with its frost-covered mushroom mace.'
   },
   treant_flower_nova: {
     id: 'treant_flower_nova',
-    name: 'Glacial Spores',
+    name: 'Icy Spore Shower',
     icon: './assets/skills/mobs/treant-flower/flowering-treant-03-00.png',
     paCost: 4,
     minRange: 1,
@@ -1174,7 +1174,7 @@ export const SPELLS_DB = {
     baseMinDamage: 34,
     baseMaxDamage: 45,
     sound: 'ice',
-    description: 'Botanical ice blast in a cross.'
+    description: 'Shakes its mushroom maces, releasing icy spores in a cross.'
   },
 
   // --- 11. Treant Fighter ---

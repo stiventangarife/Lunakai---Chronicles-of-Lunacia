@@ -9,7 +9,7 @@ Común = Tier 0 (se crea en la Forja, se compra en la Tienda o sale de botín y 
 
 | Línea | Común | Raro | Épico | Místico |
 | --- | --- | --- | --- | --- |
-| Sombrero | Yelmo bestial | Sombrero de paja | Corona arcana | Corona de Lunacia |
+| Sombrero | Yelmo bestial | Sombrero de paja | Casco de bronce (id `arcane_ring`; antes «Corona arcana», Hito 92) | Corona de Lunacia |
 | Armadura | Capa de viajero | Coraza de quitina | Armadura de bronce | Placas de obsidiana |
 | Escudo | Rodela de roble | Escudo de cuero reforzado | Escudo de hierro | Escudo de acero |
 | Botas | Botas pesadas | Botas de mensajero | Botas del viento | Botas dracónicas |

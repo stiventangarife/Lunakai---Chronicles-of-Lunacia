@@ -2,11 +2,45 @@
 import * as THREE from 'three';
 import { ISLAND_MONSTER_LAYOUT, patrolAround } from './world/islands/IslandWorldLayout.js';
 import { GLTFLoader } from '../../vendor/GLTFLoader.js';
-import { generatePackForBiome } from './world/BiomeEnemyCatalog.js';
+import { generatePackForBiome, ENEMY_ARCHETYPES } from './world/BiomeEnemyCatalog.js';
 import { applyToonOutline } from './stylized/ToonOutline.js';
 import { createQuestBeaconArrow3D } from './world/ZoneTransitionManager.js';
 import { createEnemyNameplate, createEnemyAlertSprite } from './ui/EnemyNameplate.js';
 import * as i18n from '../i18n/i18n.js';
+
+// Hito 94: tamaño en el mundo abierto. El Sapidae del jugador mide ~2,3 m en el mundo (PlayerEntity lo normaliza a 2,8 m
+// contando las piezas ocultas), y los enemigos usan la misma escala que en combate, así que los grandes se veían bajitos.
+// Alto mínimo en el mundo de los enemigos que deben verse más altos que el Sapidae (en «alturas de Sapidae»). Solo
+// agranda: si el modelo ya es así de alto con su escala, no cambia. Los multiplicadores propios (jefe ×1,15, misiones)
+// se conservan.
+const SAPIDAE_WORLD_HEIGHT = 2.3;
+const WORLD_MIN_HEIGHT = {
+  'dryad-fighter': 1.25,
+  'dryad-range': 1.2,
+  'dryad-mage': 1.15,
+  'bear-mom': 1.15,
+  'bear-dad': 1.4,
+  'werewolf-boss': 1.5,
+  'treant-flower': 1.0,
+  'wolf-alpha': 0.75,
+  'wolf-aquatic-alpha': 0.75
+};
+const _modelHeight = new Map(); // ruta del GLB → alto a escala 1
+function worldScaleFor(mType, modelPath, mesh, configScale) {
+  const k = WORLD_MIN_HEIGHT[mType];
+  if (!k) return configScale;
+  let h = _modelHeight.get(modelPath);
+  if (h === undefined) {
+    mesh.updateMatrixWorld(true);
+    const box = new THREE.Box3().setFromObject(mesh);
+    h = Number.isFinite(box.max.y) ? box.max.y - Math.min(0, box.min.y) : 0;
+    _modelHeight.set(modelPath, h);
+  }
+  if (!(h > 0)) return configScale;
+  const arch = Object.values(ENEMY_ARCHETYPES).find((a) => a && a.type === mType);
+  const extra = arch?.baseScale ? Math.max(1, configScale / arch.baseScale) : 1; // jefe ×1,15, misiones…
+  return Math.max(configScale, (SAPIDAE_WORLD_HEIGHT * k / h) * extra);
+}
 
 export class WanderingMonsters {
   constructor(scene, collisionSystem, audioSystem) {
@@ -669,7 +703,7 @@ export class WanderingMonsters {
   }
 
   async spawnMonster(config) {
-    const mobRadius = Math.max(0.65, (config.scale || 1.0) * 0.60);
+    let mobRadius = Math.max(0.65, (config.scale || 1.0) * 0.60);
     const safeSpawn = this._sanitizePoint(config.x, config.z, mobRadius);
     const group = new THREE.Group();
     // Spawn on the island ground (it used to start at y = 0, under the terrain, until it moved)
@@ -752,8 +786,21 @@ export class WanderingMonsters {
 
       const gltf = await loader.loadAsync(modelPath);
       mesh = gltf.scene;
-      const modelScale = config.scale || 1.0;
+      const modelScale = worldScaleFor(mType, modelPath, mesh, config.scale || 1.0);
       mesh.scale.set(modelScale, modelScale, modelScale);
+      // Hito 94: si se agrandó para el mundo, el aro, el radio de choque y la placa de nombre crecen con él
+      const grow = modelScale / (config.scale || 1.0);
+      if (grow > 1.001) {
+        auraMesh.scale.set(auraScale * grow, auraScale * grow, 1.0);
+        mobRadius = Math.max(mobRadius, Math.min(mobRadius * grow, 1.6));
+        mesh.updateMatrixWorld(true);
+        const top = new THREE.Box3().setFromObject(mesh).max.y;
+        if (Number.isFinite(top) && top + 0.45 > overheadY) {
+          overheadY = top + 0.45;
+          nameSprite.position.y = overheadY;
+          alertSprite.position.y = overheadY + 0.78;
+        }
+      }
 
       mesh.traverse(c => {
         if (c.isMesh) {
@@ -990,7 +1037,10 @@ export class WanderingMonsters {
 
             // Trigger visual "!" alert popup with sound
             this._popAlert(m);
-            if (this.audio && typeof this.audio.playCollision === 'function') {
+            // Hito 87: grito de la quimera (o «¡boing!» del slime) desde donde está
+            if (this.audio?.world?.creature) {
+              this.audio.world.creature(/slime/i.test(`${m.id} ${m.name}`) ? 'slime' : 'chimera', 'alert', { x: m.group.position.x, z: m.group.position.z, maxD: 40 });
+            } else if (this.audio && typeof this.audio.playCollision === 'function') {
               this.audio.playCollision();
             }
             break;

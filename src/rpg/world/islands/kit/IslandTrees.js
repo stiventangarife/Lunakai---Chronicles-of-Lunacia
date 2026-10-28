@@ -381,6 +381,9 @@ export class IslandTrees extends GenshinTrees {
         foliage.name = `IslandTreeFoliage_${bkey}`;
         foliage.castShadow = true;
         foliage.receiveShadow = true;
+        // Sombra con el mismo viento que las hojas (Hito 84)
+        const swayDepth = GenshinTrees.swayDepthFor(foliage.material);
+        if (swayDepth) foliage.customDepthMaterial = swayDepth;
         items.forEach((it, i) => {
           q.setFromAxisAngle(yAxis, it.rotY);
           sc.set(it.s, it.sy, it.s);

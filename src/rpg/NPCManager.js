@@ -7,6 +7,7 @@ import { portraitService } from '../tactics/CharacterPortraitService.js';
 import { FerryTravelUI } from './ui/FerryTravelUI.js';
 import { PALADILL_SPOT } from './world/ForestVillageLayout.js';
 import * as i18n from '../i18n/i18n.js';
+import { access } from '../ui/AccessPrefs.js';
 
 export class NPCManager {
   constructor(scene, dialogSystem, audioSystem) {
@@ -216,6 +217,7 @@ export class NPCManager {
     const spriteMat = new THREE.SpriteMaterial({ map: texture, transparent: true, depthTest: false });
     const sprite = new THREE.Sprite(spriteMat);
     sprite.scale.set(3.2, 0.8, 1);
+    access.trackWorldLabel(sprite); // Hito 85: crece con «Tamaño del texto»
     return sprite;
   }
 

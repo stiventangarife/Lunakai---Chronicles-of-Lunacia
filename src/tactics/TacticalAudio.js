@@ -1,5 +1,8 @@
 // TacticalAudio.js - Procedural Web Audio Synthesizer for Axie Tactics with Integrated MusicManager
 import { MusicManager } from '../audio/MusicManager.js';
+import { AmbienceManager } from '../audio/AmbienceManager.js';
+import { WorldSfx } from '../audio/WorldSfx.js';
+import { CombatSfx } from '../audio/CombatSfx.js';
 
 export class TacticalAudio {
   constructor() {
@@ -8,6 +11,20 @@ export class TacticalAudio {
     this.isMuted = false;
     this.initialized = false;
     this.music = new MusicManager();
+    // Hito 86: bus de ambiente (volumen «Ambiente» de Opciones), independiente del de efectos
+    this.ambGain = null;
+    this._ambVol = 0.6;
+    // Hito 91 (mezcla): el bus de efectos tenía una base de 0,25 y los efectos quedaban ~20 dB por debajo de la música
+    // (los golpes del combate casi no se oían). Base nueva 0,6 (+7,6 dB) con un compresor suave para que muchos
+    // sonidos juntos no saturen. _sfxVol = General × Efectos (Opciones).
+    this.SFX_BASE = 0.6;
+    this._sfxVol = 0.8;
+    this.sfxComp = null;
+    this.ambience = new AmbienceManager(this);
+    // Hito 87: pasos por suelo, voz de pitidos, criaturas y recolección (grabaciones opcionales con síntesis de respaldo)
+    this.world = new WorldSfx(this);
+    // Hito 88: combate por clase y peso del golpe (lo instala SpellPresentation en el bus de eventos)
+    this.combat = new CombatSfx(this);
   }
 
   init() {
@@ -16,9 +33,30 @@ export class TacticalAudio {
     if (!AudioContext) return;
     this.ctx = new AudioContext();
     this.masterGain = this.ctx.createGain();
-    this.masterGain.gain.setValueAtTime(0.25, this.ctx.currentTime);
-    this.masterGain.connect(this.ctx.destination);
+    this.masterGain.gain.setValueAtTime(this.isMuted ? 0 : this._sfxVol * this.SFX_BASE, this.ctx.currentTime);
+    // Compresor suave del bus de efectos (solo actúa en los picos: varios golpes y efectos a la vez)
+    this.sfxComp = this.ctx.createDynamicsCompressor();
+    this.sfxComp.threshold.value = -14; this.sfxComp.knee.value = 8; this.sfxComp.ratio.value = 4;
+    this.sfxComp.attack.value = 0.004; this.sfxComp.release.value = 0.18;
+    this.masterGain.connect(this.sfxComp);
+    this.sfxComp.connect(this.ctx.destination);
+    this.ambGain = this.ctx.createGain();
+    this.ambGain.gain.setValueAtTime(this.isMuted ? 0 : this._ambVol, this.ctx.currentTime);
+    this.ambGain.connect(this.ctx.destination);
     this.initialized = true;
+    this.ambience.start();
+  }
+
+  /** Hito 91: volumen del bus de efectos (0–1, ya multiplicado por el general). Lo llama SettingsModal. */
+  setSfxVolume(v) {
+    this._sfxVol = Math.max(0, Math.min(1, Number(v) || 0));
+    if (this.masterGain && this.ctx && !this.isMuted) this.masterGain.gain.setTargetAtTime(this._sfxVol * this.SFX_BASE, this.ctx.currentTime, 0.03);
+  }
+
+  /** Volumen del bus de ambiente (0–1, ya multiplicado por el general). Lo llama SettingsModal. */
+  setAmbientVolume(v) {
+    this._ambVol = Math.max(0, Math.min(1, Number(v) || 0));
+    if (this.ambGain && this.ctx && !this.isMuted) this.ambGain.gain.setTargetAtTime(this._ambVol, this.ctx.currentTime, 0.08);
   }
 
   playMusic(trackKey, options) {
@@ -52,8 +90,9 @@ export class TacticalAudio {
   toggleMute() {
     this.isMuted = !this.isMuted;
     if (this.masterGain && this.ctx) {
-      this.masterGain.gain.setValueAtTime(this.isMuted ? 0 : 0.25, this.ctx.currentTime);
+      this.masterGain.gain.setValueAtTime(this.isMuted ? 0 : this._sfxVol * this.SFX_BASE, this.ctx.currentTime);
     }
+    if (this.ambGain && this.ctx) this.ambGain.gain.setTargetAtTime(this.isMuted ? 0 : this._ambVol, this.ctx.currentTime, 0.05);
     if (this.music) {
       this.music.setMuted(this.isMuted);
     }
@@ -63,8 +102,9 @@ export class TacticalAudio {
   setMuted(muted) {
     this.isMuted = Boolean(muted);
     if (this.masterGain && this.ctx) {
-      this.masterGain.gain.setValueAtTime(this.isMuted ? 0 : 0.25, this.ctx.currentTime);
+      this.masterGain.gain.setValueAtTime(this.isMuted ? 0 : this._sfxVol * this.SFX_BASE, this.ctx.currentTime);
     }
+    if (this.ambGain && this.ctx) this.ambGain.gain.setTargetAtTime(this.isMuted ? 0 : this._ambVol, this.ctx.currentTime, 0.05);
     if (this.music) {
       this.music.setMuted(this.isMuted);
     }
@@ -73,6 +113,77 @@ export class TacticalAudio {
   resume() {
     if (this.ctx && this.ctx.state === 'suspended') {
       this.ctx.resume();
+    }
+  }
+
+  // ── Hito 86: sonidos de interfaz que el juego ya llamaba y no existían ─────────────────────────
+  // (playClick en Opciones, playSelect/playConfirm en el inicio y la creación, playImpact en la transición a
+  // combate, playSfx en el telón de carga). Sintetizados: sin archivos.
+
+  /** Nota con envolvente: tipo de onda, frecuencia inicial → final, duración, volumen y retardo. */
+  _tone(type, f0, f1, dur, vol, delay = 0, filter = 0) {
+    if (!this.initialized || this.isMuted) return;
+    this.resume();
+    const t = this.ctx.currentTime + delay;
+    const osc = this.ctx.createOscillator();
+    const g = this.ctx.createGain();
+    osc.type = type;
+    osc.frequency.setValueAtTime(f0, t);
+    if (f1 && f1 !== f0) osc.frequency.exponentialRampToValueAtTime(f1, t + dur * 0.8);
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(vol, t + Math.min(0.012, dur * 0.2));
+    g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    let node = osc;
+    if (filter) { const f = this.ctx.createBiquadFilter(); f.type = 'lowpass'; f.frequency.value = filter; osc.connect(f); node = f; }
+    node.connect(g); g.connect(this.masterGain);
+    osc.start(t); osc.stop(t + dur + 0.02);
+  }
+
+  /** Campanita: fundamental + parciales inarmónicos con caída exponencial. */
+  _bell(freq, dur, vol, delay = 0) {
+    this._tone('sine', freq, freq, dur, vol, delay);
+    this._tone('sine', freq * 2.76, freq * 2.76, dur * 0.55, vol * 0.35, delay);
+    this._tone('sine', freq * 5.4, freq * 5.4, dur * 0.3, vol * 0.12, delay);
+  }
+
+  /** Clic suave de botón o pestaña (madera clara). */
+  playClick() {
+    this._tone('triangle', 1900, 1200, 0.045, 0.07);
+    this._tone('sine', 420, 300, 0.05, 0.05);
+  }
+
+  /** Elegir una opción: dos notas que suben. */
+  playSelect() {
+    this._tone('triangle', 660, 660, 0.07, 0.08);
+    this._tone('triangle', 990, 990, 0.09, 0.08, 0.055);
+  }
+
+  /** Confirmar: acorde de campanitas (mi–sol#–si). */
+  playConfirm() {
+    this._bell(659.25, 0.45, 0.07);
+    this._bell(830.61, 0.45, 0.06, 0.05);
+    this._bell(987.77, 0.6, 0.06, 0.1);
+  }
+
+  /** Golpe de la transición a combate: barrido de aire + golpe grave. */
+  playImpact() {
+    if (!this.initialized || this.isMuted) return;
+    this._playNoise(0.35, 0.18, 2200);
+    this._tone('sine', 120, 38, 0.55, 0.42, 0.05);
+    this._tone('triangle', 240, 60, 0.25, 0.18, 0.05);
+  }
+
+  /** Sonidos por nombre (telón de carga y futuros usos). Un nombre desconocido suena como un clic. */
+  playSfx(name) {
+    switch (name) {
+      case 'menu_confirm': return this.playConfirm();
+      case 'menu_select': return this.playSelect();
+      case 'menu_open': this._tone('sine', 520, 780, 0.12, 0.06); return this._tone('triangle', 780, 1040, 0.1, 0.04, 0.04);
+      case 'menu_close': this._tone('sine', 780, 520, 0.12, 0.06); return this._tone('triangle', 520, 390, 0.1, 0.04, 0.04);
+      case 'error': this._tone('square', 220, 200, 0.09, 0.05, 0, 1400); return this._tone('square', 196, 180, 0.12, 0.05, 0.1, 1400);
+      case 'coin': this._bell(1568, 0.25, 0.06); return this._bell(2093, 0.3, 0.05, 0.07);
+      case 'impact': return this.playImpact();
+      default: return this.playClick();
     }
   }
 

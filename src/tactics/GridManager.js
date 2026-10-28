@@ -2,6 +2,7 @@
 import * as THREE from 'three';
 import { TextureGenerator } from './TextureGenerator.js';
 import { cellExists } from './maps/BattleMapLayout.js';
+import { access } from '../ui/AccessPrefs.js';
 
 export const TILE_SIZE = 1.6;
 export const GRID_WIDTH = 10;
@@ -19,6 +20,8 @@ export class GridManager {
 
     this.highlightGroup = new THREE.Group();
     this.scene.add(this.highlightGroup);
+    // Hito 85: colores (modo daltonismo) y dibujo de las casillas (alto contraste) según Opciones
+    access.onChange(() => this.applyAccess());
 
     this.highlightMeshes = new Map();
     this.obstacleGroup = new THREE.Group();
@@ -771,21 +774,54 @@ export class GridManager {
     path:    { color: 0x39e75f, opacity: 1.00, y: 0.040, order: 7 }
   };
 
-  /** Textura de la baldosa: relleno translúcido + borde opaco con un brillo interior (blanco, se tiñe con el color). */
-  static _tileTexture() {
-    if (GridManager._tileTex) return GridManager._tileTex;
+  /**
+   * Textura de la baldosa: relleno translúcido + borde opaco con un brillo interior (blanco, se tiñe con el color).
+   * Hito 85 (alto contraste): además del color, un dibujo por capa → 'dots' movimiento, 'stripes' alcance y
+   * objetivos, 'cross' área. Una textura por dibujo, creada una vez y compartida.
+   */
+  static _tileTexture(pattern = 'plain') {
+    GridManager._tileTexs = GridManager._tileTexs || {};
+    if (GridManager._tileTexs[pattern]) return GridManager._tileTexs[pattern];
     const N = 128, c = document.createElement('canvas'); c.width = c.height = N;
     const x = c.getContext('2d');
     const rr = (p, r) => { x.beginPath(); x.moveTo(p + r, p); x.arcTo(N - p, p, N - p, N - p, r); x.arcTo(N - p, N - p, p, N - p, r); x.arcTo(p, N - p, p, p, r); x.arcTo(p, p, N - p, p, r); x.closePath(); };
-    rr(6, 16); x.fillStyle = 'rgba(255,255,255,0.42)'; x.fill();                       // relleno
+    const plain = pattern === 'plain';
+    rr(6, 16); x.fillStyle = `rgba(255,255,255,${plain ? 0.42 : 0.30})`; x.fill();    // relleno
     const g = x.createRadialGradient(N / 2, N / 2, N * 0.18, N / 2, N / 2, N * 0.62); // brillo hacia el borde
-    g.addColorStop(0, 'rgba(255,255,255,0)'); g.addColorStop(1, 'rgba(255,255,255,0.35)');
+    g.addColorStop(0, 'rgba(255,255,255,0)'); g.addColorStop(1, `rgba(255,255,255,${plain ? 0.35 : 0.2})`);
     rr(6, 16); x.fillStyle = g; x.fill();
-    rr(8, 14); x.lineWidth = 7; x.strokeStyle = 'rgba(255,255,255,1)'; x.stroke();     // borde nítido
+    if (!plain) {
+      x.save(); rr(10, 12); x.clip();
+      x.fillStyle = x.strokeStyle = 'rgba(255,255,255,0.95)';
+      if (pattern === 'dots') {
+        for (let i = 0; i < 4; i++) for (let j = 0; j < 4; j++) { x.beginPath(); x.arc(22 + i * 28, 22 + j * 28, 6, 0, Math.PI * 2); x.fill(); }
+      } else {
+        x.lineWidth = 7;
+        const lines = (dir) => { for (let k = -N; k <= 2 * N; k += 26) { x.beginPath(); x.moveTo(k, 0); x.lineTo(k + dir * N, N); x.stroke(); } };
+        lines(1);
+        if (pattern === 'cross') lines(-1);
+      }
+      x.restore();
+    }
+    rr(8, 14); x.lineWidth = plain ? 7 : 9; x.strokeStyle = 'rgba(255,255,255,1)'; x.stroke(); // borde nítido
     const t = new THREE.CanvasTexture(c);
     t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 4; t.generateMipmaps = true;
-    GridManager._tileTex = t;
+    GridManager._tileTexs[pattern] = t;
+    if (plain) GridManager._tileTex = t;
     return t;
+  }
+
+  /** Hito 85: color de cada capa (modo daltonismo) y su dibujo (alto contraste). Solo cambia color y textura: sin recompilar. */
+  applyAccess() {
+    const r = this._hlRes;
+    if (!r) return;
+    const pal = access.palette, hc = access.contrast;
+    const PATTERN = { reach: 'dots', spell: 'stripes', target: 'stripes', aoe: 'cross' };
+    for (const k in r.layers) {
+      const mat = r.layers[k].material;
+      if (pal[k] !== undefined) mat.color.setHex(pal[k]);
+      if (k !== 'path' && mat.map) mat.map = GridManager._tileTexture(hc && PATTERN[k] ? PATTERN[k] : 'plain');
+    }
   }
 
   _hl() {
@@ -813,6 +849,7 @@ export class GridManager {
       layers[k] = m;
     }
     this._hlRes = { cap, layers, m4: new THREE.Matrix4(), col: new THREE.Color() };
+    this.applyAccess();
     return this._hlRes;
   }
 
@@ -880,8 +917,9 @@ export class GridManager {
     const r = this._hlRes;
     if (!r) return;
     const t = r.layers.target, h = r.layers.hover;
-    if (t.count) t.material.opacity = 0.78 + Math.sin(time * 5.0) * 0.22;
-    if (h.count) h.material.opacity = 0.85 + Math.sin(time * 6.0) * 0.15;
+    const pulse = access.reduceMotion ? 0 : 1; // Hito 85: sin pulso con «Reducir movimiento»
+    if (t.count) t.material.opacity = 0.78 + Math.sin(time * 5.0) * 0.22 * pulse;
+    if (h.count) h.material.opacity = 0.85 + Math.sin(time * 6.0) * 0.15 * pulse;
   }
 
 }

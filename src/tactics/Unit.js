@@ -8,6 +8,34 @@ import { sapidaeModularController } from '../rpg/SapidaeModularController.js';
 import { sapidaeModelUrl } from '../rpg/SapidaeModels.js';
 import * as i18n from '../i18n/i18n.js';
 import { cloneGLTF } from '../render/ModelCache.js'; // caché de GLB compartida con el mundo abierto
+import { access, PALETTES } from '../ui/AccessPrefs.js';
+import { TILE_SIZE } from './GridManager.js';
+
+// Hito 94: los enemigos caben en su casilla. Distancia horizontal de los vértices al origen del modelo (el centro de la
+// casilla), a escala 1; se mide una vez por GLB. Al ser un radio vale para cualquier dirección a la que mire.
+//   - cuerpo: el 85 % de los vértices queda dentro del bloque visible de la casilla (GridManager lo dibuja al 94 %);
+//   - extremos (brazos, colas, armas): pueden salir un poco, hasta el 115 % de media casilla (~17 cm del borde visible).
+const BODY_PERCENTILE = 0.85;
+const BODY_FILL = 0.94;
+const SPILL_MAX = 1.15;
+const _footprint = new Map();
+function footprintRadii(key, root) {
+  let f = _footprint.get(key);
+  if (f) return f;
+  root.updateMatrixWorld(true);
+  const inv = new THREE.Matrix4().copy(root.matrixWorld).invert(), m = new THREE.Matrix4(), v = new THREE.Vector3();
+  const dist = [];
+  root.traverse((o) => {
+    const p = o.isMesh && !o.userData.isOutlineMesh && o.geometry?.attributes?.position;
+    if (!p) return;
+    m.multiplyMatrices(inv, o.matrixWorld);
+    for (let i = 0; i < p.count; i++) { v.fromBufferAttribute(p, i).applyMatrix4(m); dist.push(Math.hypot(v.x, v.z)); }
+  });
+  const d = Float32Array.from(dist).sort();
+  f = d.length ? { body: d[Math.floor((d.length - 1) * BODY_PERCENTILE)], max: d[d.length - 1] } : { body: 0, max: 0 };
+  _footprint.set(key, f);
+  return f;
+}
 
 /**
  * Clona un material sin serializar su userData. Material.clone() copia userData con
@@ -210,6 +238,12 @@ export class Unit {
       if (modelType !== 'fox' && scale < 0.1) {
         scale = 1.05;
       }
+      // Hito 94: tan grande como pida su escala, pero el cuerpo dentro de la casilla y los extremos casi (gire hacia donde gire).
+      if (!isSapModel && modelType !== 'fox') {
+        const f = footprintRadii(modelPath, this.mesh), half = TILE_SIZE / 2;
+        if (f.body > 0) scale = Math.min(scale, half * BODY_FILL / f.body);
+        if (f.max > 0) scale = Math.min(scale, half * SPILL_MAX / f.max);
+      }
       this.baseScale = scale;
       this.mesh.scale.set(scale, scale, scale);
       if (this.hudSprite) {
@@ -405,7 +439,11 @@ export class Unit {
         this.hudSprite.material.dispose();
       }
       // Discos y anillos tácticos (geometrías creadas para esta unidad)
-      for (const m of [this.ringMesh, this.activeRuneMesh]) if (m && m.geometry) m.geometry.dispose();
+      for (const m of [this.ringMesh, this.activeRuneMesh]) if (m && m.geometry && !m.geometry.userData.lkShared) m.geometry.dispose();
+      // Hito 85: anillo normal (puede no estar puesto con alto contraste), contorno y aviso de cambios de Opciones
+      if (this._ringGeoNormal && this._ringGeoNormal !== this.ringMesh?.geometry) this._ringGeoNormal.dispose();
+      if (this._ringOutline) this._ringOutline.material.dispose();
+      if (this._accessOff) { this._accessOff(); this._accessOff = null; }
       for (const c of this.group.children) {
         if (c.isMesh && c.geometry && c.geometry.type === 'CircleGeometry') c.geometry.dispose();
       }
@@ -474,6 +512,18 @@ export class Unit {
     this.ringMesh.rotation.x = -Math.PI / 2;
     this.ringMesh.position.y = 0.035;
     this.group.add(this.ringMesh);
+    // Hito 85: con alto contraste el anillo cambia de forma según el bando (aliado: círculo; enemigo: rombo) y
+    // lleva contorno negro; con modo daltonismo, colores distinguibles. Hijo del anillo: se oculta con él.
+    this._ringGeoNormal = ringGeo;
+    this._ringOutline = new THREE.Mesh(Unit._sharedRingGeo('allyOut'), new THREE.MeshBasicMaterial({
+      color: 0x000000, side: THREE.DoubleSide, transparent: true, opacity: 0.75, depthWrite: false
+    }));
+    this._ringOutline.position.z = -0.004;
+    this._ringOutline.renderOrder = -1;
+    this._ringOutline.visible = false;
+    this.ringMesh.add(this._ringOutline);
+    this.applyAccess();
+    this._accessOff = access.onChange(() => this.applyAccess());
 
     const activeGeo = new THREE.RingGeometry(0.72, 0.86, 32);
     const activeMat = new THREE.MeshBasicMaterial({
@@ -487,6 +537,40 @@ export class Unit {
     this.activeRuneMesh.position.y = 0.04;
     this.activeRuneMesh.visible = false;
     this.group.add(this.activeRuneMesh);
+  }
+
+  /** Geometrías de anillo compartidas por todas las unidades (alto contraste). No se liberan con la unidad. */
+  static _sharedRingGeo(kind) {
+    Unit._ringGeos = Unit._ringGeos || {};
+    if (!Unit._ringGeos[kind]) {
+      const g = {
+        allyHC: () => new THREE.RingGeometry(0.5, 0.72, 40),
+        allyOut: () => new THREE.RingGeometry(0.46, 0.77, 40),
+        enemyHC: () => new THREE.RingGeometry(0.52, 0.8, 4),  // 4 lados: rombo sobre la casilla
+        enemyOut: () => new THREE.RingGeometry(0.46, 0.87, 4),
+      }[kind]();
+      g.userData.lkShared = true;
+      Unit._ringGeos[kind] = g;
+    }
+    return Unit._ringGeos[kind];
+  }
+
+  /** Hito 85: forma, contorno y color del anillo de bando según Opciones › Accesibilidad. */
+  applyAccess() {
+    if (!this.ringMesh) return;
+    const foe = this.team !== 'player';
+    const pal = access.palette;
+    this.ringMesh.material.color.set(foe ? pal.enemy : pal.ally);
+    if (access.contrast) {
+      this.ringMesh.geometry = Unit._sharedRingGeo(foe ? 'enemyHC' : 'allyHC');
+      this.ringMesh.material.opacity = 0.95;
+      this._ringOutline.geometry = Unit._sharedRingGeo(foe ? 'enemyOut' : 'allyOut');
+      this._ringOutline.visible = true;
+    } else {
+      this.ringMesh.geometry = this._ringGeoNormal;
+      this.ringMesh.material.opacity = 0.75;
+      this._ringOutline.visible = false;
+    }
   }
 
   _createOverheadHUD() {
@@ -546,6 +630,17 @@ export class Unit {
     const safeMaxHP = typeof this.maxHP === 'number' && !isNaN(this.maxHP) && this.maxHP > 0 ? this.maxHP : 1;
     const hpRatio = Math.max(0, Math.min(1, safeHP / safeMaxHP));
     const fillW = barW * hpRatio;
+    // Hito 89: barra «fantasma». Lo que se acaba de perder queda en claro un momento y luego baja (update)
+    if (this._ghostHP == null || safeHP >= this._ghostHP) { this._ghostHP = safeHP; this._ghostWait = 0; this._ghostDraining = false; }
+    else if (safeHP < (this._ghostLast ?? Infinity)) { this._ghostWait = 0.45; this._ghostDraining = true; }   // golpe nuevo: vuelve a esperar
+    this._ghostLast = safeHP;
+    const ghostRatio = Math.max(0, Math.min(1, this._ghostHP / safeMaxHP));
+    if (ghostRatio > hpRatio + 0.001) {
+      ctx.fillStyle = 'rgba(254, 243, 199, 0.9)';
+      ctx.beginPath();
+      ctx.roundRect(barX, barY, barW * ghostRatio, barH, 8);
+      ctx.fill();
+    }
     const grad = ctx.createLinearGradient(barX, barY, barX + barW, barY);
     if (this.team === 'player') {
       grad.addColorStop(0, '#10b981');
@@ -728,7 +823,7 @@ export class Unit {
       const angle = Math.atan2(dirX, dirZ);
       if (this.mesh) this.mesh.rotation.y = angle;
 
-      this.audio.playStep();
+      if (!this.audio?.combat?.step?.(this)) this.audio?.playStep?.();   // Hito 88: paso con el suelo de la isla
 
       const startTime = performance.now();
       // If the unit has running animation: hopHeight is 0 (runs naturally along the ground, NO saltitos!)
@@ -770,7 +865,7 @@ export class Unit {
       const angle = Math.atan2(dirX, dirZ);
       if (this.mesh) this.mesh.rotation.y = angle;
 
-      if (this.audio) this.audio.playStep();
+      if (this.audio && !this.audio.combat?.step?.(this)) this.audio.playStep();   // Hito 88
 
       // Trigger jump or attack animation
       const activeClip = this.attackClip || this.runClip;
@@ -858,6 +953,30 @@ export class Unit {
       remainingTiles,
       collidingUnit
     };
+  }
+
+  /**
+   * Hito 82: vuelve con suavidad al centro de su casilla (gridX, gridZ) si quedó desplazada (un efecto visual que
+   * movía la malla se cortó, un empujón a mitad de animación…). No hace nada si ya está en el centro o si se mueve.
+   */
+  settleToTile(duration = 0.15) {
+    if (!this.group || this.isMoving || this.isDead || !this.gridManager) return Promise.resolve(false);
+    const end = this.gridManager.gridToWorld(this.gridX, this.gridZ);
+    const p = this.group.position;
+    if (Math.hypot(p.x - end.x, p.z - end.z) < 0.03 && Math.abs(p.y) < 0.03) return Promise.resolve(false);
+    if (typeof document !== 'undefined' && document.hidden) { p.set(end.x, 0, end.z); return Promise.resolve(true); }
+    const start = p.clone();
+    const t0 = performance.now();
+    return new Promise((resolve) => {
+      const step = (now) => {
+        const t = Math.min(1, (now - t0) / 1000 / duration);
+        const k = t * t * (3 - 2 * t);
+        if (!this.isMoving) p.set(start.x + (end.x - start.x) * k, start.y * (1 - k), start.z + (end.z - start.z) * k);
+        if (t < 1 && !this.isMoving) requestAnimationFrame(step);
+        else { if (!this.isMoving) p.set(end.x, 0, end.z); resolve(true); }
+      };
+      requestAnimationFrame(step);
+    });
   }
 
   _slidePush(targetX, targetZ, duration = 0.12) {
@@ -976,7 +1095,7 @@ export class Unit {
               mat.userData.baseEmissiveIntensity = (mat.emissiveIntensity !== undefined) ? mat.emissiveIntensity : 0.0;
             }
             mat.emissive.setHex(0xffffff);
-            mat.emissiveIntensity = 1.35;
+            mat.emissiveIntensity = access.reduceMotion ? 0.45 : 1.35; // Hito 85: destello suave con «Reducir movimiento»
           }
         });
       }
@@ -994,6 +1113,7 @@ export class Unit {
     }
 
     const baseScale = this.baseScale || this.config.scale || 1.15;
+    if (access.reduceMotion) return; // Hito 85: sin aplastamiento ni sacudida de la unidad
     this.mesh.scale.set(baseScale * 1.25, baseScale * 0.75, baseScale * 1.25);
 
     let shakeStep = 0;
@@ -1048,6 +1168,7 @@ export class Unit {
 
   die() {
     this.isDead = true;
+    this.audio?.combat?.faint?.(this);   // Hito 88
     this._sapiFace('happy', 'o');
     this.clearDamageFlash();
     const tile = this.gridManager.getTile(this.gridX, this.gridZ);
@@ -1233,6 +1354,7 @@ export class Unit {
 
   async dieCinematic(sceneManager, audio, vfxManager) {
     this.isDead = true;
+    audio?.combat?.faint?.(this);   // Hito 88
     this.clearDamageFlash();
     const tile = this.gridManager.getTile(this.gridX, this.gridZ);
     if (tile && tile.unit === this) tile.unit = null;
@@ -1317,6 +1439,16 @@ export class Unit {
   update(dt, time) {
     if (this.mixer) {
       this.mixer.update(dt);
+    }
+    // Hito 89: la barra fantasma espera 0,45 s y luego baja al 60 % de la vida máxima por segundo
+    if (this._ghostDraining) {
+      const cur = Math.max(0, this.currentHP || 0);
+      if (this._ghostWait > 0) this._ghostWait -= dt;
+      else {
+        this._ghostHP = Math.max(cur, this._ghostHP - (this.maxHP || 1) * 0.6 * dt);
+        if (this._ghostHP <= cur + 0.001) { this._ghostHP = cur; this._ghostDraining = false; }
+        if (this.hudSprite && this.hudSprite.visible !== false) this.updateHUD();
+      }
     }
     if (this.toonOutline && typeof this.toonOutline.syncVisibility === 'function') {
       this.toonOutline.syncVisibility();

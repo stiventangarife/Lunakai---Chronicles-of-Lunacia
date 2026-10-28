@@ -106,7 +106,7 @@ export function attachAxieCare(game) {
     const id = service.companionId();
     const base = game.equipmentManager?.heroesBase?.[id];
     const key = base?.axieId || player()?.axieId || id;
-    try { return portraitService.getPortraitSync(key) || (base?.axieId ? null : portraitService.getPortraitSync(id)) || null; } catch { return null; }
+    try { return (base?.axieId ? portraitService.axieUrl(base) : null) || portraitService.getPortraitSync(key) || (base?.axieId ? null : portraitService.getPortraitSync(id)) || null; } catch { return null; }
   }
 
   /** Luna del vínculo: el líquido sube con el porcentaje. */
@@ -258,12 +258,12 @@ export function attachAxieCare(game) {
     if (act === 'close') { hide(); return; }
     if (act === 'pet') {
       const r = service.pet();
-      if (r.ok) { game.audio?.playBuff?.(); burst(i18n.t('care.bondGain', { n: r.gained })); }
+      if (r.ok) { game.audio?.playBuff?.(); game.audio?.world?.axie?.('happy'); burst(i18n.t('care.bondGain', { n: r.gained })); }
       return;
     }
     if (food) {
       const r = service.feed(food);
-      if (r.ok) { game.audio?.playBuff?.(); burst(i18n.t('care.bondGain', { n: r.gained })); }
+      if (r.ok) { game.audio?.playBuff?.(); game.audio?.world?.axie?.('happy'); burst(i18n.t('care.bondGain', { n: r.gained })); }
     }
   });
 

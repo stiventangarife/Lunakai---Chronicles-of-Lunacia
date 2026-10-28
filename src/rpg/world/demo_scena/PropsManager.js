@@ -93,6 +93,7 @@ export class PropsManager {
     this.terrain.legacyHeights = true;
     try { this.populateAllZones(); } finally { this.terrain.legacyHeights = false; }
     this._fitToTerrainEdits();
+    this._removeListedProps();
     if (!this.deferLegacyTrees) this.buildInstancedTrees();
     this.buildInstancedVegetation();
     this.buildInstancedRocks();
@@ -103,6 +104,25 @@ export class PropsManager {
    * Hito 66: tras colocar con el terreno antiguo, cada pieza donde el suelo cambió (cauce nuevo del norte, vados)
    * se apoya en la altura nueva; las que quedarían dentro del agua se quitan.
    */
+  /**
+   * Hito 82: piezas quitadas a mano (por petición). Se quitan antes de crear las instancias, así que también
+   * desaparece su colisión (ForestColliders la calcula de las instancias).
+   */
+  _removeListedProps() {
+    const REMOVED_ROCKS = [
+      { x: -1.0, z: -40.0, why: 'tapaba el camino junto al río (jugador en -5,4, -40,6)' },
+    ];
+    let n = 0;
+    for (const list of [this.pendingRocks, this.pendingRockPillars]) {
+      if (!Array.isArray(list)) continue;
+      for (let i = list.length - 1; i >= 0; i--) {
+        const p = list[i]?.pos;
+        if (p && REMOVED_ROCKS.some((r) => Math.hypot(p.x - r.x, p.z - r.z) < 1.2)) { list.splice(i, 1); n++; }
+      }
+    }
+    if (n) console.log(`[PropsManager] ${n} roca(s) quitadas a mano`);
+  }
+
   _fitToTerrainEdits() {
     const t = this.terrain;
     const lists = [this.pendingTrees, this.pendingRocks, this.pendingRockPillars, this.pendingVegetation, this.pendingPebbles];

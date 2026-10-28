@@ -1,6 +1,6 @@
 # Diseño técnico: Tienda entre jugadores (Mercado de Lunacia)
 
-> Estado: **diseño v2, sin programar**. Es una demo para Sky Mavis: el bAXS del juego es ficticio y funciona como una moneda del juego más, igual que el oro.
+> Estado: **diseño v3, programado en los Hitos 76, 77 y 78** (fase 3: en bAXS solo hay precio mínimo; el máximo lo pone el mercado). Es una demo para Sky Mavis: el bAXS del juego es ficticio y funciona como una moneda del juego más, igual que el oro.
 > **Sin firma de billetera** por ahora. El pago pasa por un único punto del código (`marketPay`) para poder cambiarlo por bAXS real más adelante sin tocar el resto.
 
 ## Decisiones tomadas (25-oct)
@@ -10,10 +10,10 @@
 | Monedas de la tienda | solo **oro** y **bAXS**; el SLP no se comercia ni se convierte |
 | Firma o billetera | se omite; ventana de confirmación normal (precio, comisión, total) |
 | Saldo | **el mismo de la partida** (sin monedero aparte) |
-| Comisión | **5 % en las ventas por bAXS** |
+| Comisión | **5 % en todas las ventas**: en bAXS las de bAXS y en oro las de oro |
 | Anuncios | duran **3 días**, máximo **20 por jugador** |
 | Objetos de antes del mercado | **se venden con normalidad** |
-| Invitados | pendiente de confirmar (propuesta en §6) |
+| Invitados | juegan como hoy; ven el mercado sin comerciar; al vincular la cuenta, sus monedas se ajustan a un máximo (§6) |
 
 ## 1. Qué se vende y con qué moneda
 
@@ -69,7 +69,7 @@ Todo lo que mueve monedas pasa por funciones del servidor, con límites razonabl
 | Función | Qué hace |
 |---|---|
 | `market_list(slot, item, qty, price)` | retira el objeto de la partida del servidor y abre el anuncio (máx. 20 abiertos; precio dentro de los límites) |
-| `market_buy(slot, listing, qty, idem)` | cobra al comprador del saldo de su partida, entrega el objeto y paga al vendedor; en bAXS se descuenta la **comisión del 5 %**; o todo o nada |
+| `market_buy(slot, listing, qty, idem)` | cobra al comprador del saldo de su partida, entrega el objeto y paga al vendedor menos la **comisión del 5 %** (en la moneda de la venta); o todo o nada |
 | `market_cancel(listing)` | devuelve el objeto a la partida del vendedor |
 | `market_expire()` | tarea periódica: los anuncios de más de 3 días vuelven a su dueño |
 
@@ -90,15 +90,13 @@ Hoy descuenta del saldo de la partida en el servidor. El día que haya bAXS real
 | Fase | Contenido |
 |---|---|
 | 1 · Monedas en el servidor | saldos de oro, bAXS y SLP en el servidor; `save_slot` deja de aceptarlos; `claim_battle_gold`, `shop_*`, `forge_pay`, `grant_reward` |
-| 2 · Recursos por oro | tablas y funciones del mercado; pestaña Mercado |
+| 2 · Recursos por oro | tablas y funciones del mercado; pestaña Mercado; comisión del 5 % en oro |
 | 3 · Equipo, runas y charms por bAXS | reglas por tier y clase; comisión del 5 %; precios sugeridos |
 
-## 6. Invitados (propuesta, pendiente de confirmar)
+## 6. Invitados (confirmado)
 - **Juegan como hoy:** la Forja, la tienda de Ochi y las monedas funcionan en su partida local, sin servidor.
 - **Mercado:** lo pueden ver, pero no comerciar. Los botones explican que hace falta vincular una cuenta.
 - **Al vincular la cuenta**, la partida de invitado se sube con sus objetos. Las monedas se ajustan a un máximo razonable según el progreso de la partida (nivel y misiones). Así una partida local editada no entra al mercado con saldos inventados.
 
 ## 7. Pendiente
-- Confirmar la propuesta de invitados (§6).
-- Comisión en las ventas por **oro**: ¿sin comisión, o también un 5 % (en oro)?
 - Más adelante, antes de usar bAXS o AXS reales: consultar las condiciones de Sky Mavis para juegos de terceros (developersupport@skymavis.com).

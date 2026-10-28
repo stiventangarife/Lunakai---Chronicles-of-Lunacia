@@ -12,7 +12,7 @@
 //      estados, cartas con nombre/valor/alcance, tooltip marfil, registro de combate y barra apagada en turno enemigo.
 //      La lógica de combate no se toca: si main.js cambia sus textos, este módulo solo los reescribe a continuación.
 
-import { STATUS_DEFS } from '../tactics/combat/StatusSystem.js';
+import { STATUS_DEFS, statusIconHtml, preloadStatusIcons } from '../tactics/combat/StatusSystem.js';
 import { hasUltimate, paintUltimate, ultimateTipHTML, ultimateView } from './UltimateButton.js';
 import * as i18n from '../i18n/i18n.js';
 
@@ -233,13 +233,15 @@ export function attachCombatHUD(game) {
   if (!game || game.__lkCombatHUD) return;
   game.__lkCombatHUD = true;
   const $ = (id) => document.getElementById(id);
-  // Valor de carta modificado por nivel, atributos o estados: en verde; desglose en la ficha (19-oct)
-  if (!document.getElementById('lk-cb-boost-style')) {
+  // Valor de carta modificado por nivel, atributos o estados (Hito 79): el número conserva su color (daño, cura o
+  // escudo) y lleva una flechita: ▲ verde si es mayor que el de la carta, ▼ roja si es menor. Desglose en la ficha.
+  if (!document.getElementById('lk-cb-boost-style-v2')) {
     const st = document.createElement('style');
-    st.id = 'lk-cb-boost-style';
-    st.textContent = '.lk-card-dmg.lk-is-boosted{color:#7ee08a}.lk-card-dmg.lk-is-reduced{color:#ff8a7a}.lk-cb-tip-calc{margin:6px 0 0;font-size:11px;opacity:.8}';
+    st.id = 'lk-cb-boost-style-v2';
+    st.textContent = '.lk-card-dmg.lk-is-boosted::before,.lk-card-dmg.lk-is-reduced::before{display:inline-block;margin-right:2px;font:900 normal .58em/1 var(--lk-font-ui);vertical-align:.18em}.lk-card-dmg.lk-is-boosted::before{content:"\\25B2";color:#7ee08a}.lk-card-dmg.lk-is-reduced::before{content:"\\25BC";color:#ff6b5c}.lk-cb-tip-calc{margin:6px 0 0;font-size:11px;opacity:.8}';
     document.head.appendChild(st);
   }
+  preloadStatusIcons(); // Hito 80: iconos de los estados
   const bar = $('lk-combat-bar');
   const q = (sel) => bar?.querySelector(sel);
   const tip = $('lk-cb-tip');
@@ -319,7 +321,7 @@ export function attachCombatHUD(game) {
       const defs = STATUS_DEFS;
       st.innerHTML = list.map((s) => {
         const label = s.label || defs?.[s.id]?.label || s.id;
-        return `<span class="lk-cb-st" title="${esc(label)} · ${i18n.t(s.duration === 1 ? 'combatHud.turn1' : 'combatHud.turnsN', { n: s.duration })}">${esc(s.icon || defs?.[s.id]?.icon || '•')}<b>${s.duration}</b></span>`;
+        return `<span class="lk-cb-st" title="${esc(label)} · ${i18n.t(s.duration === 1 ? 'combatHud.turn1' : 'combatHud.turnsN', { n: s.duration })}">${statusIconHtml(s.id, s.icon || defs?.[s.id]?.icon)}<b>${s.duration}</b></span>`;
       }).join('');
     }
 
@@ -586,9 +588,9 @@ export function attachCombatHUD(game) {
     const st = (u.statuses || []).map((s) => {
       const d = STATUS_DEFS[s.id] || {};
       const bad = d.kind === 'debuff';
-      return `<span class="lk-cb-ut-st ${bad ? 'lk-is-bad' : 'lk-is-good'}">${esc(s.icon || d.icon || '•')} ${esc(s.label || d.label || s.id)}<b>${s.duration}</b></span>`;
+      return `<span class="lk-cb-ut-st ${bad ? 'lk-is-bad' : 'lk-is-good'}">${statusIconHtml(s.id, s.icon || d.icon)} ${esc(s.label || d.label || s.id)}<b>${s.duration}</b></span>`;
     }).join('');
-    return `<div class="lk-tooltip-tactical lk-cb-ut" style="--c:${tintOf(u)}">
+    return `<div class="lk-tooltip-tactical lk-cb-ut ${ally ? 'lk-is-ally' : 'lk-is-foe'}" style="--c:${tintOf(u)}">
       <header><span class="lk-cb-ut-por">${img ? `<img src="${img}" alt="">` : ''}</span><div><small>${role}</small><b>${esc(u.name)}</b></div>${turn}</header>
       <div class="lk-tt-body">
         <div><div class="lk-cb-ut-read"><span>${i18n.t('combatHud.hp')}</span><b>${hp}${sh ? ` <i>+${sh}</i>` : ''} / ${max}</b></div>

@@ -84,6 +84,8 @@ export function attachTurnTimer(game) {
     show(true); btn?.classList.remove('lk-is-penalized'); paint();
     if (duration > timer.config.base) pop(i18n.t('combatUi.reserve', { n: duration - timer.config.base }), 'good');
   });
+  // Hito 88: tic de reloj en los últimos 5 s
+  timer.on('tick', ({ remaining }) => game.audio?.combat?.timerTick?.(remaining));
   timer.on('penalty', ({ amount }) => {
     pop(i18n.t('combatUi.idlePenalty', { n: amount }), 'bad');
     btn?.classList.add('lk-is-penalized');

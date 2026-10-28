@@ -9,7 +9,7 @@
 
 import { GatheringService } from '../rpg/GatheringService.js';
 import { GatheringNodes } from '../rpg/world/GatheringNodes.js';
-import { AxieSession, SapidaeSession } from '../rpg/GatheringActors.js';
+import { AxieSession, SapidaeSession, FISH_CHALLENGE } from '../rpg/GatheringActors.js';
 import { GATHER_KINDS, GATHER_NODE_BY_ID, nodesForZone } from '../tactics/data/GatheringCatalog.js';
 import { ISLAND_IDS } from '../rpg/world/islands/IslandWorldLayout.js';
 import { formatWait } from '../rpg/GatheringService.js';
@@ -34,7 +34,12 @@ export function attachGathering(game) {
       <span class="lk-gather__txt"><b></b><small>${i18n.t('gatherHud.escCancel')}</small></span>
       <span class="lk-gather__track" aria-hidden="true"><i></i></span>
     </div>
-    <div class="lk-gather__loot" role="status" aria-live="polite"></div>`;
+    <div class="lk-gather__loot" role="status" aria-live="polite"></div>
+    <div class="lk-fish" role="status" aria-live="assertive" hidden>
+      <span class="lk-fish__txt"></span>
+      <span class="lk-fish__track" aria-hidden="true"><i class="lk-fish__zone"><b></b></i><i class="lk-fish__mark"></i></span>
+      <small class="lk-fish__keys">${i18n.t('notices.gather.fishKeys')}</small>
+    </div>`;
   document.body.appendChild(root);
   const bar = root.querySelector('.lk-gather__bar');
   const barIco = root.querySelector('.lk-gather__ico');
@@ -42,6 +47,23 @@ export function attachGathering(game) {
   const barFill = root.querySelector('.lk-gather__track > i');
   const lootEl = root.querySelector('.lk-gather__loot');
   let lootTimer = null, flashTimer = null;
+  // Hito 87: reto de pesca (texto, barra con la zona buena y el marcador)
+  const fishEl = root.querySelector('.lk-fish');
+  const fishTxt = fishEl.querySelector('.lk-fish__txt');
+  const fishZone = fishEl.querySelector('.lk-fish__zone');
+  const fishMark = fishEl.querySelector('.lk-fish__mark');
+  let fishTimer = null;
+  const sfx = (ev, o) => game.audio?.world?.gather?.(ev, o);
+  const fishShow = (state, text, { track = false, hideIn = 0 } = {}) => {
+    clearTimeout(fishTimer);
+    fishEl.hidden = false;
+    fishEl.dataset.state = state;
+    fishEl.classList.toggle('lk-has-track', track);
+    if (text != null) fishTxt.textContent = text;
+    if (hideIn) fishTimer = setTimeout(() => { fishEl.hidden = true; }, hideIn);
+  };
+  // Un toque o clic en el panel cuenta como E (pantallas táctiles)
+  fishEl.addEventListener('pointerdown', (ev) => { if (session?.onAction?.()) { ev.preventDefault(); ev.stopPropagation(); } });
 
   const hud = {
     begin(s) {
@@ -50,11 +72,40 @@ export function attachGathering(game) {
       barIco.innerHTML = matSvg(k.icon, '');
       barTxt.textContent = `${k.verb}…`;
       barFill.style.transform = 'scaleX(0)';
+      bar.classList.toggle('lk-is-fish', s.def?.kind === 'fish');   // la pesca usa el reto en lugar de la barra de tiempo
       bar.hidden = false;
-      game.audio?.playStep?.();
+      game.audio?.playClick?.();
     },
-    end(s, cancelled) { if (!session || session === s || cancelled) bar.hidden = true; },
-    hit() { game.audio?.playCollision?.(); },
+    end(s, cancelled) {
+      if (!session || session === s || cancelled) bar.hidden = true;
+      if (cancelled && fishEl.dataset.state !== 'lost') { clearTimeout(fishTimer); fishEl.hidden = true; }
+    },
+    /** Golpe de la herramienta: kind 'chop' (hacha) o 'mine' (pico). */
+    hit(kind = 'chop') { if (game.audio?.world) sfx(kind); else game.audio?.playCollision?.(); },
+    sfx,
+    /** Reto de pesca: wait · bite · reel · miss · caught · perfect · lost · end */
+    fish(state, d = {}) {
+      const t = (k) => i18n.t(`notices.gather.${k}`);
+      if (state === 'wait') fishShow('wait', t('fishWait'));
+      else if (state === 'bite') fishShow('bite', t('fishBite'));
+      else if (state === 'reel' || state === 'miss') {
+        if (state === 'miss' || fishEl.dataset.state !== 'reel') {
+          fishShow('reel', state === 'miss' ? t('fishMiss') : t('fishReel'), { track: true });
+          fishEl.classList.toggle('lk-is-miss', state === 'miss');
+          if (state === 'miss') setTimeout(() => { fishEl.classList.remove('lk-is-miss'); if (fishEl.dataset.state === 'reel') fishTxt.textContent = t('fishReel'); }, 900);
+        }
+        const C = d.c ?? 0.5, zh = FISH_CHALLENGE.zoneHalf, ph = FISH_CHALLENGE.perfectHalf;
+        fishZone.style.left = `${((C - zh) * 100).toFixed(2)}%`;
+        fishZone.style.width = `${(zh * 200).toFixed(2)}%`;
+        fishZone.style.setProperty('--p', `${((ph / zh) * 100).toFixed(1)}%`);
+        fishMark.style.left = `${((d.m ?? 0) * 100).toFixed(2)}%`;
+      } else if (state === 'caught') fishShow('caught', t('fishCaught'), { hideIn: 1600 });
+      else if (state === 'perfect') fishShow('perfect', t('fishPerfect'), { hideIn: 1800 });
+      else if (state === 'lost') {
+        const why = d.why === 'early' ? 'fishEarly' : d.why === 'miss' ? 'fishMissed' : 'fishLate';
+        fishShow('lost', `${t(why)} ${t('fishRetry')}`, { hideIn: 2600 });
+      } else if (state === 'end') { if (fishEl.dataset.state !== 'caught' && fishEl.dataset.state !== 'perfect') fishEl.hidden = true; }
+    },
     flash(text) {
       barTxt.textContent = text;
       clearTimeout(flashTimer);
@@ -73,6 +124,7 @@ export function attachGathering(game) {
       clearTimeout(lootTimer);
       lootTimer = setTimeout(() => lootEl.classList.remove('lk-is-on'), 2600);
       game.audio?.playBuff?.();
+      if (GATHER_KINDS[def.kind]?.actor === 'axie') game.audio?.world?.axie?.('happy');   // Hito 87: el Axie te da el botín contento
     },
   };
 
@@ -141,6 +193,8 @@ export function attachGathering(game) {
   // E durante la recolección no hace nada más (ni NPC ni otro punto); Esc cancela.
   window.addEventListener('keydown', (ev) => {
     if (!session) return;
+    // Hito 87: E o Espacio para el reto de pesca
+    if ((ev.code === 'KeyE' || ev.code === 'Space') && !ev.repeat && session.onAction?.()) { ev.preventDefault(); ev.stopImmediatePropagation(); return; }
     if (ev.code === 'KeyE') { ev.preventDefault(); ev.stopImmediatePropagation(); }
     else if (ev.code === 'Escape' && session.cancellable) { ev.preventDefault(); ev.stopImmediatePropagation(); session.cancel(); }
   }, true);

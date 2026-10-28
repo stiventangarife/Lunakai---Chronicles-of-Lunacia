@@ -1,5 +1,6 @@
 // EnvironmentSystem.js - Centralized Environment Coordinator for Overworld Visuals, Lighting, Atmosphere, Shadows, Presets & Post-Processing
 import * as THREE from 'three';
+import { LightingManager } from './demo_scena/LightingManager.js';
 import { EffectComposer } from '../../../vendor/postprocessing/EffectComposer.js';
 import { RenderPass } from '../../../vendor/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from '../../../vendor/postprocessing/UnrealBloomPass.js';
@@ -538,14 +539,22 @@ export class EnvironmentSystem {
     // · Las sombras se recalculan uno de cada dos fotogramas (el sol apenas se mueve; la sombra de quien
     //   camina se actualiza 30 veces por segundo). Solo aquí, en el mundo abierto: el combate no cambia.
     // · Cada ~2 s se quita la sombra de la vegetación pequeña y las farolas (ver _trimSmallShadows).
-    if ((this._trimTick = ((this._trimTick || 0) + 1) % 120) === 1) this._trimSmallShadows();
+    // · Hito 83: el sol de las islas (LightingManager) solo se mueve en los fotogramas con recálculo,
+    //   para que el mapa de sombras y la matriz con que se lee sean siempre de la misma posición.
+    if ((this._trimTick = ((this._trimTick || 0) + 1) % 120) === 1) {
+      this._trimSmallShadows();
+      this._prepareShadowCasters();
+    }
     const sm = this.renderer.shadowMap;
     const auto = sm.autoUpdate;
+    let shadowFrame = true;
     if (sm.enabled && auto) {
       sm.autoUpdate = false;
       this._shadowTick = ((this._shadowTick || 0) + 1) % 2;
-      if (this._shadowTick === 0) sm.needsUpdate = true;
+      shadowFrame = this._shadowTick === 0 || LightingManager.debug.everyFrame || LightingManager.wantsShadowRefresh();
+      if (shadowFrame) sm.needsUpdate = true;
     }
+    if (shadowFrame) LightingManager.commitShadowTargets();
     try {
       if (this.isPostProcessingActive && this.composer) {
         this.composer.render();
@@ -562,6 +571,35 @@ export class EnvironmentSystem {
    * triángulos más en el mapa de sombras para manchas que apenas se ven. Árboles, arbustos, rocas, edificios y
    * personajes la siguen proyectando. Se repasa cada ~2 s porque la vegetación se crea al cargar cada isla.
    */
+  /**
+   * Hito 83: los objetos fijos del mundo (rocas, puentes, troncos, casas…) meten en el mapa de sombras su
+   * cara delantera. Por defecto three mete la trasera (shadowSide = BackSide para materiales FrontSide), y
+   * en las caras casi paralelas al sol bajo esa cara queda a la misma profundidad que la delantera: salían
+   * rayas (acné) en las rocas y el puente. El bias negativo de LightingManager evita el acné en las caras
+   * iluminadas. Solo cambia qué cara se dibuja en el pase de sombras: no recompila nada ni cuesta más.
+   * Se salta a los personajes (mallas con esqueleto), a los materiales de dos caras y a los que ya eligen
+   * su shadowSide. Se repasa cada ~2 s, como _trimSmallShadows. lkDebug.shadows({ frontFaces:false }) lo deshace.
+   */
+  _prepareShadowCasters() {
+    const on = LightingManager.debug.frontFaces !== false && !LightingManager.debug.legacy;
+    if (!on && !this._frontShadowMats) return;
+    const set = this._frontShadowMats || (this._frontShadowMats = new Set());
+    if (!on) {
+      for (const m of set) { if (m.shadowSide === THREE.FrontSide) m.shadowSide = null; }
+      set.clear();
+      return;
+    }
+    this.scene.traverse((o) => {
+      if (!o.isMesh || !o.castShadow || o.isSkinnedMesh) return;
+      const mats = Array.isArray(o.material) ? o.material : [o.material];
+      for (const m of mats) {
+        if (!m || set.has(m) || m.side !== THREE.FrontSide || m.shadowSide != null) continue;
+        m.shadowSide = THREE.FrontSide;
+        set.add(m);
+      }
+    });
+  }
+
   _trimSmallShadows() {
     const SMALL = /^(InstancedAnimeFlower_|InstancedVeg_(fern|mushroom|plant|flower)|InstancedPebbles_|Fern_\d|ForestVillage_lamp)/i;
     this.scene.traverse((o) => {

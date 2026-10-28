@@ -1,6 +1,7 @@
 // DialogSystem.js — Conversación con NPC (Crónica Celeste, etapa 2): máquina de escribir, respuestas numeradas, Auto y Registro
 import { portraitService } from '../tactics/CharacterPortraitService.js';
 import * as i18n from '../i18n/i18n.js';
+import { access } from '../ui/AccessPrefs.js';
 
 export const NPC_PORTRAIT_MAP = {
   // Master Paladill
@@ -163,7 +164,6 @@ export const NPC_PORTRAIT_MAP = {
 const ICON_DIR = new URL('../../assets/ui/icons/', import.meta.url).href;
 const DEFAULT_PORTRAIT = './assets/portraits/paladill.png';
 const FRAGMENT_SVG = '<svg viewBox="0 0 24 24"><path d="M12 2l5 10-5 10-5-10z" fill="#EED39A"/></svg>';
-const AUTO_KEY = 'axie_lk_dialog_auto';
 
 const escapeHTML = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
@@ -192,15 +192,27 @@ export class DialogSystem {
     this.currentText = '';
     this.typedLength = 0;
     this.isTyping = false;
-    this.typingSpeed = 22; // ms por carácter (Opciones › Accesibilidad › Velocidad del texto)
+    this.typingSpeed = access.textSpeedMs; // ms por carácter (Opciones › Accesibilidad › Velocidad del texto); 0 = la frase entera
     this.typingTimer = null;
     this.activeHero = { name: 'Shinji', heroClass: i18n.t('misc.meleeDuelist') };
     this.onCompleteCallback = null;
 
     this.choicesOpen = false;
     this.log = [];
-    try { this.auto = localStorage.getItem(AUTO_KEY) === '1'; } catch { this.auto = false; }
+    // Avance automático (Hito 85): lo decide Opciones › Accesibilidad › Lectura; el botón «Auto» lo enciende y apaga
+    this.auto = access.autoAdvance !== 'off';
+    this._lastAutoMode = this.auto ? access.autoAdvance : 'normal';
     this.autoTimer = null;
+    access.onChange((a) => {
+      this.typingSpeed = a.textSpeedMs;
+      const on = a.autoAdvance !== 'off';
+      if (on) this._lastAutoMode = a.autoAdvance;
+      if (on === this.auto) return;
+      this.auto = on;
+      if (this.autoBtn) this.autoBtn.setAttribute('aria-pressed', String(on));
+      clearTimeout(this.autoTimer);
+      if (on && this.isActive && !this.isTyping) this._scheduleAuto(900);
+    });
 
     this._createDOM();
     this._initInput();
@@ -288,7 +300,7 @@ export class DialogSystem {
       e.stopPropagation();
       this.auto = !this.auto;
       this.autoBtn.setAttribute('aria-pressed', String(this.auto));
-      try { localStorage.setItem(AUTO_KEY, this.auto ? '1' : '0'); } catch { /* sin almacenamiento */ }
+      access.set({ autoAdvance: this.auto ? (this._lastAutoMode || 'normal') : 'off' });
       clearTimeout(this.autoTimer);
       if (this.auto && !this.isTyping) this._scheduleAuto(900);
     });
@@ -360,6 +372,7 @@ export class DialogSystem {
     this._renderPips();
 
     const html = this._nodeHTML(node);
+    this._voice = node.voice || node.npcId || node.speaker || '';   // Hito 87: de quién es la voz de pitidos
     this.log.push({ who: node.speaker || '', html });
     if (!this.logEl.hidden) this._renderLog();
     this._type(html);
@@ -381,13 +394,16 @@ export class DialogSystem {
     let k = 0, out = '';
     this.typedLength = 0;
     this.textEl.innerHTML = '<span class="lk-caret"></span>';
-    if (!tokens.length) { this._finishTyping(); return; }
+    // Velocidad «Instantánea» (0 ms): la frase entera de golpe
+    if (!tokens.length || !(this.typingSpeed > 0)) { this._finishTyping(); return; }
     this.typingTimer = setInterval(() => {
       if (k >= tokens.length) { this._finishTyping(); return; }
       let tk = tokens[k++]; out += tk;
       while (tk.startsWith('<') && k < tokens.length) { tk = tokens[k++]; out += tk; }
       this.typedLength = k;
       this.textEl.innerHTML = `${out}<span class="lk-caret"></span>`;
+      // Hito 87: voz de pitidos (cada personaje con su tono; las vocales cambian el timbre)
+      if (tk.length === 1 && this.audio?.world?.voiceBlip) this.audio.world.voiceBlip(this._voice, tk);
     }, Math.max(1, this.typingSpeed));
   }
 
@@ -405,7 +421,13 @@ export class DialogSystem {
     }
     const last = this.currentIndex >= this.currentDialogueQueue.length - 1;
     this.nextTxtEl.textContent = last ? i18n.t('dialog.close') : i18n.t('dialog.continue');
-    if (this.auto) this._scheduleAuto(1600);
+    if (this.auto) this._scheduleAuto(this._autoDelay());
+  }
+
+  /** Espera del avance automático según lo larga que sea la línea (y «Normal» o «Lento» en Opciones). */
+  _autoDelay() {
+    const chars = String(this.currentText || '').replace(/<[^>]+>/g, '').replace(/&[a-z#0-9]+;/gi, ' ').length;
+    return access.autoDelay(chars) || 1600;
   }
 
   _scheduleAuto(ms) {

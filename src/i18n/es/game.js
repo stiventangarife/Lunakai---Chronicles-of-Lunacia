@@ -69,7 +69,7 @@ export default {
   "game.archBear": "Quimera Oso Colosal",
   "game.archWolf": "Quimera Lobo Cazador",
   "game.archDryad": "Dríade Mística Arcana",
-  "game.archTreant": "Treant Botánico Ancestral",
+  "game.archTreant": "Caballero Slime de Escarcha",
   "game.archSlime": "Quimera Slime",
   "game.archBrawler": "Bestia de Asalto",
   "game.archSapidae": "Aventurero Sapidae",
@@ -90,5 +90,7 @@ export default {
   "game.no": "No",
   "game.ttArea": "Área: {v}",
   "game.areaCross": "Cruz (1 casilla)",
-  "game.areaSingle": "Una casilla"
+  "game.areaSingle": "Una casilla",
+  "game.goldPending": "Oro pendiente",
+  "game.goldPendingDesc": "Sin conexión: el oro de este combate se cobrará en cuanto vuelva la conexión."
 };

@@ -3,6 +3,7 @@
 
 import { forecast, elementalLabel } from '../tactics/combat/Forecast.js';
 import * as i18n from '../i18n/i18n.js';
+import { statusIconHtml } from '../tactics/combat/StatusSystem.js';
 
 const CSS = `
 #ui-overlay .lk-fc-extra { display: grid; gap: 5px; }
@@ -73,7 +74,7 @@ export function renderForecast(game, target, spell, cell = null) {
   if (main?.heal) html.push(`<div class="lk-fc-row lk-fc-good"><span>${i18n.t('combatUi.heal')}</span><b>+${main.heal} HP</b></div>`);
   if (main?.shield) html.push(`<div class="lk-fc-row lk-fc-good"><span>${i18n.t('combatUi.shield')}</span><b>+${main.shield}</b></div>`);
   if (main?.statuses.length) {
-    html.push(`<div class="lk-fc-chips">${main.statuses.map((s) => `<span class="lk-fc-chip ${s.kind === 'debuff' ? 'lk-is-bad' : ''}">${esc(s.icon)} ${esc(s.label)}${s.duration ? ` · ${s.duration}t` : ''}</span>`).join('')}</div>`);
+    html.push(`<div class="lk-fc-chips">${main.statuses.map((s) => `<span class="lk-fc-chip ${s.kind === 'debuff' ? 'lk-is-bad' : ''}">${statusIconHtml(s.id, s.icon)} ${esc(s.label)}${s.duration ? ` · ${s.duration}t` : ''}</span>`).join('')}</div>`);
   }
   for (const n of main?.notes || []) html.push(`<div class="lk-fc-note">${esc(n)}</div>`);
 

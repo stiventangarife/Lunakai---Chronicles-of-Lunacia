@@ -121,7 +121,8 @@ export class GrandIslandZone {
     const t0 = performance.now();
     console.log(`[GrandIslandZone] 🏝️ Construyendo ${this.def.label}...`);
     this.terrain = new IslandHeightTerrain(this.group, this.def.height, { name: `${this.id}_Terrain` });
-    this.lightingManager = new LightingManager(this.scene);
+    // Hito 79: la caja de sombras avanza en pasos de un texel (como en el Bosque): los bordes no titilan al caminar
+    this.lightingManager = new LightingManager(this.scene, { snapShadows: true });
     this.lightingManager.setVisible(false);
     this.footstepManager = new FootstepEffectsManager(this.group, this.terrain, (x, z) => this.getHeight(x, z), // huellas sobre puentes y hielo
       (x, z) => (this.terrainMask ? this.terrainMask.depthAt(x, z) : null)); // ondas en el agua (Hito 71)

@@ -9,6 +9,9 @@
 //  2. Transparencia para lo fino (árboles, troncos, arbustos): no acercan la cámara; lo que tapa al personaje se
 //     «agujerea» con un tramado suave alrededor de la línea cámara-personaje (shader, sin coste de CPU).
 // Coste por fotograma: unas decenas de pruebas de caja y 12 lecturas de altura; nada si no hay obstáculos cerca.
+//
+// Hito 79: cajas orientadas (giran con cada casa, en vez de una caja alineada al mundo que en una casa girada es
+// mucho más grande que la casa) y lo pequeño (faroles, postes, carteles, vallas, cajas) ya no acerca la cámara.
 import * as THREE from 'three';
 
 const CELL = 8;
@@ -17,13 +20,15 @@ const key = (ix, iz) => (ix + 2048) * 4096 + (iz + 2048);
 
 // Lo que NO bloquea la cámara: suelo, cielo, agua, vegetación (se transparenta), efectos, decoración pequeña
 const SKIP = /Terrain|Sky|Ocean|Water|Lake|Pond|River|Swamp|Grass|Flower|Tile|Foliage|Tree|Trunk|Leaf|Leaves|Bush|Shrub|Fern|Reed|Willow|Particle|Footstep|Wade|Horizon|FarRange|Karst|Cloud|Mist|Fog|Shadow|Decal|Path|Road|Glow|Light|Butterfl|Fish|Pebble|Vine|Mushroom|Spore|Firefl|Dust|Foam|Ring|Arrow|Beacon|Nameplate|Aurora|Veil|Spark|Smoke|Fire|Flame|Ember|Snow|Rain|Distant|Silhouette|Islet|Stardust|Wisp|Mote|Cattail|Lily|Petal|Slab|Flagstone|Twig|Plinth/i;
+// Objetos pequeños o finos (por nombre): ni acercan la cámara ni hace falta agujerearlos
+const SMALL_SOLID = /Lamp|Lantern|Post|Sign|Fence|Rail|Totem|Barrel|Crate|Bucket|Stake|Pole|Torch|Flag|Banner/i;
 // Lo fino que se transparenta (nombre de la malla)
 const SEE_THROUGH = /Tree|Trunk|Foliage|Leaf|Leaves|Bush|Shrub|Palm|Pine|Fir|Willow|Fern|Reed|Cattail/i;
 
 export class CameraOcclusion {
   constructor(om) {
     this.om = om;
-    this.boxes = [];               // { minX, minY, minZ, maxX, maxY, maxZ }
+    this.boxes = [];               // { minX…maxZ (caja del mundo, para la rejilla), inv (mundo → local), lx0…lz1 (caja local), q }
     this.grid = new Map();
     this._zoneKey = null;
     this._rebuildAt = [];
@@ -54,39 +59,74 @@ export class CameraOcclusion {
     this.boxes.length = 0; this.grid.clear();
     const skipRoots = this._skipRoots();
     const box = new THREE.Box3(), m = new THREE.Matrix4(), im = new THREE.Matrix4();
-    const add = (b) => {
+    const sc = new THREE.Vector3(), ax = new THREE.Vector3();
+    this.skippedSmall = 0;
+    // lb: caja local de la geometría · mw: matriz local → mundo. Devuelve true (bloquea), 'float' (flota: se transparenta) o false
+    const add = (lb, mw, nm = '') => {
+      // Tamaño real (en metros) de la caja orientada: lado local × escala de ese eje
+      sc.set(ax.setFromMatrixColumn(mw, 0).length(), ax.setFromMatrixColumn(mw, 1).length(), ax.setFromMatrixColumn(mw, 2).length());
+      const ex = (lb.max.x - lb.min.x) * sc.x, ey = (lb.max.y - lb.min.y) * sc.y, ez = (lb.max.z - lb.min.z) * sc.z;
+      if (!(Math.min(ex, ey, ez) > 0)) return false;
+      const b = box.copy(lb).applyMatrix4(mw);
       const sx = b.max.x - b.min.x, sz = b.max.z - b.min.z, sy = b.max.y - b.min.y;
-      if (!(sy > 1.4) || sx > 70 || sz > 70 || sx < 0.25 || sz < 0.25) return; // demasiado bajo, gigante o una lámina
-      const o = { minX: b.min.x, minY: b.min.y, minZ: b.min.z, maxX: b.max.x, maxY: b.max.y, maxZ: b.max.z, q: 0 };
+      if (!(sy > 1.4) || sx > 70 || sz > 70) return false;                             // demasiado bajo o gigante (suelo, isla)
+      // Lo que flota (copas, tejadillos sueltos, faroles colgados, carteles altos) no acerca la cámara: se transparenta
+      const gy = typeof om.getGroundHeight === 'function' ? om.getGroundHeight((b.min.x + b.max.x) / 2, (b.min.z + b.max.z) / 2) : null;
+      if (Number.isFinite(gy) && b.min.y > gy + 2.2) { this.skippedSmall++; return 'float'; }
+      // Lo pequeño o fino no acerca la cámara: faroles, postes, carteles, vallas, cajas, barriles…
+      const dims = [ex, ey, ez].sort((p, q) => p - q);                                  // [fino, medio, largo]
+      if (dims[0] < 0.35 || dims[1] < 1.3) { this.skippedSmall++; return false; }
+      const inv = new THREE.Matrix4().copy(mw).invert();
+      const o = {
+        minX: b.min.x, minY: b.min.y, minZ: b.min.z, maxX: b.max.x, maxY: b.max.y, maxZ: b.max.z, q: 0,
+        e: inv.elements, lx0: lb.min.x, ly0: lb.min.y, lz0: lb.min.z, lx1: lb.max.x, ly1: lb.max.y, lz1: lb.max.z,
+        px: 1 / sc.x, py: 1 / sc.y, pz: 1 / sc.z,                                       // 1 m del mundo en unidades locales
+        n: nm,                                                                          // nombre (para depurar)
+      };
       this.boxes.push(o);
       for (let ix = Math.floor(o.minX * INV); ix <= Math.floor(o.maxX * INV); ix++) {
         for (let iz = Math.floor(o.minZ * INV); iz <= Math.floor(o.maxZ * INV); iz++) {
           const k = key(ix, iz); let c = this.grid.get(k); if (!c) this.grid.set(k, (c = [])); c.push(o);
         }
       }
+      return true;
     };
     const walk = (obj, visible) => {
       if (skipRoots.has(obj)) return;
       const vis = visible && obj.visible;
       if (!vis) return;
-      if (obj.isMesh && !obj.isSkinnedMesh && obj.geometry) {
-        const name = obj.name || obj.parent?.name || '';
+      // Hito 94: una pieza puede traer sus propias cajas (userData.cameraBoxes, Box3 en sus ejes locales) en lugar de
+      // la de toda su geometría (p. ej. un arco: pilares y muros, sin el hueco), o pedir que se ignore (cameraIgnore)
+      if (obj.isMesh && obj.userData?.cameraIgnore) { this.skippedSmall++; }
+      else if (obj.isMesh && Array.isArray(obj.userData?.cameraBoxes)) {
+        const name = `${obj.name || ''}|${obj.parent?.name || ''}|${obj.parent?.parent?.name || ''}`;
+        let blocks = false;
+        obj.userData.cameraBoxes.forEach((lb) => { if (add(lb, obj.matrixWorld, name)) blocks = true; });
+        if (blocks) (Array.isArray(obj.material) ? obj.material : [obj.material]).forEach((mt) => this._patchSeeThrough(mt));
+      }
+      else if (obj.isMesh && !obj.isSkinnedMesh && obj.geometry) {
+        // Hito 79: el nombre de la malla y de sus dos padres (en los modelos la malla se llama «Mesh» y el nombre útil,
+        // p. ej. «GatherIslandTree», está más arriba)
+        const name = `${obj.name || ''}|${obj.parent?.name || ''}|${obj.parent?.parent?.name || ''}`;
         const mats = Array.isArray(obj.material) ? obj.material : [obj.material];
         if (SEE_THROUGH.test(name)) mats.forEach((mt) => this._patchSeeThrough(mt));
+        else if (SMALL_SOLID.test(name)) this.skippedSmall++;
         else if (!SKIP.test(name) && !mats.every((mt) => mt && (mt.transparent && mt.opacity < 0.5))) {
           const g = obj.geometry;
           if (!g.boundingBox) g.computeBoundingBox();
+          let blocks = false;
           if (obj.isInstancedMesh) {
             const n = Math.min(obj.count, 4000);
             for (let i = 0; i < n; i++) {
               obj.getMatrixAt(i, im); m.multiplyMatrices(obj.matrixWorld, im);
-              box.copy(g.boundingBox).applyMatrix4(m);
-              add(box);
+              if (add(g.boundingBox, m, name)) blocks = true;                                  // true o 'float'
             }
           } else {
-            box.copy(g.boundingBox).applyMatrix4(obj.matrixWorld);
-            add(box);
+            blocks = add(g.boundingBox, obj.matrixWorld, name);
           }
+          // Hito 79: lo que bloquea también se puede agujerear (cuando la cámara solo roza una esquina no se acerca:
+          // la esquina se transparenta, como los árboles)
+          if (blocks) mats.forEach((mt) => this._patchSeeThrough(mt));
         }
       }
       for (let i = 0; i < obj.children.length; i++) walk(obj.children[i], vis);
@@ -94,7 +134,7 @@ export class CameraOcclusion {
     om.scene.updateMatrixWorld(true);
     walk(om.scene, true);
     this.buildMs = performance.now() - t0;
-    console.log(`[CameraOcclusion] ${this.boxes.length} cajas que bloquean la cámara (${this.buildMs.toFixed(0)} ms)`);
+    console.log(`[CameraOcclusion] ${this.boxes.length} cajas que bloquean la cámara, ${this.skippedSmall} objetos pequeños ignorados (${this.buildMs.toFixed(0)} ms)`);
   }
 
   /** Llamar cada fotograma: rehace las cajas al cambiar de isla (y otra vez cuando terminan de cargar los modelos). */
@@ -112,6 +152,7 @@ export class CameraOcclusion {
    */
   cast(a, b, pad = 0.3) {
     let best = 1;
+    this.lastHit = null;
     const dx = b.x - a.x, dy = b.y - a.y, dz = b.z - a.z;
     // Cajas: las de las celdas que toca el segmento (en planta)
     if (this.boxes.length) {
@@ -125,12 +166,18 @@ export class CameraOcclusion {
           const c = this.grid.get(key(ix, iz)); if (!c) continue;
           for (let i = 0; i < c.length; i++) {
             const o = c[i]; if (o.q === q) continue; o.q = q;
-            const t = slab(a.x, a.y, a.z, dx, dy, dz, o.minX - pad, o.minY - pad, o.minZ - pad, o.maxX + pad, o.maxY + pad, o.maxZ + pad);
-            if (t >= 0 && t < best) {
-              // si el personaje ya está dentro de la caja (p. ej. bajo un arco), esa caja no cuenta
-              if (a.x > o.minX - pad && a.x < o.maxX + pad && a.y > o.minY - pad && a.y < o.maxY + pad && a.z > o.minZ - pad && a.z < o.maxZ + pad) continue;
-              best = t;
-            }
+            // Descarte rápido con la caja del mundo; la prueba buena es con la caja orientada (en el espacio del objeto,
+            // donde el segmento sigue siendo un segmento con el mismo t)
+            if (slab(a.x, a.y, a.z, dx, dy, dz, o.minX - pad, o.minY - pad, o.minZ - pad, o.maxX + pad, o.maxY + pad, o.maxZ + pad) < 0) continue;
+            const e = o.e;
+            const ax0 = e[0] * a.x + e[4] * a.y + e[8] * a.z + e[12], ay0 = e[1] * a.x + e[5] * a.y + e[9] * a.z + e[13], az0 = e[2] * a.x + e[6] * a.y + e[10] * a.z + e[14];
+            const ldx = e[0] * dx + e[4] * dy + e[8] * dz, ldy = e[1] * dx + e[5] * dy + e[9] * dz, ldz = e[2] * dx + e[6] * dy + e[10] * dz;
+            const qx = pad * o.px, qy = pad * o.py, qz = pad * o.pz;
+            const x0 = o.lx0 - qx, y0 = o.ly0 - qy, z0 = o.lz0 - qz, x1 = o.lx1 + qx, y1 = o.ly1 + qy, z1 = o.lz1 + qz;
+            // si el personaje ya está dentro (p. ej. bajo un arco o un tejado), esa caja no cuenta
+            if (ax0 > x0 && ax0 < x1 && ay0 > y0 && ay0 < y1 && az0 > z0 && az0 < z1) continue;
+            const t = slab(ax0, ay0, az0, ldx, ldy, ldz, x0, y0, z0, x1, y1, z1);
+            if (t >= 0 && t < best) { best = t; this.lastHit = o; }
           }
         }
       }
@@ -143,10 +190,23 @@ export class CameraOcclusion {
         const t = i / N;
         if (t >= best) break;
         const x = a.x + dx * t, y = a.y + dy * t, z = a.z + dz * t;
-        if (om.getGroundHeight(x, z) + 0.35 > y) { best = Math.min(best, Math.max(0, t - 1 / N)); break; }
+        if (om.getGroundHeight(x, z) + 0.35 > y) { best = Math.min(best, Math.max(0, t - 1 / N)); this.lastHit = 'terrain'; break; }
       }
     }
     return best;
+  }
+
+  /** ¿El punto está dentro (o a menos de `pad` m) de alguna caja? (la cámara metida en una casa) */
+  inside(p, pad = 0.25) {
+    const c = this.grid.get(key(Math.floor(p.x * INV), Math.floor(p.z * INV)));
+    if (!c) return false;
+    for (let i = 0; i < c.length; i++) {
+      const o = c[i], e = o.e;
+      if (p.x < o.minX - pad || p.x > o.maxX + pad || p.y < o.minY - pad || p.y > o.maxY + pad || p.z < o.minZ - pad || p.z > o.maxZ + pad) continue;
+      const lx = e[0] * p.x + e[4] * p.y + e[8] * p.z + e[12], ly = e[1] * p.x + e[5] * p.y + e[9] * p.z + e[13], lz = e[2] * p.x + e[6] * p.y + e[10] * p.z + e[14];
+      if (lx > o.lx0 - pad * o.px && lx < o.lx1 + pad * o.px && ly > o.ly0 - pad * o.py && ly < o.ly1 + pad * o.py && lz > o.lz0 - pad * o.pz && lz < o.lz1 + pad * o.pz) return true;
+    }
+    return false;
   }
 
   // ------------------------------------------------------------------ transparencia de lo fino

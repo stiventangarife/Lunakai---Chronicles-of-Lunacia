@@ -21,6 +21,26 @@ const _v = new THREE.Vector3();
 const _q = new THREE.Quaternion();
 const _qw = new THREE.Quaternion();
 const ease = (t) => t * t * (3 - 2 * t);
+const rnd = (a, b) => a + Math.random() * (b - a);
+
+/**
+ * Reto de pesca (Hito 87). Tiempos en segundos reales; posiciones de la barra en 0–1.
+ *   wait   espera hasta que pica (con 0–2 mordisquitos de engaño: pulsar antes de la picada asusta al pez)
+ *   bite   ventana para clavar el anzuelo
+ *   reel   un marcador va y viene por la barra: pulsar dentro de la zona (en el centro = «¡Perfecto!»)
+ */
+export const FISH_CHALLENGE = {
+  waitMin: 1.8, waitMax: 4.2,     // hasta que pica
+  nibblesMax: 2,                  // mordisquitos de engaño
+  biteWindow: 1.2,                // para clavar el anzuelo
+  period: 1.6,                    // ida y vuelta del marcador
+  zoneHalf: 0.14,                 // media anchura de la zona buena
+  perfectHalf: 0.04,              // media anchura del centro «perfecto»
+  tries: 2,                       // fallos permitidos en la barra
+  speedUp: 0.85,                  // tras un fallo, el marcador va más rápido (periodo × 0,85)
+  reelTimeout: 7,                 // sin pulsar en la barra: el pez se va
+  perfectBonus: { extra: 1, rareMul: 2 },
+};
 const lerpAngle = (a, b, k) => { let d = b - a; while (d > Math.PI) d -= Math.PI * 2; while (d < -Math.PI) d += Math.PI * 2; return a + d * k; };
 
 /** Objeto que lleva el Axie de vuelta: pez, tronco, etc. (primitivas pequeñas). */
@@ -135,7 +155,7 @@ class Session {
   /** Recoge el botín (una vez). Devuelve false si el punto ya no estaba disponible. */
   _collect() {
     if (this.loot) return true;
-    const r = this.ctx.service.gather(this.def.id);
+    const r = this.ctx.service.gather(this.def.id, Math.random, this.bonus || null);
     if (!r.ok) { this.ctx.hud.toast(!r.why ? i18n.t('notices.gather.failed') : r.node ? i18n.t('notices.gather.backInShort', { t: formatWait(this.ctx.service.remainingMs(this.def.id)) }) : i18n.t('notices.gather.noNode'), true); return false; }
     this.loot = r.loot;
     return true;
@@ -212,15 +232,21 @@ export class AxieSession extends Session {
     const cc = ow.cameraController;
     this.cam = { target: cc.followTarget, distance: cc.distance, pitch: cc.pitchAngle, angle: cc.targetAngle };
     cc.setFollowTarget(this.cg);
-    cc.distance = 7.5; cc.pitchAngle = 0.42;
+    cc.distance = 7.5; cc.zoomTarget = null; cc.pitchAngle = 0.42;
     cc.targetAngle = this.yaw + Math.PI - 0.75;
     // El Sapidae se aparta: a un lado del Axie, en el lado contrario a la cámara y un poco por detrás,
     // para no tapar la vista ni quedar encima del Axie.
     const fwd = new THREE.Vector3(Math.sin(this.yaw), 0, Math.cos(this.yaw));
     const perp = new THREE.Vector3(Math.cos(this.yaw), 0, -Math.sin(this.yaw));
     const camDir = new THREE.Vector3(Math.sin(cc.targetAngle), 0, Math.cos(cc.targetAngle));
-    const side = perp.dot(camDir) > 0 ? -1 : 1;
-    this.aside = this.stand.clone().addScaledVector(perp, side * 2.8).addScaledVector(fwd, this.def.kind === 'fish' ? -1.2 : -0.4);
+    const pref = perp.dot(camDir) > 0 ? -1 : 1;
+    const asideAt = (sd) => this.stand.clone().addScaledVector(perp, sd * 2.8).addScaledVector(fwd, this.def.kind === 'fish' ? -1.2 : -0.4);
+    // Hito 79: en un puente o en el muelle, el lado elegido tiene que ser tablero (misma altura y sin barandilla ni tope)
+    const gh = (v) => ow.getGroundHeight?.(v.x, v.z);
+    const ok = (v) => { const y0 = gh(this.stand), y1 = gh(v); return !(Number.isFinite(y0) && Number.isFinite(y1) && Math.abs(y1 - y0) > 0.5) && !ow.collisions?.isPointBlocked?.(v.x, v.z, 0.4); };
+    const a1 = asideAt(pref), a2 = asideAt(-pref);
+    this.aside = ok(a1) || !ok(a2) ? a1 : a2;
+    if (this.aside === a2) cc.targetAngle = this.yaw + Math.PI + 0.75;               // el Sapidae no queda entre la cámara y el Axie
     this.phase = 'approach';
     // el arma se va cargando mientras corre
     this.equipReady = false;
@@ -278,7 +304,7 @@ export class AxieSession extends Session {
       p.companionYaw = lerpAngle(p.companionYaw || 0, this.yaw, Math.min(1, 10 * dt));
       this.workT += dt;
       if (this.def.kind === 'fish') this._fish(); else this._chop(dt);
-      if (this.workT >= this.work) this._reward();
+      if (this.def.kind !== 'fish' && this.workT >= this.work) this._reward();   // la pesca termina con el reto
     } else if (this.phase === 'return') {
       // vuelve junto al Sapidae (a su derecha) con el botín encima de la cabeza
       const fwd = new THREE.Vector3(Math.sin(p.yaw), 0, Math.cos(p.yaw));
@@ -306,38 +332,163 @@ export class AxieSession extends Session {
   }
 
   /**
-   * Pesca con Whip.Skill (4,3 s) estirada a la duración de la recolección (timeScale = clip / tiempo, ≈ 0,72 a 6 s).
-   * En el clip el sedal cae al agua hacia 0,35 s, se queda tendido hasta 3,55 s y se recoge al final;
-   * el corcho sigue la punta del sedal (Whip_13_JNT) y flota en el agua mientras está tendido.
+   * Pesca con reto (Hito 87). Whip.Skill (4,3 s) a velocidad normal hasta que el sedal está en el agua (0,4 s del
+   * clip: el corcho cae) y se «congela» casi del todo (timeScale 0,06) mientras se espera, pica y se recoge con la
+   * barra. Al terminar el reto el clip sigue (más rápido) y recoge el sedal: con el pez si salió bien o vacío si se
+   * escapó. Cambiar el timeScale de la acción en curso no la reinicia (playAnimation con restart: false).
    */
   _fish() {
-    const it = this.item, w = this.work;
-    if (this._step === -1) {
+    const it = this.item, dt = this._dt || 0.016, C = FISH_CHALLENGE;
+    let F = this.fish;
+    if (!F) {
       const clip = this.ax.getFullAnimationClip?.(`${this.weapon}.Skill`) || this.ax.getLiteAnimationClip?.(`${this.weapon}.Skill`);
-      this._clipDur = clip?.duration || 4.29;
-      this._ts = this._clipDur / w;
-      this._play(`${this.weapon}.Skill`, { restart: true, transition: 0.15, loop: false, timeScale: this._ts });
+      const waitT = rnd(C.waitMin, C.waitMax);
+      const nib = [];
+      const nn = Math.floor(Math.random() * (C.nibblesMax + 1));
+      for (let i = 0; i < nn; i++) nib.push(rnd(0.6, Math.max(0.7, waitT - 0.5)));
+      nib.sort((a, b) => a - b);
+      F = this.fish = { state: 'cast', clipT: 0, clipDur: clip?.duration || 4.29, ts: 1, t: 0, waitT, nib, dip: 0, period: C.period, tries: C.tries, c: 0.5, m: 0, reelTick: 0 };
+      this._play(`${this.weapon}.Skill`, { restart: true, transition: 0.15, loop: false, timeScale: 1 });
       this._tip = null;
       this.cg.traverse((o) => { if (!this._tip && /Whip_13/i.test(o.name)) this._tip = o; });
-      this._step = 0;
+      this.ctx.hud.sfx?.('cast');
     }
-    const k = w / this._clipDur;                     // segundos reales por segundo del clip
-    const castT = 0.4 * k, reelT = 3.55 * k, biteT = reelT - 0.7;
-    const step = this.workT < castT ? 0 : this.workT < biteT ? 1 : this.workT < reelT ? 2 : 3;
+    F.clipT += dt * F.ts;
+    F.t += dt;
     const y0 = it.waterY ? it.waterY() : 0.5;
-    const tipPos = this._tip ? this._tip.getWorldPosition(new THREE.Vector3()) : new THREE.Vector3(it.def.water.x, y0, it.def.water.z);
-    if (step !== this._step) {
-      this._step = step;
-      if (step === 1) { this._bobber(true); this.item.splash?.(false, tipPos); }
-      if (step === 2) { this.item.splash?.(true, tipPos); this.ctx.hud.flash(i18n.t('notices.gather.bite')); }
+    const tipPos = this._tip ? this._tip.getWorldPosition(this._tipV || (this._tipV = new THREE.Vector3())) : new THREE.Vector3(it.def.water.x, y0, it.def.water.z);
+    // Hito 79: el corcho cae donde están las ondas (no justo bajo la punta: desde un puente quedaría pegado a él)
+    const wx = it.def.water.x, wz = it.def.water.z;
+    const hud = this.ctx.hud;
+    switch (F.state) {
+      case 'cast':
+        if (!F.bobbed && F.clipT >= 0.4) { F.bobbed = true; this._bobber(true); it.splash?.(false, tipPos); hud.sfx?.('bobber'); }
+        if (F.clipT >= 1.0) { this._fishSpeed(0.06); F.state = 'wait'; F.t = 0; hud.fish?.('wait'); }
+        break;
+      case 'wait':
+        if (F.nib.length && F.t >= F.nib[0]) { F.nib.shift(); F.dip = 1; hud.sfx?.('nibble'); }
+        if (F.t >= F.waitT) {
+          F.state = 'bite'; F.t = 0;
+          it.splash?.(true, this.bobber ? this.bobber.position : tipPos);
+          hud.sfx?.('bite'); hud.fish?.('bite');
+        }
+        break;
+      case 'bite':
+        if (F.t > C.biteWindow) this._fishLost('late');
+        break;
+      case 'reel': {
+        const ph = (F.t / F.period) % 1;
+        F.m = ph < 0.5 ? ph * 2 : 2 - ph * 2;                     // va y viene
+        hud.fish?.('reel', F);
+        if ((F.reelTick -= dt) <= 0) { F.reelTick = 0.55; hud.sfx?.('reel', { dur: 0.3 }); }
+        if (F.t > C.reelTimeout) this._fishLost('late');
+        break;
+      }
+      case 'land':
+      case 'lost':
+        if (F.clipT >= F.clipDur - 0.05 || F.t > 4) {
+          if (F.state === 'land') this._reward(); else this._finish(true);
+          return;
+        }
+        break;
+      default:
     }
     if (this.bobber) {
-      if (step === 3) this.bobber.position.copy(tipPos);
-      else {
-        const sink = step === 2 ? -0.18 * Math.abs(Math.sin(this.workT * 22)) : 0;
-        this.bobber.position.set(tipPos.x, y0 + 0.06 + Math.sin(this.workT * 4) * 0.03 + sink, tipPos.z);
+      const out = F.state === 'land' || F.state === 'lost';
+      if (out) this.bobber.position.lerp(tipPos, Math.min(1, 14 * dt));   // se recoge hacia la punta
+      else if (F.state !== 'cast' || F.bobbed) {
+        F.dip = Math.max(0, F.dip - dt * 4);
+        const sink = F.state === 'bite' ? -0.18 * Math.abs(Math.sin(this.t * 22))
+          : F.state === 'reel' ? -0.09 * Math.abs(Math.sin(this.t * 14))
+            : -0.07 * Math.sin(F.dip * Math.PI);
+        const drift = Math.sin(this.t * 0.9) * 0.12;                                          // la corriente lo mece
+        this.bobber.position.set(wx + drift, y0 + 0.06 + Math.sin(this.t * 4) * 0.03 + sink, wz + drift * 0.6);
       }
+      this._line(tipPos, out ? 3 : (F.state === 'bite' || F.state === 'reel') ? 2 : 1);
     }
+  }
+
+  /** Cambia la velocidad del clip de pesca sin reiniciarlo. */
+  _fishSpeed(ts) {
+    if (!this.fish) return;
+    this.fish.ts = ts;
+    this._play(`${this.weapon}.Skill`, { restart: false, loop: false, timeScale: ts });
+  }
+
+  /** E, Espacio o un toque en el panel del reto. Devuelve true si la pulsación era para la pesca. */
+  onAction() {
+    const F = this.fish;
+    if (!F || this.done) return false;
+    const C = FISH_CHALLENGE, hud = this.ctx.hud;
+    if (F.state === 'wait' || F.state === 'cast') { this._fishLost('early'); return true; }
+    if (F.state === 'bite') {
+      F.state = 'reel'; F.t = 0; F.c = rnd(0.28, 0.72); F.reelTick = 0;
+      hud.sfx?.('reel', { dur: 0.4 }); hud.fish?.('reel', F);
+      return true;
+    }
+    if (F.state === 'reel') {
+      const d = Math.abs(F.m - F.c);
+      if (d <= C.perfectHalf) this._fishCaught(true);
+      else if (d <= C.zoneHalf) this._fishCaught(false);
+      else {
+        F.tries--;
+        hud.sfx?.('miss');
+        if (F.tries <= 0) this._fishLost('miss');
+        else { F.period *= C.speedUp; F.c = rnd(0.28, 0.72); hud.fish?.('miss', F); }
+      }
+      return true;
+    }
+    return false;
+  }
+
+  _fishCaught(perfect) {
+    const F = this.fish;
+    this.bonus = perfect ? FISH_CHALLENGE.perfectBonus : null;
+    F.state = 'land'; F.t = 0;
+    this._fishSpeed(1.3);
+    this.ctx.hud.sfx?.('reel', { dur: 0.9 });
+    if (perfect) this.ctx.hud.sfx?.('perfect');
+    this.ctx.hud.fish?.(perfect ? 'perfect' : 'caught');
+  }
+
+  /** El pez se escapa: el punto no se gasta y se puede volver a intentar. why: early · late · miss */
+  _fishLost(why) {
+    const F = this.fish;
+    F.state = 'lost'; F.t = 0;
+    this._fishSpeed(1.6);
+    this.ctx.hud.sfx?.('escape');
+    this.ctx.hud.fish?.('lost', { why });
+  }
+
+  /** Hilo de pesca: de la punta del látigo al corcho, con comba (se tensa cuando pica). */
+  _line(tipPos, step) {
+    const N = 16;
+    if (!this.lineObj) {
+      const g = new THREE.BufferGeometry();
+      g.setAttribute('position', new THREE.BufferAttribute(new Float32Array(N * 3), 3));
+      this.lineObj = new THREE.Line(g, new THREE.LineBasicMaterial({ color: 0xF4F1E8, transparent: true, opacity: 0.9, depthWrite: false }));
+      this.lineObj.name = 'GatherFishingLine';
+      this.lineObj.frustumCulled = false;
+      this.lineObj.renderOrder = 2;
+      (this.ctx.ow.questInteractables?.scene || this.ctx.ow.scene).add(this.lineObj);
+    }
+    const a = tipPos, b = this.bobber.position;
+    const pos = this.lineObj.geometry.attributes.position;
+    const span = a.distanceTo(b);
+    const sag = step === 2 ? span * 0.02 : step === 3 ? 0 : span * 0.09;                   // tenso al picar, recto al recoger
+    for (let i = 0; i < N; i++) {
+      const t = i / (N - 1);
+      pos.setXYZ(i, a.x + (b.x - a.x) * t, a.y + (b.y + 0.12 - a.y) * t - sag * 4 * t * (1 - t), a.z + (b.z - a.z) * t);
+    }
+    pos.needsUpdate = true;
+    this.lineObj.visible = span > 0.15;
+  }
+
+  _removeLine() {
+    if (!this.lineObj) return;
+    this.lineObj.parent?.remove(this.lineObj);
+    this.lineObj.geometry.dispose(); this.lineObj.material.dispose();
+    this.lineObj = null;
   }
 
   _bobber(on) {
@@ -352,6 +503,7 @@ export class AxieSession extends Session {
       g.name = 'GatherBobber';
       scene.add(g); this.bobber = g;
     } else if (!on && this.bobber) {
+      this._removeLine();
       scene.remove(this.bobber);
       this.bobber.traverse((c) => { c.geometry?.dispose?.(); c.material?.dispose?.(); });
       this.bobber = null;
@@ -365,12 +517,14 @@ export class AxieSession extends Session {
     if (!this._hitDone && (this.workT - n * clip) > clip * 0.48) {
       this._hitDone = true;
       this.item.shake?.(this.cg.position);
-      this.ctx.hud.hit?.();
+      this.ctx.hud.hit?.('chop');
     }
   }
 
   _reward() {
     if (!this._collect()) { this._finish(true); return; }
+    this.ctx.hud.sfx?.(this.def.kind === 'fish' ? 'catch' : 'treeFall');
+    this.ctx.hud.fish?.('end');
     this._bobber(false);
     this.phase = 'return'; this._returnT = this.t; this._far = null;
     Promise.resolve(equipAxieWeapon(this.ax, this.ctx.player.companionMesh, null)).catch(() => {});
@@ -404,7 +558,7 @@ export class AxieSession extends Session {
     const cc = ow.cameraController;
     if (this.cam) {
       cc.setFollowTarget(this.cam.target || p);
-      cc.distance = this.cam.distance; cc.pitchAngle = this.cam.pitch; cc.targetAngle = this.cam.angle;
+      cc.distance = this.cam.distance; cc.zoomTarget = null; cc.pitchAngle = this.cam.pitch; cc.targetAngle = this.cam.angle;
     }
     this.ctx.hud.end(this, true);
   }
@@ -477,6 +631,7 @@ export class SapidaeSession extends Session {
       if (this.workT >= this.work) {
         if (this.def.kind === 'herb') this.item.pluck?.();
         if (!this._collect()) { this._finish(true); return; }
+        this.ctx.hud.sfx?.(this.def.kind === 'herb' ? 'pluck' : 'rockBreak');
         this.ctx.hud.end(this, false);
         this.ctx.hud.reward(this.loot, this.def);
         this.phase = 'after'; this._afterT = 0;
@@ -507,7 +662,7 @@ export class SapidaeSession extends Session {
     if (c < 0.55) { const k = ease(c / 0.55); arm = -0.7 + (-2.7 + 0.7) * k; bow = -0.12 * k; }        // levanta el pico
     else if (c < 0.7) { const k = (c - 0.55) / 0.15; arm = -2.7 + (2.7 - 0.45) * k * k; bow = -0.12 + 0.5 * k; } // golpe
     else { const k = ease((c - 0.7) / 0.3); arm = -0.45 + (-0.7 + 0.45) * k; bow = 0.38 - 0.38 * k; }       // recupera
-    if (c >= 0.68 && this._hit !== n) { this._hit = n; this.item.sparks?.(); this.ctx.hud.hit?.(); }
+    if (c >= 0.68 && this._hit !== n) { this._hit = n; this.item.sparks?.(); this.ctx.hud.hit?.('mine'); }
     this._lastPose = { shoulderR: arm, shoulderL: -0.5, spine: bow };
     this._applyPose(this._lastPose);
   }

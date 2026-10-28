@@ -95,5 +95,10 @@ export default {
   "squad.byIdErr.companion": "{name} is already your companion.",
   "squad.byIdErr.already": "{name} is already in your collection.",
   "squad.byIdErr.not_found": "There's no Axie with ID {id}.",
-  "squad.byIdErr.error": "Couldn't reach Sky Mavis. Check your connection and try again."
+  "squad.byIdErr.error": "Couldn't reach Sky Mavis. Check your connection and try again.",
+  "squad.gearTitle": "Keeps its gear: {items} item(s), {rune} rune, {charms} charm(s). It's still equipped when it rejoins the squad.",
+  "squad.gearLine": "Wearing: {items} item(s) · {rune} rune · {charms} charm(s)",
+  "squad.returnGear": "Return gear to the bag",
+  "squad.returnGearTitle": "Takes off its items, rune and charms and leaves them free in the bag for another Axie.",
+  "squad.gearReturned": "{name}'s gear went back to the bag."
 };

@@ -553,6 +553,23 @@ export class FootstepEffectsManager {
     this.dustScaleAttr.needsUpdate = true;
   }
 
+  /**
+   * Hito 87: avisa del paso para que suene según el suelo (WorldSfx.onStride, vía window.lunakaiWorldSfx).
+   * Datos: quién, dónde, si corre, profundidad del agua y si pisa una superficie por encima del terreno
+   * (puente, muelle, hielo) y cuánto (rise).
+   */
+  _emitStride(who, x, z, run) {
+    const sink = typeof window !== 'undefined' ? window.lunakaiWorldSfx : null;
+    if (!sink || typeof sink.onStride !== 'function') return;
+    try {
+      const ty = this.terrain ? this.terrain.getHeight(x, z) : 0;
+      const wy = this.surfaceHeight ? this.surfaceHeight(x, z) : ty;
+      const elevated = Number.isFinite(wy) && wy > ty + 0.02;
+      const d = this.waterDepth ? this.waterDepth(x, z) : null;
+      sink.onStride({ who, x, z, y: elevated ? wy : ty, run, depth: d > 0 ? d : 0, elevated, rise: elevated ? wy - ty : 0 });
+    } catch (_) { /* el sonido nunca rompe las huellas */ }
+  }
+
   // -----------------------------------------------------------------------
   // Ciclo de Actualización por Frame
   // -----------------------------------------------------------------------
@@ -627,6 +644,7 @@ export class FootstepEffectsManager {
         const footX = player.position.x + rightX * sideOffset;
         const footZ = player.position.z + rightZ * sideOffset;
 
+        this._emitStride('player', footX, footZ, player.currentAnim === 'run');
         const waterY = this._waterSurface(footX, footZ);
         if (waterY !== null) {
           // En el agua: salpicadura y onda en lugar de huella y polvo
@@ -680,6 +698,7 @@ export class FootstepEffectsManager {
           const pawX = player.companionGroup.position.x + rightCX * sideOffset;
           const pawZ = player.companionGroup.position.z + rightCZ * sideOffset;
 
+          this._emitStride('axie', pawX, pawZ, player.companionState === 'run');
           const waterY = this._waterSurface(pawX, pawZ);
           if (waterY !== null) {
             // Compañero: onda y gotas una de cada dos pisadas

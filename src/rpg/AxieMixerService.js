@@ -226,8 +226,9 @@ class AxieMixerService {
    * @param {number} [options.scale=0.88] - Initial scale to match hero footprint
    * @param {string} [options.heroId] - Hero identifier alias (e.g. 'kotaro')
    * @returns {Promise<Object>} Axie playable character instance
+   * @param {boolean} [options.skipPortrait] - no programar la foto automática (la hace quien llama; Hito 93)
    */
-  async loadAxieHero({ axieId, genes, renderer, scale = 0.88, heroId = null }) {
+  async loadAxieHero({ axieId, genes, renderer, scale = 0.88, heroId = null, skipPortrait = false }) {
     let finalGenes = genes;
     let axieData = null;
 
@@ -292,12 +293,14 @@ class AxieMixerService {
     }
 
     // Generate high-quality 2D portrait in real time for UI frames only if missing
-    if (axie.wrapper) {
+    if (axie.wrapper && !skipPortrait) {
       // Retrato propio del Axie (por su ID). Antes también se miraba el del héroe («kotaro» tiene uno fijo),
       // y los Axies cargados por ID se quedaban sin retrato (19-oct).
       const existingPortrait = portraitService.getPortraitSync(String(axieId));
       if (!existingPortrait) {
         const captureTask = () => {
+          // Hito 93: puede que ya lo haya hecho ensureAxiePortrait mientras esperaba (o el modelo ya no exista)
+          if (portraitService.getPortraitSync(String(axieId))) return;
           try {
             const aliases = ['axie'];
             if (heroId) aliases.push(heroId);

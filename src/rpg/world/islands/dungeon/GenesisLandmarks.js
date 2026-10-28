@@ -220,12 +220,24 @@ export class GenesisLandmarks {
       parts.push([cyl(0.75, 0.4, 0.45, 10, s * 3.4, 1.6, 3.4), C.gold]);
     }
     const g = this._place(parts, glow, G.x, G.z, G.yaw, 'Genesis_SanctuaryGate', 6.0, 0.1);
+    // Hito 94: la cámara choca con los pilares, el dintel y los muros, no con una caja que tapa también el hueco del arco
+    // (al cruzarlo, la cámara se acercaba de golpe y volvía a alejarse). Lo que brilla (gemas, paneles) no la acerca.
+    const B = (x0, y0, z0, x1, y1, z1) => new THREE.Box3(new THREE.Vector3(x0, y0, z0), new THREE.Vector3(x1, y1, z1));
+    const camBoxes = [B(-(X + 1.6), H + 1.75, -1.3, X + 1.6, H + 3.4, 1.3)];
+    for (const s of [-1, 1]) {
+      camBoxes.push(B(s * X - 1.4, 0, -1.4, s * X + 1.4, H + 1.6, 1.4));                       // pilar
+      camBoxes.push(B(s * (X + 4.4) - 3.1, 0, -0.9, s * (X + 4.4) + 3.1, 3.45, 0.5));          // muro
+      camBoxes.push(B(s * (X + 8.0) - 0.8, 0, -1.0, s * (X + 8.0) + 0.8, 5.5, 0.6));           // obelisco
+    }
+    const solidMesh = g.children[0];
     for (const s of [-1, 1]) this._flame(g, s * 3.4, 1.75, 3.4, { r: 0.38, h: 0.9 });
     // Aurora veil between the pillars (walk through it)
     const veil = new THREE.Mesh(new THREE.PlaneGeometry(2 * X - 2.1, H + 0.8), veilMaterial(this.time));
     veil.position.set(0, (H + 0.8) / 2 + 0.6, 0);
     veil.renderOrder = 3;
     g.add(veil);
+    // (Hito 94) solo los pilares, el dintel y los muros de la puerta acercan la cámara; el velo, las llamas y el brillo no
+    g.children.forEach((c) => { if (c === solidMesh) c.userData.cameraBoxes = camBoxes; else if (c.isMesh) c.userData.cameraIgnore = true; });
     const light = new THREE.PointLight(0xffc890, 5, 18, 2);
     light.position.set(0, 3, 4.5);
     g.add(light);

@@ -14,6 +14,7 @@ import { SavannaGenshinArt } from './SavannaGenshinArt.js';
 import { mergeStaticByMaterial } from '../../../render/StaticMerge.js';
 import { buildPropColliders } from '../islands/kit/IslandPropColliders.js';
 import { IslandTerrainMask } from '../islands/kit/IslandTerrainMask.js';
+import { SeagullFlocks } from '../Seagulls.js'; // Hito 94: gaviotas en el horizonte
 
 // Hito 69 · colisiones de la Sabana
 const SAV_TAG = 'savisle_';
@@ -128,6 +129,8 @@ export class SavannaZone {
     this.distantIslands = new SavannaDistantIslands(this.group);
     // Decorado fijo: una malla por material (misma imagen, muchas menos llamadas de dibujo)
     mergeStaticByMaterial(this.distantIslands.group, { name: 'SavannaHorizonMerged' });
+    // Hito 94: gaviotas planeando sobre el mar, lejos de la costa (una sola malla instanciada; se ocultan con la zona)
+    try { this.seagulls = new SeagullFlocks(this.group, { seed: 31, ring: [135, 190], height: [16, 30] }); } catch (e) { console.warn('[Gaviotas]', e); }
 
     // 8. Partículas de viento y ráfagas de arena (reemplazando hojas de bosque)
     this.particleManager = new SavannaParticles(this.group, this.terrain);
@@ -137,7 +140,8 @@ export class SavannaZone {
       (x, z) => (this.terrainMask ? this.terrainMask.depthAt(x, z) : null)); // ondas en el mar y el oasis (Hito 69)
 
     // 9. Iluminación y Atmósfera Solar de Sabana
-    this.lightingManager = new LightingManager(this.scene);
+    // Hito 79: la caja de sombras avanza en pasos de un texel (como en el Bosque): los bordes no titilan al caminar
+    this.lightingManager = new LightingManager(this.scene, { snapShadows: true });
     this.atmosphereManager = new AtmosphereManager(this.scene, this.renderer);
 
     const presetData = this.lightingManager.applyPreset('savanna');
@@ -325,6 +329,7 @@ export class SavannaZone {
     if (this.genshinArt) {
       this.genshinArt.update(delta, playerPos);
     }
+    this.seagulls?.update(delta);
   }
 
   setLightingPreset(presetKey) {

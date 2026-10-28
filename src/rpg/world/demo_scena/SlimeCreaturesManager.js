@@ -377,6 +377,7 @@ export class SlimeCreaturesManager {
             s.state = 'ALERT_PAUSE';
             s.alertTimer = 0.65;
             this._popAlert(s);
+            this.om?.audio?.world?.creature?.('slime', 'alert', { x: s.group.position.x, z: s.group.position.z, maxD: 40 }); // Hito 87
             break;
           }
 
@@ -481,6 +482,7 @@ export class SlimeCreaturesManager {
 
         // Squash elástico de contacto
         g.scale.set(s.baseScale * 1.25, s.baseScale * 0.72, s.baseScale * 1.25);
+        this.om?.audio?.world?.creature?.('slime', 'land', { x: g.position.x, z: g.position.z, maxD: 20 }); // Hito 87: «boing» al caer
 
         if (s.actions && s.actions['run'] && s.actions['idle']) {
           s.actions['run'].stop();

@@ -13,11 +13,12 @@ import { SlimeCreaturesManager } from './SlimeCreaturesManager.js';
 import { DistantIsland } from './DistantIsland.js';
 import { FootstepEffectsManager } from './FootstepEffectsManager.js';
 import { GenshinForestArt } from './genshin/GenshinForestArt.js';
-import { ForestBridge, FOREST_BRIDGE_VILLAGE } from './ForestBridge.js';
+import { ForestBridge, FOREST_BRIDGE_VILLAGE, FOREST_PIER } from './ForestBridge.js';
 import { RiverFords } from './RiverFords.js';
 import { mergeStaticByMaterial } from '../../../render/StaticMerge.js';
 import { buildForestColliders, FOREST_COLLIDER_TAG } from './ForestColliders.js';
 import { WaterDepthMask } from '../WaterDepthMask.js';
+import { SeagullFlocks } from '../Seagulls.js'; // Hito 94: gaviotas en el horizonte
 
 /** Se camina por el agua mientras cubra hasta la rodilla (m). Más honda, el personaje no pasa (Hito 66). */
 export const WADE_MAX_DEPTH = 0.5;
@@ -70,6 +71,7 @@ export class DemoScenaZone22 {
     this.genshinArt = null;
     // Wooden footbridge over the river rapids (Elder-Tree path ↔ Shrine road)
     this.bridge = null;
+    this.pier = null;
   }
 
   async init(onProgress = null) {
@@ -108,6 +110,8 @@ export class DemoScenaZone22 {
     this.distantIslands = new DistantIsland(this.group);
     // Decorado fijo: una malla por material (misma imagen, muchas menos llamadas de dibujo)
     mergeStaticByMaterial(this.distantIslands.group, { name: 'ForestHorizonMerged' });
+    // Hito 94: gaviotas planeando sobre el mar, lejos de la costa (una sola malla instanciada; se ocultan con la zona)
+    try { this.seagulls = new SeagullFlocks(this.group, { seed: 22, ring: [150, 210], height: [18, 32] }); } catch (e) { console.warn('[Gaviotas]', e); }
 
     // 8. Partículas atmosféricas y mágicas
     this.particleManager = new ParticleSystemManager(this.group, this.terrain);
@@ -143,8 +147,10 @@ export class DemoScenaZone22 {
     this.bridge = new ForestBridge(this);
     // 10c. Puente del pueblo y piedras de los vados (Hito 66: el río ya no se cruza a pie salvo en los vados)
     this.bridgeVillage = new ForestBridge(this, FOREST_BRIDGE_VILLAGE, { name: 'ForestBridgeVillage', railTag: 'forest_bridge_village_rail' });
+    // 10d. Muelle de la playa, junto al barquero (Hito 79: punto de pesca en alto)
+    this.pier = new ForestBridge(this, FOREST_PIER, { name: 'ForestPier', railTag: 'forest_pier_rail' });
     try { this.riverFords = new RiverFords(this); } catch (e) { console.warn('[DemoScenaZone22] vados', e); }
-    await Promise.all([this.bridge.loading, this.bridgeVillage.loading]);
+    await Promise.all([this.bridge.loading, this.bridgeVillage.loading, this.pier.loading]);
 
     const presetData = this.lightingManager.applyPreset(this.genshinArt ? 'genshin_golden' : 'sunset');
     if (presetData) {
@@ -205,7 +211,7 @@ export class DemoScenaZone22 {
   getHeight(x, z) {
     if (!this.terrain) return 0;
     const h = this.terrain.getHeight(x, z);
-    for (const br of [this.bridge, this.bridgeVillage]) {
+    for (const br of [this.bridge, this.bridgeVillage, this.pier]) {
       if (!br) continue;
       const deck = br.getDeckHeight(x, z);
       if (deck !== null && deck > h) return deck;
@@ -250,6 +256,7 @@ export class DemoScenaZone22 {
     if (this.genshinArt) {
       this.genshinArt.update(delta, playerPos);
     }
+    this.seagulls?.update(delta);
   }
 
   setLightingPreset(presetKey) {
@@ -320,6 +327,7 @@ export class DemoScenaZone22 {
       this.bridge.setActive(active);
     }
     if (this.bridgeVillage) this.bridgeVillage.setActive(active);
+    if (this.pier) this.pier.setActive(active);
     if (this.riverFords) this.riverFords.setActive(active);
 
     if (active) {

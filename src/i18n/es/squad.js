@@ -95,5 +95,10 @@ export default {
   "squad.byIdErr.companion": "{name} ya es tu compañero.",
   "squad.byIdErr.already": "{name} ya está en tu colección.",
   "squad.byIdErr.not_found": "No hay ningún Axie con el ID {id}.",
-  "squad.byIdErr.error": "No se pudo consultar Sky Mavis. Revisa tu conexión e inténtalo de nuevo."
+  "squad.byIdErr.error": "No se pudo consultar Sky Mavis. Revisa tu conexión e inténtalo de nuevo.",
+  "squad.gearTitle": "Conserva su equipo: {items} pieza(s), {rune} runa, {charms} charm(s). Lo lleva puesto al volver al escuadrón.",
+  "squad.gearLine": "Lleva puesto: {items} pieza(s) · {rune} runa · {charms} charm(s)",
+  "squad.returnGear": "Devolver equipo a la bolsa",
+  "squad.returnGearTitle": "Quita sus piezas, su runa y sus charms y los deja libres en la bolsa para otro Axie.",
+  "squad.gearReturned": "El equipo de {name} volvió a la bolsa."
 };

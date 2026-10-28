@@ -14,12 +14,13 @@ import {
   MATERIALS, TIER0_ITEMS, CRAFT_RECIPES, EVOLUTION_COST, FORGE_ANVILS, SPEEDUP_BAXS, SPEEDUP_TIER_MULT, evolutionQuote, nextEvolution,
 } from '../tactics/data/EconomyCatalog.js';
 import * as i18n from '../i18n/i18n.js';
+import { EconomyService } from '../net/EconomyService.js';
 
 export const EQ_SLOTS = ['weapon', 'hat', 'shield', 'body', 'boots'];
 const HOUR_MS = 3600 * 1000;
 
 /** Para probar la demo: cada partida nueva recibe una vez este lote (aún no hay botín de materiales ni SLP). */
-const STARTER = { slp: 1000, baxs: 100, mats: { mat_copper: 6, mat_slime_goo: 6, mat_chimera_tail: 4, mat_lunar_shard: 1 } };
+const STARTER = { slp: 500, baxs: 30, mats: { mat_copper: 6, mat_slime_goo: 6, mat_chimera_tail: 4, mat_lunar_shard: 1 } };
 /** Partidas que ya recibieron el lote anterior (200 SLP · 3 bAXS): se les completa la diferencia una vez. */
 const STARTER_V1 = { slp: 200, baxs: 3 };
 
@@ -152,26 +153,29 @@ class ForgeServiceImpl {
   }
 
   // ------------------------------------------------------------------ acciones
-  _pay(c) {
+  /** currency = false: el oro, el SLP y el bAXS ya los cobró el servidor (EconomyService); aquí solo materiales. */
+  _pay(c, currency = true) {
     const f = this._store();
-    if (c.gold) this.em.addGold(-c.gold);
-    f.slp -= c.slp || 0; f.baxs = +((f.baxs || 0) - (c.baxs || 0)).toFixed(2);
+    if (currency) {
+      if (c.gold) this.em.addGold(-c.gold);
+      f.slp -= c.slp || 0; f.baxs = +((f.baxs || 0) - (c.baxs || 0)).toFixed(2);
+    }
     c.rows.forEach((r) => { f.mats[r.id] = (f.mats[r.id] || 0) - r.need; });
   }
 
-  craft(recipeId) {
+  craft(recipeId, { serverPaid = false } = {}) {
     const r = CRAFT_RECIPES.find((x) => x.id === recipeId); if (!r || !ITEMS_DB[r.result]) return { ok: false, why: i18n.t('notices.forge.unknownRecipe') };
-    const c = this.check({ gold: r.gold || 0, slp: r.slp || 0, mats: r.mats }); if (!c.ok) return { ok: false, why: i18n.t('notices.forge.missingSomething') };
-    this._pay(c);
+    const c = this.check({ gold: serverPaid ? 0 : r.gold || 0, slp: serverPaid ? 0 : r.slp || 0, mats: r.mats }); if (!c.ok) return { ok: false, why: i18n.t('notices.forge.missingSomething') };
+    this._pay(c, !serverPaid);
     this.em.inventory.push(r.result);
     this._commit();
     return { ok: true, item: ITEMS_DB[r.result] };
   }
 
-  evolve(entry, speed = 1) {
+  evolve(entry, speed = 1, { serverPaid = false } = {}) {
     if (this.anvilsFree() <= 0) return { ok: false, why: i18n.t('notices.forge.anvilsBusy') };
     const q = this.quote(entry.id, speed); if (!q) return { ok: false, why: i18n.t('notices.forge.maxed') };
-    if (!q.cost.ok) return { ok: false, why: i18n.t('notices.forge.missingSomething') };
+    if (!q.cost.ok && !(serverPaid && q.cost.rows.every((r) => r.have >= r.need))) return { ok: false, why: i18n.t('notices.forge.missingSomething') };
     const em = this.em, f = this._store();
     const claimed = this._claimedSets();
     if (entry.hero) {
@@ -184,7 +188,7 @@ class ForgeServiceImpl {
       if (i < 0) return { ok: false, why: i18n.t('notices.forge.notInBackpack') };
       em.inventory.splice(i, 1);
     }
-    this._pay(q.cost);
+    this._pay(q.cost, !serverPaid);
     const now = Date.now();
     f.jobs.push({ uid: ++f.uid, from: entry.id, to: q.to, hero: entry.hero, slot: entry.slot, held: true, hours: q.hours, start: now, end: now + q.hours * HOUR_MS, speed });
     this._commit();
@@ -237,18 +241,52 @@ class ForgeServiceImpl {
     return [2, 4].filter((x) => x > cur).map((x) => ({ x, baxs: +(price(x) - price(cur)).toFixed(2), leftHours: left * cur / x }));
   }
 
-  speedUp(uid, x) {
+  speedUp(uid, x, { serverPaid = false } = {}) {
     const f = this._store(), j = f.jobs.find((y) => y.uid === uid);
     const o = this.speedOptions(uid).find((y) => y.x === x);
     if (!j || !o) return { ok: false, why: i18n.t('notices.forge.cantSpeedUp') };
-    if (o.baxs > (f.baxs || 0) + 1e-9) return { ok: false, why: i18n.t('notices.forge.needBaxs', { n: +(o.baxs - (f.baxs || 0)).toFixed(2) }) };
+    if (!serverPaid && o.baxs > (f.baxs || 0) + 1e-9) return { ok: false, why: i18n.t('notices.forge.needBaxs', { n: +(o.baxs - (f.baxs || 0)).toFixed(2) }) };
     const now = Date.now();
-    f.baxs = +((f.baxs || 0) - o.baxs).toFixed(2);
+    if (!serverPaid) f.baxs = +((f.baxs || 0) - o.baxs).toFixed(2);
     j.end = now + o.leftHours * HOUR_MS;
     j.hours = (j.end - j.start) / HOUR_MS;
     j.speed = x;
     this._commit();
     return { ok: true, leftHours: o.leftHours };
+  }
+
+  // ------------------------------------------------------------------ Hito 76: con cuenta, el servidor cobra
+  // Primero se comprueba en local lo que no es dinero (materiales, yunques, pieza); luego cobra el servidor y, si
+  // acepta, se hace el resto en la partida. Como invitado, lo de siempre.
+  async craftAsync(recipeId) {
+    if (!EconomyService.active) return this.craft(recipeId);
+    const r = CRAFT_RECIPES.find((x) => x.id === recipeId); if (!r || !ITEMS_DB[r.result]) return { ok: false, why: i18n.t('notices.forge.unknownRecipe') };
+    if (!this.check({ mats: r.mats }).ok) return { ok: false, why: i18n.t('notices.forge.missingSomething') };
+    const res = await EconomyService.forgePay('craft', recipeId);
+    if (res.error === 'unavailable') return this.craft(recipeId); // funciones sin desplegar: en local
+    if (!res.ok) return { ok: false, why: EconomyService.why(res) };
+    return this.craft(recipeId, { serverPaid: true });
+  }
+
+  async evolveAsync(entry, speed = 1) {
+    if (!EconomyService.active) return this.evolve(entry, speed);
+    if (this.anvilsFree() <= 0) return { ok: false, why: i18n.t('notices.forge.anvilsBusy') };
+    const q = this.quote(entry.id, speed); if (!q) return { ok: false, why: i18n.t('notices.forge.maxed') };
+    if (!q.cost.rows.every((r) => r.have >= r.need)) return { ok: false, why: i18n.t('notices.forge.missingSomething') };
+    const res = await EconomyService.forgePay('evolve', `${entry.id}:${speed}`);
+    if (res.error === 'unavailable') return this.evolve(entry, speed);
+    if (!res.ok) return { ok: false, why: EconomyService.why(res) };
+    return this.evolve(entry, speed, { serverPaid: true });
+  }
+
+  async speedUpAsync(uid, x) {
+    if (!EconomyService.active) return this.speedUp(uid, x);
+    const j = this._store().jobs.find((y) => y.uid === uid);
+    if (!j || !this.speedOptions(uid).some((y) => y.x === x)) return { ok: false, why: i18n.t('notices.forge.cantSpeedUp') };
+    const res = await EconomyService.forgePay('speed', `${j.uid}-${j.start}:${j.to}:${x}`);
+    if (res.error === 'unavailable') return this.speedUp(uid, x);
+    if (!res.ok) return { ok: false, why: EconomyService.why(res) };
+    return this.speedUp(uid, x, { serverPaid: true });
   }
 
   /** Pruebas: termina ya todas las piezas en curso (window.lunakaiForge.finishAll()). */

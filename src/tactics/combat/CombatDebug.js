@@ -9,6 +9,8 @@ import { PART_CARDS } from '../data/PartCards.js';
 import { COLLECTION_CARDS } from '../data/CollectionCards.js';
 import { anyPartCard } from '../data/VariantCards.js';
 import { AXIE_GENES_DECODER } from '@jaatster/threejs-axie-mixer3d-public';
+import { LightingManager } from '../../rpg/world/demo_scena/LightingManager.js';
+import { access } from '../../ui/AccessPrefs.js';
 
 const STATUS_DEFS_REF = () => STATUS_DEFS;
 
@@ -71,6 +73,12 @@ export function installCombatDebug(game) {
         '  timer(false|true)             apaga / enciende el reloj del turno · timer({ base: 30, max: 45 }) cambia sus valores',
         '  rune("kotaro", "beast-brutal-claw") / charm("kotaro", "horn", "neutral-deadly-spell")   equipa (se aplica en el próximo combate)',
         '  ultReset()                    permite volver a usar la Ultimate en este combate (pruebas)',
+        '  shadows()                     sombras del mundo abierto: estado · shadows({legacy:true}) comparar con lo anterior',
+        '                                shadows({everyFrame, freeze, bias, normalBiasTexels, normalBias, depthStep, reset})',
+        '  a11y()                        accesibilidad: preferencias activas y textos que no crecen con «Tamaño del texto»',
+        '  a11y({ textSize: "xlarge", contrast: true, colorblind: "rg", reduceMotion: true, shake: false, autoAdvance: "slow" })   cambia y guarda',
+        '  sfx()                         sonidos del mundo: grabaciones encontradas y último suelo pisado · sfx("pasos" | "voz" | "criaturas" | "pesca" | "recoleccion" | "golpes" | "combate") los toca',
+        '  audio()                       sonido ambiente: isla, modo, mar y fuentes cercanas · audio({ island: "arctic" }) fuerza una isla · audio({ off: true }) quita el forzado',
       ].join('\n'));
     },
 
@@ -263,6 +271,79 @@ export function installCombatDebug(game) {
       return svc.get(heroId);
     },
     ultReset() { const u = game.spellManager?.ultimates; if (u) { u.used = false; game._updateHUD?.(game.activeUnit); } return true; },
+
+    /**
+     * Sombras del mundo abierto (Hito 83). Sin argumentos: muestra el estado.
+     *  lkDebug.shadows({ legacy: true })        comportamiento anterior (para comparar el parpadeo)
+     *  lkDebug.shadows({ everyFrame: true })    recalcular el mapa en todos los fotogramas
+     *  lkDebug.shadows({ freeze: true })        el sol deja de seguir al jugador
+     *  lkDebug.shadows({ bias: -0.0002, normalBiasTexels: 1.5, depthStep: 2 })   ajustes en vivo
+     *  lkDebug.shadows({ normalBias: 0.05 })    normalBias fijo en metros
+     *  lkDebug.shadows({ reset: true })         valores por defecto
+     */
+    shadows(opts) {
+      const D = LightingManager.debug;
+      if (opts && typeof opts === 'object') {
+        if (opts.reset) {
+          Object.assign(D, { everyFrame: false, legacy: false, freeze: false, bias: null, normalBias: null, normalBiasTexels: null, depthStep: null });
+        }
+        for (const k of ['everyFrame', 'legacy', 'freeze']) if (k in opts) D[k] = !!opts[k];
+        for (const k of ['bias', 'normalBias', 'normalBiasTexels', 'depthStep']) {
+          if (k in opts) D[k] = (opts[k] === null || opts[k] === undefined) ? null : Number(opts[k]);
+        }
+        if ('normalBiasTexels' in opts && opts.normalBiasTexels != null) D.normalBias = null;
+        LightingManager.refreshAllBias();
+      }
+      const rows = [];
+      for (const lm of LightingManager.instances) {
+        const l = lm.dirLight;
+        if (!l) continue;
+        const sh = l.shadow;
+        const ext = sh.camera.right - sh.camera.left;
+        rows.push({
+          activo: !!(lm.group && lm.group.visible && l.visible),
+          sombras: l.castShadow,
+          mapa: sh.mapSize.x,
+          'caja (m)': ext,
+          'celda (cm)': +(100 * ext / Math.max(1, sh.mapSize.x)).toFixed(1),
+          bias: sh.bias,
+          'normalBias (m)': +sh.normalBias.toFixed(4),
+        });
+      }
+      console.table(rows);
+      const def = LightingManager.defaults;
+      console.log(`[lkDebug] sombras · legacy:${D.legacy} everyFrame:${D.everyFrame} freeze:${D.freeze} · depthStep:${D.depthStep ?? def.depthStep} m · por defecto bias ${def.bias}, normalBias ${def.normalBiasTexels} celda`);
+      return { ...D };
+    },
+
+    /** Accesibilidad (Hito 85). Sin argumentos: estado y auditoría del tamaño del texto. */
+    a11y(opts) {
+      if (opts && typeof opts === 'object') access.set(opts);
+      const p = access.prefs;
+      console.log(`[lkDebug] accesibilidad · texto ${p.textSize} (×${access.textScale}) · velocidad ${p.textSpeed} · avance ${p.autoAdvance} · contraste ${p.contrast} · daltonismo ${p.colorblind} · reducir movimiento ${p.reduceMotion} (efectivo ${access.reduceMotion}) · temblor ×${access.shakeScale} · destellos ×${access.flashScale}`);
+      console.log(`[lkDebug] reglas generadas: tamaño ${access._scaleRules ?? 0} · movimiento ${access._motionRules ?? 0}`);
+      const rows = access.auditTextScale();
+      if (rows.length) { console.log(`[lkDebug] ${rows.length} textos visibles NO crecen con «Muy grande»:`); console.table(rows); }
+      else console.log('[lkDebug] Todos los textos visibles crecen con «Tamaño del texto».');
+      return { prefs: p, sinEscalar: rows };
+    },
+
+    /** Sonidos del mundo (Hito 87): estado o prueba de una familia. */
+    sfx(what) {
+      const w = window.lunakaiWorldSfx || game.audio?.world;
+      if (!w) { console.log('[lkDebug] Los sonidos del mundo no están cargados.'); return null; }
+      if (what === 'golpes' || what === 'combate') { game.audio?.init?.(); return game.audio?.combat?.test(what === 'golpes' ? 'golpes' : 'efectos'); }
+      if (what) { game.audio?.init?.(); return w.test(what); }
+      const st = w.status(); console.table([st]); return st;
+    },
+
+    /** Sonido ambiente (Hito 86). */
+    audio(opts) {
+      const amb = window.lunakaiAmbience || game.audio?.ambience;
+      if (!amb || !amb.started) { console.log('[lkDebug] El ambiente aún no ha arrancado (necesita un clic o una tecla para iniciar el audio).'); return null; }
+      if (opts && typeof opts === 'object') amb.force(opts.off ? null : { island: opts.island || amb.island || 'forest', mode: opts.mode || 'world' });
+      return amb.status();
+    },
 
     presentation(on = true) {
       const sm = game.spellManager;

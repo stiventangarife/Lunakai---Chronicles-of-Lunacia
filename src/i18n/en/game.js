@@ -69,7 +69,7 @@ export default {
   "game.archBear": "Colossal Bear Chimera",
   "game.archWolf": "Hunter Wolf Chimera",
   "game.archDryad": "Arcane Mystic Dryad",
-  "game.archTreant": "Ancient Botanical Treant",
+  "game.archTreant": "Frost Slime Knight",
   "game.archSlime": "Slime Chimera",
   "game.archBrawler": "Assault Beast",
   "game.archSapidae": "Sapidae Adventurer",
@@ -90,5 +90,7 @@ export default {
   "game.no": "No",
   "game.ttArea": "Area: {v}",
   "game.areaCross": "Cross (1 tile)",
-  "game.areaSingle": "Single Tile"
+  "game.areaSingle": "Single Tile",
+  "game.goldPending": "Gold pending",
+  "game.goldPendingDesc": "Offline: this battle's gold will be credited as soon as you're back online."
 };

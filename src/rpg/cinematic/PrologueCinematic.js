@@ -24,6 +24,7 @@ import {
   friezeCanvas, totemCanvas, hillsCanvas, smokeCanvas, ringCanvas, raysCanvas, CONSTELLATIONS,
 } from './CinematicArt.js';
 import * as i18n from '../../i18n/i18n.js';
+import { access } from '../../ui/AccessPrefs.js';
 import { PrologueVoice } from './PrologueVoice.js';
 
 // Corazones del friso (unidades de escena): adelanto hacia donde mira cada figura y ajuste de altura.
@@ -124,7 +125,7 @@ const POST_VS = 'varying vec2 vUv; void main(){ vUv = uv; gl_Position = vec4(pos
 const POST_FS = /* glsl */`
   uniform sampler2D tScene; uniform sampler2D tPaper;
   uniform vec2 uRes; uniform float uTime; uniform float uPaper; uniform float uGrain; uniform float uVig;
-  uniform float uFade; uniform vec3 uFadeCol; uniform float uFlash; uniform vec3 uFlashCol; uniform float uBurn;
+  uniform float uFade; uniform vec3 uFadeCol; uniform float uFlash; uniform vec3 uFlashCol; uniform float uBurn; uniform float uFlashMul;
   varying vec2 vUv;
   float hash(vec2 p){ return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453); }
   void main() {
@@ -142,7 +143,7 @@ const POST_FS = /* glsl */`
     float g = hash(uv * uRes + fract(uTime * 13.7) * 91.0) - 0.5;
     col += g * uGrain;
     col = mix(col, uFadeCol, uFade);
-    col += uFlashCol * uFlash;
+    col += uFlashCol * uFlash * uFlashMul; // Hito 85: «Reducir movimiento» atenúa los fogonazos
     gl_FragColor = vec4(max(col, 0.0), 1.0);
     #include <colorspace_fragment>
   }`;
@@ -286,7 +287,7 @@ export class PrologueCinematic {
       uniforms: {
         tScene: { value: this.rt.texture }, tPaper: { value: this.textures.paper },
         uRes: { value: size.clone() }, uTime: { value: 0 }, uPaper: { value: 0.85 }, uGrain: { value: 0.05 }, uVig: { value: 0.55 },
-        uFade: { value: 1 }, uFadeCol: { value: new THREE.Color('#000') }, uFlash: { value: 0 }, uFlashCol: { value: new THREE.Color('#fff4d6') }, uBurn: { value: 1 },
+        uFade: { value: 1 }, uFadeCol: { value: new THREE.Color('#000') }, uFlash: { value: 0 }, uFlashCol: { value: new THREE.Color('#fff4d6') }, uBurn: { value: 1 }, uFlashMul: { value: access.flashScale },
       },
       vertexShader: POST_VS, fragmentShader: POST_FS, depthTest: false, depthWrite: false,
     });
@@ -454,6 +455,7 @@ export class PrologueCinematic {
       this._music('PROLOGO', { fadeDuration: 400, volumeMultiplier: 0.95, startAt: Math.max(0, t - PROLOGO_MUSIC_AT) });
     }
     U.uFlash.value = Math.max(0, U.uFlash.value - dt * 2.2);
+    if (U.uFlashMul) U.uFlashMul.value = access.flashScale;
     this[`_upd_${s.id}`]?.(lt, len, dt, this._shotState);
     // subtítulo del plano
     if (s.sub) this._setSub(lt > 0.5 && lt < len - 0.45 ? s.sub : null);
@@ -468,7 +470,7 @@ export class PrologueCinematic {
     const W = VIEW_H * this.aspect;
     const c = this.cam || { x: 0, y: 0, zoom: 1, shake: 0 };
     Object.assign(this.camera, { left: -W / 2, right: W / 2, top: VIEW_H / 2, bottom: -VIEW_H / 2 });
-    const sh = c.shake || 0;
+    const sh = (c.shake || 0) * access.shakeScale; // Hito 85: Temblor de cámara / Reducir movimiento
     const tt = this.time * 37;
     this.camera.position.x = c.x + (Math.sin(tt * 1.3) + Math.sin(tt * 2.9)) * 0.06 * sh;
     this.camera.position.y = c.y + (Math.cos(tt * 1.7) + Math.sin(tt * 3.3)) * 0.06 * sh;

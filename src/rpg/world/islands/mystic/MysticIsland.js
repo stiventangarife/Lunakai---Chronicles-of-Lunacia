@@ -32,6 +32,20 @@ function fenceSwamp(m) {
   }
 }
 
+// Hito 94: la ladera de la costa (r ≥ 134 m, donde el terreno baja al mar) se puede bajar entera. Llega a 35–39°, justo
+// por encima del límite, y dejaba una pared invisible de ~6 m sobre la hierba antes del agua (junto a la balsa del
+// barquero, al este, y en otros tramos). Lo de más de 41° seguiría sin subirse.
+const COAST_OPEN = { r: 134, maxSlope: 41, cap: 33 };
+function openCoast(m) {
+  const { n, cell, minX, minZ, slope } = m;
+  for (let j = 0; j < n; j++) for (let i = 0; i < n; i++) {
+    const x = minX + i * cell, z = minZ + j * cell;
+    if (x * x + z * z < COAST_OPEN.r * COAST_OPEN.r) continue;
+    const k = j * n + i;
+    if (slope[k] <= COAST_OPEN.maxSlope) slope[k] = Math.min(slope[k], COAST_OPEN.cap);
+  }
+}
+
 const MYSTIC_PROP_RULES = [
   { test: /^IslandTreeTrunk_broad/, kind: 'tree', band: 0.8, rMin: 0.4, rMax: 0.9 },
   { test: /^mystic_Rock/, kind: 'rock', band: 1.2, rMin: 0.4, rMax: 3, minH: 0.7 },
@@ -570,7 +584,7 @@ export function createMysticIsland(om) {
     build: buildMystic,
     profile: (zone) => mysticProfile(zone),
     // Hito 72: mar hasta la rodilla; el pantano luminoso se cruza entero con el agua a media pierna (hasta el islote
-    // del sauce); pendientes de más de 35° (algunos tramos de costa, borde del observatorio) no se suben
+    // del sauce); pendientes de más de 35° (borde del observatorio) no se suben; la ladera de la costa sí (Hito 94)
     collision: {
       propRules: MYSTIC_PROP_RULES, slopeMax: 35, wadeMax: 0.5,
       // Hito 72d: los cristales (agujas, cúmulos y rocas de cristal) con su huella exacta: ningún extremo se atraviesa
@@ -581,7 +595,7 @@ export function createMysticIsland(om) {
       ],
       shallow: (x, z) => (Math.hypot(x - SWAMP.x, z - SWAMP.z) < SWAMP.r + 3 ? SWAMP.level : null),
       shallowMax: 0.3,
-      adjust: (m) => fenceSwamp(m),
+      adjust: (m) => { fenceSwamp(m); openCoast(m); },
     }
   });
 }

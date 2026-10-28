@@ -204,6 +204,11 @@ export class SquadHUD {
     this.container = container;
   }
 
+  _renderSoon() {
+    if (this._soon) return;
+    this._soon = setTimeout(() => { this._soon = null; this.render(); }, 120);
+  }
+
   render() {
     if (!this.container || !this.equipmentManager) return;
     const em = this.equipmentManager;
@@ -243,7 +248,9 @@ export class SquadHUD {
       } else {
         const portraitKey = base.axieId || heroId;
         // Axies con ID: solo su propio retrato (el de «kotaro» es de otro Axie); llega en cuanto se fotografía su modelo
-        portraitUrl = portraitService.getPortraitSync(portraitKey) || (base.axieId ? null : portraitService.getPortraitSync(heroId));
+        // Hito 93: su foto 3D; mientras se hace (Axie recién cargado por ID), la imagen del marketplace
+        portraitUrl = base.axieId ? portraitService.axieUrl(base, () => this._renderSoon())
+          : portraitService.getPortraitSync(portraitKey) || portraitService.getPortraitSync(heroId);
         if (!portraitUrl && !base.axieId) portraitService.getPortrait(portraitKey);
       }
 

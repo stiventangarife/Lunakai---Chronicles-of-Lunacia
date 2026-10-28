@@ -13,6 +13,7 @@ import { asset, sprite, toast } from '../../ui/lk.js';
 import { canBeMainAxie } from '../../tactics/EquipmentManager.js';
 import { axieMixerService } from '../AxieMixerService.js';
 import { loadAccountAxies, canLoadAccountAxies, loadAxieById } from '../AccountAxiesService.js';
+import { RuneCharmService } from '../RuneCharmService.js';
 import * as i18n from '../../i18n/i18n.js';
 
 const I = (n) => asset(`assets/ui/icons/${n}.png`);
@@ -209,11 +210,37 @@ export class SquadModal {
     const base = this._base(id);
     const sapi = this._isSapi(id);
     const key = sapi ? (base?.modelType || 'sapidae-f-a') : (base?.axieId || id);
-    let url = portraitService.getPortraitSync(key) || (sapi ? `./assets/portraits/${key}.png` : base?.image || null);
-    if (!url) portraitService.getPortrait(key).then((u) => { if (u && this.isOpen) this._render(); }).catch(() => {});
+    // Hito 93: Axies con ID → su foto 3D (o la imagen del marketplace mientras se hace)
+    let url = !sapi && base?.axieId ? portraitService.axieUrl(base, () => this._renderSoon())
+      : portraitService.getPortraitSync(key) || (sapi ? `./assets/portraits/${key}.png` : base?.image || null);
+    if (!url && !base?.axieId) portraitService.getPortrait(key).then((u) => { if (u && this.isOpen) this._render(); }).catch(() => {});
     return `<span class="lk-med" style="--cc:${this._cc(id)}${size ? `;--s:${size}px` : ''}">${url ? `<img src="${url}" alt="">` : ''}</span>`;
   }
   _idx(id) { return this.slots.indexOf(id); }
+  /** Hito 93: lo que lleva puesto un Axie (se conserva aunque salga del escuadrón). */
+  _gear(id) {
+    const items = Object.values(this.em.equipped?.[id] || {}).filter(Boolean).length;
+    let rune = 0, charms = 0;
+    try { const rc = RuneCharmService.get(id); rune = rc.rune ? 1 : 0; charms = Object.values(rc.charms || {}).filter(Boolean).length; } catch { /* sin partida */ }
+    return { items, rune, charms, total: items + rune + charms };
+  }
+  /** Hito 93: devuelve a la bolsa sus piezas, su runa y sus charms. */
+  _returnGear(id) {
+    const eq = this.em.equipped?.[id] || {};
+    Object.keys(eq).forEach((slot) => { if (eq[slot]) this.em.unequipItem(id, slot); });
+    try {
+      RuneCharmService.setRune(id, null);
+      Object.keys(RuneCharmService.get(id).charms || {}).forEach((part) => RuneCharmService.setCharm(id, part, null));
+    } catch { /* sin partida */ }
+    toast(i18n.t('squad.gearReturned', { name: this._base(id)?.name || '' }));
+    this.audio?.playClick?.();
+    this._render();
+  }
+  /** Volver a dibujar una sola vez aunque lleguen varios retratos seguidos. */
+  _renderSoon() {
+    if (this._soon) return;
+    this._soon = setTimeout(() => { this._soon = null; if (this.isOpen) this._render(); }, 120);
+  }
 
   // ------------------------------------------------------------ render
   _render() {
@@ -245,9 +272,11 @@ export class SquadModal {
     const list = owned.filter((id) => this.cls === 'all' || this._cls(id) === this.cls).sort((a, b) => this._prog(b).lv - this._prog(a).lv);
     this.$('colCount').textContent = (owned.length === 1 ? i18n.t('squad.collectionOne', { n: owned.length }) : i18n.t('squad.collectionMany', { n: owned.length }));
     this.$('col').innerHTML = list.map((id) => {
-      const j = this._idx(id), c = this._cls(id);
+      const j = this._idx(id), c = this._cls(id), g = j < 0 ? this._gear(id) : null;
+      // Hito 93: fuera del escuadrón conserva su equipo; la etiqueta lo recuerda
+      const gearTag = g?.total ? `<span class="lk-tag" title="${esc(i18n.t('squad.gearTitle', g))}" style="display:inline-flex;align-items:center;gap:3px"><img src="${I('inventory')}" alt="" style="width:11px;height:11px">${g.total}</span>` : '';
       return `<button type="button" class="lk-ax-card ${this.sel === id ? 'lk-is-sel' : ''} ${j >= 0 ? 'lk-in-squad' : ''}" data-id="${id}" style="--cc:${this._cc(id)}">${this._med(id)}<b title="${esc(this._base(id).name)}" style="${NAME_CUT}">${esc(this._base(id).name)}</b><small>${clsIcon(c)}${CLS_ES[c] || c} · ${i18n.t('squad.lv', { n: this._prog(id).lv })}</small>
-        <span class="lk-parts">${this._parts(id).map((p) => `<img src="${p.icon}" alt="${PART_ES[p.part] || p.part}" title="${PART_ES[p.part] || p.part}">`).join('')}</span>${j >= 0 ? `<span class="lk-tag ${j === 1 ? 'lk-pr' : ''}">${j === 1 ? i18n.t('squad.slotMain') : i18n.t('squad.slotSupport')}</span>` : ''}</button>`;
+        <span class="lk-parts">${this._parts(id).map((p) => `<img src="${p.icon}" alt="${PART_ES[p.part] || p.part}" title="${PART_ES[p.part] || p.part}">`).join('')}</span>${j >= 0 ? `<span class="lk-tag ${j === 1 ? 'lk-pr' : ''}">${j === 1 ? i18n.t('squad.slotMain') : i18n.t('squad.slotSupport')}</span>` : gearTag}</button>`;
     }).join('') || `<p class="lk-bag-empty"><b>${i18n.t('squad.emptyTitle')}</b>${i18n.t('squad.emptyText')}</p>`;
     this._renderDetail();
   }
@@ -286,6 +315,8 @@ export class SquadModal {
     else if (j === 1) acts = `<span class="lk-note">${i18n.t('squad.noteMain')}</span>`;
     else acts = (canBeMainAxie(id) ? btn('lead', 'lk-btn-moon', `<img class="lk-ai lk-heart-ico" src="${I('heart')}" alt="">`, i18n.t('squad.makeMain')) : `<span class="lk-note">${i18n.t('squad.noteSupportOnly')}</span>`) + btn('out', 'lk-btn-secondary-wood', sprite('i-close'), i18n.t('squad.retire'));
     if (j >= 0 && this.onOpenInventory) acts += btn('gear', 'lk-btn-secondary-wood', `<img class="lk-ai" src="${I('inventory')}" alt="">`, i18n.t('squad.equipInBackpack'));
+    const gear = isAx ? this._gear(id) : null;
+    if (gear?.total) acts += btn('strip', 'lk-btn-secondary-wood', `<img class="lk-ai" src="${I('inventory')}" alt="">`, i18n.t('squad.returnGear')).replace('data-act="strip"', `data-act="strip" title="${esc(i18n.t('squad.returnGearTitle'))}"`);
 
     let axBlock = '';
     if (isAx) {
@@ -319,7 +350,7 @@ export class SquadModal {
       <div class="lk-sqd-paper">
         ${axBlock}
         <div class="lk-stl">${STAT_ES.map(([k, l]) => `<span>${l}<b>${t[k]}</b></span>`).join('')}</div>
-        ${isAx ? (parts.length ? `<div class="lk-pgrid">${parts.map((pt) => `<span><img src="${pt.icon}" alt="">${PART_ES[pt.part] || pt.part}</span>`).join('')}</div>` : '') + `<span class="lk-pp">${i18n.t('squad.runeCharmsHint')}</span>`
+        ${isAx ? (parts.length ? `<div class="lk-pgrid">${parts.map((pt) => `<span><img src="${pt.icon}" alt="">${PART_ES[pt.part] || pt.part}</span>`).join('')}</div>` : '') + (gear?.total ? `<span class="lk-pp" style="color:var(--lk-gilt-200)">${esc(i18n.t('squad.gearLine', gear))}</span>` : '') + `<span class="lk-pp">${i18n.t('squad.runeCharmsHint')}</span>`
           : `<p>${i18n.t('squad.sapidaeDesc')}</p>`}
         <div class="lk-actions">${acts}</div>
       </div>`;
@@ -330,6 +361,7 @@ export class SquadModal {
       else if (k === 'lead') this._place(id, 1);
       else if (k === 'out') this._retire(j);
       else if (k === 'gear') { this.close(); this.onOpenInventory?.(id); }
+      else if (k === 'strip') this._returnGear(id);
     }));
   }
 

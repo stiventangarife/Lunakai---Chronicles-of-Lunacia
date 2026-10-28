@@ -44,6 +44,9 @@ export class CloudSave {
     this._inflight = new Map();
     this._listeners = new Set();
     this.enabled = false;
+    this.onServerApplied = null; // Hito 77: (slotId, deltas) → MarketService
+    this.walletTicket = null;    // Hito 78: () → marca del saldo (EconomyService)
+    this.onServerWallet = null;  // Hito 78: (slotId, res, ticket) → EconomyService
   }
 
   onStatus(fn) { this._listeners.add(fn); return () => this._listeners.delete(fn); }
@@ -177,6 +180,7 @@ export class CloudSave {
     try {
       const token = keepalive ? this.auth.session?.access_token : await this.auth.getAccessToken();
       let expected = this.ssm.getCloudVersion(slotId) || 0;
+      let ticket = this.walletTicket?.() || null; // Hito 78: para aplicar el saldo que devuelve el guardado
       let res = await this._rpcSave(slotId, data, expected, token, keepalive);
 
       if (res && res.conflict) {
@@ -193,12 +197,21 @@ export class CloudSave {
         }
         // La copia local es la más reciente: se sube sobre la versión del servidor.
         expected = res.version;
+        ticket = this.walletTicket?.() || null;
         res = await this._rpcSave(slotId, data, expected, token, keepalive);
       }
       if (!res || !res.ok) throw Object.assign(new Error('save_rejected'), { code: 'save_rejected', retryable: true });
 
       this.ssm.setCloudVersion(slotId, res.version);
       this._lastHash(slotId, hash);
+      // Hito 78: saldo del servidor (oro de una venta del Mercado, etc.) sin esperar a recargar la partida
+      if (res.gold != null && typeof this.onServerWallet === 'function') {
+        try { this.onServerWallet(slotId, res, ticket); } catch (e) { console.warn('[CloudSave] onServerWallet', e); }
+      }
+      // Hito 77: entradas y salidas del Mercado que aplicó el servidor al guardar (el juego las aplica si aún no estaban)
+      if (Array.isArray(res.applied) && res.applied.length && typeof this.onServerApplied === 'function') {
+        try { this.onServerApplied(slotId, res.applied); } catch (e) { console.warn('[CloudSave] onServerApplied', e); }
+      }
       if (this.ssm.getSlot(slotId)?.lastSaved === snapshotTime) this.ssm.clearDirty(slotId);
       else this.schedule(slotId); // hubo cambios mientras subía
 

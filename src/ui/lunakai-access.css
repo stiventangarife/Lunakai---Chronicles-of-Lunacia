@@ -1,0 +1,77 @@
+/* lunakai-access.css — Opciones › Accesibilidad (Hito 85)
+ *
+ * <html> lleva (src/ui/AccessPrefs.js):
+ *   data-lk-text="normal|large|xlarge"  → tamaño del texto (rem con la raíz; los px con --lk-text-scale)
+ *   data-lk-cb="off|rg|tri"             → modo daltonismo (rojo-verde / azul-amarillo)
+ *   .lk-high-contrast                   → forma y contorno por bando, paneles más opacos, texto más claro
+ *   .lk-reduce-motion                   → además de esta hoja, se repiten las reglas @media (prefers-reduced-motion)
+ */
+
+/* ── Tamaño del texto ─────────────────────────────────────────────────────────────── */
+/* La interfaz nueva (ds.generated.css, lunakai-*.css) mide en rem: crece con la raíz. Los font-size en px los
+   multiplica la hoja generada #lk-access-scale (AccessPrefs._buildScaleSheet). */
+html[data-lk-text="large"]  { font-size: 112.5%; }
+html[data-lk-text="xlarge"] { font-size: 125%; }
+
+/* ── Reducir movimiento ───────────────────────────────────────────────────────────── */
+html.lk-reduce-motion .float-crit { animation: none; }
+html.lk-reduce-motion .floating-text { will-change: auto; }
+html.lk-reduce-motion .lk-caret { animation: none; }
+
+/* ── Alto contraste ───────────────────────────────────────────────────────────────── */
+html.lk-high-contrast {
+  --lk-glass: rgba(8, 11, 20, .94);
+  --lk-glass-soft: rgba(8, 11, 20, .86);
+  --lk-ivory-300: #E2D7C3;          /* texto secundario sobre fondo oscuro */
+  --lk-night-400: #8A95B0;          /* texto apagado */
+  --lk-ink-600: #3C4258;            /* texto secundario sobre pergamino */
+  --lk-gilt-line: rgba(238, 211, 154, .8);
+}
+/* Orden de turnos: aliados en círculo, enemigos en cuadrado con muesca */
+html.lk-high-contrast #ui-overlay .lk-cb-timeline .timeline-card { box-shadow: 0 0 0 2px #000, 0 0 0 4px var(--lk-hp-vital-green); }
+html.lk-high-contrast #ui-overlay .lk-cb-timeline .timeline-card.team-enemy { border-radius: 6px; box-shadow: 0 0 0 2px #000, 0 0 0 4px var(--lk-enemy-red); }
+html.lk-high-contrast #ui-overlay .lk-cb-timeline .timeline-card.team-enemy::before {
+  content: ""; position: absolute; right: -5px; bottom: -5px; width: 11px; height: 11px; z-index: 2;
+  background: var(--lk-enemy-red); clip-path: polygon(50% 0, 100% 50%, 50% 100%, 0 50%); outline: 2px solid #000;
+}
+/* Barras de vida: la del enemigo con rayas (no solo color) */
+html.lk-high-contrast .lk-bar--enemy > i,
+html.lk-high-contrast #ui-overlay .lk-cb-timeline .team-enemy .card-hp-fill {
+  background-image: repeating-linear-gradient(135deg, rgba(0, 0, 0, .38) 0 3px, transparent 3px 7px), linear-gradient(90deg, var(--lk-enemy-red), var(--lk-enemy-red));
+}
+html.lk-high-contrast .lk-bar { box-shadow: inset 0 0 0 1px rgba(0, 0, 0, .55), 0 0 0 1px rgba(255, 255, 255, .35); }
+/* Ficha de la unidad: retrato redondo (aliado) o cuadrado (enemigo) y marca de bando */
+html.lk-high-contrast .lk-cb-ut.lk-is-foe .lk-cb-ut-por { border-radius: 6px; }
+html.lk-high-contrast .lk-cb-ut header small::before { content: "● "; color: var(--lk-hp-vital-green); }
+html.lk-high-contrast .lk-cb-ut.lk-is-foe header small::before { content: "◆ "; color: var(--lk-enemy-red); }
+/* Números flotantes con contorno más grueso */
+html.lk-high-contrast .floating-text { -webkit-text-stroke-width: 2.5px; }
+html.lk-high-contrast :where(.lk-ui) :focus-visible { outline-width: 3px; outline-color: #fff; }
+
+/* ── Modo daltonismo ──────────────────────────────────────────────────────────────── */
+/* Rojo-verde (protanopía / deuteranopía): azul cielo frente a naranja (Okabe-Ito) */
+html[data-lk-cb="rg"] { --lk-hp-vital-green: #56B4E9; --lk-enemy-red: #F0A020; --lk-danger-crimson: #D55E00; --lk-pm-wind-teal: #F0E442; }
+html[data-lk-cb="rg"] .lk-bar > i,
+html[data-lk-cb="rg"] .lk-pm-hp i { background: linear-gradient(90deg, #2F86C9, var(--lk-hp-vital-green)); }
+html[data-lk-cb="rg"] .lk-bar--enemy > i { background: linear-gradient(90deg, #C77A0A, var(--lk-enemy-red)); }
+html[data-lk-cb="rg"] .lk-bar.lk-bar--low > i,
+html[data-lk-cb="rg"] .lk-pm-hp.lk-is-low i { background: linear-gradient(90deg, #A84800, var(--lk-danger-crimson)); }
+html[data-lk-cb="rg"] .float-damage { color: #FF8C1A; text-shadow: 0 4px 0 #000, 0 0 16px rgba(255, 140, 26, .9), 0 8px 16px rgba(0, 0, 0, .7); }
+html[data-lk-cb="rg"] .float-heal { color: #7FD0FF; -webkit-text-stroke-color: #0B4A75; text-shadow: 0 4px 0 #000, 0 0 18px rgba(127, 208, 255, .9); }
+html[data-lk-cb="rg"] .float-pm { color: #F0E442; -webkit-text-stroke-color: #6B5F00; text-shadow: 0 3px 0 #000, 0 0 14px rgba(240, 228, 66, .9); }
+
+/* Azul-amarillo (tritanopía): turquesa frente a rosa rojizo */
+html[data-lk-cb="tri"] { --lk-hp-vital-green: #22C3B5; --lk-enemy-red: #FF4F79; --lk-danger-crimson: #FF2A55; }
+html[data-lk-cb="tri"] .lk-bar > i,
+html[data-lk-cb="tri"] .lk-pm-hp i { background: linear-gradient(90deg, #138F85, var(--lk-hp-vital-green)); }
+html[data-lk-cb="tri"] .lk-bar--enemy > i { background: linear-gradient(90deg, #C9254F, var(--lk-enemy-red)); }
+html[data-lk-cb="tri"] .lk-bar.lk-bar--low > i,
+html[data-lk-cb="tri"] .lk-pm-hp.lk-is-low i { background: linear-gradient(90deg, #B5123A, var(--lk-danger-crimson)); }
+html[data-lk-cb="tri"] .float-damage { color: #FF4F79; text-shadow: 0 4px 0 #000, 0 0 16px rgba(255, 79, 121, .9), 0 8px 16px rgba(0, 0, 0, .7); }
+html[data-lk-cb="tri"] .float-heal { color: #22C3B5; -webkit-text-stroke-color: #0B5550; text-shadow: 0 4px 0 #000, 0 0 18px rgba(34, 195, 181, .9); }
+
+/* Con alto contraste y daltonismo a la vez, las rayas del enemigo usan el color del modo */
+html.lk-high-contrast[data-lk-cb="rg"] .lk-bar--enemy > i,
+html.lk-high-contrast[data-lk-cb="tri"] .lk-bar--enemy > i {
+  background-image: repeating-linear-gradient(135deg, rgba(0, 0, 0, .38) 0 3px, transparent 3px 7px), linear-gradient(90deg, var(--lk-enemy-red), var(--lk-enemy-red));
+}

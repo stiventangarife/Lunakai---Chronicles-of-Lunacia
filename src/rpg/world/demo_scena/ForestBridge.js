@@ -39,6 +39,21 @@ export const FOREST_BRIDGE_VILLAGE = {
   endLift: 0.22
 };
 
+/**
+ * Muelle de la playa (Hito 79): mismo modelo, de la arena hacia el mar, junto a la tienda de pescado del barquero. Tablero a
+ * altura fija (`level`), sin arco, y un tope al final (`endCap`) para no caerse al mar. Desde aquí se pesca.
+ */
+export const FOREST_PIER = {
+  a: { x: 42.7, z: 138.2 },  // Hito 82d: entrada en la arena, a unos 6 m de Kawa (43, 132,2)
+  b: { x: 52.6, z: 153.2 },  // punta, 18 m mar adentro (dirección marcada por el usuario, ~57° desde +x)
+  width: 4.0,
+  modules: 2,
+  arch: 0,
+  endLift: 0.22,
+  level: 0.8,                // Hito 82c: tablero bajo, a ras de la arena de la orilla de Kawa (el mar está a 0,45)
+  endCap: true
+};
+
 const RAIL_TAG = 'forest_bridge_rail';
 
 export class ForestBridge {
@@ -128,8 +143,8 @@ export class ForestBridge {
     // 3. Chain the modules along the arch (uniform scale: the model keeps its proportions)
     const { a, b, width, modules, arch, endLift } = this.cfg;
     const terrain = this.zone.terrain;
-    const yA = terrain.getHeight(a.x, a.z) + endLift;
-    const yB = terrain.getHeight(b.x, b.z) + endLift;
+    const yA = this.cfg.level ?? terrain.getHeight(a.x, a.z) + endLift;
+    const yB = this.cfg.level ?? terrain.getHeight(b.x, b.z) + endLift;
     this.deckY = (t) => yA + (yB - yA) * t + arch * 4 * t * (1 - t);
     const kz = width / wid0;
     const ky = kz;
@@ -224,7 +239,11 @@ export class ForestBridge {
       // Rails stop 1.2 m short of each end so the bridge is entered straight from the path
       const e0 = 1.2, e1 = this.length - 1.2;
       col.addSegment(a.x + this.dir.x * e0 + ox, a.z + this.dir.y * e0 + oz,
-        a.x + this.dir.x * e1 + ox, a.z + this.dir.y * e1 + oz, 0.25, this.railTag);
+        a.x + this.dir.x * (this.cfg.endCap ? this.length : e1) + ox, a.z + this.dir.y * (this.cfg.endCap ? this.length : e1) + oz, 0.25, this.railTag);
+    }
+    if (this.cfg.endCap) { // muelle: tope en la punta
+      const ex = a.x + this.dir.x * (this.length - 0.2), ez = a.z + this.dir.y * (this.length - 0.2);
+      col.addSegment(ex - this.normal.x * off, ez - this.normal.y * off, ex + this.normal.x * off, ez + this.normal.y * off, 0.25, this.railTag);
     }
   }
 

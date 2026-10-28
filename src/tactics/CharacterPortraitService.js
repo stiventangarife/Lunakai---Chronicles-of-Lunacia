@@ -538,6 +538,60 @@ export class CharacterPortraitService {
     } catch { /* sin almacenamiento: queda solo en memoria */ }
   }
 
+  /**
+   * Hito 93: retrato 3D de un Axie por su ID aunque todavía no haya salido en el mundo ni en un combate (los cargados
+   * por ID o de la cuenta que esperan en la colección o en un puesto de apoyo). Carga el Axie fuera de pantalla, le
+   * hace la foto con el encuadre de siempre, la guarda en el navegador y lo libera. Se hacen de uno en uno.
+   * Quien lo pide se entera por addListener (id = axieId). Sin el mezclador 3D listo todavía, devuelve null y se
+   * vuelve a intentar la próxima vez que se pida.
+   * @returns {Promise<string|null>}
+   */
+  ensureAxiePortrait(axieId, { genes = null, heroId = null } = {}) {
+    const id = String(axieId || '');
+    if (!/^\d+$/.test(id)) return Promise.resolve(null);
+    const have = this.getPortraitSync(id);
+    if (have) return Promise.resolve(have);
+    this._axieJobs ||= new Map();
+    if (this._axieJobs.has(id)) return this._axieJobs.get(id);
+    const run = async () => {
+      if (this.getPortraitSync(id)) return this.getPortraitSync(id);
+      const { axieMixerService } = await import('../rpg/AxieMixerService.js');
+      if (!axieMixerService.mixerInstance) return null; // el mundo aún no ha creado el mezclador: luego
+      this._initRenderer();
+      if (!this._initialized) return null;
+      let res = null;
+      try {
+        res = await axieMixerService.loadAxieHero({ axieId: id, genes, renderer: this.renderer, heroId, skipPortrait: true });
+        if (typeof res?.axie?.update === 'function') res.axie.update(0.25); // pose de reposo
+        return res?.wrapper ? this.captureAxieHero(id, res.wrapper) : null;
+      } catch (err) {
+        console.warn(`[CharacterPortraitService] Sin retrato para el Axie #${id}:`, err);
+        return null;
+      } finally {
+        try { if (typeof res?.axie?.dispose === 'function') res.axie.dispose(); } catch { /* nada */ }
+      }
+    };
+    // En cola (uno cada vez) y con un respiro entre uno y otro para no trabar el juego
+    const idle = () => new Promise((r) => (typeof requestIdleCallback === 'function' ? requestIdleCallback(() => r(), { timeout: 1500 }) : setTimeout(r, 200)));
+    const job = (this._axieChain = (this._axieChain || Promise.resolve()).then(idle).then(run))
+      .finally(() => this._axieJobs.delete(id));
+    this._axieJobs.set(id, job);
+    return job;
+  }
+
+  /**
+   * Hito 93: retrato de un Axie con ID para la interfaz. Su foto 3D si ya existe; si no, su imagen del marketplace
+   * (base.image) mientras se hace la foto, y `onReady()` cuando está lista (para volver a dibujar).
+   */
+  axieUrl(base, onReady = null) {
+    const id = base?.axieId ? String(base.axieId) : null;
+    if (!id) return null;
+    const url = this.getPortraitSync(id);
+    if (url) return url;
+    this.ensureAxiePortrait(id, { genes: base.genes || null }).then((u) => { if (u && onReady) onReady(u); }).catch(() => {});
+    return base.image || null;
+  }
+
   _getSapidaeCacheKey(modelId = 'sapidae-f-a', customization = null, equipped = null, fullBody = true) {
     const typeStr = fullBody ? 'fullbody' : 'bust';
     const cStr = customization ? JSON.stringify(customization) : '';

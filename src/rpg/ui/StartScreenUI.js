@@ -367,7 +367,7 @@ export class StartScreenUI {
             <div class="lk-login__err"><span class="lk-err-ring">!</span><b data-ref="errTitle">${i18n.t('start.errConnect')}</b><p data-ref="errText">${i18n.t('start.errConnectText')}</p><div class="lk-acts"><button class="lk-btn lk-btn-primary-gold lk-btn--sm" data-act="retry"><span class="lk-b-ico"><img class="lk-ai" src="${I('replay')}" alt=""></span>${i18n.t('start.retry')}</button><button class="lk-btn lk-btn-secondary-wood lk-btn--sm" data-act="guest"><span class="lk-b-ico"><img class="lk-ai" src="${I('friend')}" alt=""></span>${i18n.t('start.playGuest')}</button></div><button class="lk-text-btn" data-act="errBack">${i18n.t('start.backToStart')}</button></div>
             <div class="lk-login__ok"><span class="lk-ok-ring">✓</span><b>${i18n.t('start.signedIn')}</b><span class="lk-wallet-chip" data-ref="wallet"></span><p data-ref="okText">${i18n.t('start.loadingAdventures')}</p></div>
           </div>
-          <div class="lk-login__foot"><span class="lk-on">${i18n.t('start.online')}</span><span>Demo 1 (Build V0.2.0)</span></div>
+          <div class="lk-login__foot"><span class="lk-on">${i18n.t('start.online')}</span><span>Demo 1 (Build V0.3.0)</span></div>
         </div>
       </section>
 
@@ -386,7 +386,7 @@ export class StartScreenUI {
           <div class="lk-slots" id="start-slots-grid" role="listbox" aria-label="${i18n.t('start.slotsAria')}"></div>
         </div>
         <div class="lk-sel-foot"><div class="lk-sel-summary" data-ref="summary"></div><button class="lk-btn lk-btn-primary-gold lk-btn--lg" data-act="play"><span class="lk-b-ico" data-ref="playIco"></span><span data-ref="playTxt">${i18n.t('start.continue')}</span></button></div>
-        <div class="lk-sel-legal"><span>Demo 1 (Build V0.2.0) · ${i18n.t('start.legalSystem')}</span></div>
+        <div class="lk-sel-legal"><span>Demo 1 (Build V0.3.0) · ${i18n.t('start.legalSystem')}</span></div>
       </section>
 
       <div class="lk-confirm" id="lk-delete-confirm" role="alertdialog" aria-labelledby="lk-del-title">

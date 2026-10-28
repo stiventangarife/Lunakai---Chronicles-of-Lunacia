@@ -15,6 +15,18 @@
   <link rel="stylesheet" href="src/ui/lunakai-ultimate.css">
   <link rel="stylesheet" href="src/ui/lunakai-axie-care.css">
   <link rel="stylesheet" href="src/ui/lunakai-tutorial.css">
+  <link rel="stylesheet" href="src/ui/lunakai-access.css">
+  <script>
+    // Hito 85: tamaño del texto, contraste, daltonismo y movimiento desde el primer fotograma (AccessPrefs lo completa al cargar)
+    try {
+      var p = JSON.parse(localStorage.getItem('axie_lk_prefs') || '{}'), r = document.documentElement, s = { normal: 1, large: 1.125, xlarge: 1.25 };
+      r.dataset.lkText = (p.textSize in s) ? p.textSize : 'normal';
+      r.style.setProperty('--lk-text-scale', String(s[r.dataset.lkText]));
+      r.dataset.lkCb = p.colorblind || 'off';
+      if (p.reduceMotion) r.classList.add('lk-reduce-motion');
+      if (p.contrast) r.classList.add('lk-high-contrast');
+    } catch (e) { /* sin almacenamiento */ }
+  </script>
   <link rel="icon" type="image/png" href="./assets/portraits/sapidae-m-a.png">
   <script type="importmap">
   {

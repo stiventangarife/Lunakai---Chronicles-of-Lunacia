@@ -11,6 +11,9 @@ import { GATHER_KINDS, GATHER_RULES, nodesForZone, promptFor } from '../../tacti
 import { canonicalZoneKey } from './islands/IslandWorldLayout.js';
 import { formatWait } from '../GatheringService.js';
 import * as i18n from '../../i18n/i18n.js';
+import { cloneGLTF } from '../../render/ModelCache.js';
+
+const FISH_SIGN_URL = './assets/environment/cartel_fish.glb'; // Hito 82: cartel de pesca (modelo del usuario)
 
 const TAG = 'gather_node';
 const mat = (color, o = {}) => new THREE.MeshStandardMaterial({ color, roughness: 0.85, metalness: 0, flatShading: true, ...o });
@@ -233,19 +236,28 @@ export class GatheringNodes {
     const { def, group: g } = it;
     const wood = mat(0x7A5230), woodDark = mat(0x5A3A22), rope = mat(0xC9B48A);
     const dir = new THREE.Vector2(def.water.x - def.x, def.water.z - def.z).normalize();
-    // estaca y cubo un poco tierra adentro, para no tapar al Axie
+    // Hito 82: cartel de pesca (modelo) y cubo, un poco tierra adentro para no tapar al Axie. El cartel mira hacia
+    // donde llega el jugador (de espaldas al agua); se carga una vez y se clona en cada punto.
     const side = new THREE.Vector3(-dir.y, 0, dir.x);
-    const stake = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.09, 1.1, 6), woodDark);
-    stake.position.set(side.x * 0.9 - dir.x * 0.4, 0.5, side.z * 0.9 - dir.y * 0.4);
-    g.add(stake);
-    const sign = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.28, 0.05), wood);
-    sign.position.copy(stake.position).add(new THREE.Vector3(0, 0.45, 0));
-    sign.rotation.y = Math.atan2(dir.x, dir.y);
-    g.add(sign);
-    const fishMark = new THREE.Mesh(new THREE.ConeGeometry(0.08, 0.26, 4), mat(0x5FB6E8, { emissive: 0x2A6E96, emissiveIntensity: 0.4 }));
-    fishMark.rotation.z = Math.PI / 2; fishMark.position.copy(sign.position).add(new THREE.Vector3(0, 0, 0.04));
-    fishMark.rotation.y = sign.rotation.y;
-    g.add(fishMark);
+    const signSpot = new THREE.Group();
+    signSpot.name = 'GatherFishSign';
+    signSpot.position.set(side.x * 0.9 - dir.x * 0.4, 0, side.z * 0.9 - dir.y * 0.4);
+    signSpot.rotation.y = Math.atan2(-dir.x, -dir.y);
+    g.add(signSpot);
+    cloneGLTF(FISH_SIGN_URL).then(({ scene }) => {
+      const box = new THREE.Box3().setFromObject(scene);
+      const h = box.max.y - box.min.y || 1;
+      const k = 1.45 / h;                                   // 1,45 m de alto
+      scene.scale.setScalar(k);
+      scene.position.set(-(box.min.x + box.max.x) / 2 * k, -box.min.y * k, -(box.min.z + box.max.z) / 2 * k);
+      scene.traverse((o) => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; o.name = o.name || 'GatherFishSignMesh'; } });
+      signSpot.add(scene);
+    }).catch((e) => {
+      console.warn('[GatheringNodes] cartel de pesca', e);
+      const stake = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.09, 1.1, 6), woodDark); // respaldo: el poste de antes
+      stake.position.y = 0.5; signSpot.add(stake);
+      const board = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.28, 0.05), wood); board.position.y = 0.95; signSpot.add(board);
+    });
     const bucket = new THREE.Mesh(new THREE.CylinderGeometry(0.22, 0.18, 0.32, 10), wood);
     bucket.position.set(-side.x * 0.9 - dir.x * 0.5, 0.16, -side.z * 0.9 - dir.y * 0.5);
     g.add(bucket);
@@ -262,7 +274,7 @@ export class GatheringNodes {
     g.add(ripples);
     it.water = new THREE.Vector3(def.water.x, 0, def.water.z);
     it.waterY = () => this._waterY(def);
-    it.setAvailable = (on) => { ripples.visible = on; fishMark.visible = on; };
+    it.setAvailable = (on) => { ripples.visible = on; };
     it.animate = (dt, t) => {
       ripples.position.y = it.waterY() - g.position.y + 0.04;
       rings.forEach((m, i) => {
@@ -558,7 +570,7 @@ export class GatheringNodes {
     });
     return this.items.map(({ def }) => {
       const issues = [];
-      const sl = slope(def.x, def.z);
+      const sl = def.high ? 0 : slope(def.x, def.z); // en un puente o el muelle el tablero es llano (el terreno de al lado no cuenta)
       if (sl > 0.3) issues.push(`pendiente ${sl.toFixed(2)}`);
       if (col?.isPointBlocked?.(def.x, def.z, 0.3) && def.kind !== 'chop' && def.kind !== 'mine') issues.push('colisión encima');
       const npc = npcs.find((n) => Math.hypot(n.x - def.x, n.z - def.z) < 8);

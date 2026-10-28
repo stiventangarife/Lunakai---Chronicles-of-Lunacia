@@ -49,15 +49,18 @@ class GatheringServiceImpl {
     return GATHER_NODES.map((n) => ({ id: n.id, zone: n.zone, kind: n.kind, available: this.isAvailable(n.id), remainingMs: this.remainingMs(n.id) }));
   }
 
-  /** Tira el botín sin aplicarlo: 1–3 del material y un 10 % de un raro. rng() en [0, 1). */
-  roll(nodeId, rng = Math.random) {
+  /**
+   * Tira el botín sin aplicarlo: 1–3 del material y un 10 % de un raro. rng() en [0, 1).
+   * bonus (Hito 87, pesca «¡Perfecto!»): { extra: unidades de más, rareMul: multiplica la probabilidad del raro }.
+   */
+  roll(nodeId, rng = Math.random, bonus = null) {
     const node = GATHER_NODE_BY_ID[nodeId];
     const table = node && GATHER_LOOT[node.loot];
     if (!table) return [];
     const { amountMin: a, amountMax: b, rareChance } = this.rules;
-    const n = a + Math.min(b - a, Math.floor(rng() * (b - a + 1)));
+    const n = a + Math.min(b - a, Math.floor(rng() * (b - a + 1))) + Math.max(0, bonus?.extra | 0);
     const out = [{ id: table.mat, n, rare: false }];
-    if (table.rare && rng() < rareChance) out.push({ id: table.rare, n: 1, rare: true });
+    if (table.rare && rng() < rareChance * (bonus?.rareMul || 1)) out.push({ id: table.rare, n: 1, rare: true });
     return out;
   }
 
@@ -65,12 +68,12 @@ class GatheringServiceImpl {
    * Recolecta un punto: aplica el botín, lo agota durante respawnMs y guarda la partida una vez.
    * @returns {{ ok: boolean, why?: string, loot?: {id, n, rare, name}[], node?: object }}
    */
-  gather(nodeId, rng = Math.random) {
+  gather(nodeId, rng = Math.random, bonus = null) {
     const node = GATHER_NODE_BY_ID[nodeId];
     if (!node) return { ok: false, why: 'Ese punto no existe' };
     const left = this.remainingMs(nodeId);
     if (left > 0) return { ok: false, why: `Vuelve en ${formatWait(left)}`, node };
-    const loot = this.roll(nodeId, rng).map((l) => ({ ...l, name: MATERIALS[l.id]?.name || ITEMS_DB[l.id]?.name || l.id }));
+    const loot = this.roll(nodeId, rng, bonus).map((l) => ({ ...l, name: MATERIALS[l.id]?.name || ITEMS_DB[l.id]?.name || l.id }));
     const g = this._store();
     g.until[nodeId] = this.now() + this.rules.respawnMs;
     g.total[node.kind] = (g.total[node.kind] || 0) + 1;

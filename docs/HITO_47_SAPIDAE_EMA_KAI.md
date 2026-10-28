@@ -73,5 +73,5 @@ En el juego (navegador integrado): creador con Ema y Kai (todas las piezas, colo
 
 ## 6. Pendiente
 
-- Modelos 3D de sombreros, armaduras y armas para Ema / Kai (el equipo actual sigue siendo de piezas de primitivas).
+- ~~Modelos 3D de sombreros y armaduras~~: hechos en el [Hito 92](HITO_92_CASCOS_Y_ARMADURAS_EMA_KAI.md). Faltan las armas.
 - Más expresiones (por ejemplo, tristeza al perder).

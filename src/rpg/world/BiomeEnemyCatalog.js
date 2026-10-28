@@ -139,7 +139,7 @@ export const ENEMY_ARCHETYPES = {
   },
 
   // --- 3. ÁRTICO (Arctic - Tier 3) ---
-  // Modelos: wolf-gray, wolf-alpha, treant-flower
+  // Modelos: wolf-gray, wolf-alpha, treant-flower (Slime Knight / Slime Caballero desde el Hito 94; el id sigue siendo treant_flower)
   wolf_gray: {
     id: 'wolf_gray',
     name: 'wolf-gray',

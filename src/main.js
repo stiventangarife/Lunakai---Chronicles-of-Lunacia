@@ -1,5 +1,6 @@
 // main.js - Core Orchestrator for Axie Tactics 3D with Biomes, Equipment & Guided Tutorial
 import * as THREE from 'three';
+import './ui/AccessPrefs.js'; // Hito 85: preferencias de accesibilidad aplicadas antes de crear la interfaz
 if (typeof window !== 'undefined') window.THREE = THREE;
 import { TacticalAudio } from './tactics/TacticalAudio.js';
 import { SceneManager } from './tactics/SceneManager.js';
@@ -32,6 +33,9 @@ import * as i18n from './i18n/i18n.js';
 // Nombre visible de cada hueco de equipo del campamento (los ids weapon/hat/… no cambian)
 const SLOT_LABEL = { weapon: i18n.t('system.slotWeapon'), hat: i18n.t('system.slotHat'), shield: i18n.t('system.slotShield'), body: i18n.t('system.slotBody'), boots: i18n.t('system.slotBoots') };
 import { accountManager } from './net/AccountManager.js';
+import { EconomyService } from './net/EconomyService.js';
+import { MarketService } from './net/MarketService.js';
+import { ForgeService } from './rpg/ForgeService.js';
 import { SaveStatusChip } from './net/SaveStatusChip.js';
 import { installCombatDebug } from './tactics/combat/CombatDebug.js';
 import { CombatTelemetry } from './tactics/combat/CombatTelemetry.js';
@@ -56,6 +60,8 @@ import { loadRuneCharmArt, runeCharmArt } from './ui/RuneCharmArt.js';
 import { AxiePartsResolver } from './rpg/AxiePartsResolver.js';
 import { STARTER_DECKS } from './tactics/data/StarterCards.js';
 import { CollectionVFX } from './tactics/combat/CollectionVFX.js';
+import { installBackgroundFrames } from './render/BackgroundFrames.js';
+installBackgroundFrames(); // Hito 82: el combate sigue con el juego minimizado
 
 /**
  * Tutorial (19-oct): las cartas de partes del Axie con un ataque que alcance a 1 casilla en la ranura [1],
@@ -132,6 +138,8 @@ class AxieTacticsGame {
     window.lunakaiParts = this.partsResolver;
     this.axieCare = attachAxieCare(this); // Axie Care: clic en el compañero → acariciar / dar de comer; +0,5 % cada 500 m
     this.runesCharms = attachRunesCharms(this); // Tecla U: Mochila › Runas y charms (mejoran las habilidades de cada Axie)
+    EconomyService.bind({ equipmentManager: this.equipmentManager, forge: ForgeService }); // Hito 76: monedas en el servidor (con cuenta)
+    MarketService.bind({ game: this, equipmentManager: this.equipmentManager }); // Hito 77: Mercado entre jugadores
     this.forge = attachForge(this); // Forja del Valle del Dojō: yunque en el patio (E) → crear Tier 0 y evolucionar equipo
     this.gathering = attachGathering(this); // Recolección: pesca y tala (Axie), minería y plantas (Sapidae); el botín va a la bolsa de la Forja
     this.shop = attachShop(this); // Tienda: el Mercader Ochi (patio del Dojō) la abre al hablar con él
@@ -184,7 +192,7 @@ class AxieTacticsGame {
     this._setupTurnCallbacks();
     attachTurnTimer(this); // Reloj del turno del jugador: 30 s, sobrante al siguiente (máx. 45 s), −10 s si no actúa en 10 s
     this.combatBanner = new CombatBanner();
-    this.endScreen = new CombatEndScreen({ resolvePortrait: (key) => portraitService.getPortrait(key) });
+    this.endScreen = new CombatEndScreen({ resolvePortrait: (key) => this._requestPortrait(key) }); // Hito 94: también Axies por ID
 
     // Re-render combat timeline and active HUD when asynchronous 3D portraits finish generating
     portraitService.addListener(() => {
@@ -244,6 +252,8 @@ class AxieTacticsGame {
       // 2. Start Overworld (run prologue only if it's a new adventure)
       const withPrologue = isNewGame;
       await this._startOverworld(withPrologue, slotData);
+      // Hito 76: con cuenta, el saldo (oro, SLP y bAXS) es el del servidor
+      EconomyService.sync().then(() => this.shop?.showInbox?.()).catch(() => null); // Hito 77: avisos del Mercado
       if (this.saveStatusChip) this.saveStatusChip.setInGame(true);
     } finally {
       this._isLoadingAdventure = false;
@@ -1227,7 +1237,7 @@ class AxieTacticsGame {
     this.units.forEach(u => {
       const portraitKey = (u.config && u.config.axieId) ? u.config.axieId : (u.type || u.id);
       if (!portraitService.hasPortrait(portraitKey)) {
-        portraitService.getPortrait(portraitKey);
+        this._requestPortrait(portraitKey);
       }
     });
 
@@ -1441,9 +1451,18 @@ class AxieTacticsGame {
       // Hito 74: un poco de oro por cada victoria contra quimeras (20–45). Ni el tutorial ni los duelos de entrenamiento.
       let goldView = [];
       if (!config.isTutorial && !config.tutorialKind && !config.duel) {
-        const gold = 20 + Math.floor(Math.random() * 26);
-        this.equipmentManager.addGold(gold);
-        goldView = [{ id: 'gold', name: i18n.t('game.goldLoot', { n: gold }), rarity: 'common', icon: curIcon('gold'), slot: i18n.t('game.goldSlot'), stats: {}, description: i18n.t('game.goldLootDesc') }];
+        // Hito 76: con cuenta, la cantidad la decide el servidor; sin conexión queda pendiente y se cobra al volver
+        let gold = null, pending = false, local = !EconomyService.active;
+        if (!local) {
+          const res = await EconomyService.battleGold();
+          if (res.ok) gold = res.amount; else { pending = res.error === 'pending'; local = res.error === 'unavailable'; }
+        }
+        if (local) { // invitado, o funciones sin desplegar
+          gold = 20 + Math.floor(Math.random() * 26);
+          this.equipmentManager.addGold(gold);
+        }
+        if (gold != null) goldView = [{ id: 'gold', name: i18n.t('game.goldLoot', { n: gold }), rarity: 'common', icon: curIcon('gold'), slot: i18n.t('game.goldSlot'), stats: {}, description: i18n.t('game.goldLootDesc') }];
+        else if (pending) goldView = [{ id: 'gold', name: i18n.t('game.goldPending'), rarity: 'common', icon: curIcon('gold'), slot: i18n.t('game.goldSlot'), stats: {}, description: i18n.t('game.goldPendingDesc') }];
       }
       const RC_RAR = (r) => (['rare', 'epic', 'mystic'].includes(r) ? r : 'common');
       const rcView = rcLoot.map(({ kind, x }) => ({ id: `${kind}:${x.id}`, name: x.name, rarity: RC_RAR(x.rarity), icon: runeCharmArt(kind, x.id) || `./assets/ui/icons/${kind === 'runes' ? 'rune' : 'charm'}.png`, slot: kind === 'runes' ? i18n.t('game.rune') : i18n.t('game.charm'), stats: {}, description: `${i18n.t(kind === 'runes' ? 'game.runeNeutralDesc' : 'game.charmNeutralDesc')} ${x.desc || ''}` }));
@@ -1623,10 +1642,25 @@ class AxieTacticsGame {
     this._renderCampMissionMap();
   }
 
+  /**
+   * Hito 94: pide un retrato que falta. Un Axie con ID no tiene GLB propio: se fotografía con el mezclador
+   * (ensureAxiePortrait, con sus genes); lo demás (Sapidae, enemigos, héroes de la demo) sigue con getPortrait.
+   */
+  _requestPortrait(key) {
+    if (!key) return Promise.resolve(null);
+    const id = String(key);
+    if (/^\d+$/.test(id)) {
+      const hit = Object.entries(this.equipmentManager?.heroesBase || {}).find(([, x]) => x && String(x.axieId) === id);
+      return portraitService.ensureAxiePortrait(id, { genes: hit?.[1]?.genes || null, heroId: hit?.[0] || null });
+    }
+    return portraitService.getPortrait(key);
+  }
+
   _getHeroPortrait(heroId, heroBase = null) {
     const h = heroBase || (this.equipmentManager?.heroesBase ? this.equipmentManager.heroesBase[heroId] : null);
-    const portraitKey = h?.axieId || h?.heroKey || heroId;
-    let url = h?.image || portraitService.getPortraitSync(portraitKey) || portraitService.getPortraitSync(heroId);
+    const portraitKey = h?.axieId ? String(h.axieId) : (h?.heroKey || heroId);
+    // Un Axie por ID: su foto 3D si ya está; si no, su imagen (si la hay) y el panel pide la foto con _requestPortrait
+    let url = (h?.axieId && portraitService.getPortraitSync(portraitKey)) || h?.image || portraitService.getPortraitSync(portraitKey) || portraitService.getPortraitSync(heroId);
     if (!url && h?.name) {
       const cleanDash = h.name.toLowerCase().replace(/\s+/g, '-');
       const cleanUnder = h.name.toLowerCase().replace(/\s+/g, '_');
@@ -1910,7 +1944,7 @@ class AxieTacticsGame {
                           portraitService.getPortraitSync(unit.id) || 
                           (unit.team === 'player' ? (portraitService.getPortraitSync('shinji') || portraitService.getPortraitSync('kotaro')) : null);
       if (!portraitUrl) {
-        portraitService.getPortrait(portraitKey);
+        this._requestPortrait(portraitKey);
       }
 
       const hpPercent = Math.max(0, Math.min(100, (unit.currentHP / unit.maxHP) * 100));
@@ -2448,7 +2482,10 @@ class AxieTacticsGame {
   _animate() {
     requestAnimationFrame(() => this._animate());
 
-    const dt = Math.min(this.clock.getDelta(), 0.1);
+    // Hito 82: con el juego minimizado llegan ~1 fotograma por segundo; en combate se usa el tiempo real (hasta 2 s)
+    // para que los efectos, golpes y turnos enemigos sigan avanzando. En el mundo abierto, igual que siempre.
+    const rawDt = this.clock.getDelta();
+    const dt = Math.min(rawDt, document.hidden && this.gameState === 'BATTLE' ? 2 : 0.1);
     const time = this.clock.getElapsedTime();
 
     if (this.gameState === 'INTRO' || this.gameState === 'OVERWORLD' || (this.gameState === 'LOADING' && this.overworldManager && this.overworldManager.isReadyToRender)) {
@@ -2457,7 +2494,9 @@ class AxieTacticsGame {
       if (this.gameState === 'OVERWORLD') this._tickOverworldRegen(dt);
     } else if (this.gameState === 'BATTLE') {
       if (this._hoverDirty) { this._hoverDirty = false; this._handleHover(); }
-      this.units.forEach(u => u.update(dt, time));
+      // Hito 89: durante la pausa de impacto las unidades no avanzan (dt 0); cámara, efectos y textos sí
+      const udt = this.sceneManager.unitDt ? this.sceneManager.unitDt(dt) : dt;
+      this.units.forEach(u => u.update(udt, time));
       this.combatText.update(dt);
       this.gridManager.tickHighlights(time);
       if (this.tutorialManager) {

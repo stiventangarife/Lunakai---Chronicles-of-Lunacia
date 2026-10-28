@@ -64,6 +64,19 @@ body, html {
   z-index: 20;
 }
 
+/* Hito 81 · icono del estado delante del aviso (assets/ui/buff y debuff) */
+.floating-text .float-st-ico {
+  display: inline-block;
+  width: 0.9em;
+  height: 0.9em;
+  min-width: 26px;
+  min-height: 26px;
+  margin-right: 0.16em;
+  vertical-align: -0.16em;
+  object-fit: contain;
+  filter: drop-shadow(0 2px 0 rgba(0, 0, 0, 0.85)) drop-shadow(0 0 2px rgba(0, 0, 0, 0.7));
+}
+
 .float-damage {
   color: #ff3b3b;
   font-size: 40px;

@@ -6,6 +6,7 @@
 
 import * as THREE from 'three';
 import * as i18n from '../../i18n/i18n.js';
+import { STATUS_DEFS } from './StatusSystem.js';
 
 export class SpellPresentation {
   constructor({ sceneManager, gridManager, audio, combatText, vfx }) {
@@ -31,7 +32,8 @@ export class SpellPresentation {
       if (caster.mesh && (dirX !== 0 || dirZ !== 0)) {
         caster.mesh.rotation.y = Math.atan2(dirX, dirZ);
       }
-      this.playSpellSound(spell.sound);
+      // Hito 88: barrido de aire por peso (cuerpo a cuerpo), cura y potenciar; el resto, el sonido de siempre
+      if (!this.audio?.combat?.cast?.(caster, spell)) this.playSpellSound(spell.sound);
     });
 
     // --- Mecánicas especiales de Sapidae
@@ -95,22 +97,30 @@ export class SpellPresentation {
       if (pm) this.combatText.spawn(p, i18n.t('combatFx.pmMinus', { n: pm }), 'pm');
       if (pa) this.combatText.spawn(p, i18n.t('combatFx.paMinus', { n: pa }), 'pa');
     });
-    on('unit:damaged', ({ unit, actual, shieldAbsorbed, isCrit, plain }) => {
+    on('unit:damaged', ({ unit, spell, actual, shieldAbsorbed, isCrit, plain }) => {
       const wPos = this._posOf(unit);
-      if (plain) { this.combatText.spawn(wPos, '-' + actual, 'damage'); return; }
+      // Hito 89: cuánto pesa el golpe (0–1) según la parte de la vida máxima que quita: decide el tamaño del número,
+      // el temblor y la pausa de impacto. Un golpe del 40 % de la vida ya es «máximo».
+      const frac = Math.min(1, (actual + (shieldAbsorbed || 0)) / Math.max(1, unit.maxHP || 1) / 0.4);
+      const size = 0.85 + 0.45 * frac + (isCrit ? 0.1 : 0);   // 0,85 (rasguño) … 1,3 (golpe enorme) · 1,4 crítico enorme
+      if (plain) { this.combatText.spawn(wPos, '-' + actual, 'damage', { size: 0.85 + 0.4 * frac }); return; }
+      const killed = unit.currentHP <= 0;
       if (shieldAbsorbed > 0 && actual === 0) {
-        this.combatText.spawn(wPos, i18n.t('combatFx.shieldMinus', { n: shieldAbsorbed }), 'shield');
-        this.sceneManager.shake(0.12);
+        this.combatText.spawn(wPos, i18n.t('combatFx.shieldMinus', { n: shieldAbsorbed }), 'shield', { size: 0.9 + 0.3 * frac });
+        this.sceneManager.shake(0.08 + 0.1 * frac);
       } else if (shieldAbsorbed > 0 && actual > 0) {
-        this.combatText.spawn(wPos, i18n.t('combatFx.shieldMinus', { n: shieldAbsorbed }) + '  -' + actual, 'damage');
-        this.sceneManager.shake(0.18);
+        this.combatText.spawn(wPos, i18n.t('combatFx.shieldMinus', { n: shieldAbsorbed }) + '  -' + actual, 'damage', { size });
+        this.sceneManager.shake(0.1 + 0.2 * frac);
       } else if (isCrit) {
-        this.combatText.spawn(wPos, i18n.t('combatFx.critical', { n: actual }), 'crit');
-        this.sceneManager.shake(0.32);
+        this.combatText.spawn(wPos, i18n.t('combatFx.critical', { n: actual }), 'crit', { size });
+        this.sceneManager.shake(0.24 + 0.2 * frac);
       } else {
-        this.combatText.spawn(wPos, '-' + actual, 'damage');
-        this.sceneManager.shake(0.14);
+        this.combatText.spawn(wPos, '-' + actual, 'damage', { size });
+        this.sceneManager.shake(0.08 + 0.22 * frac);
       }
+      // Pausa de impacto: 35–90 ms según el peso de la carta, +30 ms crítico, +50 ms si lo derriba
+      const w = spell ? (spell.isUltimate ? 3 : Math.min(3, Math.max(1, Number(spell.paCost) || 1))) : 1;
+      if (actual > 0) this.sceneManager.hitStop?.(0.035 + (w - 1) * 0.0275 + (isCrit ? 0.03 : 0) + (killed ? 0.05 : 0));
     });
 
     // --- Empuje y colisión
@@ -130,28 +140,32 @@ export class SpellPresentation {
       if (!elemental || elemental === 1) return;
       this.combatText.spawn(this._posOf(unit), elemental > 1 ? i18n.t('combatFx.effective') : i18n.t('combatFx.resisted'), elemental > 1 ? 'crit' : 'shield');
     });
+    // Hito 81: los avisos de un estado llevan su icono delante (sin el símbolo de texto); sin imagen, el símbolo de siempre
+    const stIco = (def) => (def?.img ? { icon: def.img, alt: def.icon } : null);
+    const stTxt = (def, txt) => (def?.img ? txt : `${def?.icon || ''} ${txt}`.trim());
     on('unit:healBlocked', ({ unit }) => {
-      this.combatText.spawn(this._posOf(unit), i18n.t('combatFx.healBlocked'), 'pm');
+      const d = STATUS_DEFS.healBlock;
+      this.combatText.spawn(this._posOf(unit), i18n.t('combatFx.healBlocked'), 'pm', stIco(d) || {});
     });
     on('status:applied', ({ unit, def, duration }) => {
-      this.combatText.spawn(this._posOf(unit), `${def.icon} ${def.label.toUpperCase()} (${duration})`, def.kind === 'buff' ? 'buff' : 'pm');
+      this.combatText.spawn(this._posOf(unit), stTxt(def, `${def.label.toUpperCase()} (${duration})`), def.kind === 'buff' ? 'buff' : 'pm', stIco(def) || {});
     });
     on('status:resisted', ({ unit }) => {
       this.combatText.spawn(this._posOf(unit), i18n.t('combatFx.immune'), 'buff');
     });
     on('status:expired', ({ unit, status, reason }) => {
-      if (reason === 'woke') this.combatText.spawn(this._posOf(unit), i18n.t('combatFx.wokeUp'), 'buff');
+      if (reason === 'woke') this.combatText.spawn(this._posOf(unit), i18n.t('combatFx.wokeUp'), 'buff', stIco(STATUS_DEFS.sleep) || {});
       else if (reason === 'cleansed') this.combatText.spawn(this._posOf(unit), i18n.t('combatFx.cleansed'), 'heal');
     });
     on('status:tick', ({ unit, damage, heal, def }) => {
-      if (damage > 0) this.combatText.spawn(this._posOf(unit), `${def.icon} -${damage}`, 'damage');
-      if (heal > 0) this.combatText.spawn(this._posOf(unit), `${def.icon} ` + i18n.t('combatFx.hpPlus', { n: heal }), 'heal');
+      if (damage > 0) this.combatText.spawn(this._posOf(unit), stTxt(def, `-${damage}`), 'damage', stIco(def) || {});
+      if (heal > 0) this.combatText.spawn(this._posOf(unit), stTxt(def, i18n.t('combatFx.hpPlus', { n: heal })), 'heal', stIco(def) || {});
     });
     on('unit:damaged', ({ unit, linked }) => {
-      if (linked) this.combatText.spawn(this._posOf(unit), i18n.t('combatFx.link'), 'shield');
+      if (linked) this.combatText.spawn(this._posOf(unit), i18n.t('combatFx.link'), 'shield', stIco(STATUS_DEFS.soulLink) || {});
     });
     on('status:skipTurn', ({ unit, def }) => {
-      this.combatText.spawn(this._posOf(unit), `${def.icon} ` + i18n.t('combatFx.skipTurn'), 'pm');
+      this.combatText.spawn(this._posOf(unit), stTxt(def, i18n.t('combatFx.skipTurn')), 'pm', stIco(def) || {});
     });
     on('unit:teleported', ({ pos }) => { this.spawnImpactVFX(pos, { id: 'jump_landing' }); });
     on('field:obstaclePlaced', ({ pos, rounds }) => {
@@ -174,6 +188,9 @@ export class SpellPresentation {
     on('field:zonePlaced', ({ positions }) => {
       if (positions[0]) this.combatText.spawn(positions[0], i18n.t('combatFx.zone'), 'buff');
     });
+
+    // Hito 88: sonidos de golpes por clase y peso, escudos, estados, caídas, Ultimate y latido (CombatSfx)
+    if (this.audio?.combat?.install) this._offs.push(...this.audio.combat.install(events));
 
     return this;
   }

@@ -1,0 +1,12 @@
+Créditos de los efectos de sonido (assets/sounds/sfx)
+Este archivo también activa la carga de las grabaciones en el juego (Hito 87): no lo borres.
+Una línea por archivo o grupo:  archivo · autor · fuente (enlace) · licencia
+
+steps/step_grass_1..4.mp3 · (autor) · (enlace) · (licencia)   ← recortados de la grabación step_grass_N.mp3
+steps/step_dirt_1..4.mp3 · (autor) · (enlace) · (licencia)    ← recortados de step_dirt_N.mp3
+steps/step_sand_1..4.mp3 · (autor) · (enlace) · (licencia)    ← recortados de step_sand_N.mp3
+steps/step_wood_1..4.mp3 · (autor) · (enlace) · (licencia)    ← recortados de step_wood_N.mp3
+steps/step_stone_1..4.mp3 · (autor) · (enlace) · (licencia)   ← recortados de step_stone_N.mp3
+steps/step_snow_1..4.mp3 · (autor) · (enlace) · (licencia)    ← recortados de step_snow_N.mp3
+steps/step_ice_1..3.mp3 · (autor) · (enlace) · (licencia)     ← recortados de step_ice_N.mp3
+steps/step_water_1..3.mp3 · (autor) · (enlace) · (licencia)   ← recortados de step_water_N.mp3

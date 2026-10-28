@@ -256,7 +256,7 @@ export class InventoryModal {
         (window.__AXIE_TACTICS_APP__ && window.__AXIE_TACTICS_APP__.gameState === 'BATTLE')) {
       return;
     }
-    if (heroId && this.equipmentManager && this.equipmentManager.isHeroUnlocked(heroId)) {
+    if (heroId && this.equipmentManager && this.equipmentManager.isHeroUnlocked(heroId) && this._heroIds().includes(heroId)) {
       this.selectedHeroId = heroId;
     }
     if (this.isOpen) {
@@ -370,6 +370,8 @@ export class InventoryModal {
 
   // ------------------------------------------------------------ render
   _renderAll() {
+    // Hito 93: si el Axie elegido salió del escuadrón, pasa al primero de la lista
+    if (!this._heroIds().includes(this.selectedHeroId)) this.selectedHeroId = this._heroIds()[0] || 'sapidae';
     this._showModel();
     this._renderRoster();
     this._renderHeroDetails();
@@ -397,6 +399,7 @@ export class InventoryModal {
       fallbackPortrait: (id) => {
         const base = this._base(id);
         const key = this._isSapi(id) ? (base?.modelType || 'sapidae-f-a') : (base?.axieId || id);
+        if (!this._isSapi(id) && base?.axieId) return portraitService.axieUrl(base) || `./assets/portraits/${id}.png`;
         return portraitService.getPortraitSync(key) || (this._isSapi(id) ? `./assets/portraits/${key}.png` : base?.image || `./assets/portraits/${id}.png`);
       }
     });
@@ -454,24 +457,33 @@ export class InventoryModal {
     const base = this._base(id);
     const sapi = this._isSapi(id);
     const key = sapi ? (base?.modelType || 'sapidae-f-a') : (base?.axieId || id);
-    let url = portraitService.getPortraitSync(key) || (sapi ? `./assets/portraits/${key}.png` : base?.image || null);
-    if (!url) portraitService.getPortrait(key).then((u) => { if (u && this.isOpen) this._renderRoster(); }).catch(() => {});
+    // Hito 93: Axies con ID → su foto 3D (o la imagen del marketplace mientras se hace)
+    let url = !sapi && base?.axieId ? portraitService.axieUrl(base, () => this._rosterSoon())
+      : portraitService.getPortraitSync(key) || (sapi ? `./assets/portraits/${key}.png` : base?.image || null);
+    if (!url && !base?.axieId) portraitService.getPortrait(key).then((u) => { if (u && this.isOpen) this._renderRoster(); }).catch(() => {});
     const cc = sapi ? 'var(--lk-gilt-300)' : `var(--lk-class-${this._clsKey(id)})`;
     return `<span class="lk-med" style="--cc:${cc}${size ? `;--s:${size}px` : ''}">${url ? `<img src="${url}" alt="">` : ''}</span>`;
+  }
+
+  _rosterSoon() {
+    if (this._soon) return;
+    this._soon = setTimeout(() => { this._soon = null; if (this.isOpen) this._renderRoster(); }, 120);
   }
 
   _heroIds() {
     const em = this.equipmentManager;
     const ids = em.unlockedHeroes && em.unlockedHeroes.length ? em.unlockedHeroes : ['sapidae', 'kotaro'];
     // Mismo orden que el escuadrón (líder, principal, apoyos) y después los axies de la colección
+    // Hito 93: solo el escuadrón (el Sapidae y sus 3 Axies). Los Axies que salen conservan su equipo, runa y charms
+    // (se ven en Escuadrón y se pueden devolver a la bolsa desde allí).
     const squad = typeof em.getSquad === 'function' ? em.getSquad().filter(Boolean) : [];
-    const rest = ids.filter((id) => !squad.includes(id));
-    return [...squad, ...rest.filter((id) => this._isSapi(id)), ...rest.filter((id) => !this._isSapi(id))].filter((id, i, a) => this._base(id) && a.indexOf(id) === i);
+    const rest = ids.filter((id) => !squad.includes(id) && this._isSapi(id));
+    return [...squad, ...rest].filter((id, i, a) => this._base(id) && a.indexOf(id) === i);
   }
 
   _renderRoster() {
     const em = this.equipmentManager;
-    if (!em.isHeroUnlocked(this.selectedHeroId)) this.selectedHeroId = this._heroIds()[0] || 'sapidae';
+    if (!em.isHeroUnlocked(this.selectedHeroId) || !this._heroIds().includes(this.selectedHeroId)) this.selectedHeroId = this._heroIds()[0] || 'sapidae';
     this.$('strip').innerHTML = this._heroIds().map((id, i) => {
       const p = em.getProgression(id);
       const pending = p.unspentStatPoints || 0;

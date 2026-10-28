@@ -201,10 +201,14 @@ export function attachForge(game) {
     const anvil = $('anvil'); if (!anvil || matchMedia('(prefers-reduced-motion: reduce)').matches) return;
     anvil.classList.remove('lk-is-strike'); void anvil.offsetWidth; anvil.classList.add('lk-is-strike');
   }
-  function doForge(e) {
+  async function doForge(e) {
+    if (FG.busy) return;
+    FG.busy = true;
     let r;
-    if (FG.mode === 'craft') r = ForgeService.craft(e.recipe.id);
-    else r = ForgeService.evolve(e.gear, 1);
+    try {
+      if (FG.mode === 'craft') r = await ForgeService.craftAsync(e.recipe.id);
+      else r = await ForgeService.evolveAsync(e.gear, 1);
+    } finally { FG.busy = false; }
     if (!r.ok) { toast(r.why || i18n.t('forge.forgeFail'), true); render(); return; }
     strike(); sfx('playBuff');
     if (FG.mode === 'craft') toast(i18n.t('forge.forged', { item: r.item.name }));
@@ -224,8 +228,11 @@ export function attachForge(game) {
     const w = ForgeService.wallet();
     return `<div class="lk-speed lk-forge-speedup"><span class="lk-label">${i18n.t('forge.speedUp')}</span><div class="lk-speed__opts" role="group" aria-label="${i18n.t('forge.speedUp')}">${opts.map((o) => `<button type="button" data-x="${o.x}" ${o.baxs > w.baxs + 1e-9 ? `disabled title="${i18n.t('forge.noBaxs')}"` : ''}><b>×${o.x}</b><small>${fmtH(o.leftHours)}</small><em><img src="${CUR.baxs[1]}" alt="">${fmtB(o.baxs)}</em></button>`).join('')}</div></div>`;
   }
-  function speedUp(uid, x) {
-    const r = ForgeService.speedUp(uid, x);
+  async function speedUp(uid, x) {
+    if (FG.busy) return;
+    FG.busy = true;
+    let r;
+    try { r = await ForgeService.speedUpAsync(uid, x); } finally { FG.busy = false; }
     if (!r.ok) { toast(r.why || i18n.t('forge.speedFail'), true); return; }
     sfx('playBuff'); toast(i18n.t('forge.spedUp', { x, t: fmtH(r.leftHours) })); render();
   }

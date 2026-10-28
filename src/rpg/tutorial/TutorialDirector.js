@@ -26,6 +26,7 @@ import { loadRuneCharmArt, runeCharmArt } from '../../ui/RuneCharmArt.js';
 import { showRewardCard } from '../../ui/RewardCard.js';
 import { FORGE_TREE_SPOT, PALADILL_SPOT, PALADILL_GREET_SPOT } from '../world/ForestVillageLayout.js';
 import * as i18n from '../../i18n/i18n.js';
+import { EconomyService } from '../../net/EconomyService.js';
 
 const PALADILL = { speaker: i18n.t('tutorialDirector.paladillSpeaker'), title: i18n.t('tutorialDirector.paladillTitle'), avatar: './assets/portraits/paladill.png', npcId: 'paladill' };
 const PALADILL_POS = { x: PALADILL_SPOT.x, z: PALADILL_SPOT.z }; // delante del dojo del pueblo
@@ -340,7 +341,7 @@ export class TutorialDirector {
       if (!j) { if (this._collected()) this._afterCollect(); return; }
       if (this.flags.speedCost == null) {
         const o = ForgeService.speedOptions(j.uid).find((x) => x.x === 4);
-        if (o) { this.flags.speedCost = o.baxs; ForgeService.grant?.({ baxs: o.baxs }); } // Paladill invita: se paga con su regalo
+        if (o) { this.flags.speedCost = o.baxs; if (EconomyService.active) { const b = o.baxs; EconomyService.reward('tut:speed').then((r) => { if (r?.error === 'unavailable') ForgeService.grant?.({ baxs: b }); }).catch(() => null); } else ForgeService.grant?.({ baxs: o.baxs }); } // Paladill invita: se paga con su regalo
       }
       if ((j.speed || 1) >= 4 || j.ready) { this._go('forge_collect'); return; }
     }
@@ -371,12 +372,12 @@ export class TutorialDirector {
   }
 
   async _giveForgeBundle() {
-    if (!this.flags.duelGold) { this.flags.duelGold = true; this.em?.addGold?.(REWARDS.duelGold); }
+    if (!this.flags.duelGold) { this.flags.duelGold = true; this._grantDuelGold(); }
     if (!this.flags.bundle) {
       this.flags.bundle = true;
       Object.entries(REWARDS.bundle).forEach(([id, n]) => ForgeService.addMats(id, n, false));
       const w = ForgeService.wallet();
-      if (w.slp < 50) ForgeService.grant?.({ slp: 50 - w.slp });
+      if (w.slp < 50) { if (EconomyService.active) { const s = 50 - w.slp; EconomyService.reward('tut:slp_topup').then((r) => { if (r?.error === 'unavailable') ForgeService.grant?.({ slp: s }); }).catch(() => null); } else ForgeService.grant?.({ slp: 50 - w.slp }); }
       ForgeService.addMats('mat_wood', 0, true);
     }
     await this._reward({
@@ -489,7 +490,7 @@ export class TutorialDirector {
       else em?.addItemsToInventory?.(['iron_sword']);
       got.push(this._itemView('iron_sword'));
     }
-    if (!this.flags.duelGold) { this.flags.duelGold = true; em?.addGold?.(REWARDS.duelGold); got.push({ icon: GOLD_ICON, name: i18n.t('tutorialDirector.reward.gold'), qty: REWARDS.duelGold }); }
+    if (!this.flags.duelGold) { this.flags.duelGold = true; this._grantDuelGold(); got.push({ icon: GOLD_ICON, name: i18n.t('tutorialDirector.reward.gold'), qty: REWARDS.duelGold }); }
     if (idx(this.step) < idx('feed')) { em?.addItemsToInventory?.(REWARDS.food); got.push({ ...this._itemView('food_berry'), qty: REWARDS.food.length }); }
     const main = this._mainAxie();
     const rc = RuneCharmService.get(main);
@@ -635,6 +636,12 @@ export class TutorialDirector {
   // ================================================================ interfaz
   // ================================================================ Escuadrón (Hito 75)
   /** El Escuadrón se desbloquea al reclutar a Bing (antes, al terminar el entrenamiento). */
+  /** Hito 76: oro del duelo con Paladill (con cuenta lo paga el servidor, una sola vez). */
+  _grantDuelGold() {
+    if (EconomyService.active) EconomyService.reward('tut:duel').then((r) => { if (r?.error === 'unavailable') this.em?.addGold?.(REWARDS.duelGold); }).catch(() => null);
+    else this.em?.addGold?.(REWARDS.duelGold);
+  }
+
   _squadReady() {
     if (this.em?.unlockedHeroes?.includes('bing')) return true;
     return this.qm?.getQuest?.('quest_prove_ferocity')?.status === 'completed';

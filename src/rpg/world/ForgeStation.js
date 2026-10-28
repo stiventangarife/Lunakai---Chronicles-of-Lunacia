@@ -10,8 +10,13 @@ import { FORGE_USE_SPOT, VILLAGE_ZONE } from './ForestVillageLayout.js';
 /** Delante de la puerta de la Forja del pueblo; el frente (+z local) mira al camino. */
 export const FORGE_SPOT = { zone: VILLAGE_ZONE, x: FORGE_USE_SPOT.x, z: FORGE_USE_SPOT.z, yaw: FORGE_USE_SPOT.yaw };
 const USE_RADIUS = 3.2;
-/** Boca del horno del modelo, en ejes locales del punto de uso (hacia dentro del edificio es −z). */
-const FURNACE = new THREE.Vector3(-0.8, 1.1, -2.3);
+/**
+ * Boca del horno del modelo, en ejes locales del punto de uso (hacia dentro del edificio es −z). Hito 94: medida en
+ * forja.glb (centro de los vértices con el brillo naranja del fuego, escala 6,5): x −0,36 y 1,35 m, 1,63 m por delante
+ * del centro del edificio; el punto de uso está a 5 m. La luz va 0,4 m por delante de la boca, para que alumbre hacia fuera.
+ */
+const FURNACE = new THREE.Vector3(-0.36, 1.35, 1.63 - 5.0);
+const FURNACE_LIGHT = FURNACE.clone().add(new THREE.Vector3(0, 0.05, 0.4));
 
 export class ForgeStation {
   /** @param {object} ow OverworldManager  @param {{ onUse: () => void }} opts */
@@ -63,7 +68,7 @@ export class ForgeStation {
   _placeLight() {
     if (!this.group) return;
     this.group.updateMatrixWorld(true);
-    this.light.position.copy(FURNACE).applyMatrix4(this.group.matrixWorld);
+    this.light.position.copy(FURNACE_LIGHT).applyMatrix4(this.group.matrixWorld);
   }
 
   _ground() {
@@ -101,7 +106,7 @@ export class ForgeStation {
     const arr = this.sparkPts.geometry.attributes.position.array;
     this.sparks.forEach((s, i) => {
       s.life -= dt;
-      if (s.life <= 0) { s.max = s.life = 0.8 + Math.random() * 1.1; s.x = FURNACE.x + (Math.random() - 0.5) * 0.5; s.y = FURNACE.y; s.z = FURNACE.z + 0.05 + Math.random() * 0.2; s.v = 0.6 + Math.random() * 0.8; }
+      if (s.life <= 0) { s.max = s.life = 0.8 + Math.random() * 1.1; s.x = FURNACE.x + (Math.random() - 0.5) * 0.4; s.y = FURNACE.y + 0.1; s.z = FURNACE.z + 0.1 + Math.random() * 0.2; s.v = 0.6 + Math.random() * 0.8; }
       s.y += s.v * dt; s.z += 0.25 * dt; s.x += Math.sin(this._t * 3 + i) * 0.12 * dt;
       arr[i * 3] = s.x; arr[i * 3 + 1] = s.y; arr[i * 3 + 2] = s.z;
     });

@@ -96,6 +96,10 @@ export class TurnManager {
       prevUnit.endTurn();
     }
 
+    // Hito 82 · red de seguridad: al cambiar de turno, toda unidad viva vuelve al centro de su casilla si un efecto la
+    // dejó desplazada (p. ej. entre dos casillas tras el ataque de una quimera)
+    for (const u of this.queue || []) { if (u && !u.isDead && !u.isMoving) u.settleToTile?.(); }
+
     // Move to next index
     this.currentIndex++;
 

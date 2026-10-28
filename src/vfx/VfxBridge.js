@@ -24,6 +24,7 @@ import { loadVfxModules } from './vfx-modules.js';
 import { CARD_VFX } from './vfx-cards.js';
 import { PART_CARDS_LIST } from '../tactics/data/PartCards.js';
 import { waitProgramsReady } from '../render/RenderWarmup.js';
+import { access } from '../ui/AccessPrefs.js';
 
 /** Habilidades del Sapidae (la clave del efecto es el id del hechizo) y Ultimates de dúo → [clave, módulo]. */
 const SAPIDAE_MODULE = { craft: 'sapidae-forjacubiles', shepard: 'sapidae-susurrador', lunalogist: 'sapidae-lunalogista', stargazer: 'sapidae-astromante' };
@@ -137,7 +138,7 @@ const ZONE_CASTER = 1.3;            // unidades del laboratorio alrededor del la
 const ZONE_TARGET = 1.6;            // ídem alrededor del objetivo
 const MIN_CORRIDOR = 0.15;          // fracción mínima de la distancia que queda para el pasillo (para que se vea el viaje)
 const RIGID_MAX = 0.95;             // radio máximo (unidades del laboratorio) de una malla que se mueve entera
-const MAX_VISUAL_OFFSET = 0.8;      // media casilla (TILE_SIZE 1.6)
+const MAX_RECOIL = 0.25;            // Hito 82b: retroceso máximo del objetivo, siempre alejándose del lanzador
 const IMPACT_TIMEOUT = 2600;        // ms: tope de seguridad para no bloquear nunca el turno
 const PREF_KEY = 'lunakai_vfx';
 const DIM_ALPHA = 0.42;            // oscurecimiento del tablero mientras dura el efecto
@@ -519,11 +520,11 @@ export class VfxBridge {
     const movesUnits = Array.isArray(spell?.effects) && spell.effects.some((e) => /push|pull|teleport|swap|jump|dash|knock/i.test(e.type || ''));
     const visuals = [];
     if (!movesUnits) {
-      if (caster.group && !caster.isMoving) visuals.push({ unit: caster, dummy: core.caster, lab: LAB_CASTER, base: caster.group.position.clone() });
-      if (targetUnit?.group && targetUnit !== caster && !targetUnit.isMoving && !useAlly) visuals.push({ unit: targetUnit, dummy: core.target, lab: LAB_TARGET, base: targetUnit.group.position.clone() });
+      if (caster.group && !caster.isMoving) visuals.push({ unit: caster, dummy: core.caster, lab: LAB_CASTER, base: caster.group.position.clone(), gx: caster.gridX, gz: caster.gridZ });
+      if (targetUnit?.group && targetUnit !== caster && !targetUnit.isMoving && !useAlly) visuals.push({ unit: targetUnit, dummy: core.target, lab: LAB_TARGET, base: targetUnit.group.position.clone(), gx: targetUnit.gridX, gz: targetUnit.gridZ });
       // compañero: el aliado objetivo (cartas sobre aliados) o el Axie principal en las Ultimates de dúo
       const partner = useAlly ? targetUnit : (spell?.isUltimate ? this.game.spellManager?.ultimates?.axie : null);
-      if (partner?.group && partner !== caster && !partner.isDead && !partner.isMoving && core.allies?.[0]) visuals.push({ unit: partner, dummy: core.allies[0], lab: core.ALLY_POS[0], base: partner.group.position.clone() });
+      if (partner?.group && partner !== caster && !partner.isDead && !partner.isMoving && core.allies?.[0]) visuals.push({ unit: partner, dummy: core.allies[0], lab: core.ALLY_POS[0], base: partner.group.position.clone(), gx: partner.gridX, gz: partner.gridZ });
     }
 
     let resolveImpact, resolveDone;
@@ -531,7 +532,7 @@ export class VfxBridge {
     const done = new Promise((r) => { resolveDone = r; });
     const timer = setTimeout(() => resolveImpact(), Math.min(IMPACT_TIMEOUT, (ab.ti || 0.8) * 1000 + 600));
     const pb = {
-      ab, te: 0, hold: 0, visuals, impacted: false, resolveImpact: () => { clearTimeout(timer); resolveImpact(); }, resolveDone,
+      ab, te: 0, hold: 0, visuals, caster, casterBase: A.clone(), impacted: false, resolveImpact: () => { clearTimeout(timer); resolveImpact(); }, resolveDone,
       bloomBase: this.sm.bloomPass ? { s: this.sm.bloomPass.strength, t: this.sm.bloomPass.threshold } : null,
     };
     this.current = pb;
@@ -660,7 +661,7 @@ export class VfxBridge {
       this.dim.visible = v > 0.001;
     }
     if (this.white) {
-      const w = Math.min(1, Math.max(0, O.white || 0)) * WHITE_GAIN;
+      const w = Math.min(1, Math.max(0, O.white || 0)) * WHITE_GAIN * access.flashScale; // Hito 85: Reducir movimiento
       this.white.material.uniforms.uA.value = w;
       this.white.visible = w > 0.001;
     }
@@ -668,7 +669,8 @@ export class VfxBridge {
     this._warpPoint(this.core.light.position);
 
     // bloom un poco más fuerte mientras dura el efecto
-    if (pb.bloomBase && this.sm.bloomPass) {
+    // (con «Reducir movimiento» no hay pico de brillo: el bloom se queda como estaba)
+    if (pb.bloomBase && this.sm.bloomPass && !access.reduceMotion) {
       this.sm.bloomPass.strength = Math.max(pb.bloomBase.s, 0.55 * TT.bloom);
       this.sm.bloomPass.threshold = Math.min(pb.bloomBase.t, 0.72);
     }
@@ -678,9 +680,16 @@ export class VfxBridge {
     for (const v of pb.visuals) {
       const off = this._v.copy(v.dummy.position).sub(v.lab).applyMatrix3(lin);
       off.y = Math.max(0, off.y);
-      const hl = Math.hypot(off.x, off.z);
-      if (hl > MAX_VISUAL_OFFSET) { off.x *= MAX_VISUAL_OFFSET / hl; off.z *= MAX_VISUAL_OFFSET / hl; }
-      if (!v.unit.isMoving && !v.unit.isDead) v.unit.group.position.copy(v.base).add(off);
+      if (v.unit === pb.caster) {
+        // Hito 82b: el lanzador ataca en el sitio (solo su animación); nunca se desliza hacia la casilla del objetivo
+        off.x = 0; off.z = 0;
+      } else {
+        // los demás solo retroceden un poco, en la dirección contraria al lanzador
+        const ax = v.base.x - pb.casterBase.x, az = v.base.z - pb.casterBase.z, al = Math.hypot(ax, az);
+        const back = al > 1e-3 ? THREE.MathUtils.clamp((off.x * ax + off.z * az) / al, 0, MAX_RECOIL) : 0;
+        off.x = al > 1e-3 ? (ax / al) * back : 0; off.z = al > 1e-3 ? (az / al) * back : 0;
+      }
+      if (!v.unit.isMoving && !v.unit.isDead && v.gx === v.unit.gridX && v.gz === v.unit.gridZ) v.unit.group.position.copy(v.base).add(off);
       const hide = hidden.has(v.dummy) && !v.unit.isDead;
       if (hide !== Boolean(v.hidden)) { v.unit.group.visible = !hide; v.hidden = hide; }
     }
@@ -693,7 +702,11 @@ export class VfxBridge {
     if (!pb) return;
     this.current = null;
     for (const v of pb.visuals) {
-      if (!v.unit.isMoving) v.unit.group.position.copy(v.base);
+      // Hito 82: vuelve al centro de la casilla en la que está AHORA (si un empujón la cambió, `base` ya no vale)
+      if (!v.unit.isMoving) {
+        if (v.gx === v.unit.gridX && v.gz === v.unit.gridZ) v.unit.group.position.copy(v.base);
+        else v.unit.settleToTile?.();
+      }
       if (v.hidden) { v.unit.group.visible = true; v.hidden = false; }
     }
     if (pb.bloomBase && this.sm.bloomPass) { this.sm.bloomPass.strength = pb.bloomBase.s; this.sm.bloomPass.threshold = pb.bloomBase.t; }

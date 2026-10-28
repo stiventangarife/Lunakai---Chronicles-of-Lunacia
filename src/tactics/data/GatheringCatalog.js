@@ -45,10 +45,14 @@ export const GATHER_LOOT = {
 };
 
 export const GATHER_NODES = [
-  // ── Isla del Bosque · pesca en el río (orilla llana, agua a 2 m)
-  { id: 'fish_forest_1', zone: '2_2', kind: 'fish', loot: 'river_fish', name: i18n.t('items.gather.node.fish_forest_1'), x: 3.8, z: -30.0, water: { x: 7.9, z: -30.0 } },
-  { id: 'fish_forest_2', zone: '2_2', kind: 'fish', loot: 'river_fish', name: i18n.t('items.gather.node.fish_forest_2'), x: 38.1, z: -4.0, water: { x: 33.4, z: -4.0 } },
-  { id: 'fish_forest_3', zone: '2_2', kind: 'fish', loot: 'river_fish', name: i18n.t('items.gather.node.fish_forest_3'), x: 20.8, z: -74.5, water: { x: 16.7, z: -74.5 } },
+  // ── Isla del Bosque · pesca (Hito 79: en alto, desde los puentes y el muelle, para que se vea el hilo hasta el agua)
+  //    Puente del pueblo (tablero a ~3,3 m, agua a 2 m) y puente de los rápidos (tablero a ~5,5 m, agua a ~0,8 m): el
+  //    Axie se pone junto a la barandilla (1,1 m del eje) y el corcho cae a 5,8–6,5 m del eje, fuera del puente
+  //    (más cerca quedaba tapado por la barandilla desde la cámara).
+  { id: 'fish_forest_1', zone: '2_2', kind: 'fish', loot: 'river_fish', name: i18n.t('items.gather.node.fish_forest_1'), x: 14.71, z: -24.85, water: { x: 13.54, z: -20.30 }, high: true },
+  { id: 'fish_forest_3', zone: '2_2', kind: 'fish', loot: 'river_fish', name: i18n.t('items.gather.node.fish_forest_3'), x: 35.50, z: 25.59, water: { x: 36.24, z: 30.94 }, high: true },
+  //    Muelle de Kawa (FOREST_PIER, tablero a 0,8 m, mar a 0,45 m): pesca por el costado este, cerca de la punta
+  { id: 'fish_forest_4', zone: '2_2', kind: 'fish', loot: 'river_fish', name: i18n.t('items.gather.node.fish_forest_4'), x: 51.84, z: 150.14, water: { x: 55.10, z: 147.80 }, high: true },
   // ── Isla del Bosque · el árbol de la Forja (explica la evolución: madera normal)
   { id: 'tree_forest_forge', zone: '2_2', kind: 'chop', loot: 'forest_wood', name: i18n.t('items.gather.node.tree_forest_forge'), x: FORGE_TREE_SPOT.x, z: FORGE_TREE_SPOT.z, tree: 'oak' },
   // ── Isla del Ártico · tala de abetos

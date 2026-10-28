@@ -46,7 +46,7 @@ export const STATUS_DEFS = {
   // Fase 4 (cartas de partes)
   jinx:      { label: i18n.t('status.jinx'),        icon: '×', kind: 'debuff', mod: { critPct: -1 }, defaultValue: 100 }, // sin críticos
   nurtured:  { label: i18n.t('status.nurtured'),     icon: '+', kind: 'buff',   mod: { healTakenPct: +1 }, defaultValue: 20 },
-  retaliate: { label: i18n.t('status.retaliate'),  icon: '↩️', kind: 'buff' },   // devuelve `value` de daño al próximo atacante (una vez)
+  retaliate: { label: i18n.t('status.retaliate'),  icon: '↩', kind: 'buff' },   // devuelve `value` de daño al próximo atacante (una vez)
   barrier:   { label: i18n.t('status.barrier'),     icon: '⬡', kind: 'buff' },   // anula el próximo golpe hasta `value` (una vez)
   reflectPct:{ label: i18n.t('status.reflectPct'),     icon: '⟳', kind: 'buff' },   // devuelve el `value` % del daño recibido
   unmovable: { label: i18n.t('status.unmovable'),   icon: '⊥', kind: 'buff' },   // no puede ser empujado ni atraído
@@ -58,6 +58,35 @@ export const STATUS_DEFS = {
   energized: { label: i18n.t('status.energized'),        icon: 'PA+', kind: 'buff',   turnStart: { pa: +1 } },
   hasted:    { label: i18n.t('status.hasted'),        icon: 'PM+', kind: 'buff',   turnStart: { pm: +1 } },
 };
+
+// Hito 80 · iconos de los estados (assets/ui/buff y assets/ui/debuff, WebP de 64 px). `icon` (el símbolo de texto)
+// sigue como respaldo y para la marca sobre la cabeza de cada unidad, que se dibuja en el lienzo 3D.
+const STATUS_ICON_FILES = {
+  poison: 'debuff/debuff-poison', bleed: 'debuff/debuff-bleed', burn: 'debuff/debuff-burn',
+  stun: 'debuff/debuff-stunned', sleep: 'debuff/debuff-sleep', fear: 'debuff/debuff-fear', taunt: 'debuff/neutral-taunt',
+  fragile: 'debuff/debuff-fragile', weak: 'debuff/debuff-damageDown', empowered: 'buff/buff-damageBoost',
+  guarded: 'buff/buff-shieldBoost', guardedRanged: 'buff/buff-feather', critUp: 'buff/buff-rage',
+  rangeDown: 'debuff/debuff-rangeDown', rangeUp: 'buff/buff-rangeUp', healBlock: 'debuff/debuff-healBlock',
+  reflect: 'buff/buff-bubbleBomb', immune: 'buff/buff-meditate', regen: 'buff/buff-leaf', soulLink: 'buff/buff-soulLink',
+  jinx: 'debuff/debuff-hex', nurtured: 'buff/buff-healingBoost', retaliate: 'buff/buff-fury', barrier: 'buff/buff-bubble',
+  reflectPct: 'buff/buff-bubbleBomb', unmovable: 'buff/buff-unmovable', ward: 'buff/buff-ward',
+  drained: 'debuff/debuff-drained', slowed: 'debuff/debuff-weak', energized: 'buff/buff-energized', hasted: 'buff/buff-hasted',
+};
+Object.entries(STATUS_ICON_FILES).forEach(([id, f]) => { if (STATUS_DEFS[id]) STATUS_DEFS[id].img = `./assets/ui/${f}.webp`; });
+
+const escAttr = (v) => String(v ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+/** Icono de un estado para la interfaz: la imagen (con el símbolo como texto alternativo) o, sin imagen, el símbolo. */
+export function statusIconHtml(id, glyph = null, cls = 'lk-st-ico') {
+  const d = STATUS_DEFS[id];
+  const g = glyph || d?.icon || '•';
+  return d?.img ? `<img class="${cls}" src="${d.img}" alt="${escAttr(g)}" draggable="false">` : escAttr(g);
+}
+/** Carga las imágenes de los estados antes del primer combate (unos 76 KB): no aparecen a destiempo. */
+export function preloadStatusIcons() {
+  if (typeof Image === 'undefined' || preloadStatusIcons.done) return;
+  preloadStatusIcons.done = true;
+  Object.values(STATUS_DEFS).forEach((d) => { if (d.img) { const im = new Image(); im.decoding = 'async'; im.src = d.img; } });
+}
 
 export class StatusSystem {
   constructor({ events, gridManager } = {}) {

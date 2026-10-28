@@ -1,5 +1,6 @@
 // OverworldCamera.js - High Isometric Elevated Camera (Dofus/Diablo Style)
 import * as THREE from 'three';
+import { access } from '../ui/AccessPrefs.js';
 
 export class OverworldCamera {
   constructor(canvasContainer) {
@@ -10,8 +11,10 @@ export class OverworldCamera {
 
     // Camera Framing (Support both close third-person and wide cinematic view)
     this.distance = 11.0;
-    this.minDistance = 3.2;
-    this.maxDistance = 65.0;
+    // Hito 82: zoom limitado (antes hasta 65 m: el personaje se perdía; la vista de la isla es el mapa) y suave
+    this.minDistance = 4.0;
+    this.maxDistance = 22.0;
+    this.zoomTarget = null;   // distancia a la que se desliza la cámara tras usar la rueda (null = sin zoom en curso)
 
     this.pitchAngle = 0.25; // Closer, immersive third-person starting pitch
     this.currentAngle = Math.PI / 4;
@@ -24,6 +27,11 @@ export class OverworldCamera {
 
     this.followTarget = null;
     this.damping = 6.0;
+    // Hito 90: la cámara se adelanta un poco hacia donde camina el jugador (hasta ~1,2 m) y vuelve al parar.
+    // Se suaviza aparte (más despacio que el seguimiento) para que no dé tirones; apagado con «Reducir movimiento».
+    this.lookAhead = new THREE.Vector3();
+    this.lookAheadTime = 0.18;   // segundos de velocidad que se adelanta
+    this.lookAheadMax = 1.4;
 
     this.isDragging = false;
     this.prevMouseX = 0;
@@ -56,6 +64,7 @@ export class OverworldCamera {
     if (this.followTarget) {
       this.targetLookAt.copy(this.followTarget.position).add(new THREE.Vector3(0, 0.6, 0));
     }
+    if (this.lookAhead) this.lookAhead.set(0, 0, 0);   // Hito 90: tras un salto de posición, sin adelanto
     this.currentLookAt.copy(this.targetLookAt);
     this.currentAngle = this.targetAngle;
     this._groundFloorY = undefined; // tras un teletransporte, el suelo se toma de golpe
@@ -116,8 +125,11 @@ export class OverworldCamera {
       if (activeModal) return;
 
       // Zoom in / out
-      const delta = Math.sign(e.deltaY) * 1.5;
-      this.distance = THREE.MathUtils.clamp(this.distance + delta, this.minDistance, this.maxDistance);
+      // Hito 82: la rueda mueve un objetivo y la cámara se desliza hasta él (ratón: ~1,2 m por paso; touchpad: según lo que se deslice)
+      const px = e.deltaMode === 1 ? e.deltaY * 33 : e.deltaMode === 2 ? e.deltaY * 400 : e.deltaY;
+      const delta = THREE.MathUtils.clamp(px * 0.012, -2.5, 2.5);
+      const from = this.zoomTarget ?? this.distance;
+      this.zoomTarget = THREE.MathUtils.clamp(from + delta, this.minDistance, this.maxDistance);
     }, { passive: true });
 
     // Drag orbit (Left-click, Right-click or Middle-click on canvas)
@@ -188,17 +200,17 @@ export class OverworldCamera {
   resetView() {
     this.targetAngle = Math.PI / 4;
     this.pitchAngle = 0.25;
-    this.distance = 11.0;
+    this.distance = 11.0; this.zoomTarget = null;
   }
 
   setMode(mode) {
     this.mode = mode;
     if (mode === 'third_person') {
       this.pitchAngle = 0.20;
-      this.distance = 9.0;
+      this.distance = 9.0; this.zoomTarget = null;
     } else {
       this.pitchAngle = 0.85;
-      this.distance = 20.0;
+      this.distance = 20.0; this.zoomTarget = null;
     }
   }
 
@@ -226,12 +238,31 @@ export class OverworldCamera {
   }
 
   update(dt) {
+    // Hito 82 · zoom suave: la distancia se acerca al objetivo de la rueda (≈0,25 s); al llegar, se suelta
+    if (this.zoomTarget != null) {
+      this.distance += (this.zoomTarget - this.distance) * (1 - Math.exp(-12 * dt));
+      if (Math.abs(this.zoomTarget - this.distance) < 0.01) { this.distance = this.zoomTarget; this.zoomTarget = null; }
+    }
     // Follow target smoothly
     if (this.followTarget) {
       // Dynamic look target: when pitch is negative (looking up at sky), elevate the lookAt point into the sky
       const skyLookUpOffset = Math.max(0, -this.pitchAngle) * 8.5;
       this.targetLookAt.copy(this.followTarget.position);
       this.targetLookAt.y += 1.75 + skyLookUpOffset;
+      // Hito 90: adelanto según la velocidad del jugador (solo cuando la cámara le sigue a él)
+      const pc = this.om?.playerController;
+      const want = this._laWant || (this._laWant = new THREE.Vector3());
+      want.set(0, 0, 0);
+      const fresh = pc && performance.now() - (pc._velStamp || 0) < 200;
+      if (fresh && pc.velocity && this.followTarget === this.om?.player && !access.reduceMotion) {
+        want.set(pc.velocity.x, 0, pc.velocity.z).multiplyScalar(this.lookAheadTime);
+        if (want.length() > this.lookAheadMax) want.setLength(this.lookAheadMax);
+      }
+      this.lookAhead.lerp(want, 1 - Math.exp(-2.2 * dt));
+      this.targetLookAt.x += this.lookAhead.x;
+      this.targetLookAt.z += this.lookAhead.z;
+    } else if (this.lookAhead) {
+      this.lookAhead.set(0, 0, 0);
     }
 
     // Suavizado exponencial: igual de suave a 30, 60 o 144 FPS (min(1, k·dt) daba saltos si el dt variaba)
@@ -253,11 +284,25 @@ export class OverworldCamera {
       const hd = this.distance * Math.cos(this.pitchAngle), hh = this.distance * Math.sin(this.pitchAngle);
       this._wantPos = this._wantPos || new THREE.Vector3();
       this._wantPos.set(this.currentLookAt.x + Math.sin(this.currentAngle) * hd, this.currentLookAt.y + hh, this.currentLookAt.z + Math.cos(this.currentAngle) * hd);
-      const f = this.occlusion.cast(this.currentLookAt, this._wantPos, 0.3);
-      const target = f < 1 ? Math.max(1.6, this.distance * f - 0.35) : this.distance;
-      if (this._arm === undefined || !Number.isFinite(this._arm)) this._arm = target;
-      if (target < this._arm) this._arm = target;                                  // acercarse: al instante
-      else this._arm += (target - this._arm) * (1 - Math.exp(-3.0 * dt));           // alejarse: suave
+      let f = this.occlusion.cast(this.currentLookAt, this._wantPos, 0.2);
+      // Hito 79: si el obstáculo solo queda junto a la cámara (pasar al lado de una casa, rozar una esquina) y la cámara
+      // no está dentro de nada, no se acerca: esa esquina se transparenta, como los árboles.
+      if (f >= 0.7 && f < 1 && this.occlusion.inside && !this.occlusion.inside(this._wantPos, 0.3)) f = 1;
+      const target = f < 1 ? Math.max(1.6, this.distance * f - 0.3) : this.distance;
+      // Hito 79 · sin rebotes: se acerca rápido pero suave (~0,06 s, no de un fotograma a otro); al quedar libre
+      // espera 0,3 s antes de volver a alejarse, así pasar rozando una esquina no la hace ir y venir.
+      if (this._arm === undefined || !Number.isFinite(this._arm)) { this._arm = target; this._armHold = 0; this._armFree = 9; }
+      this._armFree = f < 1 ? 0 : (this._armFree || 0) + dt;
+      if (this._armFree > 1.5) {
+        this._arm += (target - this._arm) * (1 - Math.exp(-12.0 * dt));            // sin obstáculos: sigue la rueda del ratón
+      } else if (target < this._arm - 0.05) {
+        this._armHold = 0.3;
+        this._arm += (target - this._arm) * (1 - Math.exp(-18.0 * dt));
+        if (this._arm - target > 2.5) this._arm = target + 2.5;                    // nunca muy dentro del obstáculo
+      } else if (target > this._arm + 0.05) {
+        if (this._armHold > 0) this._armHold -= dt;
+        else this._arm += (target - this._arm) * (1 - Math.exp(-2.5 * dt));        // alejarse: despacio
+      }
       armDist = Math.min(this.distance, this._arm);
     } else {
       this._arm = this.distance;

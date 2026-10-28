@@ -1,4 +1,5 @@
 // QuestManager.js - Centralized Quest System for Lunacia Adventures
+import { EconomyService } from '../net/EconomyService.js';
 import { ForgeService } from './ForgeService.js';
 import * as i18n from '../i18n/i18n.js';
 import { isMaterial } from './LootService.js';
@@ -858,7 +859,11 @@ export class QuestManager {
     };
 
     if (this.equipmentManager && quest.rewards.gold && quest.rewards.gold > 0) {
-      this.equipmentManager.addGold(quest.rewards.gold);
+      // Hito 76: con cuenta, el oro de la misión lo paga el servidor (una sola vez)
+      if (EconomyService.active) {
+        const g = quest.rewards.gold, em = this.equipmentManager;
+        EconomyService.reward(`quest:${quest.id}`).then((r) => { if (r?.error === 'unavailable') em.addGold(g); }).catch(() => null);
+      } else this.equipmentManager.addGold(quest.rewards.gold);
     }
 
     if (this.equipmentManager && quest.rewards.items && quest.rewards.items.length > 0) {

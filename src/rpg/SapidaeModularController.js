@@ -3,6 +3,7 @@ import * as THREE from '../../vendor/three.module.js';
 import * as i18n from '../i18n/i18n.js';
 import { ITEMS_DB } from '../tactics/ItemDatabase.js';
 import { weaponVisual, buildStaticWeapon, mountOnSapidae, gripHand } from './WeaponVisuals.js';
+import { fitUnderHat, baseGeometry } from './HatHairFit.js';
 
 export const HORN_STYLES = [
   { id: 'base', name: i18n.t('creator.horn.base.name'), icon: '🦬', desc: i18n.t('creator.horn.base.desc') },
@@ -110,6 +111,20 @@ export const V2_OUTFITS = {
 // Kai (modelo del 21-oct, 2.ª versión): piezas A–E separadas. Cada peinado tiene su cabeza (el pelo pintado en la
 // frente y las cejas es del mismo color), los ojos y la boca son mallas con su propia textura y hay 5 camisas.
 const KAI_PART_RE = /^(Kai|Ema)_(body|pants|eyes|hair|head|mouth|shirt|horns|cheek|hat)(?:_([A-E]))?(_in)?$/; // también Ema (21-oct, 2.ª versión)
+// Equipo con malla propia (Hito 92, 27-oct): cascos «<Kai|Ema>_hat_<pieza>» y armaduras «<Kai|Ema>_shirt_<pieza>». Las
+// armaduras de varios materiales llegan como un grupo cuyas mallas se llaman «Kai_shirt_bronze001», «…001_1»,
+// «Kai_shirt_traveler_1»…: todas cuentan como la pieza «bronze» / «traveler». Las camisas base usan letras (A–E).
+const KAI_EQUIP_RE = /^(Kai|Ema)_(hat|shirt)_([a-z]{3,})/;
+// Hito 94: las botas ya no tiñen el pantalón del color de su rareza (queda el color elegido al personalizar). Volver a
+// activarlo cuando las botas tengan malla propia.
+const BOOTS_TINT_LEGS = false;
+/** Objeto equipado → pieza del modelo. Los que no estén aquí siguen con el accesorio dibujado por código. */
+export const EQUIP_MESH_PIECES = {
+  hat: { beast_helmet: 'beast', straw_hat: 'straw', arcane_ring: 'bronze', crown_of_lunacia: 'obsidian' },
+  body: { traveler_cloak: 'traveler', chitin_armor: 'chitin', bronze_armor: 'bronze', obsidian_plate: 'obsidian' },
+};
+/** Bajo el casco: Kai oculta el pelo; Ema lo aplasta (conserva coletas, trenzas y melena). La cabeza se ajusta en los dos. */
+const HAT_HAIR_K = 0.88, HAT_HEAD_K = 0.97;
 export const KAI_HAIR_STYLES = [
   { id: 'a', name: i18n.t('creator.kaiHair.a.name'), desc: i18n.t('creator.kaiHair.a.desc'), img: 'hair_kai_a' },
   { id: 'b', name: i18n.t('creator.kaiHair.b.name'), desc: i18n.t('creator.kaiHair.b.desc'), img: 'hair_kai_b' },
@@ -324,6 +339,12 @@ export class SapidaeModularController {
     const g = {};
     model.traverse((c) => {
       if (!(c.isMesh || c.isSkinnedMesh) || c.userData?.isOutlineMesh || /outline/i.test(c.name || '')) return;
+      const e = KAI_EQUIP_RE.exec(c.name || '');
+      if (e) { // casco / armadura (Hito 92): lista de mallas por pieza
+        const key = e[2] === 'hat' ? 'equipHat' : 'equipShirt';
+        ((g[key] ||= {})[e[3]] ||= []).push(c);
+        return;
+      }
       const m = KAI_PART_RE.exec(c.name || '');
       if (!m) return;
       g.prefix ||= m[1];
@@ -408,8 +429,80 @@ export class SapidaeModularController {
       if (mat.map !== next) { mat.map = next; mat.needsUpdate = true; }
     });
     model.userData.sapiExpression = { eyes: look.eyes, mouth: look.mouth };
-    this._releaseUnusedVariantTextures(model, [g.hair, g.head, g.shirt, g.hat ? { hat: g.hat } : null]);
+    this._applyKaiEquipMeshes(model, parts); // casco y armadura equipados (si los hay): camisa, pelo y cabeza
+    this._releaseUnusedVariantTextures(model, [g.hair, g.head, g.shirt, g.hat ? { hat: g.hat } : null, ...this._equipGroups(g)]);
     return parts;
+  }
+
+  // ------------------------------------------------------------------ cascos y armaduras con malla (Hito 92)
+  /** Pieza del modelo para el objeto equipado en `slot` ('hat' | 'body'), o null si el modelo no la trae. */
+  _kaiEquipPiece(parts, slot, itemId) {
+    const piece = itemId && EQUIP_MESH_PIECES[slot]?.[itemId];
+    const grp = slot === 'hat' ? parts?.groups?.equipHat : parts?.groups?.equipShirt;
+    return piece && grp?.[piece]?.length ? piece : null;
+  }
+
+  /** Grupos { pieza0: malla, … } de cascos y armaduras, para liberar las texturas de los que no se ven. */
+  _equipGroups(g) {
+    const flat = (grp) => (grp ? Object.fromEntries(Object.entries(grp).flatMap(([k, list]) => list.map((m, i) => [`${k}${i}`, m]))) : null);
+    return [flat(g.equipHat), flat(g.equipShirt)];
+  }
+
+  /** Cambia la geometría de una pieza (y la de su contorno). null = la original. */
+  _setMeshGeometry(model, mesh, geo) {
+    const next = geo || baseGeometry(mesh);
+    if (mesh.geometry === next) return;
+    mesh.geometry = next;
+    model.traverse((o) => { if (o.userData?.isOutlineMesh && o.userData.sourceMesh === mesh) o.geometry = next; });
+  }
+
+  /** ¿Comparten espacio de enlace? (si no, el ajuste al casco no sirve y se usa el plan B: ocultar el pelo) */
+  _sameBind(a, b) {
+    if (!a?.isSkinnedMesh || !b?.isSkinnedMesh) return false;
+    const x = a.bindMatrix.elements, y = b.bindMatrix.elements;
+    for (let i = 0; i < 16; i++) if (Math.abs(x[i] - y[i]) > 1e-4) return false;
+    return true;
+  }
+
+  /**
+   * Muestra el casco y la armadura de model.userData.sapiEquip ({ hat, body }: piezas del modelo):
+   * - armadura: oculta la camisa base; sin armadura, vuelve la camisa elegida;
+   * - casco: Kai oculta el pelo; Ema lo aplasta bajo el casco; la cabeza se ajusta en los dos (la nuca pintada
+   *   asomaba por los huecos de algunos cascos). Sin casco, todo vuelve a su malla original.
+   */
+  _applyKaiEquipMeshes(model, parts) {
+    const g = parts?.groups;
+    if (!g) return;
+    const look = model.userData.sapiLook || {}, eq = model.userData.sapiEquip || {};
+    const D = PIECE_SETS[parts.gender].defaults;
+    const hatKey = eq.hat && g.equipHat?.[eq.hat] ? eq.hat : null;
+    const bodyKey = eq.body && g.equipShirt?.[eq.body] ? eq.body : null;
+    const showPieces = (grp, key) => Object.entries(grp || {}).forEach(([k, list]) => list.forEach((m) => this._setPartVisible(model, m, k === key)));
+    showPieces(g.equipHat, hatKey);
+    showPieces(g.equipShirt, bodyKey);
+    this._showKaiGroup(model, g.shirt, bodyKey ? null : (look.outfit || D.outfit));
+
+    const hairId = look.hair || D.hairStyle;
+    const hairMesh = g.hair?.[hairId], headMesh = g.head?.[hairId];
+    const headRefMesh = g.head?.a || headMesh;
+    const headRef = headRefMesh && baseGeometry(headRefMesh);
+    const hatMeshes = hatKey ? g.equipHat[hatKey] : null;
+    const canFit = (mesh) => Boolean(hatMeshes && headRef && mesh && hatMeshes.every((h) => this._sameBind(mesh, h)));
+    const fit = (mesh, k) => {
+      try { return fitUnderHat(baseGeometry(mesh), hatMeshes.map((h) => h.geometry), headRef, k); }
+      catch (err) { console.warn('[Sapidae] No se pudo ajustar al casco:', err); return null; }
+    };
+    if (hairMesh) {
+      if (!hatMeshes) {
+        this._setMeshGeometry(model, hairMesh, null);
+        this._setPartVisible(model, hairMesh, true);
+      } else {
+        const fitted = parts.gender === 'f' && canFit(hairMesh) ? fit(hairMesh, HAT_HAIR_K) : null;
+        this._setMeshGeometry(model, hairMesh, fitted);
+        this._setPartVisible(model, hairMesh, Boolean(fitted)); // Kai (o si no se pudo ajustar): sin pelo
+      }
+    }
+    if (headMesh) this._setMeshGeometry(model, headMesh, canFit(headMesh) ? fit(headMesh, HAT_HEAD_K) : null);
   }
 
   /**
@@ -555,7 +648,7 @@ export class SapidaeModularController {
   /** La cabeza de Ema / Kai trae también los cuernos cortos (iguales a «horns_A»). Se pliegan esos vértices de la
    *  cabeza para que se vea solo la pieza de cuernos elegida (y su color, sin parpadeos por estar dos veces). */
   _hideHeadHorns(head, hornsA) {
-    const g = head?.geometry, ga = hornsA?.geometry;
+    const g = head && baseGeometry(head), ga = hornsA?.geometry; // la original (no la ajustada al casco)
     if (!g || !ga || g.userData.hornsFolded) return;
     const key = (x, y, z) => `${x.toFixed(4)},${y.toFixed(4)},${z.toFixed(4)}`;
     const pa = ga.attributes.position, set = new Set();
@@ -601,7 +694,7 @@ export class SapidaeModularController {
     const parts = model && this._getV2Parts(model);
     const g = parts?.kai && parts.groups;
     if (!g) return;
-    this._releaseUnusedVariantTextures(model, [g.hair, g.head, g.shirt, g.hat ? { hat: g.hat } : null, g.horns, g.eyes, g.mouth, g.mouthIn]);
+    this._releaseUnusedVariantTextures(model, [g.hair, g.head, g.shirt, g.hat ? { hat: g.hat } : null, g.horns, g.eyes, g.mouth, g.mouthIn, ...this._equipGroups(g)]);
   }
 
   /** Expresión de la cara (ojos y boca) en un modelo Ema / Kai. Sirve también en combate: setExpression(model, 'angry', 'o'). */
@@ -1196,6 +1289,10 @@ export class SapidaeModularController {
     if (this._getV2Parts(model) && !model.userData.sapiLook) this._applyV2Variants(model, fallbackCustomization);
     const parts = this.getModularParts(model);
     if (!parts) return;
+    // Ema / Kai (Hito 92): cascos y armaduras con malla propia en el modelo; sin accesorios dibujados por código.
+    const hatPiece = parts.kai ? this._kaiEquipPiece(parts, 'hat', equipped.hat) : null;
+    const bodyPiece = parts.kai ? this._kaiEquipPiece(parts, 'body', equipped.body) : null;
+    if (parts.kai) model.userData.sapiEquip = { hat: hatPiece, body: bodyPiece };
 
     // --- HAT SLOT ---
     const hatItem = equipped.hat ? (ITEMS_DB[equipped.hat] || null) : null;
@@ -1208,7 +1305,9 @@ export class SapidaeModularController {
       }
     }
 
-    if (hatItem) {
+    if (hatItem && hatPiece) {
+      if (parts.hat) this._setPartVisible(model, parts.hat, false); // el casco es la pieza del modelo
+    } else if (hatItem) {
       const hatProp = this._buildHatProp(hatItem);
       if (hatProp && parts.headBone) {
         hatProp.name = 'Sapidae_Equipped_Hat';
@@ -1249,7 +1348,9 @@ export class SapidaeModularController {
       }
     }
 
-    if (bodyItem) {
+    if (bodyItem && bodyPiece) {
+      // La armadura es la pieza del modelo (la camisa base se oculta en _applyKaiEquipMeshes)
+    } else if (bodyItem) {
       // 1. Build and attach 3D armor pauldrons and chestplate insignia
       const armorProps = this._buildArmorProps(bodyItem);
       if (armorProps && parts.chestBone) {
@@ -1277,7 +1378,7 @@ export class SapidaeModularController {
 
     // --- BOOTS / LEGS SLOT ---
     const bootsItem = equipped.boots ? (ITEMS_DB[equipped.boots] || null) : null;
-    if (bootsItem && parts.legs) {
+    if (BOOTS_TINT_LEGS && bootsItem && parts.legs) {
       const color = bootsItem.rarity === 'legendary' ? 0xd97706 :
                     bootsItem.rarity === 'epic' ? 0x047857 :
                     bootsItem.rarity === 'rare' ? 0x1d4ed8 : 0x0f172a;
@@ -1291,6 +1392,12 @@ export class SapidaeModularController {
       } else {
         this._applySuitColor(parts, fallbackCustomization.suitColor);
       }
+    }
+
+    // --- Ema / Kai: piezas del modelo (casco, armadura, camisa base, pelo y cabeza) ---
+    if (parts.kai) {
+      this._applyKaiEquipMeshes(model, parts);
+      this._releaseUnusedVariantTextures(model, [parts.groups.hair, parts.groups.shirt, ...this._equipGroups(parts.groups)]);
     }
 
     // --- WEAPON SLOT ---
