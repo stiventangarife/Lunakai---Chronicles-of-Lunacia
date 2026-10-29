@@ -9,6 +9,7 @@
 // · Tamaño: los GLB vienen encogidos a una caja de ~1,9 m; `scale` les da su tamaño real. Los Sapidae miden
 //   ~2,8 m, así que dojo, Forja, tienda, parada y bus van grandes (puertas y bancos a su medida).
 // · Separación: ≥ 2,5 m entre la calle (4,8 m de ancho) y cada fachada, y ≥ 5 m entre edificios.
+// · smoke: true → humo en la chimenea (solo casas; Hito 96, ver ChimneySmoke).
 
 export const VILLAGE_ZONE = '2_2';
 
@@ -30,7 +31,7 @@ export const VILLAGE = [
   // Lado A (noroeste), desde el final del camino
   { id: 'shop', model: 'shop', x: -79.6, z: 0.6, yaw: 0.647 },
   { id: 'forja', model: 'forja', x: -64.9, z: -8.6, yaw: 0.703 },
-  { id: 'house_1', model: 'house', x: -50.8, z: -18.9, yaw: 0.681 },
+  { id: 'house_1', model: 'house', x: -50.8, z: -18.9, yaw: 0.681, smoke: true },
   { id: 'parada', model: 'parada', x: -41.5, z: -29.8, yaw: 0.573 }, // 2,5 m detrás del bus
   // Bus aparcado en el arcén delante de la parada: el morro (−x del modelo) mira hacia el Gran Árbol de Atia y la
   // puerta (+z) da a la parada
@@ -39,8 +40,8 @@ export const VILLAGE = [
   { id: 'altar', model: 'altar_atia', x: -97.7, z: 27.0, yaw: 2.214 },
   // Lado B (sureste); el camino del Gran Árbol sale entre house_3 y house_4
   { id: 'house_2', model: 'house', x: -87.4, z: 28.6, yaw: -2.513, plinth: true }, // en pendiente: zócalo de piedra
-  { id: 'house_3', model: 'house', x: -72.8, z: 17.9, yaw: -2.503, plinth: true },
-  { id: 'house_4', model: 'house', x: -50.6, z: 0.1, yaw: -2.435 },
+  { id: 'house_3', model: 'house', x: -72.8, z: 17.9, yaw: -2.503, plinth: true, smoke: true },
+  { id: 'house_4', model: 'house', x: -50.6, z: 0.1, yaw: -2.435, smoke: true },
   { id: 'dojo', model: 'dojo', x: -33.2, z: -6.0, yaw: -2.492 },   // el Maestro Paladill espera delante del porche
   { id: 'totem', model: 'totem', x: -24.0, z: -22.6, yaw: -2.615 }, // a la salida del pueblo
   // Farolas a lo largo del camino

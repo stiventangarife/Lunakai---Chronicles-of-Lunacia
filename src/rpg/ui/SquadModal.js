@@ -3,7 +3,7 @@
 // Decide quién viaja y combate contigo: el Sapidae líder (fijo, entra siempre en combate), el compañero principal y 2 axies de apoyo.
 // El escuadrón se guarda en EquipmentManager (getSquad / setSquad) y DynamicCombatFactory lo usa para el combate.
 // Tecla K (OverworldManager). API: open(), close(), toggle(), isOpen, onOpen, onClose, onChange(squad), onOpenInventory(heroId).
-import { getHeroSpells } from '../SaveSlotManager.js';
+import { getHeroSpells, SAPIDAE_CLASSES } from '../SaveSlotManager.js';
 import { SPELLS_DB } from '../../tactics/Spells.js';
 import { STARTER_DECKS } from '../../tactics/data/StarterCards.js';
 import { portraitService } from '../../tactics/CharacterPortraitService.js';
@@ -158,8 +158,8 @@ export class SquadModal {
   _clsName(id) {
     if (this._isSapi(id)) {
       const k = this._base(id)?.sapidaeClassKey;
-      const names = { crafter: 'Forjacubiles', shepard: 'Susurrador', lunalogist: 'Lunalogista', stargazer: 'Astromante' };
-      return `Sapidae${names[k] ? ' · ' + names[k] : ''}`;
+      const name = SAPIDAE_CLASSES[k]?.name; // Hito 95: nombre de clase traducido
+      return `Sapidae${name ? ' · ' + name : ''}`;
     }
     return CLS_ES[this._cls(id)] || 'Axie';
   }

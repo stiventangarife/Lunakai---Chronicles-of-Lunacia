@@ -111,7 +111,7 @@ export function installTestArena(game) {
     const caster = team.find((u) => (u.spellIds || []).includes(cardId))
       || (sapidaeSpell && team.find((u) => u.id === 'sapidae_hero'))
       || team.find((u) => u.id === 'kotaro') || team[0];
-    caster.currentPA = 99; caster.currentPM = Math.max(caster.currentPM || 0, 3); caster._castsThisTurn = {};
+    caster.currentPA = 99; caster.currentPM = Math.max(caster.currentPM || 0, 3); caster._castsThisTurn = {}; caster._castsOnTarget = {}; caster._unlockAll = true; caster._spellReady = { [cardId]: 0 }; // Hito 98: en la arena todo desbloqueado · Hito 97: en la arena la carta siempre está lista (sin recarga ni espera inicial)
     game.activeUnit = caster;
     resetDummy();
     const dm = dummy();

@@ -92,5 +92,9 @@ export default {
   "game.areaCross": "Cross (1 tile)",
   "game.areaSingle": "Single Tile",
   "game.goldPending": "Gold pending",
-  "game.goldPendingDesc": "Offline: this battle's gold will be credited as soon as you're back online."
+  "game.goldPendingDesc": "Offline: this battle's gold will be credited as soon as you're back online.",
+  "game.spellCooldown1": "Recharging: ready in 1 turn",
+  "game.spellCooldownN": "Recharging: ready in {n} turns",
+  "game.spellLocked": "Unlocks at level {n}",
+  "game.levelShortN": "Lv. {n}"
 };

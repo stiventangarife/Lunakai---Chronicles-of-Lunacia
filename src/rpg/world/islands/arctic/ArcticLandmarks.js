@@ -416,11 +416,11 @@ export class ArcticLandmarks {
     const [tx, tz] = this._toWorld(S.pomodoro.house.x, S.pomodoro.house.z, S.pomodoro.house.yaw, -4.2, 4.2);
     const [fx, fz] = this._toWorld(S.chef.shop.x, S.chef.shop.z, S.chef.shop.yaw, -4.6, 3.6);
     const list = [
-      { model: 'house', ...S.pomodoro.house, name: 'Arctic_PomodoroHouse' },
+      { model: 'house', ...S.pomodoro.house, name: 'Arctic_PomodoroHouse', smoke: true },
       { model: 'totem', x: tx, z: tz, yaw: S.pomodoro.house.yaw, name: 'Arctic_PomodoroTotem' },
       { model: 'shop', ...S.chef.shop, name: 'Arctic_ChefShop' },
       { model: 'flag', x: fx, z: fz, yaw: S.chef.shop.yaw, name: 'Arctic_ChefFlag' },
-      { model: 'house', ...S.hermit.cabin, name: 'Arctic_HermitHouse' },
+      { model: 'house', ...S.hermit.cabin, name: 'Arctic_HermitHouse', smoke: true },
       { model: 'totem_ice', x: S.altar.x, z: S.altar.z, yaw: S.altar.face, name: 'Arctic_FrostTotem' },
       { model: 'altar', ...S.atia, name: 'Arctic_AtiaAltar' },
       { model: 'flag', ...S.entranceFlag, name: 'Arctic_EntranceFlag' }

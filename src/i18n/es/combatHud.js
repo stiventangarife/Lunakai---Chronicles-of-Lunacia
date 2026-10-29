@@ -92,5 +92,15 @@ export default {
   "combatHud.uses": "Usos",
   "combatHud.vision": "Visión",
   "combatHud.weakened": "Débil",
-  "combatHud.withCharms": "con charms"
+  "combatHud.withCharms": "con charms",
+  "combatHud.cooldown": "Recarga",
+  "combatHud.initialCd": "Espera inicial",
+  "combatHud.uses": "Usos",
+  "combatHud.perTurnN": "{n} por turno",
+  "combatHud.perTargetN": "{n} por objetivo",
+  "combatHud.readyIn1": "En recarga: lista en 1 turno.",
+  "combatHud.readyInN": "En recarga: lista en {n} turnos.",
+  "combatHud.spentTip": "Ya no quedan usos de esta carta en este turno.",
+  "combatHud.lockedAt": "Bloqueada: se desbloquea a nivel {n}.",
+  "combatHud.lockedAtPart": "Bloqueada: se desbloquea a nivel {n} ({part})."
 };

@@ -82,5 +82,9 @@ export default {
   "runesPanel.wouldLeaveCls": "Te quedarían {n} PP de {cls}",
   "runesPanel.wouldNeed": "Te faltarían {pp}",
   "runesPanel.roninLoaded": "Runas y charms Ronin de tu cuenta: {n}",
-  "runesPanel.roninTitle": "Ronin: NFT de tu cuenta de Sky Mavis. Se usa mientras siga en tu billetera y no se vende."
+  "runesPanel.roninTitle": "Ronin: NFT de tu cuenta de Sky Mavis. Se usa mientras siga en tu billetera y no se vende.",
+  "runesPanel.lockedPart": "Nv. {n}",
+  "runesPanel.lockedSkill": "Bloqueada: se desbloquea a nivel {n}.",
+  "runesPanel.lockedCharm": "Esta habilidad se desbloquea a nivel {n}: hasta entonces no se le pueden poner charms.",
+  "runesPanel.charmInactive": "charm inactivo"
 };

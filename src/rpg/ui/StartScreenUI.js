@@ -25,7 +25,8 @@ import {
 } from '../SapidaeModularController.js';
 import { SAPIDAE_BASES, DEFAULT_SAPIDAE_MODEL } from '../SapidaeModels.js';
 import { CharacterPreviewDiorama } from './CharacterPreviewDiorama.js';
-import { sprite, toast, tooltip, esc } from '../../ui/lk.js';
+import { sprite, toast, tooltip, esc, spellLimitStats } from '../../ui/lk.js';
+import { SLOT_UNLOCK_LEVEL, PART_UNLOCK_LEVEL } from '../../tactics/combat/SkillUnlocks.js'; // Hito 98
 import { accountManager } from '../../net/AccountManager.js';
 import * as i18n from '../../i18n/i18n.js';
 import { MAP_REGISTRY } from '../world/MapRegistry.js';
@@ -40,7 +41,8 @@ const shortLabel = (s) => String(s || '').replace(/^Cuernos /, '').replace(/^Cor
 // Creación de personaje (etapa 5)
 const CC_STEPS = [i18n.t('startCreator.stepClass'), i18n.t('startCreator.stepLook'), i18n.t('startCreator.stepCompanion'), i18n.t('startCreator.stepName')];
 const CC_STARTERS = ['beast_rage', 'bird_early'];
-const CC_COLORS = { crafter: '#C98A3B', shepard: '#E86AB0', lunalogist: '#5BB6C9', stargazer: '#8A6CE0' };
+// Hito 95: colores de los emblemas de clase (terracota, vino, jade de pátina, musgo)
+const CC_COLORS = { crafter: '#C8643B', shepard: '#A83A44', lunalogist: '#3FB89A', stargazer: '#8F9E3A' };
 const CC_ICON = (n) => `./assets/ui/icons/${n}.png`;
 const CC_PART_CLASSES = ['beast', 'bird', 'plant', 'aquatic', 'bug', 'reptile'];
 
@@ -72,10 +74,10 @@ export function getAxieClassIcon(cls) {
 }
 
 export const CLASS_PORTRAITS = {
-  crafter: './assets/classes/class_forjacubiles.jpg',
-  shepard: './assets/classes/class_susurrador.jpg',
-  lunalogist: './assets/classes/class_lunalogista.jpg',
-  stargazer: './assets/classes/class_astromante.jpg'
+  crafter: './assets/classes/class_forjacubiles.webp',
+  shepard: './assets/classes/class_susurrador.webp',
+  lunalogist: './assets/classes/class_lunalogista.webp',
+  stargazer: './assets/classes/class_astromante.webp'
 };
 
 export const AXIE_BODY_PARTS = [
@@ -1063,7 +1065,7 @@ export class StartScreenUI {
 
   _ccClass() { return SAPIDAE_CLASSES[this.selectedSapidaeClass] || SAPIDAE_CLASSES.crafter; }
   _ccCompanion() { return this._customCompanion && this._customCompanion.heroKey === this.selectedCompanionKey ? this._customCompanion : (HERO_ROSTER.find((h) => h.heroKey === this.selectedCompanionKey) || HERO_ROSTER[0]); }
-  _ccCrest(c, size) { return `<span class="lk-crest" style="--cc:${CC_COLORS[c.id] || '#C98A3B'}${size ? `;width:${size}px;height:${size}px` : ''}"><img src="${CLASS_PORTRAITS[c.id] || c.iconImg || './assets/classes/class_forjacubiles.jpg'}" alt=""></span>`; }
+  _ccCrest(c, size) { return `<span class="lk-crest" style="--cc:${CC_COLORS[c.id] || '#C98A3B'}${size ? `;width:${size}px;height:${size}px` : ''}"><img src="${CLASS_PORTRAITS[c.id] || c.iconImg || './assets/classes/class_forjacubiles.webp'}" alt=""></span>`; }
   _ccRole(c) { const m = String(c.archetype || '').match(/\(([^)]+)\)/); return m ? m[1] : (c.title || ''); }
   _ccNameState() {
     const v = String(this.playerName || '').trim();
@@ -1125,7 +1127,7 @@ export class StartScreenUI {
     pane.innerHTML = `<h4>${i18n.t('startCreator.chooseClass')}</h4><p class="lk-lead">${i18n.t('startCreator.classLead')}</p>
       <div class="lk-cls-grid">${Object.values(SAPIDAE_CLASSES).map((c) => `<button type="button" class="lk-cls-card" aria-pressed="${c.id === cur.id}" data-cc="class" data-k="${c.id}">${this._ccCrest(c)}<b>${c.name}</b><small>${this._ccRole(c)}</small></button>`).join('')}</div>
       <div class="lk-cls-info"><span class="lk-role">${this._ccRole(cur)}</span><p>${cur.description || ''}</p><span class="lk-label">${i18n.t('startCreator.classSpells')}</span>
-        <div class="lk-spells">${(cur.spellPreviews || []).map((s, i) => `<button type="button" class="lk-spell" style="--cc:${CC_COLORS[cur.id] || '#C98A3B'}" data-tip="class" data-i="${i}" aria-label="${s.name}"><img src="${s.icon}" alt="" loading="lazy" onerror="this.style.display='none'"><b>${i + 1}</b></button>`).join('')}</div>
+        <div class="lk-spells">${(cur.spellPreviews || []).map((s, i) => { const lv = SLOT_UNLOCK_LEVEL[i] || 1; return `<button type="button" class="lk-spell${lv > 1 ? ' lk-is-locked' : ''}" style="--cc:${CC_COLORS[cur.id] || '#C98A3B'}" data-tip="class" data-i="${i}" aria-label="${s.name}"><img src="${s.icon}" alt="" loading="lazy" onerror="this.style.display='none'"><b>${i + 1}</b>${lv > 1 ? `<span class="lk-spell-lock">🔒 ${i18n.t('game.levelShortN', { n: lv })}</span>` : ''}</button>`; }).join('')}</div>
         <span class="lk-tip-hint">${i18n.t('startCreator.spellHint')}</span></div>`;
   }
 
@@ -1226,7 +1228,7 @@ export class StartScreenUI {
     pane.innerHTML = `<h4>${i18n.t('startCreator.companionTitle')}</h4><p class="lk-lead">${i18n.t('startCreator.companionLead')}</p>
       <div class="lk-ax-pick">${CC_STARTERS.map((k) => HERO_ROSTER.find((h) => h.heroKey === k)).filter(Boolean).map(card).join('')}${mine}</div>
       <div class="lk-cls-info"><span class="lk-role">${String(comp.archetype || '').replace(/^.*\(([^)]+)\).*$/, '$1') || clsName(comp)}</span><p>${comp.description || ''}</p><span class="lk-label">${i18n.t('startCreator.partCards')}</span>
-        <div class="lk-spells">${axieSkills === 'loading' ? `<span class="lk-tip-hint">${i18n.t('startCreator.loadingCards')}</span>` : axieSkills.map((s, i) => { const p = parts(s, i); return `<button type="button" class="lk-spell" style="--cc:var(--lk-class-${clsKey(comp)})" data-tip="axie" data-i="${i}" aria-label="${s.name}${p ? ` (${p.name})` : ''}"><img src="${s.icon}" alt="" loading="lazy" onerror="this.style.display='none'"><img class="lk-spell-part" src="./assets/parts/${s.cls || this._ccAxieCls(comp)}-${this._ccPartOf(s, i)}.png" alt=""></button>`; }).join('')}</div>
+        <div class="lk-spells">${axieSkills === 'loading' ? `<span class="lk-tip-hint">${i18n.t('startCreator.loadingCards')}</span>` : axieSkills.map((s, i) => { const p = parts(s, i); const lv = PART_UNLOCK_LEVEL[this._ccPartOf(s, i)] || 1; return `<button type="button" class="lk-spell${lv > 1 ? ' lk-is-locked' : ''}" style="--cc:var(--lk-class-${clsKey(comp)})" data-tip="axie" data-i="${i}" aria-label="${s.name}${p ? ` (${p.name})` : ''}"><img src="${s.icon}" alt="" loading="lazy" onerror="this.style.display='none'"><img class="lk-spell-part" src="./assets/parts/${s.cls || this._ccAxieCls(comp)}-${this._ccPartOf(s, i)}.png" alt="">${lv > 1 ? `<span class="lk-spell-lock">🔒 ${i18n.t('game.levelShortN', { n: lv })}</span>` : ''}</button>`; }).join('')}</div>
         <span class="lk-tip-hint">${i18n.t('startCreator.cardHint')}</span></div>`;
   }
 
@@ -1485,7 +1487,10 @@ export class StartScreenUI {
       + `<span class="lk-tt-stat"><i class="lk-tl"><img class="lk-ai" src="${CC_ICON('range')}" alt="">${i18n.t('startCreator.range')}</i><b>${i18n.t('startCreator.rangeAbbr')} ${range.replace('-', '–') || '—'}</b></span>`
       + `<span class="lk-tt-stat"><i class="lk-tl">${noLos ? `<span class="lk-nolos-ai">${vision}</span>` : vision}${i18n.t('startCreator.sight')}</i><b>${noLos ? i18n.t('startCreator.notRequired') : i18n.t('startCreator.required')}</b></span>`
       + (eff ? `<span class="lk-tt-stat">${eff[0]}<b>${eff[1]}</b></span>` : '')
-      + `</div><p>${desc}</p></div></div>`;
+      + spellLimitStats(s.id ? SPELLS_DB[s.id] : null) // Hito 97: recarga y usos
+      + `</div><p>${desc}</p>`
+      + (s.lockLv > 1 ? `<p class="lk-cb-tip-warn">${s.lockPart ? i18n.t('combatHud.lockedAtPart', { n: s.lockLv, part: s.lockPart }) : i18n.t('combatHud.lockedAt', { n: s.lockLv })}</p>` : '') // Hito 98
+      + `</div></div>`;
   }
 
   /**
@@ -1527,13 +1532,13 @@ export class StartScreenUI {
     const i = +el.dataset.i;
     if (el.dataset.tip === 'class') {
       const c = this._ccClass(), s = (c.spellPreviews || [])[i];
-      if (s) tooltip.show(el, this._ccSpellTip(s, CC_COLORS[c.id] || '#C98A3B', `<span class="lk-tt-crest">${this._ccCrest(c, 40)}</span>`, i18n.t('startCreator.spell')));
+      if (s) tooltip.show(el, this._ccSpellTip({ ...s, lockLv: SLOT_UNLOCK_LEVEL[i] || 1 }, CC_COLORS[c.id] || '#C98A3B', `<span class="lk-tt-crest">${this._ccCrest(c, 40)}</span>`, i18n.t('startCreator.spell')));
     } else {
       const comp = this._ccCompanion(), list = this._ccAxieSkills(comp), s = Array.isArray(list) ? list[i] : null;
       if (!s) return;
       const cls = s.cls || this._ccAxieCls(comp), part = this._ccPartOf(s, i);
       const PART = { eyes: i18n.t('startCreator.partEyes'), ears: i18n.t('startCreator.partEars'), mouth: i18n.t('startCreator.partMouth'), horn: i18n.t('startCreator.partHorn'), back: i18n.t('startCreator.partBack'), tail: i18n.t('startCreator.partTail') };
-      tooltip.show(el, this._ccSpellTip(s, `var(--lk-class-${cls})`, `<img class="lk-part-ico lk-tt-part" src="./assets/parts/${cls}-${part}.png" alt="${PART[part] || part}">`, PART[part] || part));
+      tooltip.show(el, this._ccSpellTip({ ...s, lockLv: PART_UNLOCK_LEVEL[part] || 1, lockPart: PART[part] }, `var(--lk-class-${cls})`, `<img class="lk-part-ico lk-tt-part" src="./assets/parts/${cls}-${part}.png" alt="${PART[part] || part}">`, PART[part] || part));
     }
   }
 

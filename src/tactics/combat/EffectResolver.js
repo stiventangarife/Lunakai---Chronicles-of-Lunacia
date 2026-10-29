@@ -12,6 +12,7 @@
 //
 // Tipos: damage · heal · drain · shield · push · pull · status · cleanse · dispel · resource ·
 //        summon · zone · teleport (animate: 'hop') · swap
+//        Hito 95 (gólems del Sapidae): summonGolem · golemMove (trailRounds) · golemFetch · retreat (distance)
 //
 // `target` de cada efecto (por defecto 'area'):
 //   'area'          unidades de las casillas afectadas que encajan con spell.targetType
@@ -26,7 +27,8 @@
 // así que dárselos ahora a otra unidad no serviría de nada).
 //
 // `if` (condiciones por objetivo): targetHpBelow, casterHpBelow, targetClass[], targetHasStatus,
-//   targetHasDebuff, casterHasShield, targetNoShield, minRound, chance
+//   targetHasDebuff, casterHasShield, targetNoShield, minRound, chance · targetIsGolem / targetNotGolem ·
+//   targetIsCaster / targetNotCaster (Hito 95)
 
 import { STATUS_DEFS } from './StatusSystem.js';
 import { elementalMultiplier } from './Elements.js';
@@ -75,7 +77,8 @@ export class EffectResolver {
     switch (sel) {
       case 'self': return [caster];
       case 'cell': return [];
-      case 'enemiesInArea': return isHarmful(effect) ? othersInArea() : inArea().filter((u) => u.team !== caster.team);
+      // Hito 95: spell.selective (Espiral del Alba) = el daño del área solo alcanza a enemigos (sin fuego amigo)
+      case 'enemiesInArea': return isHarmful(effect) && !spell.selective ? othersInArea() : inArea().filter((u) => u.team !== caster.team);
       case 'alliesInArea': return inArea().filter((u) => u.team === caster.team);
       case 'allEnemies': return all.filter((u) => u.team !== caster.team);
       case 'allAllies': return all.filter((u) => u.team === caster.team);
@@ -119,6 +122,10 @@ export class EffectResolver {
     if (cond.aloneAlly && alive.filter((u) => u.team === caster.team).length !== 1) return false;
     if (cond.enemiesOutnumber && !(alive.filter((u) => u.team !== caster.team).length > alive.filter((u) => u.team === caster.team).length)) return false;
     if (cond.enemyHasShield && !alive.some((u) => u.team !== caster.team && u.shield > 0)) return false;
+    if (cond.targetIsGolem && !(target && target.isGolem)) return false;
+    if (cond.targetIsCaster && target !== caster) return false;
+    if (cond.targetNotCaster && target === caster) return false;
+    if (cond.targetNotGolem && !(target && !target.isGolem)) return false;
     if (cond.chance != null && !(this.sm.rng() < cond.chance)) return false;
     return true;
   }
@@ -172,7 +179,7 @@ export class EffectResolver {
       case 'pull':
         for (const t of targets) {
           if (t.isDead || t === caster || !this.check(e.if, ctx, t)) continue;
-          if (this.statuses.has(t, 'unmovable')) continue;
+          if (t.isGolem || this.statuses.has(t, 'unmovable')) continue;
           const center = e.toward === 'center' ? ctx.targetCell : { x: caster.gridX, z: caster.gridZ };
           const ox = center.x - t.gridX;
           const oz = center.z - t.gridZ;
@@ -233,6 +240,46 @@ export class EffectResolver {
         if (t && t !== caster) this.sm._swapUnits(caster, t, spell);
         break;
       }
+
+      // ---------------- Hito 95: gólems del Sapidae
+      case 'summonGolem':
+        await this.sm.golems.summon(caster, ctx.targetCell, e.kind || null);
+        break;
+
+      case 'golemMove':
+        await this.sm.golems.move(caster, ctx.targetCell, { trailRounds: e.trailRounds || 0 });
+        break;
+
+      case 'golemFetch':
+        for (const t of targets) {
+          if (t.isDead || !this.check(e.if, ctx, t)) continue;
+          await this.sm.golems.fetch(caster, t);
+        }
+        break;
+
+      case 'retreat':
+        // Retirada guiada: el aliado se aleja del enemigo más cercano (por el eje más largo; sin daño de choque)
+        for (const t of targets) {
+          if (t.isDead || t.isGolem || !this.check(e.if, ctx, t)) continue;
+          const foes = (this.sm.game?.units || []).filter((u) => !u.isDead && u.team !== t.team);
+          if (!foes.length) continue;
+          const near = foes.reduce((a, b) => (Math.abs(b.gridX - t.gridX) + Math.abs(b.gridZ - t.gridZ) < Math.abs(a.gridX - t.gridX) + Math.abs(a.gridZ - t.gridZ) ? b : a));
+          const ox = t.gridX - near.gridX, oz = t.gridZ - near.gridZ;
+          const alongX = Math.abs(ox) >= Math.abs(oz);
+          let dx = alongX ? Math.sign(ox) || 1 : 0, dz = alongX ? 0 : Math.sign(oz) || 1;
+          // Si por ese lado no se puede, prueba el otro eje
+          const free = (x, z) => { const tile = this.grid.getTile(x, z); return tile && tile.walkable !== false && !tile.obstacle && !tile.unit; };
+          if (!free(t.gridX + dx, t.gridZ + dz)) {
+            const alt = alongX ? [[0, Math.sign(oz) || 1], [0, -(Math.sign(oz) || 1)]] : [[Math.sign(ox) || 1, 0], [-(Math.sign(ox) || 1), 0]];
+            const ok = alt.find(([ax, az]) => free(t.gridX + ax, t.gridZ + az));
+            if (!ok) continue;
+            [dx, dz] = ok;
+          }
+          this.events.emit('unit:retreat', { unit: t, source: caster, spell });
+          await t.pushback(dx, dz, e.distance || 2);
+          t.updateHUD?.();
+        }
+        break;
 
       // ---------------- Fase 4: cartas de partes
       case 'shieldBreak':

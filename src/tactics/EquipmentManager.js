@@ -1,7 +1,7 @@
 // EquipmentManager.js - Party Inventory, 5-Slot Equipment Management and Stat Calculation
 import { ITEMS_DB } from './ItemDatabase.js';
 import * as i18n from '../i18n/i18n.js';
-import { getHeroSpells, SAPIDAE_CLASSES, heroDisplayText } from '../rpg/SaveSlotManager.js';
+import { getHeroSpells, SAPIDAE_CLASSES, SAPIDAE_LEGACY_SPELLS, heroDisplayText } from '../rpg/SaveSlotManager.js';
 import { portraitService } from './CharacterPortraitService.js';
 import { STARTER_DECKS } from './data/StarterCards.js';
 import { axieBaseStats, BASE_PA, BASE_PM } from './data/AxieBaseStats.js';
@@ -317,7 +317,7 @@ export class EquipmentManager {
         const cDef = SAPIDAE_CLASSES[sapidaeClassKey];
         this.heroesBase.sapidae.class = cDef.name;
         this.heroesBase.sapidae.classIcon = cDef.icon;
-        this.heroesBase.sapidae.archetype = `${cDef.name} (Líder)`;
+        this.heroesBase.sapidae.archetype = `${cDef.name} (${i18n.t('game.leader')})`;
         this.heroesBase.sapidae.baseHP = cDef.maxHP;
         this.heroesBase.sapidae.basePA = cDef.maxPA;
         this.heroesBase.sapidae.basePM = cDef.maxPM;
@@ -367,6 +367,18 @@ export class EquipmentManager {
         }
       } else if (this.heroProgression[heroId]) {
         this.heroProgression[heroId] = JSON.parse(JSON.stringify(slotData.progression));
+      }
+    }
+    // Hito 95: las habilidades del Sapidae cambiaron de id; cada una hereda el nivel de la que ocupaba su ranura
+    {
+      const sp = this.heroProgression.sapidae;
+      const cls = slotData.sapidaeClass || 'crafter';
+      const oldIds = SAPIDAE_LEGACY_SPELLS[cls], newIds = SAPIDAE_CLASSES[cls]?.spells;
+      if (sp && sp.skillLevels && oldIds && newIds) {
+        oldIds.forEach((oldId, i) => {
+          const lvl = sp.skillLevels[oldId];
+          if (lvl > 1 && newIds[i] && !(sp.skillLevels[newIds[i]] > 1)) sp.skillLevels[newIds[i]] = lvl;
+        });
       }
     }
     if (!this.heroProgression.sapidae) {
@@ -722,7 +734,7 @@ export class EquipmentManager {
     // 3. Agility: +1.2 Ranged damage per point & +0.5% Crit Rate (sin redondear: 1 punto = +0,5 %)
     const allocRangedDamage = Math.round(((alloc.agility || 0) * 1.2) * 10) / 10;
     const critBonus = Math.round((alloc.agility || 0) * 0.5 * 10) / 10;
-    // 4. Essence: +2% Support/Heal Power. Solo el Sapidae Lunalogista y Astromante la usan además como daño
+    // 4. Essence: +2% Support/Heal Power. Solo el Sapidae Guardián de Campanas y Rastreador Gogo (lunalogist, stargazer) la usan además como daño
     //    de sus hechizos (+1.2 por punto); en los Axies y en el resto de Sapidaes es solo apoyo (19-oct).
     const isSapidae = heroId === 'sapidae';
     const essenceDamage = isSapidae && ['lunalogist', 'stargazer'].includes(base.sapidaeClassKey);

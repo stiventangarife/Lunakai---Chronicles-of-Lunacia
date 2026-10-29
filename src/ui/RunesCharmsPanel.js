@@ -19,6 +19,7 @@ import { getHeroSpells } from '../rpg/SaveSlotManager.js';
 import { asset, toast, tooltip, esc, skillTip } from './lk.js';
 import { loadRuneCharmArt, runeCharmArt, runeCharmArtReady } from './RuneCharmArt.js';
 import * as i18n from '../i18n/i18n.js';
+import { PART_UNLOCK_LEVEL } from '../tactics/combat/SkillUnlocks.js'; // Hito 98
 
 const I = (n) => asset(`assets/ui/icons/${n}.png`);
 const CLS_ES = { beast: i18n.t('runesPanel.clsBeast'), bird: i18n.t('runesPanel.clsBird'), plant: i18n.t('runesPanel.clsPlant'), aquatic: i18n.t('runesPanel.clsAquatic'), bug: i18n.t('runesPanel.clsBug'), reptile: i18n.t('runesPanel.clsReptile'), mech: i18n.t('runesPanel.clsMech'), dawn: i18n.t('runesPanel.clsDawn'), dusk: i18n.t('runesPanel.clsDusk'), neutral: i18n.t('runesPanel.clsNeutral') };
@@ -53,6 +54,12 @@ export function createRunesView(host, { equipmentManager, classOf, onChange = nu
   const em = () => equipmentManager;
   const base = (id) => em()?.heroesBase?.[id];
   const tried = {};
+  /** Hito 98: nivel necesario para la habilidad de la parte si aún está bloqueada (0 = desbloqueada). */
+  const lockLv = (id, k) => {
+    const need = PART_UNLOCK_LEVEL[k] || 1;
+    const lvl = em()?.getProgression?.(id)?.level ?? 1;
+    return lvl < need ? need : 0;
+  };
 
   function cardIds(id) {
     const b = base(id);
@@ -86,7 +93,8 @@ export function createRunesView(host, { equipmentManager, classOf, onChange = nu
     const fx = fx0?.type === 'damage' ? 'dmg' : fx0?.type || null;
     const value = fx0 ? (fx0.min != null ? `${fx0.min}${fx0.max && fx0.max !== fx0.min ? `–${fx0.max}` : ''}` : fx0.amount ?? null) : null;
     const range = sp.minRange != null ? `${sp.minRange}${sp.maxRange !== sp.minRange ? `–${sp.maxRange}` : ''}` : null;
-    return skillTip({ name: sp.name, kind: `${i18n.t('runesPanel.skill')} · ${PART_ES[x.k]} · ${CLS_ES[x.cls] || x.cls}`, cost: sp.paCost, range, los: sp.requiresLoS !== false, fx, value, desc: esc(sp.description || ''), art: spellArt(x), color: `var(--lk-class-${x.cls})`, iconHtml: `<img src="${x.icon}" alt="" style="width:26px;height:26px;object-fit:contain">` });
+    const lk = S.hero ? lockLv(S.hero, x.k) : 0;
+    return skillTip({ warn: lk ? i18n.t('runesPanel.lockedSkill', { n: lk }) : '', name: sp.name, kind: `${i18n.t('runesPanel.skill')} · ${PART_ES[x.k]} · ${CLS_ES[x.cls] || x.cls}`, cost: sp.paCost, range, los: sp.requiresLoS !== false, fx, value, desc: esc(sp.description || ''), art: spellArt(x), color: `var(--lk-class-${x.cls})`, iconHtml: `<img src="${x.icon}" alt="" style="width:26px;height:26px;object-fit:contain">`, spell: sp });
   }
 
   /**
@@ -176,6 +184,7 @@ export function createRunesView(host, { equipmentManager, classOf, onChange = nu
     const pp = ppAllocate(cls, pcls, eq.charms);
     const left = Math.max(0, pp.total - pp.totalUsed);
     const canSet = (c, partKey) => ppCanSet(cls, pcls, eq.charms, partKey, c.id);
+    if (lockLv(id, S.part)) S.part = (ps.find((x) => !lockLv(id, x.k)) || ps[0])?.k || 'eyes'; // Hito 98
     const tp = ps.find((x) => x.k === S.part) || ps[0];
     const runeOk = (r) => runeFits(r, cls), charmOk = (c) => charmFits(c, tp.cls);
     const usedSet = new Set(Object.values(eq.charms).filter(Boolean));
@@ -221,10 +230,11 @@ export function createRunesView(host, { equipmentManager, classOf, onChange = nu
       </div>
       <div class="lk-parts lk-bag-runes__parts">${ps.map((x) => {
         const ch = eq.charms[x.k] && CHARM_BY_ID[eq.charms[x.k]]; const tgt = x.k === S.part; const sa = spellArt(x), sp = x.sp;
-        return `<div class="lk-part-row ${tgt ? 'lk-is-target' : ''}" data-row="${x.k}" style="--cc:var(--lk-class-${x.cls})">
+        const lk = lockLv(id, x.k); // Hito 98: habilidad aún bloqueada → en gris y sin charms
+        return `<div class="lk-part-row ${tgt ? 'lk-is-target' : ''} ${lk ? 'lk-is-locked' : ''}" data-row="${x.k}" ${lk ? `data-locked="${lk}" title="${esc(i18n.t('runesPanel.lockedCharm', { n: lk }))}"` : ''} style="--cc:var(--lk-class-${x.cls})">
           <span class="lk-spell lk-bag-runes__spell ${sa ? '' : 'lk-is-noart'}" data-skill="${x.k}" tabindex="0" aria-label="${i18n.t('runesPanel.skillAria', { name: esc(x.name) })}">${sa ? `<img src="${sa}" alt="">` : ''}<img class="lk-spell-part" src="${x.icon}" alt=""></span>
-          <div class="lk-pn"><b>${esc(x.name)} <span class="lk-bag-runes__pk">${PART_ES[x.k]}</span></b><small><span class="lk-pc" style="--c:var(--lk-class-${x.cls})">${clsImg(x.cls)}${CLS_ES[x.cls] || x.cls}</span>${sp ? `${sp.paCost != null ? ` · ${i18n.t('runesPanel.apN', { n: sp.paCost })}` : ''}${rangeTxt(sp) ? ` · ${rangeTxt(sp)}` : ''}` : ''}${ch ? ` · <span class="lk-bag-runes__chn">${esc(ch.name)}</span>` : ''}</small></div>
-          <button type="button" class="lk-socket-charm ${ch ? 'lk-is-filled' : 'lk-is-empty'} ${tgt ? 'lk-is-target' : ''} ${S.flash === x.k ? 'lk-is-set' : ''}" data-part="${x.k}" style="--c:var(--lk-rar-${ch ? ch.rarity : 'common'})" aria-label="${PART_ES[x.k]}: ${ch ? i18n.t('runesPanel.charmSocketAria', { name: esc(ch.name) }) : i18n.t('runesPanel.charmSocketEmpty')}">${ch ? (art('charms', ch.id) ? `<img class="lk-charm-art" src="${art('charms', ch.id)}" alt="">` : '') : '<span class="lk-bag-runes__plus" aria-hidden="true">+</span>'}</button><span class="lk-pp">${ch ? ch.pp + ' PP' : ''}</span></div>`;
+          <div class="lk-pn"><b>${esc(x.name)} <span class="lk-bag-runes__pk">${PART_ES[x.k]}</span></b><small><span class="lk-pc" style="--c:var(--lk-class-${x.cls})">${clsImg(x.cls)}${CLS_ES[x.cls] || x.cls}</span>${sp ? `${sp.paCost != null ? ` · ${i18n.t('runesPanel.apN', { n: sp.paCost })}` : ''}${rangeTxt(sp) ? ` · ${rangeTxt(sp)}` : ''}` : ''}${ch ? ` · <span class="lk-bag-runes__chn">${esc(ch.name)}</span>` : ''}${lk ? ` · <span class="lk-bag-runes__lock">🔒 ${i18n.t('runesPanel.lockedPart', { n: lk })}${ch ? ` · ${i18n.t('runesPanel.charmInactive')}` : ''}</span>` : ''}</small></div>
+          <button type="button" class="lk-socket-charm ${ch ? 'lk-is-filled' : 'lk-is-empty'} ${tgt ? 'lk-is-target' : ''} ${S.flash === x.k ? 'lk-is-set' : ''} ${lk ? 'lk-is-locked' : ''}" data-part="${x.k}" ${lk && !ch ? 'aria-disabled="true"' : ''} style="--c:var(--lk-rar-${ch ? ch.rarity : 'common'})" aria-label="${PART_ES[x.k]}: ${ch ? i18n.t('runesPanel.charmSocketAria', { name: esc(ch.name) }) : i18n.t('runesPanel.charmSocketEmpty')}">${ch ? (art('charms', ch.id) ? `<img class="lk-charm-art" src="${art('charms', ch.id)}" alt="">` : '') : (lk ? '<span class="lk-bag-runes__plus" aria-hidden="true">🔒</span>' : '<span class="lk-bag-runes__plus" aria-hidden="true">+</span>')}</button><span class="lk-pp">${ch ? ch.pp + ' PP' : ''}</span></div>`;
       }).join('')}</div>
       <div class="lk-bag-runes__shelf" data-ref="shelfWrap" title="${i18n.t('runesPanel.dragHint')}">
         <div class="lk-bag-runes__bar">
@@ -262,6 +272,8 @@ export function createRunesView(host, { equipmentManager, classOf, onChange = nu
   function equipCharm(ctx, c, partKey) {
     const { id, eq, ps, cls, pcls } = ctx;
     const part = ps.find((x) => x.k === partKey);
+    const lk = lockLv(id, partKey);
+    if (lk) { toast(i18n.t('runesPanel.lockedCharm', { n: lk }), true); return; } // Hito 98
     if (!charmFits(c, part.cls)) { toast(i18n.t('runesPanel.charmWrongClass', { charm: c.name, cls: CLS_ES[c.class], part: part.name, pcls: CLS_ES[part.cls] || part.cls }), true); return; }
     if (Object.entries(eq.charms).some(([k, v]) => v === c.id && k !== partKey)) { toast(i18n.t('runesPanel.charmElsewhere'), true); return; }
     if (eq.charms[partKey] !== c.id && RuneCharmService.available('charms', c.id) < 1) { toast(i18n.t('runesPanel.charmTaken', { charm: c.name }), true); return; }
@@ -305,12 +317,14 @@ export function createRunesView(host, { equipmentManager, classOf, onChange = nu
     host.querySelectorAll('[data-skill]').forEach((el) => { const x = ps.find((q) => q.k === el.dataset.skill); if (x?.sp) tooltip.attach(el, () => skillTipHTML(x)); });
     host.querySelectorAll('[data-row]').forEach((row) => row.addEventListener('click', (e) => {
       if (e.target.closest('.lk-socket-charm, [data-skill]')) return;
+      if (lockLv(id, row.dataset.row)) { toast(i18n.t('runesPanel.lockedCharm', { n: lockLv(id, row.dataset.row) }), true); return; } // Hito 98
       S.part = row.dataset.row; S.shelf = 'charms'; render(id);
     }));
     host.querySelectorAll('.lk-socket-charm').forEach((btn) => {
       const k = btn.dataset.part;
       btn.addEventListener('click', () => {
-        if (eq.charms[k]) { RuneCharmService.setCharm(id, k, null); S.part = k; changed(); return; }
+        if (eq.charms[k]) { RuneCharmService.setCharm(id, k, null); S.part = lockLv(id, k) ? S.part : k; changed(); return; } // se puede quitar aunque esté bloqueada
+        if (lockLv(id, k)) { toast(i18n.t('runesPanel.lockedCharm', { n: lockLv(id, k) }), true); return; } // Hito 98
         S.part = k; S.shelf = 'charms'; render(id); scrollShelf();
       });
       const c = eq.charms[k] && CHARM_BY_ID[eq.charms[k]];
@@ -345,7 +359,7 @@ export function createRunesView(host, { equipmentManager, classOf, onChange = nu
     drop(rs, (d) => d.kind === 'rune', (d) => equipRune(ctx, RUNE_BY_ID[d.id]));
     host.querySelectorAll('[data-row]').forEach((row) => {
       const k = row.dataset.row, part = ps.find((q) => q.k === k);
-      drop(row, (d) => d.kind === 'charm' && charmFits(CHARM_BY_ID[d.id], part.cls), (d) => equipCharm(ctx, CHARM_BY_ID[d.id], k));
+      drop(row, (d) => d.kind === 'charm' && !lockLv(id, k) && charmFits(CHARM_BY_ID[d.id], part.cls), (d) => equipCharm(ctx, CHARM_BY_ID[d.id], k));
     });
   }
 
@@ -361,7 +375,7 @@ export function createRunesView(host, { equipmentManager, classOf, onChange = nu
         const c = CHARM_BY_ID[data.id];
         host.querySelectorAll('[data-row]').forEach((row) => {
           const x = parts(S.hero).find((q) => q.k === row.dataset.row);
-          row.classList.toggle('lk-can-drop', charmFits(c, x.cls));
+          row.classList.toggle('lk-can-drop', !lockLv(S.hero, x.k) && charmFits(c, x.cls));
         });
       }
     });

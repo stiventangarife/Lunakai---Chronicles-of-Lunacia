@@ -116,6 +116,11 @@ export class StatusSystem {
   apply(unit, id, { value, duration = 1, source = null, partner = null, delay = 0, data = null } = {}) {
     const def = STATUS_DEFS[id];
     if (!def || !unit || unit.isDead) return null;
+    // Hito 95: los gólems de arcilla son inmunes a los estados negativos
+    if (unit.isGolem && def.kind === 'debuff') {
+      this.events?.emit('status:resisted', { unit, status: id, source });
+      return null;
+    }
     if (StatusSystem.list(unit).some((s) => (STATUS_DEFS[s.id]?.immuneTo || []).includes(id))) {
       this.events?.emit('status:resisted', { unit, status: id, source });
       return null;

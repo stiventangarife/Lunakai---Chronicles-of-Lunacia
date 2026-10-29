@@ -8,39 +8,39 @@ import * as i18n from '../../i18n/i18n.js';
 export const SAPIDAE_CLASS_THEMES = {
   crafter: {
     className: 'class-sapidae-crafter',
-    name: 'Forjacubiles',
-    iconUrl: './assets/classes/class_forjacubiles.jpg',
+    name: 'Alfarero de Gólems', // Hito 95 (el texto visible sale de SAPIDAE_CLASSES, traducido)
+    iconUrl: './assets/classes/class_forjacubiles.webp',
     icon: '🔨',
-    color: '#fbbf24',
-    glowColor: 'rgba(251, 191, 36, 0.45)',
-    role: 'Soporte y Escudos'
+    color: '#C8643B',
+    glowColor: 'rgba(200, 100, 59, 0.45)',
+    role: 'Gólem Centinela y Defensa'
   },
   shepard: {
     className: 'class-sapidae-shepard',
-    name: 'Susurrador',
-    iconUrl: './assets/classes/class_susurrador.jpg',
+    name: 'Comandante de Sombrero',
+    iconUrl: './assets/classes/class_susurrador.webp',
     icon: '✨',
-    color: '#38bdf8',
-    glowColor: 'rgba(56, 189, 248, 0.45)',
-    role: 'Búfer Místico'
+    color: '#A83A44',
+    glowColor: 'rgba(168, 58, 68, 0.45)',
+    role: 'Órdenes y Posición'
   },
   lunalogist: {
     className: 'class-sapidae-lunalogist',
-    name: 'Lunalogista',
-    iconUrl: './assets/classes/class_lunalogista.jpg',
+    name: 'Guardián de Campanas',
+    iconUrl: './assets/classes/class_lunalogista.webp',
     icon: '🌿',
-    color: '#10b981',
-    glowColor: 'rgba(16, 185, 129, 0.45)',
-    role: 'Control Botánico'
+    color: '#3FB89A',
+    glowColor: 'rgba(63, 184, 154, 0.45)',
+    role: 'Curación y Purificación'
   },
   stargazer: {
     className: 'class-sapidae-stargazer',
-    name: 'Astromante',
-    iconUrl: './assets/classes/class_astromante.jpg',
+    name: 'Rastreador Gogo',
+    iconUrl: './assets/classes/class_astromante.webp',
     icon: '🔮',
-    color: '#a855f7',
-    glowColor: 'rgba(168, 85, 247, 0.50)',
-    role: 'Gravedad Cósmica'
+    color: '#8F9E3A',
+    glowColor: 'rgba(143, 158, 58, 0.50)',
+    role: 'Terreno y Control'
   }
 };
 

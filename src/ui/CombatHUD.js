@@ -446,11 +446,27 @@ export function attachCombatHUD(game) {
     // Desglose: de dónde sale la diferencia con el valor de la carta (nivel, atributos, estados)
     const breakdown = eff.boosted && eff.parts?.length ? `<p class="lk-cb-tip-calc">${i18n.t('combatHud.cardBase', { base: eff.base })} · ${eff.parts.join(' · ')}</p>` : '';
     if (s.pushDistance) stats.push(`<span class="lk-tt-stat">${i18n.t('combatHud.push')}<b>${i18n.t(s.pushDistance === 1 ? 'combatHud.tile1' : 'combatHud.tilesN', { n: s.pushDistance })}</b></span>`);
+    // Hito 97: recarga, espera inicial y usos (por turno / por objetivo)
+    const sm = game.spellManager;
+    const cdBase = sm?.cooldownOf ? sm.cooldownOf(unit, s) : (s.cooldown || 0);
+    const turnsTxt = (n) => i18n.t(n === 1 ? 'combatHud.turn1' : 'combatHud.turnsN', { n });
+    if (cdBase) stats.push(`<span class="lk-tt-stat">${i18n.t('combatHud.cooldown')}<b>${turnsTxt(cdBase)}</b></span>`);
+    if (s.initialCooldown) stats.push(`<span class="lk-tt-stat">${i18n.t('combatHud.initialCd')}<b>${turnsTxt(s.initialCooldown)}</b></span>`);
+    const uses = [s.castsPerTurn ? i18n.t('combatHud.perTurnN', { n: s.castsPerTurn }) : '', s.castsPerTarget ? i18n.t('combatHud.perTargetN', { n: s.castsPerTarget }) : ''].filter(Boolean);
+    if (uses.length) stats.push(`<span class="lk-tt-stat">${i18n.t('combatHud.uses')}<b>${uses.join(' · ')}</b></span>`);
+    const cdLeft = sm?.cooldownLeft ? sm.cooldownLeft(unit, s) : 0;
+    const spentNow = Boolean(sm?.castLimitReached?.(unit, s));
+    // Hito 98: carta bloqueada por nivel
+    const lockLv = sm?.isLocked?.(unit, s) ? sm.unlockLevel(unit, s) : 0;
+    const PARTK = { horn: 'combatHud.partHorn', back: 'combatHud.partBack', tail: 'combatHud.partTail' };
+    const lockWarn = lockLv ? `<p class="lk-cb-tip-warn">${!unit.config?.isSapidae && PARTK[s.part] ? i18n.t('combatHud.lockedAtPart', { n: lockLv, part: i18n.t(PARTK[s.part]) }) : i18n.t('combatHud.lockedAt', { n: lockLv })}</p>` : '';
+    const cdWarn = lockWarn ? lockWarn : cdLeft ? `<p class="lk-cb-tip-warn">${i18n.t(cdLeft === 1 ? 'combatHud.readyIn1' : 'combatHud.readyInN', { n: cdLeft })}</p>`
+      : spentNow ? `<p class="lk-cb-tip-warn">${i18n.t('combatHud.spentTip')}</p>` : '';
     return `<div class="lk-tooltip-tactical" style="--c:${tintOf(unit)}${art ? `;--art:url('${art}')` : ''}">
       <header class="${art ? 'lk-has-art' : ''}">${tipIco ? `<span class="lk-cb-tip-cls${s?.part ? ' lk-has-part' : ''}" title="${tipIco.title}">${tipIco.html}</span>` : ''}<div><small>${esc(unit.name)} · ${eff.kind}${s.stage >= 2 ? ' · ' + i18n.t('combatHud.stage2') : ''}${s.collection ? ` · ${esc(String(s.collection).charAt(0).toUpperCase() + String(s.collection).slice(1))}` : ''}</small><b>${esc(s.name)}</b></div></header>
       <div class="lk-tt-body"><div class="lk-tt-stats">${stats.join('')}</div>${breakdown}<p>${esc(s.description || '')}</p>
       ${s.rcNotes?.length ? `<p class="lk-cb-tip-calc">${i18n.t('combatHud.charmsRune', { list: s.rcNotes.map(esc).join(' · ') })}</p>` : ''}
-      ${unit.team === 'player' && unit.currentPA < costNum(unit, s) ? `<p class="lk-cb-tip-warn">${i18n.t('combatHud.missingPa', { n: costNum(unit, s) - unit.currentPA })}</p>` : ''}</div></div>`;
+      ${cdWarn}${!cdWarn && unit.team === 'player' && unit.currentPA < costNum(unit, s) ? `<p class="lk-cb-tip-warn">${i18n.t('combatHud.missingPa', { n: costNum(unit, s) - unit.currentPA })}</p>` : ''}</div></div>`;
   }
   function showTip(index) {
     const unit = game.activeUnit;
@@ -478,6 +494,18 @@ export function attachCombatHUD(game) {
   }
   const ev = game.spellManager?.events;
   if (ev && typeof ev.on === 'function') {
+    // Hito 97: la carta que vuelve de la recarga destella al empezar el turno
+    ev.on('spell:ready', ({ unit, spellId }) => {
+      if (!unit || unit.team !== 'player') return;
+      setTimeout(() => {
+        if (game.activeUnit !== unit) return;
+        const i = (unit.spellIds || []).slice(0, SLOTS).indexOf(spellId);
+        const el = i >= 0 ? $('spell-slot-' + i) : null;
+        if (!el) return;
+        el.classList.remove('lk-cd-ready'); void el.offsetWidth; el.classList.add('lk-cd-ready');
+        setTimeout(() => el.classList.remove('lk-cd-ready'), 1000);
+      }, 120);
+    });
     ev.on('unit:damaged', ({ unit, source, spell, actual, isCrit }) => {
       if (!(actual > 0)) return;
       const from = source && source !== unit ? `${names(source)}${spell?.name ? ' · ' + esc(spell.name) : ''} → ` : '';
@@ -583,7 +611,7 @@ export function attachCombatHUD(game) {
     const sh = Math.max(0, u.shield | 0);
     const shPct = Math.min(100 - hpPct, (sh / max) * 100);
     const img = portraitOf(u) || document.querySelector(`#initiative-timeline .timeline-card img[alt="${CSS.escape(u.name || '')}"]`)?.src;
-    const role = ally ? (k ? `${i18n.t('combatHud.ally')} · ${CLASS_LABEL[k] || k[0].toUpperCase() + k.slice(1)}` : i18n.t('combatHud.ally')) : (u.config?.tier ? i18n.t('combatHud.enemyLv', { n: u.config.tier }) : i18n.t('combatHud.enemy'));
+    const role = u.isGolem ? i18n.t('golems.role') : ally ? (k ? `${i18n.t('combatHud.ally')} · ${CLASS_LABEL[k] || k[0].toUpperCase() + k.slice(1)}` : i18n.t('combatHud.ally')) : (u.config?.tier ? i18n.t('combatHud.enemyLv', { n: u.config.tier }) : i18n.t('combatHud.enemy'));
     const turn = u === game.activeUnit ? `<span class="lk-cb-ut-now">${i18n.t('combatHud.theirTurn')}</span>` : '';
     const st = (u.statuses || []).map((s) => {
       const d = STATUS_DEFS[s.id] || {};
@@ -595,10 +623,10 @@ export function attachCombatHUD(game) {
       <div class="lk-tt-body">
         <div><div class="lk-cb-ut-read"><span>${i18n.t('combatHud.hp')}</span><b>${hp}${sh ? ` <i>+${sh}</i>` : ''} / ${max}</b></div>
         <div class="lk-bar ${ally ? '' : 'lk-bar--enemy'}" style="--v:${hpPct}%"><i></i>${sh ? `<em style="left:${hpPct}%;width:${shPct}%"></em>` : ''}</div></div>
-        <div class="lk-tt-stats">
+        ${u.isGolem ? `<p class="lk-cb-ut-golem">${esc(i18n.t(`golems.${u.golemKind}.passive`))}<br><small>${esc(i18n.t('golems.immune'))}</small></p>` : `<div class="lk-tt-stats">
           <span class="lk-tt-stat"><i class="lk-tl"><img class="lk-ai" src="${ICON}pa.png" alt="">${i18n.t('combatHud.paShort')}</i><b>${u.currentPA}/${u.maxPA}</b></span>
           <span class="lk-tt-stat"><i class="lk-tl">${SVG_PM}${i18n.t('combatHud.pmShort')}</i><b>${u.currentPM}/${u.maxPM}</b></span>
-        </div>
+        </div>`}
         ${st ? `<div class="lk-cb-ut-sts">${st}</div>` : ''}
       </div></div>`;
   }

@@ -58,5 +58,8 @@ export default {
   "combatEnd.supportLess": "Support · earn less",
   "combatEnd.victory": "VICTORY",
   "combatEnd.xpOnly": " · XP only",
-  "combatEnd.xpOnlyVictories": "XP and AXP are only earned through victories"
+  "combatEnd.xpOnlyVictories": "XP and AXP are only earned through victories",
+  "combatEnd.newSkill": "New skill!",
+  "combatEnd.newSkills": "New skills!",
+  "combatEnd.newSkillShort": "+{n} skill"
 };

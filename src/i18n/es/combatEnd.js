@@ -58,5 +58,8 @@ export default {
   "combatEnd.supportLess": "Apoyo · ganan menos",
   "combatEnd.victory": "VICTORIA",
   "combatEnd.xpOnly": " · solo XP",
-  "combatEnd.xpOnlyVictories": "La XP y la AXP solo se ganan con victorias"
+  "combatEnd.xpOnlyVictories": "La XP y la AXP solo se ganan con victorias",
+  "combatEnd.newSkill": "¡Nueva habilidad!",
+  "combatEnd.newSkills": "¡Nuevas habilidades!",
+  "combatEnd.newSkillShort": "+{n} habilidad"
 };

@@ -1,3 +1,4 @@
+import { unitUnlockLevel, isLockedFor } from './combat/SkillUnlocks.js'; // Hito 98
 import * as THREE from 'three';
 import { VFXManager } from './VFXManager.js';
 import { CombatEvents } from './combat/CombatEvents.js';
@@ -9,6 +10,7 @@ import { EffectResolver } from './combat/EffectResolver.js';
 import { elementalMultiplier } from './combat/Elements.js';
 import { UltimateSystem } from './combat/UltimateSystem.js';
 import { RuneCharmSystem } from './combat/RuneCharmEffects.js';
+import { GolemSystem } from './combat/GolemSystem.js';
 import { PART_SPELLS } from './data/PartCards.js';
 import { STARTER_SPELLS } from './data/StarterCards.js';
 import { COLLECTION_SPELLS } from './data/CollectionCards.js';
@@ -18,36 +20,51 @@ import * as i18n from '../i18n/i18n.js';
 
 export const SPELLS_DB = {
   // ===================================================================================
-  // SAPIDAE — 24 habilidades (Manifiesto, sección 3). Descritas como efectos (fase 2).
-  // Los campos baseMinDamage/baseMinHeal/pushDistance que aparecen aquí son SOLO para la
-  // interfaz (tooltips y pronóstico); el combate usa `effects`.
+  // SAPIDAE — 24 habilidades (Hito 95: rediseño según el lore de la arcilla espiritual).
+  // Cada clase tiene 1 ataque (ranura 1, la usa el tutorial), su gólem (ranura 2) y 4 habilidades de apoyo, control
+  // o terreno. Los Axies llevan el frente; el Sapidae «guía el combate sin dirigirlo».
+  // Los campos baseMinDamage/baseMinHeal/shieldAmount/pushDistance que aparecen aquí son SOLO para la interfaz
+  // (tooltips y pronóstico); el combate usa `effects`. Gólems: combat/GolemSystem.js.
   // ===================================================================================
 
-  // --- Forjacubiles (Crafter): control territorial, bloqueo y blindaje
-  craft_anvil: {
-    id: 'craft_anvil', name: 'Yunque Táctico', icon: './assets/skills/heroes/crafter/1.webp',
+  // --- Alfarero de Gólems (crafter): Gólem Centinela, defensa y bloqueo
+  craft_clay_fist: {
+    id: 'craft_clay_fist', name: 'Puño de Arcilla', icon: './assets/skills/heroes/crafter/1.webp',
     paCost: 3, minRange: 1, maxRange: 2, requiresLoS: true, isLinear: true,
     targetType: 'enemy', areaType: 'single', sound: 'melee',
-    baseMinDamage: 45, baseMaxDamage: 60, pushDistance: 1,
+    baseMinDamage: 42, baseMaxDamage: 55, pushDistance: 1,
     effects: [
-      { type: 'damage', min: 45, max: 60 },
+      { type: 'damage', min: 42, max: 55 },
       { type: 'push', distance: 1 },
     ],
-    description: 'Golpe de yunque: 45-60 de daño y empuja al enemigo 1 casilla (daño de colisión si choca).'
+    description: 'Puñetazo de arcilla reforzada con piedra: 42-55 de daño y empuja al enemigo 1 casilla (daño de colisión si choca).'
   },
-  craft_totem: {
-    id: 'craft_totem', name: 'Tótem de Resguardo', icon: './assets/skills/heroes/crafter/2.webp',
+  craft_sentinel_golem: {
+    id: 'craft_sentinel_golem', name: 'Centinela de Vasija', icon: './assets/skills/heroes/crafter/2.webp',
+    paCost: 4, minRange: 1, maxRange: 2, requiresLoS: true, isLinear: false,
+    targetType: 'empty', areaType: 'single', sound: 'push',
+    castsPerTurn: 1, isGolemSummon: true,
+    effects: [
+      { type: 'summonGolem', kind: 'sentinel' },
+    ],
+    description: 'Moldea un Gólem Centinela con el 70 % de tu vida máxima. Provoca a los enemigos que tiene al lado y tus aliados a su lado reciben −25 % de daño. Al romperse, da +30 de escudo a esos aliados. Uno a la vez.'
+  },
+  craft_stone_veins: {
+    id: 'craft_stone_veins', name: 'Vetas de Piedra', icon: './assets/skills/heroes/crafter/3.webp',
     paCost: 2, minRange: 1, maxRange: 3, requiresLoS: true, isLinear: false,
     targetType: 'ally', areaType: 'single', sound: 'buff',
-    shieldAmount: 50,
+    shieldAmount: 60,
     effects: [
-      { type: 'shield', amount: 50 },
-      { type: 'resource', pm: 1, when: 'auto' },
+      { type: 'heal', amount: 80, if: { targetIsGolem: true } },
+      { type: 'shield', amount: 60, if: { targetNotGolem: true } },
+      { type: 'status', status: 'unmovable', duration: 1, if: { targetNotGolem: true, targetNotCaster: true } },
+      // En uno mismo dura 2: su turno actual cuenta como el primero
+      { type: 'status', status: 'unmovable', duration: 2, if: { targetIsCaster: true } },
     ],
-    description: 'Tótem protector: +50 de Escudo y +1 PM al aliado durante su turno.'
+    description: 'Refuerza a un aliado con vetas minerales: +60 de escudo y Arraigado (no puede ser empujado). Sobre tu gólem, lo repara +80 de vida.'
   },
-  craft_barricade: {
-    id: 'craft_barricade', name: 'Barricada de Lunacia', icon: './assets/skills/heroes/crafter/3.webp',
+  craft_clay_wall: {
+    id: 'craft_clay_wall', name: 'Muralla de Arcilla', icon: './assets/skills/heroes/crafter/4.webp',
     paCost: 2, minRange: 1, maxRange: 3, requiresLoS: false, isLinear: false,
     targetType: 'empty', areaType: 'single', sound: 'push',
     shieldAmount: 30,
@@ -55,245 +72,232 @@ export const SPELLS_DB = {
       { type: 'summon', model: 'wood_post', rounds: 2, kind: 'barricade' },
       { type: 'shield', amount: 30, target: 'self' },
     ],
-    description: 'Barricada de madera indestructible que bloquea paso y visión durante 2 rondas. +30 de Escudo al lanzador.'
+    description: 'Levanta un muro de arcilla indestructible que bloquea el paso y la visión durante 2 rondas. +30 de escudo al lanzador.'
   },
-  craft_quake: {
-    id: 'craft_quake', name: 'Impacto Sísmico', icon: './assets/skills/heroes/crafter/4.webp',
-    paCost: 3, minRange: 1, maxRange: 2, requiresLoS: true, isLinear: false,
-    targetType: 'enemy', areaType: 'cross1', sound: 'melee',
+  craft_carry_wounded: {
+    id: 'craft_carry_wounded', name: 'Llevar al Herido', icon: './assets/skills/heroes/crafter/5.webp',
+    paCost: 3, minRange: 1, maxRange: 5, requiresLoS: false, isLinear: false,
+    targetType: 'ally', areaType: 'single', sound: 'heal',
+    allyFilter: 'otherLiving',
+    baseMinHeal: 30, baseMaxHeal: 40,
+    effects: [
+      { type: 'heal', min: 30, max: 40 },
+      { type: 'golemFetch' },
+    ],
+    description: 'Tu gólem trae a un aliado a una casilla a su lado y le cura 30-40. Sin gólem, lo trae junto a ti.'
+  },
+  craft_fortify: {
+    id: 'craft_fortify', name: 'Fortificar', icon: './assets/skills/heroes/crafter/6.webp',
+    paCost: 2, minRange: 1, maxRange: 6, requiresLoS: false, isLinear: false,
+    targetType: 'ally', areaType: 'single', sound: 'buff',
+    allyFilter: 'golem', castsPerTurn: 1,
+    shieldAmount: 100,
+    effects: [
+      { type: 'shield', amount: 100 },
+      { type: 'status', status: 'reflect', value: 20, duration: 2 },
+    ],
+    description: 'Tu gólem se endurece: +100 de escudo y Espinas (devuelve 20 de daño a quien lo golpee cuerpo a cuerpo) durante 2 rondas. 1 vez por turno.'
+  },
+
+  // --- Comandante de Sombrero (shepard): órdenes, repetidor y posición
+  shepard_hat_headbutt: {
+    id: 'shepard_hat_headbutt', name: 'Cabezazo del Sombrero', icon: './assets/skills/heroes/shepard/1.webp',
+    paCost: 3, minRange: 1, maxRange: 2, requiresLoS: true, isLinear: true,
+    targetType: 'enemy', areaType: 'single', sound: 'melee',
     baseMinDamage: 40, baseMaxDamage: 52,
     effects: [
-      { type: 'damage', min: 40, max: 52, target: 'enemiesInArea' },
-      { type: 'resource', pm: -1, when: 'nextTurn', target: 'enemiesInArea' },
+      { type: 'damage', min: 40, max: 52 },
+      { type: 'resource', pa: -1, when: 'nextTurn' },
     ],
-    description: 'Martillazo en cruz: 40-52 de daño y −1 PM en su próximo turno a cada enemigo alcanzado.'
+    description: 'Embestida con el sombrero de arcilla: 40-52 de daño y −1 PA en el próximo turno del enemigo.'
   },
-  craft_reinforce: {
-    id: 'craft_reinforce', name: 'Refuerzo de Placas', icon: './assets/skills/heroes/crafter/5.webp',
-    paCost: 2, minRange: 1, maxRange: 3, requiresLoS: true, isLinear: false,
+  shepard_hat_golem: {
+    id: 'shepard_hat_golem', name: 'Gólem Sombrero', icon: './assets/skills/heroes/shepard/2.webp',
+    paCost: 4, minRange: 1, maxRange: 2, requiresLoS: true, isLinear: false,
+    targetType: 'empty', areaType: 'single', sound: 'buff',
+    castsPerTurn: 1, isGolemSummon: true,
+    effects: [
+      { type: 'summonGolem', kind: 'hat' },
+    ],
+    description: 'Moldea un Gólem Sombrero con el 45 % de tu vida máxima. Repite tus órdenes: Traducir el Aviso, Orden Compartida y Retirada Guiada llegan a cualquier aliado a 2 casillas del gólem. Al final de tu turno da +1 PM a los aliados que tiene al lado. Al romperse, +1 PA a esos aliados.'
+  },
+  shepard_translate_warning: {
+    id: 'shepard_translate_warning', name: 'Traducir el Aviso', icon: './assets/skills/heroes/shepard/3.webp',
+    paCost: 2, minRange: 1, maxRange: 4, requiresLoS: true, isLinear: false,
     targetType: 'ally', areaType: 'single', sound: 'buff',
-    shieldAmount: 70,
+    allyFilter: 'living', relay: true, castsPerTurn: 1,
     effects: [
-      { type: 'cleanse', only: ['slowed'] },
-      { type: 'shield', amount: 70 },
-    ],
-    description: 'Placas de metal lunar: +70 de Escudo y elimina las penalizaciones de PM del aliado.'
-  },
-  craft_turret: {
-    id: 'craft_turret', name: 'Balista de Lunacia', icon: './assets/skills/heroes/crafter/6.webp',
-    paCost: 4, minRange: 1, maxRange: 4, requiresLoS: true, isLinear: false,
-    targetType: 'enemy', areaType: 'single', sound: 'bow',
-    baseMinDamage: 55, baseMaxDamage: 72,
-    effects: [
-      { type: 'damage', min: 55, max: 72, pierceShield: 0.25 },
-    ],
-    description: 'Disparo perforante a distancia: 55-72 de daño que ignora el 25 % del escudo del rival.'
-  },
-
-  // --- Susurrador (Shepherd): sintonía genética, curación y apoyo
-  shepard_astral_strike: {
-    id: 'shepard_astral_strike', name: 'Fulgor Cósmico', icon: './assets/skills/heroes/shepard/1.webp',
-    paCost: 3, minRange: 1, maxRange: 3, requiresLoS: true, isLinear: false,
-    targetType: 'enemy', areaType: 'single', sound: 'buff',
-    baseMinDamage: 48, baseMaxDamage: 62,
-    effects: [
-      { type: 'damage', min: 48, max: 62 },
-    ],
-    description: 'Energía de las estrellas de Lunacia: 48-62 de daño mágico a distancia.'
-  },
-  shepard_balsam: {
-    id: 'shepard_balsam', name: 'Bálsamo Astral', icon: './assets/skills/heroes/shepard/2.webp',
-    paCost: 2, minRange: 1, maxRange: 3, requiresLoS: true, isLinear: false,
-    targetType: 'ally', areaType: 'single', sound: 'heal',
-    baseMinHeal: 30, baseMaxHeal: 42, shieldAmount: 40,
-    effects: [
-      { type: 'heal', min: 30, max: 42 },
-      { type: 'shield', amount: 40 },
-    ],
-    description: 'Bálsamo curativo: restaura 30-42 HP y otorga +40 de Escudo al aliado.'
-  },
-  shepard_attunement: {
-    id: 'shepard_attunement', name: 'Sintonía Genética', icon: './assets/skills/heroes/shepard/3.webp',
-    paCost: 2, minRange: 1, maxRange: 4, requiresLoS: true, isLinear: false,
-    targetType: 'ally', allyFilter: 'companion', areaType: 'single', sound: 'heal',
-    baseMinHeal: 50, baseMaxHeal: 65,
-    effects: [
-      { type: 'heal', min: 50, max: 65 },
-      { type: 'resource', pa: 1, when: 'auto' },
-    ],
-    description: 'Despierta el lazo con tu Axie: restaura 50-65 HP y le da +1 PA extra en su turno.'
-  },
-  shepard_pack_howl: {
-    id: 'shepard_pack_howl', name: 'Aullido de Manada', icon: './assets/skills/heroes/shepard/4.webp',
-    paCost: 2, minRange: 0, maxRange: 0, requiresLoS: false, isLinear: false,
-    targetType: 'self', areaType: 'circle2', sound: 'push',
-    effects: [
-      { type: 'resource', pm: 1, when: 'auto', target: 'alliesInArea' },
-      { type: 'status', status: 'empowered', value: 15, duration: 1, target: 'alliesInArea' },
-    ],
-    description: 'Aullido: +1 PM y +15 % de daño durante 1 turno a todos los aliados a 2 casillas o menos (incluido el lanzador).'
-  },
-  shepard_spirit_bond: {
-    id: 'shepard_spirit_bond', name: 'Lazo Simbiótico', icon: './assets/skills/heroes/shepard/5.webp',
-    paCost: 3, minRange: 1, maxRange: 4, requiresLoS: true, isLinear: false,
-    targetType: 'ally', allyFilter: 'companion', areaType: 'single', sound: 'heal',
-    effects: [
-      { type: 'status', status: 'soulLink', duration: 2, linkTo: 'caster' },
-      // En el lanzador dura 3: su turno actual cuenta como el primero
-      { type: 'status', status: 'soulLink', duration: 3, linkTo: 'target', target: 'self' },
-      { type: 'status', status: 'regen', value: 25, duration: 2 },
-      { type: 'status', status: 'regen', value: 25, duration: 3, target: 'self' },
-    ],
-    description: 'Vincula al Sapidae y su Axie durante 2 turnos: el daño de habilidades que recibe uno se reparte a medias con el otro y ambos regeneran 25 HP al empezar su turno.'
-  },
-  shepard_chimeric_awakening: {
-    id: 'shepard_chimeric_awakening', name: 'Despertar Quimérico', icon: './assets/skills/heroes/shepard/6.webp',
-    paCost: 4, minRange: 1, maxRange: 3, requiresLoS: true, isLinear: false,
-    targetType: 'ally', allyFilter: 'companion', areaType: 'single', sound: 'buff',
-    shieldAmount: 60,
-    effects: [
-      { type: 'shield', amount: 60 },
       { type: 'resource', pm: 2, when: 'auto' },
-      { type: 'status', status: 'critUp', value: 20, duration: 1 },
     ],
-    description: 'Desata el potencial de tu Axie: +60 de Escudo inmediato, +2 PM y +20 % de probabilidad de crítico en su turno.'
+    description: 'Traduces el aviso de Lunacia: el aliado gana +2 PM en su turno. Llega también por tu Gólem Sombrero. 1 vez por turno.'
   },
-
-  // --- Lunalogista (Botanist): control de masas y drenaje vital
-  lunalogist_bramble: {
-    id: 'lunalogist_bramble', name: 'Zarzas Lunares', icon: './assets/skills/heroes/lunalogist/1.webp',
-    paCost: 3, minRange: 1, maxRange: 3, requiresLoS: true, isLinear: false,
-    targetType: 'enemy', areaType: 'single', sound: 'bow',
-    baseMinDamage: 38, baseMaxDamage: 48,
+  shepard_shared_order: {
+    id: 'shepard_shared_order', name: 'Orden Compartida', icon: './assets/skills/heroes/shepard/4.webp',
+    paCost: 3, minRange: 1, maxRange: 4, requiresLoS: true, isLinear: false,
+    targetType: 'ally', areaType: 'single', sound: 'buff',
+    allyFilter: 'companion', relay: true, castsPerTurn: 1,
     effects: [
-      { type: 'damage', min: 38, max: 48 },
-      { type: 'resource', pa: -1, pm: -1, when: 'nextTurn' },
+      { type: 'resource', pa: 1, when: 'auto' },
+      { type: 'status', status: 'empowered', value: 15, duration: 1 },
     ],
-    description: 'Zarzas que inmovilizan: 38-48 de daño y −1 PM y −1 PA en el próximo turno del enemigo.'
+    description: 'Tu Axie recibe la orden a tiempo: +1 PA y +15 % de daño en su turno. Llega también por tu Gólem Sombrero. 1 vez por turno.'
   },
-  lunalogist_spores: {
-    id: 'lunalogist_spores', name: 'Esporas Vigorizantes', icon: './assets/skills/heroes/lunalogist/2.webp',
-    paCost: 3, minRange: 1, maxRange: 3, requiresLoS: true, isLinear: false,
-    targetType: 'any', areaType: 'cross1', sound: 'heal',
-    baseMinDamage: 30, baseMaxDamage: 40,
-    effects: [
-      { type: 'damage', min: 30, max: 40, target: 'enemiesInArea' },
-      { type: 'heal', amount: 25, target: 'alliesInArea' },
-    ],
-    description: 'Nube de esporas en cruz: 30-40 de daño a los enemigos y +25 HP a los aliados dentro del área.'
-  },
-  lunalogist_berry: {
-    id: 'lunalogist_berry', name: 'Baya Lunar Alquímica', icon: './assets/skills/heroes/lunalogist/3.webp',
-    paCost: 2, minRange: 1, maxRange: 3, requiresLoS: true, isLinear: false,
-    targetType: 'ally', areaType: 'single', sound: 'heal',
-    shieldAmount: 40,
-    effects: [
-      { type: 'shield', amount: 40 },
-      { type: 'resource', pm: 1, when: 'auto' },
-    ],
-    description: 'Baya de rocío lunar: +40 de Escudo y +1 PM al aliado (ya, si es su turno; si no, en su turno).'
-  },
-  lunalogist_seed: {
-    id: 'lunalogist_seed', name: 'Semilla Parásita', icon: './assets/skills/heroes/lunalogist/4.webp',
-    paCost: 3, minRange: 1, maxRange: 3, requiresLoS: true, isLinear: false,
-    targetType: 'enemy', areaType: 'single', sound: 'heal',
-    baseMinDamage: 35, baseMaxDamage: 45,
-    effects: [
-      { type: 'damage', min: 35, max: 45 },
-      { type: 'drain', percent: 0.6 },
-    ],
-    description: 'Semilla que roba vida: 35-45 de daño y el lanzador se cura el 60 % del daño infligido.'
-  },
-  lunalogist_cloak: {
-    id: 'lunalogist_cloak', name: 'Manto Clorofílico', icon: './assets/skills/heroes/lunalogist/5.webp',
-    paCost: 2, minRange: 0, maxRange: 0, requiresLoS: false, isLinear: false,
-    targetType: 'self', areaType: 'single', sound: 'buff',
-    shieldAmount: 55,
-    effects: [
-      { type: 'shield', amount: 55, target: 'self' },
-      // Duración 2 en uno mismo = hasta el final de su próximo turno (cubre la ronda enemiga)
-      { type: 'status', status: 'guardedRanged', value: 30, duration: 2, target: 'self' },
-    ],
-    description: 'Manto de hojas: +55 de Escudo y −30 % de daño recibido a distancia durante 1 ronda.'
-  },
-  lunalogist_bloom: {
-    id: 'lunalogist_bloom', name: 'Brotación Primigenia', icon: './assets/skills/heroes/lunalogist/6.webp',
-    paCost: 4, minRange: 1, maxRange: 3, requiresLoS: true, isLinear: false,
-    targetType: 'enemy', areaType: 'box3x3', sound: 'bow',
-    baseMinDamage: 45, baseMaxDamage: 60,
-    effects: [
-      { type: 'damage', min: 45, max: 60, target: 'enemiesInArea' },
-      { type: 'resource', pm: -2, when: 'nextTurn', target: 'enemiesInArea' },
-    ],
-    description: 'Eclosión botánica en área 3×3: 45-60 de daño e inmoviliza (−2 PM en su próximo turno) a los enemigos.'
-  },
-
-  // --- Astromante (Stargazer): manipulación espacial y gravedad
-  stargazer_vortex: {
-    id: 'stargazer_vortex', name: 'Vórtice Gravitacional', icon: './assets/skills/heroes/stargazer/1.webp',
-    paCost: 3, minRange: 1, maxRange: 3, requiresLoS: true, isLinear: false,
-    targetType: 'enemy', areaType: 'single', sound: 'push',
-    baseMinDamage: 49, baseMaxDamage: 63, pushDistance: 2, // Fase 5 (equilibrio): antes 40-52
-    effects: [
-      { type: 'damage', min: 49, max: 63 },
-      { type: 'push', distance: 2, collisionBonus: 20 },
-    ],
-    description: 'Onda gravitatoria: 49-63 de daño y empuja 2 casillas; si choca, +20 de daño de colisión.'
-  },
-  stargazer_transpose: {
-    id: 'stargazer_transpose', name: 'Transposición Estelar', icon: './assets/skills/heroes/stargazer/2.webp',
+  shepard_guided_retreat: {
+    id: 'shepard_guided_retreat', name: 'Retirada Guiada', icon: './assets/skills/heroes/shepard/5.webp',
     paCost: 2, minRange: 1, maxRange: 4, requiresLoS: true, isLinear: false,
-    targetType: 'ally', allyFilter: 'companion', areaType: 'single', sound: 'buff',
+    targetType: 'ally', areaType: 'single', sound: 'buff',
+    allyFilter: 'living', relay: true,
+    shieldAmount: 30,
+    effects: [
+      { type: 'shield', amount: 30 },
+      { type: 'retreat', distance: 2 },
+    ],
+    description: 'Guías a un aliado lejos del suelo que se hunde: +30 de escudo y se aleja 2 casillas del enemigo más cercano. Llega también por tu Gólem Sombrero.'
+  },
+  shepard_relief: {
+    id: 'shepard_relief', name: 'Relevo', icon: './assets/skills/heroes/shepard/6.webp',
+    paCost: 2, minRange: 1, maxRange: 4, requiresLoS: true, isLinear: false,
+    targetType: 'ally', areaType: 'single', sound: 'buff',
+    allyFilter: 'notSelf',
     shieldAmount: 25,
     effects: [
       { type: 'shield', amount: 25 },
       { type: 'shield', amount: 25, target: 'self' },
       { type: 'swap' },
     ],
-    description: 'Intercambia al instante la posición con tu Axie. Ambos ganan +25 de Escudo.'
+    description: 'Intercambias la posición con un aliado o con tu gólem. Los dos ganan +25 de escudo.'
   },
-  stargazer_jump: {
-    id: 'stargazer_jump', name: 'Salto Astral', icon: './assets/skills/heroes/stargazer/3.webp',
-    paCost: 2, minRange: 2, maxRange: 4, requiresLoS: false, isLinear: false,
-    targetType: 'empty', areaType: 'single', sound: 'buff',
+
+  // --- Guardián de Campanas (lunalogist): Wind Bells, curación y purificación
+  lunalogist_alarm_toll: {
+    id: 'lunalogist_alarm_toll', name: 'Tañido de Alarma', icon: './assets/skills/heroes/lunalogist/1.webp',
+    paCost: 3, minRange: 1, maxRange: 3, requiresLoS: true, isLinear: false,
+    targetType: 'enemy', areaType: 'single', sound: 'bow',
+    baseMinDamage: 35, baseMaxDamage: 45,
+    effects: [
+      { type: 'damage', min: 35, max: 45 },
+      { type: 'status', status: 'fragile', value: 25, duration: 1 },
+    ],
+    description: 'La campana delata la corrupción: 35-45 de daño y Frágil (+25 % de daño recibido) hasta el final de su próximo turno.'
+  },
+  lunalogist_bell_golem: {
+    id: 'lunalogist_bell_golem', name: 'Gólem Campanario', icon: './assets/skills/heroes/lunalogist/2.webp',
+    paCost: 4, minRange: 1, maxRange: 2, requiresLoS: true, isLinear: false,
+    targetType: 'empty', areaType: 'single', sound: 'heal',
+    castsPerTurn: 1, isGolemSummon: true,
+    effects: [
+      { type: 'summonGolem', kind: 'bell' },
+    ],
+    description: 'Moldea un Gólem Campanario con el 45 % de tu vida máxima, que lleva una Wind Bell. Al final de tu turno suena: aliados a 2 casillas o menos +20 de vida y pierden un estado negativo; enemigos a esa distancia quedan Frágiles. Al romperse, su último tañido cura 40 en radio 2.'
+  },
+  lunalogist_mourning_tone: {
+    id: 'lunalogist_mourning_tone', name: 'Tono de Duelo', icon: './assets/skills/heroes/lunalogist/3.webp',
+    paCost: 2, minRange: 1, maxRange: 3, requiresLoS: true, isLinear: false,
+    targetType: 'ally', areaType: 'single', sound: 'heal',
+    baseMinHeal: 40, baseMaxHeal: 55,
+    effects: [
+      { type: 'heal', min: 40, max: 55 },
+      { type: 'cleanse', only: ['poison', 'bleed', 'burn'] },
+    ],
+    description: 'El tono grave de la campana: cura 40-55 y quita veneno, sangrado y quemadura.'
+  },
+  lunalogist_warning_whisper: {
+    id: 'lunalogist_warning_whisper', name: 'Susurro de Advertencia', icon: './assets/skills/heroes/lunalogist/4.webp',
+    paCost: 2, minRange: 1, maxRange: 4, requiresLoS: true, isLinear: false,
+    targetType: 'ally', areaType: 'single', sound: 'buff',
+    allyFilter: 'living',
     shieldAmount: 35,
     effects: [
-      { type: 'teleport', animate: 'hop' },
-      { type: 'shield', amount: 35, target: 'self' },
-      { type: 'resource', pm: -1, when: 'nextTurn', target: 'enemiesAroundCaster' },
+      { type: 'shield', amount: 35 },
+      { type: 'ward', apply: 'weak', applyValue: 20, applyDuration: 1, duration: 2 },
     ],
-    description: 'Salta a una casilla vacía (2-4): +35 de Escudo y −1 PM en su próximo turno a los enemigos adyacentes al aterrizar.'
+    description: 'El viento avisa del golpe: +35 de escudo y Guarda (el próximo enemigo que golpee al aliado queda Debilitado, −20 % de daño, 1 turno).'
   },
-  stargazer_nova: {
-    id: 'stargazer_nova', name: 'Nova Estelar', icon: './assets/skills/heroes/stargazer/4.webp',
+  lunalogist_purify: {
+    id: 'lunalogist_purify', name: 'Purificar', icon: './assets/skills/heroes/lunalogist/5.webp',
     paCost: 3, minRange: 1, maxRange: 3, requiresLoS: true, isLinear: false,
-    targetType: 'enemy', areaType: 'cross1', sound: 'buff',
-    baseMinDamage: 55, baseMaxDamage: 71, // Fase 5 (equilibrio): antes 45-58
+    targetType: 'enemy', areaType: 'single', sound: 'heal',
+    baseMinDamage: 30, baseMaxDamage: 40,
     effects: [
-      { type: 'damage', min: 55, max: 71, target: 'enemiesInArea' },
-      { type: 'status', status: 'rangeDown', value: 1, duration: 1, target: 'enemiesInArea' },
+      { type: 'damage', min: 30, max: 40 },
+      { type: 'dispel' },
     ],
-    description: 'Estrella comprimida en cruz: 55-71 de daño y −1 de alcance a los enemigos alcanzados durante su próximo turno.'
+    description: 'Limpia la corrupción del enemigo: 30-40 de daño y le quita todos sus efectos positivos.'
   },
-  stargazer_gravity_well: {
-    id: 'stargazer_gravity_well', name: 'Pozo Gravitatorio', icon: './assets/skills/heroes/stargazer/5.webp',
+  lunalogist_blood_moon: {
+    id: 'lunalogist_blood_moon', name: 'Resonancia de la Luna de Sangre', icon: './assets/skills/heroes/lunalogist/6.webp',
+    paCost: 4, minRange: 0, maxRange: 0, requiresLoS: false, isLinear: false,
+    targetType: 'self', areaType: 'allAllies', sound: 'heal',
+    effects: [
+      { type: 'status', status: 'regen', value: 20, duration: 2, target: 'allAllies' },
+      { type: 'status', status: 'immune', duration: 1, target: 'allAllies' },
+    ],
+    description: 'Las campanas suenan con una resonancia extraña: todos tus aliados regeneran 20 de vida al empezar su turno durante 2 turnos y quedan Inmunes (aturdir, dormir y miedo) 1 turno.'
+  },
+
+  // --- Rastreador Gogo (stargazer): petrasentido, tierra estable y control
+  stargazer_yielding_ground: {
+    id: 'stargazer_yielding_ground', name: 'Suelo que Cede', icon: './assets/skills/heroes/stargazer/1.webp',
+    paCost: 3, minRange: 1, maxRange: 3, requiresLoS: true, isLinear: false,
+    targetType: 'enemy', areaType: 'single', sound: 'push',
+    baseMinDamage: 40, baseMaxDamage: 52,
+    effects: [
+      { type: 'damage', min: 40, max: 52 },
+      { type: 'resource', pm: -1, when: 'nextTurn' },
+    ],
+    description: 'Tu petrasentido abre el suelo bajo el enemigo: 40-52 de daño y −1 PM en su próximo turno.'
+  },
+  stargazer_shell_golem: {
+    id: 'stargazer_shell_golem', name: 'Gólem Caparazón', icon: './assets/skills/heroes/stargazer/2.webp',
+    paCost: 4, minRange: 1, maxRange: 2, requiresLoS: true, isLinear: false,
+    targetType: 'empty', areaType: 'single', sound: 'buff',
+    castsPerTurn: 1, isGolemSummon: true,
+    effects: [
+      { type: 'summonGolem', kind: 'shell' },
+    ],
+    description: 'Moldea un Gólem Caparazón con el 50 % de tu vida máxima, cubierto de caracoles Gogo. Su casilla y las de alrededor son tierra estable: los aliados que empiezan su turno allí ganan +1 PM y Arraigado, y pierden quemadura y veneno. Al romperse, los caracoles dejan tierra estable en 3×3 durante 2 rondas.'
+  },
+  stargazer_petrasense: {
+    id: 'stargazer_petrasense', name: 'Petrasentido', icon: './assets/skills/heroes/stargazer/3.webp',
+    paCost: 2, minRange: 1, maxRange: 6, requiresLoS: false, isLinear: false,
+    targetType: 'enemy', areaType: 'single', sound: 'buff',
+    effects: [
+      { type: 'status', status: 'fragile', value: 25, duration: 2 },
+      { type: 'status', status: 'rangeDown', value: 1, duration: 2 },
+    ],
+    description: 'Sientes al enemigo a través del suelo, sin necesidad de verlo: Frágil (+25 % de daño recibido) y −1 de alcance durante 2 turnos.'
+  },
+  stargazer_shell_march: {
+    id: 'stargazer_shell_march', name: 'Marcha del Caparazón', icon: './assets/skills/heroes/stargazer/4.webp',
+    paCost: 2, minRange: 1, maxRange: 3, requiresLoS: false, isLinear: false,
+    targetType: 'empty', areaType: 'single', sound: 'buff',
+    rangeFrom: 'golem', castsPerTurn: 1,
+    effects: [
+      { type: 'golemMove', trailRounds: 2 },
+    ],
+    description: 'Tu gólem avanza hasta 3 casillas desde donde está. Por donde pasa queda tierra estable durante 2 rondas. 1 vez por turno.'
+  },
+  stargazer_corrupt_rift: {
+    id: 'stargazer_corrupt_rift', name: 'Grieta Corrupta', icon: './assets/skills/heroes/stargazer/5.webp',
     paCost: 2, minRange: 1, maxRange: 4, requiresLoS: true, isLinear: false,
     targetType: 'any', areaType: 'box2x2', sound: 'buff',
     effects: [
-      { type: 'zone', rounds: 2, kind: 'gravity_well', ally: { pm: 2 }, enemy: { pm: -1 } },
+      { type: 'zone', rounds: 2, kind: 'corrupt_rift', ally: {}, enemy: { pm: -2 } },
     ],
-    description: 'Zona de 2×2 casillas durante 2 rondas: los aliados que empiezan su turno dentro ganan +2 PM; los enemigos pierden 1 PM.'
+    description: 'Zona de 2×2 durante 2 rondas: los enemigos que empiezan su turno dentro pierden 2 PM.'
   },
-  stargazer_eclipse: {
-    id: 'stargazer_eclipse', name: 'Eclipse Cataclísmico', icon: './assets/skills/heroes/stargazer/6.webp',
-    paCost: 4, minRange: 1, maxRange: 4, requiresLoS: true, isLinear: false,
-    targetType: 'enemy', areaType: 'box3x3', sound: 'push',
-    baseMinDamage: 60, baseMaxDamage: 78,
+  stargazer_dawn_spiral: {
+    id: 'stargazer_dawn_spiral', name: 'Espiral del Alba', icon: './assets/skills/heroes/stargazer/6.webp',
+    paCost: 4, minRange: 1, maxRange: 3, requiresLoS: true, isLinear: false,
+    targetType: 'any', areaType: 'box3x3', sound: 'heal',
+    selective: true,
+    baseMinDamage: 45, baseMaxDamage: 58,
     effects: [
-      { type: 'damage', min: 60, max: 78, target: 'enemiesInArea' },
-      { type: 'pull', distance: 1, toward: 'center', target: 'enemiesInArea' },
+      { type: 'damage', min: 45, max: 58, target: 'enemiesInArea' },
+      { type: 'heal', amount: 25, target: 'alliesInArea' },
+      { type: 'cleanse', only: ['burn', 'poison'], target: 'alliesInArea' },
     ],
-    description: 'Eclipse en área 3×3: 60-78 de daño y atrae a los enemigos 1 casilla hacia el centro.'
+    description: 'Los caracoles Gogo trazan una espiral en área 3×3: 45-58 de daño solo a los enemigos; los aliados ganan +25 de vida y pierden quemadura y veneno.'
   },
 
   kotaro_slash: {
@@ -1769,6 +1773,65 @@ Object.assign(SPELLS_DB, PART_SPELLS, STARTER_SPELLS, COLLECTION_SPELLS);
 onVariantRegistered((id, spell) => { SPELLS_DB[id] = spell; });
 applyEnemySpellEffects(SPELLS_DB); // Fase 5: los enemigos usan estados (veneno, provocación, sangrado…)
 
+/**
+ * Hito 97 · recarga y usos por turno / por objetivo de las habilidades del Sapidae y de los enemigos fuertes.
+ * cooldown: turnos propios sin poder usarla tras lanzarla · initialCooldown: espera al empezar el combate ·
+ * castsPerTurn / castsPerTarget: usos por turno / sobre la misma unidad. (Cartas de Axie: reglas en PartCards.js.)
+ */
+export const SPELL_USE_LIMITS = {
+  // Alfarero de Gólems
+  craft_sentinel_golem: { cooldown: 3 },
+  craft_stone_veins: { castsPerTarget: 1 },
+  craft_clay_wall: { cooldown: 2 },
+  craft_carry_wounded: { cooldown: 2 },
+  craft_fortify: { cooldown: 2 },
+  // Comandante de Sombrero
+  shepard_hat_golem: { cooldown: 3 },
+  shepard_translate_warning: { cooldown: 1 },
+  shepard_shared_order: { cooldown: 1 },
+  shepard_guided_retreat: { castsPerTarget: 1 },
+  shepard_relief: { cooldown: 2 },
+  // Guardián de Campanas
+  lunalogist_bell_golem: { cooldown: 3 },
+  lunalogist_mourning_tone: { castsPerTarget: 1 },
+  lunalogist_warning_whisper: { castsPerTarget: 1 },
+  lunalogist_purify: { cooldown: 1 },
+  lunalogist_blood_moon: { cooldown: 4, initialCooldown: 1 },
+  // Rastreador Gogo
+  stargazer_shell_golem: { cooldown: 3 },
+  stargazer_petrasense: { cooldown: 1, castsPerTarget: 1 },
+  stargazer_corrupt_rift: { cooldown: 2 },
+  stargazer_dawn_spiral: { cooldown: 2 },
+  // Enemigos: solo sus golpes fuertes, áreas, provocaciones, curas y barreras (los ataques básicos, sin recarga)
+  werewolf_boss_cataclysm: { cooldown: 3, initialCooldown: 1 },
+  werewolf_boss_roar: { cooldown: 2 },
+  werewolf_crush: { cooldown: 2 },
+  werewolf_roar: { cooldown: 2 },
+  bear_mom_slam: { cooldown: 2 },
+  bear_mom_roar: { cooldown: 2 },
+  bear_dad_slam: { cooldown: 2 },
+  bear_dad_roar: { cooldown: 2 },
+  bear_dad_shield: { cooldown: 2 },
+  dryad_mage_blast: { cooldown: 2 },
+  dryad_mage_burst: { cooldown: 2 },
+  dryad_mage_heal: { cooldown: 2 },
+  dryad_mage_barrier: { cooldown: 2 },
+  dryad_range_root: { cooldown: 2 },
+  wolf_alpha_nova: { cooldown: 2 },
+  wolf_alpha_roar: { cooldown: 2 },
+  wolf_alpha_howl: { cooldown: 2 },
+  wolf_aquatic_alpha_roar: { cooldown: 2 },
+  chimera_frost_nova: { cooldown: 2 },
+  chimera_bellow: { cooldown: 2 },
+  chimera_heal: { cooldown: 2 },
+  treant_flower_nova: { cooldown: 2 },
+  slime_fusion_burst: { cooldown: 2 },
+  slime_barrier: { cooldown: 2 },
+  slime_defense_barrier: { cooldown: 2 },
+  slime_support_heal: { cooldown: 2 },
+};
+for (const [id, lim] of Object.entries(SPELL_USE_LIMITS)) if (SPELLS_DB[id]) Object.assign(SPELLS_DB[id], lim);
+
 export class SpellManager {
   constructor(gridManager, sceneManager, audio, combatText, game = null) {
     this.gridManager = gridManager;
@@ -1804,6 +1867,9 @@ export class SpellManager {
     this.ultimates = new UltimateSystem(this);
     // Runas y charms de los Axies del jugador (RuneCharmEffects.js): estadísticas, cartas modificadas y ganchos de reglas
     this.runeCharms = new RuneCharmSystem(this);
+    // Hito 95: gólems de arcilla espiritual del Sapidae (sin turno propio; pulso al final del turno de su dueño)
+    this.golems = new GolemSystem(this);
+    this.field.onStableGround = (unit, owner) => this.golems.applyStableGround(unit, owner);
     // Triángulo elemental (±15 %). Se puede apagar para pruebas: sm.elementalEnabled = false
     this.elementalEnabled = true;
   }
@@ -1813,8 +1879,10 @@ export class SpellManager {
     this.turnManager = tm;
     tm.onCombatStart = () => {
       this.field.reset();
+      this.golems.reset();
+      this.presentation.clearZoneDecals?.(); // Hito 95: marcas de zona del combate anterior
       this.ultimates.used = false;
-      for (const u of tm.units || []) u.statuses = [];
+      for (const u of tm.units || []) { u.statuses = []; this.resetCooldowns(u); }
       this.runeCharms.onCombatStart(tm.units || []);
     };
     tm.onRoundStart = (round) => {
@@ -1823,8 +1891,12 @@ export class SpellManager {
     };
     tm.onUnitTurnStart = (unit) => {
       unit._castsThisTurn = {}; // Fase 5: usos por turno (castsPerTurn)
+      unit._castsOnTarget = {}; // Hito 97: usos por objetivo y turno (castsPerTarget)
+      unit._turnNo = (unit._turnNo || 0) + 1; // Hito 97: turnos propios (recargas)
+      this._announceReady(unit);
       this.syncOccupancy(); // Fase 5: cada casilla apunta a la unidad viva que está de verdad en ella
       this.field.onTurnStart(unit);
+      this.golems.onUnitTurnStart(unit); // Hito 95: tierra estable del Gólem Caparazón
       this.runeCharms.turnStartPre(unit);
       const result = this.statuses.onTurnStart(unit);
       this.runeCharms.turnStartPost(unit, result);
@@ -1839,6 +1911,7 @@ export class SpellManager {
         unit.shieldExpiresRound = null;
         unit.updateHUD?.();
       }
+      this.golems.onOwnerTurnEnd(unit); // Hito 95: pulso de su gólem
     };
   }
 
@@ -1858,6 +1931,43 @@ export class SpellManager {
   /** Unidad activa del turno (null fuera de combate o en pruebas sin TurnManager). */
   _activeUnit() {
     return this.turnManager?.getActiveUnit?.() || null;
+  }
+
+  /**
+   * Hito 95 · casilla desde la que se mide el alcance: la del lanzador o, con spell.rangeFrom === 'golem', la de su
+   * gólem (Marcha del Caparazón). Sin gólem en pie, la carta no tiene casillas.
+   */
+  _castOrigin(caster, spell) {
+    if (spell?.rangeFrom === 'golem') {
+      const g = this.golems.golemOf(caster);
+      return g ? { x: g.gridX, z: g.gridZ } : null;
+    }
+    return { x: caster.gridX, z: caster.gridZ };
+  }
+
+  /**
+   * Hito 95 · ¿sirve esta unidad como objetivo aliado de la carta?
+   *   allyFilter: 'companion' (Axie: ni Sapidae ni gólem ni el lanzador) · 'living' (cualquier aliado salvo gólems) ·
+   *               'otherLiving' (como 'living', sin el lanzador) ·
+   *               'golem' (solo el gólem del lanzador) · 'notSelf' (cualquier aliado salvo el lanzador) · sin filtro: cualquiera.
+   */
+  _allyMatches(caster, spell, u) {
+    if (!u || u.isDead || u.team !== caster.team) return false;
+    switch (spell.allyFilter) {
+      case 'companion': return u !== caster && u.type !== 'sapidae' && !u.isGolem;
+      case 'living': return !u.isGolem;
+      case 'otherLiving': return u !== caster && !u.isGolem;
+      case 'golem': return Boolean(u.isGolem) && u.owner === caster;
+      case 'notSelf': return u !== caster;
+      default: return true;
+    }
+  }
+
+  /** Provocación: estado Provocación o Centinela de Vasija al lado del atacante (Hito 95). */
+  isTauntingFor(unit, attacker) {
+    if (!unit || unit.isDead) return false;
+    if (unit.statuses?.length && this.statuses.has(unit, 'taunt')) return true;
+    return this.golems.tauntsAgainst(unit, attacker);
   }
 
   /** ¿El hechizo hace daño? (campos antiguos o lista de efectos) */
@@ -1905,8 +2015,10 @@ export class SpellManager {
     if (!caster || !spell) return out;
     if (spell.isUltimate && !this.ultimates.canCast(caster)) return out;
     if (this.isDamageSpell(spell) && caster.statuses?.length && this.statuses.isFeared(caster)) return out;
-    if (this.castLimitReached(caster, spell)) return out;
-    const fromX = caster.gridX, fromZ = caster.gridZ;
+    if (this.castBlockReason(caster, spell)) return out; // usos del turno agotados o en recarga (Hito 97)
+    const origin = this._castOrigin(caster, spell);
+    if (!origin) return out;
+    const fromX = origin.x, fromZ = origin.z;
     if (spell.targetType === 'self') { out.range.push({ x: fromX, z: fromZ }); return out; }
     const maxRange = caster.statuses?.length ? this.getEffectiveMaxRange(caster, spell) : spell.maxRange;
     for (let x = 0; x < this.gridManager.width; x++) {
@@ -1920,13 +2032,24 @@ export class SpellManager {
         else out.range.push({ x, z });
       }
     }
+    // Hito 95 · Gólem Sombrero: las órdenes llegan también a las casillas cercanas al gólem
+    if (spell.relay) {
+      for (const c of this.golems.relayCells(caster)) {
+        const tile = this.gridManager.getTile(c.x, c.z);
+        if (!tile || tile.obstacle || tile.baseWalkable === false) continue;
+        out.blocked = out.blocked.filter((b) => b.x !== c.x || b.z !== c.z);
+        if (!out.range.some((r) => r.x === c.x && r.z === c.z)) out.range.push(c);
+      }
+    }
     return out;
   }
 
   getValidTargetCells(caster, spell) {
     const validCells = [];
-    const fromX = caster.gridX;
-    const fromZ = caster.gridZ;
+    const origin = this._castOrigin(caster, spell);
+    if (!origin) return validCells; // Hito 95: carta que se lanza desde el gólem y no hay gólem
+    const fromX = origin.x;
+    const fromZ = origin.z;
     const isDamage = this.isDamageSpell(spell);
 
     // Ultimate: solo si se cumplen todas sus condiciones
@@ -1934,8 +2057,8 @@ export class SpellManager {
 
     // Miedo: no puede usar hechizos de daño
     if (isDamage && caster.statuses?.length && this.statuses.isFeared(caster)) return validCells;
-    // Usos por turno agotados
-    if (this.castLimitReached(caster, spell)) return validCells;
+    // Usos por turno agotados o en recarga (Hito 97)
+    if (this.castBlockReason(caster, spell)) return validCells;
     const maxRange = caster.statuses?.length ? this.getEffectiveMaxRange(caster, spell) : spell.maxRange;
 
     for (let x = 0; x < this.gridManager.width; x++) {
@@ -1962,20 +2085,32 @@ export class SpellManager {
           // Fuego amigo (18-oct): un ataque se puede lanzar sobre cualquier unidad (también un aliado), salvo uno mismo
           if (!tile || !tile.unit || tile.unit === caster) continue;
         } else if (spell.targetType === 'ally') {
-          if (!tile || !tile.unit || tile.unit.team !== caster.team) continue;
-          // 'companion': solo el Axie compañero (cualquier aliado que no sea un Sapidae ni el lanzador)
-          if (spell.allyFilter === 'companion' && (tile.unit === caster || tile.unit.type === 'sapidae')) continue;
+          // Hito 95: filtros de aliado ('companion', 'living', 'golem', 'notSelf'), ver _allyMatches
+          if (!tile || !this._allyMatches(caster, spell, tile.unit)) continue;
         }
+        // Hito 97: usos por objetivo y turno agotados sobre esa unidad
+        if (spell.castsPerTarget && tile?.unit && this.targetLimitReached(caster, spell, tile.unit)) continue;
 
         validCells.push({ x, z });
       }
     }
 
+    // Hito 95 · Gólem Sombrero: las órdenes (spell.relay) llegan a los aliados cercanos al gólem, estén donde estén
+    if (spell.relay && spell.targetType === 'ally') {
+      for (const c of this.golems.relayCells(caster)) {
+        const u = this.gridManager.getTile(c.x, c.z)?.unit;
+        if (!this._allyMatches(caster, spell, u)) continue;
+        if (spell.castsPerTarget && this.targetLimitReached(caster, spell, u)) continue;
+        if (!validCells.some((v) => v.x === c.x && v.z === c.z)) validCells.push(c);
+      }
+    }
+
     // Provocación: si un enemigo provocador está al alcance, los hechizos de daño solo pueden apuntarle a él
+    // (Hito 95: también el Centinela de Vasija para los enemigos que tiene al lado)
     if (isDamage && spell.targetType === 'enemy') {
       const taunting = validCells.filter((c) => {
         const u = this.gridManager.getTile(c.x, c.z)?.unit;
-        return u && u.team !== caster.team && u.statuses?.length && this.statuses.has(u, 'taunt');
+        return u && u.team !== caster.team && this.isTauntingFor(u, caster);
       });
       if (taunting.length) return taunting;
     }
@@ -2042,7 +2177,9 @@ export class SpellManager {
     spell = this.runeCharms.spellFor(caster, spell); // carta con los charms de la unidad (si los tiene)
     if (spell.isUltimate && !this.ultimates.canCast(caster)) return false;
     if (!this._canPay(caster, spell)) return false;
+    if (spell.castsPerTarget && this.targetLimitReached(caster, spell, this.gridManager.getTile(targetCell.x, targetCell.z)?.unit)) return false;
     const spent = this._payCost(caster, spell);
+    this._recordCast(caster, spell, targetCell); // Hito 97: recarga y usos por objetivo
 
     const ctx = {
       caster,
@@ -2132,8 +2269,109 @@ export class SpellManager {
     return Boolean(spell?.castsPerTurn) && ((caster?._castsThisTurn?.[spell.id]) || 0) >= spell.castsPerTurn;
   }
 
+  // ------------------------------------------------------------------ Hito 97 · recarga y usos por objetivo
+  //
+  // · spell.cooldown = N: tras usarla, no se puede en los N turnos siguientes de quien la lanzó (vuelve en el N+1).
+  //   Se cuentan los turnos propios (unit._turnNo), también los perdidos por aturdir o dormir, como los estados.
+  // · spell.initialCooldown = N: al empezar el combate no se puede hasta el turno N+1 de la unidad.
+  // · spell.castsPerTarget = N: usos por turno sobre una misma unidad (el objetivo principal de la carta).
+  // · Las recargas duran solo el combate. Runas y charms pueden cambiarla con runeCharms.cooldownOf (si existe).
+
+  /** Recarga de la carta para esta unidad (turnos), con runas y charms. */
+  cooldownOf(caster, spell) {
+    const base = Math.max(0, Number(spell?.cooldown) || 0);
+    const mod = this.runeCharms?.cooldownOf?.(caster, spell, base);
+    return Math.max(0, Number.isFinite(mod) ? mod : base);
+  }
+
+  /** Turno propio (unit._turnNo) en el que la carta vuelve a estar lista. */
+  _readyTurn(caster, spell) {
+    const r = caster?._spellReady?.[spell.id];
+    if (r != null) return r;
+    const init = Math.max(0, Number(spell?.initialCooldown) || 0);
+    return init ? init + 1 : 0;
+  }
+
+  /** Turnos que faltan para poder usarla (0 = lista). Durante su turno: con recarga 2, «2» justo tras usarla. */
+  cooldownLeft(caster, spell) {
+    if (!caster || !spell) return 0;
+    const ready = this._readyTurn(caster, spell);
+    const now = caster._turnNo || 0;
+    if (ready <= now) return 0;
+    const cap = Math.max(this.cooldownOf(caster, spell), Number(spell.initialCooldown) || 0, 1);
+    return Math.min(cap, ready - Math.max(now, 1));
+  }
+
+  isOnCooldown(caster, spell) { return this.cooldownLeft(caster, spell) > 0; }
+
+  /** Recargas a cero (inicio de combate, arena de pruebas). */
+  resetCooldowns(unit) {
+    if (!unit) return;
+    unit._turnNo = 0;
+    unit._spellReady = {};
+    unit._castsThisTurn = {};
+    unit._castsOnTarget = {};
+    unit._cdAnnounced = {};
+  }
+
+  /** ¿Se agotaron los usos de la carta sobre esta unidad en este turno? */
+  targetLimitReached(caster, spell, target) {
+    if (!spell?.castsPerTarget || !target) return false;
+    return ((caster?._castsOnTarget?.[spell.id]?.get?.(target)) || 0) >= spell.castsPerTarget;
+  }
+
+  /** Hito 98: nivel del héroe con el que se desbloquea la carta (1 si no es un héroe del jugador). */
+  unlockLevel(caster, spell) { return unitUnlockLevel(caster, spell); }
+  isLocked(caster, spell) { return isLockedFor(caster, spell); }
+
+  /** Motivo por el que la carta no se puede usar ahora (sin mirar PA ni objetivo): 'locked' | 'spent' | 'cooldown' | null. */
+  castBlockReason(caster, spell) {
+    if (isLockedFor(caster, spell)) return 'locked'; // Hito 98: aún no desbloqueada por nivel
+    if (this.castLimitReached(caster, spell)) return 'spent';
+    if (this.isOnCooldown(caster, spell)) return 'cooldown';
+    return null;
+  }
+
+  /** Una sola respuesta para la interfaz, la IA y el tutorial: ¿se puede lanzar ya (PA, usos, recarga, gólem…)? */
+  canCastNow(caster, spell) {
+    if (!caster || !spell || caster.isDead) return false;
+    spell = this.runeCharms.spellFor(caster, spell);
+    if (spell.isUltimate && !this.ultimates.canCast(caster)) return false;
+    if (!this._canPay(caster, spell)) return false;
+    if (!this._castOrigin(caster, spell)) return false;
+    return true;
+  }
+
+  _recordCast(caster, spell, targetCell) {
+    const cd = this.cooldownOf(caster, spell);
+    if (cd > 0) {
+      (caster._spellReady ||= {})[spell.id] = (caster._turnNo || 0) + cd + 1;
+      if (caster._cdAnnounced) delete caster._cdAnnounced[spell.id];
+      this.events.emit('spell:cooldown', { unit: caster, spell, turns: cd });
+    }
+    if (spell.castsPerTarget && targetCell) {
+      const target = this.gridManager.getTile(targetCell.x, targetCell.z)?.unit;
+      if (target) {
+        const m = ((caster._castsOnTarget ||= {})[spell.id] ||= new Map());
+        m.set(target, (m.get(target) || 0) + 1);
+      }
+    }
+  }
+
+  /** Al empezar el turno: avisa de las cartas que vuelven a estar listas (destello en la carta). */
+  _announceReady(unit) {
+    const ready = unit?._spellReady;
+    if (!ready) return;
+    for (const [id, turn] of Object.entries(ready)) {
+      if (turn === unit._turnNo && !unit._cdAnnounced?.[id]) {
+        (unit._cdAnnounced ||= {})[id] = true;
+        this.events.emit('spell:ready', { unit, spellId: id });
+      }
+    }
+  }
+
   _canPay(caster, spell) {
-    if (this.castLimitReached(caster, spell)) return false;
+    if (this.castBlockReason(caster, spell)) return false;
     if (spell.paCost === 'X') return caster.currentPA >= 1; // coste X: gasta todos los PA que queden
     return caster.currentPA >= this.runeCharms.costOf(caster, spell);
   }
@@ -2342,6 +2580,7 @@ export class SpellManager {
       if (dist > 1) pct += this.statuses.mod(target, 'rangedDamageTakenPct');
     }
     pct += this.runeCharms.damagePct(caster, target, dist, ctx); // runas y charms (atacante y defensor)
+    if (this.golems) pct += this.golems.damageTakenPct(target);   // Hito 95: aliado al lado de un Centinela de Vasija
     const mult = elemental * (1 + pct / 100);
     if (mult === 1) return { amount: dmg, elemental };
     return { amount: Math.max(0, Math.round(dmg * mult)), elemental };
@@ -2495,7 +2734,7 @@ export class SpellManager {
       if (id.startsWith('kotaro_') || id.startsWith('plant_')) kind = 'melee';
       else if (id.startsWith('bing_') || id.startsWith('bird_')) kind = 'ranged';
       else if (id.startsWith('pomodoro_')) kind = 'magic';
-      // Sapidae (19-oct): Forjador y Pastor usan Ferocidad (1 casilla) o Agilidad (más lejos); Lunalogista y Astromante, Esencia
+      // Sapidae (19-oct; nombres del Hito 95): Alfarero y Comandante usan Ferocidad (1 casilla) o Agilidad (más lejos); Guardián de Campanas y Rastreador Gogo, Esencia
       else if (/^(lunalogist|stargazer)_/.test(id)) kind = 'magic';
       else if (/^(craft|shepard)_/.test(id)) kind = dist <= 1 ? 'melee' : 'ranged';
       else kind = dist <= 1 ? 'melee' : 'ranged';
@@ -2570,7 +2809,7 @@ export class SpellManager {
 
   /** collisionDamage: daño fijo por choque (sustituye a 20 por casilla restante); collisionBonus se suma. */
   async _executePushback(caster, targetUnit, distance, spell = null, collisionBonus = 0, collisionDamage = null) {
-    if (targetUnit.statuses?.length && this.statuses.has(targetUnit, 'unmovable')) {
+    if (targetUnit.isGolem || (targetUnit.statuses?.length && this.statuses.has(targetUnit, 'unmovable'))) {
       this.events.emit('unit:unmoved', { unit: targetUnit, source: caster, spell });
       return;
     }

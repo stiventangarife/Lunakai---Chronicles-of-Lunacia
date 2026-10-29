@@ -92,5 +92,9 @@ export default {
   "game.areaCross": "Cruz (1 casilla)",
   "game.areaSingle": "Una casilla",
   "game.goldPending": "Oro pendiente",
-  "game.goldPendingDesc": "Sin conexión: el oro de este combate se cobrará en cuanto vuelva la conexión."
+  "game.goldPendingDesc": "Sin conexión: el oro de este combate se cobrará en cuanto vuelva la conexión.",
+  "game.spellCooldown1": "En recarga: lista en 1 turno",
+  "game.spellCooldownN": "En recarga: lista en {n} turnos",
+  "game.spellLocked": "Se desbloquea a nivel {n}",
+  "game.levelShortN": "Nv. {n}"
 };

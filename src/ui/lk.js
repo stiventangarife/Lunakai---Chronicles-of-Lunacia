@@ -97,8 +97,10 @@ export const tooltip = (() => {
 /**
  * Ficha de habilidad para el tooltip, con la misma estructura que el sistema de diseño (.lk-tooltip-tactical).
  * { name, kind, cost, range, los, fx: 'dmg'|'heal'|'shield'|otro, value, effectLabel, desc, art (url), color, iconHtml }
+ * spell (opcional, Hito 97): la carta de SPELLS_DB, para mostrar su recarga, espera inicial y usos.
+ * warn (opcional, Hito 98): aviso en rojo al final (p. ej. «se desbloquea a nivel 3»).
  */
-export function skillTip({ name, kind = i18n.t('common.skill'), cost, range, los = true, fx, value, effectLabel = i18n.t('common.effect'), desc = '', art = null, color = 'var(--lk-gilt-500)', iconHtml = '' }) {
+export function skillTip({ name, kind = i18n.t('common.skill'), cost, range, los = true, fx, value, effectLabel = i18n.t('common.effect'), desc = '', art = null, color = 'var(--lk-gilt-500)', iconHtml = '', spell = null, warn = '' }) {
   const eff = fx === 'dmg' ? [i18n.t('common.damage'), value] : fx === 'heal' ? [i18n.t('common.healing'), `+${value}`] : fx === 'shield' ? [i18n.t('common.shield'), `+${value}`] : [effectLabel, value];
   const losIcon = los ? icon('vision') : `<span class="lk-nolos-ai">${icon('vision')}</span>`;
   const artAbs = art ? new URL(art, document.baseURI).href : null; // url() en variables CSS se resuelve contra la hoja de estilos: se usa la ruta absoluta
@@ -109,7 +111,20 @@ export function skillTip({ name, kind = i18n.t('common.skill'), cost, range, los
     + (range != null ? `<span class="lk-tt-stat"><i class="lk-tl">${icon('range')}${i18n.t('common.range')}</i><b>${i18n.t('common.rangeShort')} ${esc(range)}</b></span>` : '')
     + `<span class="lk-tt-stat"><i class="lk-tl">${losIcon}${i18n.t('common.vision')}</i><b>${los ? i18n.t('common.required') : i18n.t('common.notRequired')}</b></span>`
     + (eff[1] != null ? `<span class="lk-tt-stat">${esc(eff[0])}<b>${esc(eff[1])}</b></span>` : '')
-    + `</div>${desc ? `<p>${desc}</p>` : ''}</div></div>`;
+    + spellLimitStats(spell)
+    + `</div>${desc ? `<p>${desc}</p>` : ''}${warn ? `<p class="lk-cb-tip-warn">${esc(warn)}</p>` : ''}</div></div>`;
+}
+
+/** Hito 97: líneas de recarga, espera inicial y usos de una carta para las fichas (vacío si no tiene límites). */
+export function spellLimitStats(sp) {
+  if (!sp) return '';
+  const turns = (n) => i18n.t(n === 1 ? 'combatHud.turn1' : 'combatHud.turnsN', { n });
+  const out = [];
+  if (sp.cooldown) out.push(`<span class="lk-tt-stat">${i18n.t('combatHud.cooldown')}<b>${turns(sp.cooldown)}</b></span>`);
+  if (sp.initialCooldown) out.push(`<span class="lk-tt-stat">${i18n.t('combatHud.initialCd')}<b>${turns(sp.initialCooldown)}</b></span>`);
+  const uses = [sp.castsPerTurn ? i18n.t('combatHud.perTurnN', { n: sp.castsPerTurn }) : '', sp.castsPerTarget ? i18n.t('combatHud.perTargetN', { n: sp.castsPerTarget }) : ''].filter(Boolean);
+  if (uses.length) out.push(`<span class="lk-tt-stat">${i18n.t('combatHud.uses')}<b>${uses.join(' · ')}</b></span>`);
+  return out.join('');
 }
 
 /** Interruptor (.lk-switch con role="switch" y aria-checked). */

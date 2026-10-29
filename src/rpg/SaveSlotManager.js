@@ -94,287 +94,299 @@ export function getHeroSpells(heroKeyOrAxieId) {
 export const SAPIDAE_CLASSES = {
   crafter: {
     id: 'crafter',
-    name: 'Forjacubiles',
-    title: 'Maestro de la Artesanía Ancestral ("Sapidae Craft")',
-    archetype: 'Sapidae Forjacubiles (Soporte Táctico y Escudos)',
-    description: 'Artesanos magistrales de Lunacia capaces de forjar yunques, tótems y balistas en pleno campo de batalla. Expertos en escudos protectores, control del terreno y despliegue táctico.',
-    icon: './assets/classes/class_forjacubiles.jpg',
-    iconImg: './assets/classes/class_forjacubiles.jpg',
+    name: 'Alfarero de Gólems',
+    title: 'Artesano de la Arcilla Espiritual',
+    archetype: 'Sapidae Alfarero de Gólems (Gólem Centinela y Defensa)',
+    description: 'Artesanos que moldean la arcilla espiritual para resistir, no para conquistar. Su Gólem Centinela de Vasija recibe los golpes que romperían a un Axie y sostiene la línea mientras el escuadrón avanza.',
+    icon: './assets/classes/class_forjacubiles.webp',
+    iconImg: './assets/classes/class_forjacubiles.webp',
+    golem: 'sentinel', // Hito 95 (combat/GolemSystem.js)
     maxHP: 240,
     maxPA: 6,
     maxPM: 3,
     initiative: 88,
-    spells: ['craft_anvil', 'craft_totem', 'craft_barricade', 'craft_quake', 'craft_reinforce', 'craft_turret'],
+    spells: ['craft_clay_fist', 'craft_sentinel_golem', 'craft_stone_veins', 'craft_clay_wall', 'craft_carry_wounded', 'craft_fortify'],
     spellPreviews: [
       {
-        id: 'craft_anvil',
-        name: 'Yunque Táctico',
+        id: 'craft_clay_fist',
+        name: 'Puño de Arcilla',
         cost: '3 AP',
         range: '1-2',
         type: 'Ataque / Empuje',
         icon: './assets/skills/heroes/crafter/1.webp',
-        desc: 'Golpe contundente con yunque ancestral. Inflige 45-60 de daño físico y empuja 1 casilla provocando colisión.'
+        desc: 'Puñetazo de arcilla reforzada con piedra: 42-55 de daño y empuja al enemigo 1 casilla (daño de colisión si choca).'
       },
       {
-        id: 'craft_totem',
-        name: 'Tótem de Resguardo',
+        id: 'craft_sentinel_golem',
+        name: 'Centinela de Vasija',
+        cost: '4 AP',
+        range: '1-2',
+        type: 'Invocación / Defensa',
+        icon: './assets/skills/heroes/crafter/2.webp',
+        desc: 'Moldea un Gólem Centinela con el 70 % de tu vida máxima. Provoca a los enemigos que tiene al lado y tus aliados a su lado reciben −25 % de daño. Al romperse, da +30 de escudo a esos aliados. Uno a la vez.'
+      },
+      {
+        id: 'craft_stone_veins',
+        name: 'Vetas de Piedra',
         cost: '2 AP',
         range: '1-3',
         type: 'Soporte / Escudo',
-        icon: './assets/skills/heroes/crafter/2.webp',
-        desc: 'Erige un tótem protector ancestral que otorga +50 de Escudo y +1 PM al objetivo durante 1 turno.'
+        icon: './assets/skills/heroes/crafter/3.webp',
+        desc: 'Refuerza a un aliado con vetas minerales: +60 de escudo y Arraigado (no puede ser empujado). Sobre tu gólem, lo repara +80 de vida.'
       },
       {
-        id: 'craft_barricade',
-        name: 'Barricada de Lunacia',
+        id: 'craft_clay_wall',
+        name: 'Muralla de Arcilla',
         cost: '2 AP',
         range: '1-3',
         type: 'Estructura / Cobertura',
-        icon: './assets/skills/heroes/crafter/3.webp',
-        desc: 'Despliega una barricada de madera en casilla vacía para bloquear paso y visión, ganando +30 de Escudo.'
-      },
-      {
-        id: 'craft_quake',
-        name: 'Impacto Sísmico',
-        cost: '3 AP',
-        range: '1-2',
-        type: 'Área / Control',
         icon: './assets/skills/heroes/crafter/4.webp',
-        desc: 'Martillazo telúrico que causa 40-52 de daño en cruz y reduce -1 PM a todos los enemigos impactados.'
+        desc: 'Levanta un muro de arcilla indestructible que bloquea el paso y la visión durante 2 rondas. +30 de escudo al lanzador.'
       },
       {
-        id: 'craft_reinforce',
-        name: 'Refuerzo de Placas',
-        cost: '2 AP',
-        range: '1-3',
-        type: 'Soporte / Blindaje',
+        id: 'craft_carry_wounded',
+        name: 'Llevar al Herido',
+        cost: '3 AP',
+        range: '1-5',
+        type: 'Rescate / Curación',
         icon: './assets/skills/heroes/crafter/5.webp',
-        desc: 'Refuerza la armadura del Sapidae o de su Axie con metal lunar: +70 de Escudo y disipa reducciones de PM.'
+        desc: 'Tu gólem trae a un aliado a una casilla a su lado y le cura 30-40. Sin gólem, lo trae junto a ti.'
       },
       {
-        id: 'craft_turret',
-        name: 'Balista de Lunacia',
-        cost: '4 AP',
-        range: '1-4',
-        type: 'Invocación Ofensiva',
+        id: 'craft_fortify',
+        name: 'Fortificar',
+        cost: '2 AP',
+        range: '1-6',
+        type: 'Gólem / Blindaje',
         icon: './assets/skills/heroes/crafter/6.webp',
-        desc: 'Despliega una balista mecánica de artesanía Sapidae que dispara a los enemigos cercanos al final de cada turno.'
-      }
+        desc: 'Tu gólem se endurece: +100 de escudo y Espinas (devuelve 20 de daño a quien lo golpee cuerpo a cuerpo) durante 2 rondas. 1 vez por turno.'
+      },
     ]
   },
   shepard: {
     id: 'shepard',
-    name: 'Susurrador',
-    title: 'Lazo Místico con los Axies',
-    archetype: 'Sapidae Susurrador (Búfer y Sanador Místico)',
-    description: 'Sapidae con un lazo místico ultra desarrollado con los Axies, capaces de despertar la energía oculta de sus genes. Clase de soporte y búfer: curación, sintonía genética (+1 PA / daño) y fulgor cósmico a distancia.',
-    icon: './assets/classes/class_susurrador.jpg',
-    iconImg: './assets/classes/class_susurrador.jpg',
+    name: 'Comandante de Sombrero',
+    title: 'La Voz de Lunacia en el Campo',
+    archetype: 'Sapidae Comandante de Sombrero (Órdenes y Posición)',
+    description: 'Comandantes que traducen los avisos de Lunacia a través de los Gólems Sombrero. Guían el combate sin dirigirlo: mueven, protegen y dan tiempo a sus Axies.',
+    icon: './assets/classes/class_susurrador.webp',
+    iconImg: './assets/classes/class_susurrador.webp',
     emoji: '✨',
+    golem: 'hat', // Hito 95 (combat/GolemSystem.js)
     maxHP: 220,
     maxPA: 6,
     maxPM: 3,
     initiative: 90,
-    spells: ['shepard_astral_strike', 'shepard_balsam', 'shepard_attunement', 'shepard_pack_howl', 'shepard_spirit_bond', 'shepard_chimeric_awakening'],
+    spells: ['shepard_hat_headbutt', 'shepard_hat_golem', 'shepard_translate_warning', 'shepard_shared_order', 'shepard_guided_retreat', 'shepard_relief'],
     spellPreviews: [
       {
-        id: 'shepard_astral_strike',
-        name: 'Fulgor Cósmico',
+        id: 'shepard_hat_headbutt',
+        name: 'Cabezazo del Sombrero',
         cost: '3 AP',
-        range: '1-3',
-        type: 'Magia Estelar',
+        range: '1-2',
+        type: 'Ataque / Control',
         icon: './assets/skills/heroes/shepard/1.webp',
-        desc: 'Canaliza energía astral pura de Lunacia infligiendo 48-62 de daño mágico a distancia.'
+        desc: 'Embestida con el sombrero de arcilla: 40-52 de daño y −1 PA en el próximo turno del enemigo.'
       },
       {
-        id: 'shepard_balsam',
-        name: 'Bálsamo Astral',
-        cost: '2 AP',
-        range: '1-3',
-        type: 'Sanación / Escudo',
+        id: 'shepard_hat_golem',
+        name: 'Gólem Sombrero',
+        cost: '4 AP',
+        range: '1-2',
+        type: 'Invocación / Mando',
         icon: './assets/skills/heroes/shepard/2.webp',
-        desc: 'Sana 30-42 HP y envuelve al compañero Axie en +40 de Escudo protector estelar.'
+        desc: 'Moldea un Gólem Sombrero con el 45 % de tu vida máxima. Repite tus órdenes: Traducir el Aviso, Orden Compartida y Retirada Guiada llegan a cualquier aliado a 2 casillas del gólem. Al final de tu turno da +1 PM a los aliados que tiene al lado. Al romperse, +1 PA a esos aliados.'
       },
       {
-        id: 'shepard_attunement',
-        name: 'Sintonía Genética',
+        id: 'shepard_translate_warning',
+        name: 'Traducir el Aviso',
         cost: '2 AP',
         range: '1-4',
-        type: 'Potenciador de Axie',
+        type: 'Apoyo / Movimiento',
         icon: './assets/skills/heroes/shepard/3.webp',
-        desc: 'Despierta la resonancia genética del Axie: restaura 50-65 HP y concede +1 PA extra para el turno.'
+        desc: 'Traduces el aviso de Lunacia: el aliado gana +2 PM en su turno. Llega también por tu Gólem Sombrero. 1 vez por turno.'
       },
       {
-        id: 'shepard_pack_howl',
-        name: 'Aullido de Manada',
-        cost: '2 AP',
-        range: 'Aura (2)',
-        type: 'Aura / Búfer',
-        icon: './assets/skills/heroes/shepard/4.webp',
-        desc: 'Aullido que resuena con los Axies aliados en un radio de 2 casillas, otorgando +1 PM y +1 PA.'
-      },
-      {
-        id: 'shepard_spirit_bond',
-        name: 'Lazo Simbiótico',
+        id: 'shepard_shared_order',
+        name: 'Orden Compartida',
         cost: '3 AP',
         range: '1-4',
-        type: 'Vínculo Vital',
-        icon: './assets/skills/heroes/shepard/5.webp',
-        desc: 'Enlaza las almas del Sapidae y su Axie: redistribuye el daño recibido y regenera 25 HP por turno.'
+        type: 'Apoyo / Axie',
+        icon: './assets/skills/heroes/shepard/4.webp',
+        desc: 'Tu Axie recibe la orden a tiempo: +1 PA y +15 % de daño en su turno. Llega también por tu Gólem Sombrero. 1 vez por turno.'
       },
       {
-        id: 'shepard_chimeric_awakening',
-        name: 'Despertar Quimérico',
-        cost: '4 AP',
-        range: '1-3',
-        type: 'Ascensión Épica',
+        id: 'shepard_guided_retreat',
+        name: 'Retirada Guiada',
+        cost: '2 AP',
+        range: '1-4',
+        type: 'Apoyo / Posición',
+        icon: './assets/skills/heroes/shepard/5.webp',
+        desc: 'Guías a un aliado lejos del suelo que se hunde: +30 de escudo y se aleja 2 casillas del enemigo más cercano. Llega también por tu Gólem Sombrero.'
+      },
+      {
+        id: 'shepard_relief',
+        name: 'Relevo',
+        cost: '2 AP',
+        range: '1-4',
+        type: 'Táctica / Posición',
         icon: './assets/skills/heroes/shepard/6.webp',
-        desc: 'Desata el verdadero potencial genético del Axie: +20% Daño crítico, +2 PM y +60 de Escudo inmediato.'
-      }
+        desc: 'Intercambias la posición con un aliado o con tu gólem. Los dos ganan +25 de escudo.'
+      },
     ]
   },
   lunalogist: {
     id: 'lunalogist',
-    name: 'Lunalogista',
-    title: 'Alquimista Botánico de Lunacia',
-    archetype: 'Sapidae Lunalogista (Control de Masas y Drenaje)',
-    description: 'Botánicos y alquimistas que cosechan la energía vital de las plantas y el rocío lunar de Lunacia. Especialistas en control de masas: atrapan enemigos con zarzas (-PM/-PA), dispersan esporas sanadoras y alimentan con bayas lunares.',
-    icon: './assets/classes/class_lunalogista.jpg',
-    iconImg: './assets/classes/class_lunalogista.jpg',
+    name: 'Guardián de Campanas',
+    title: 'Guardián de los Santuarios de Atia',
+    archetype: 'Sapidae Guardián de Campanas (Curación y Purificación)',
+    description: 'Guardianes de santuario que cuelgan Wind Bells junto a las aldeas. Sus campanas avisan de la corrupción, curan a los heridos y suenan en duelo cuando el combate se alarga.',
+    icon: './assets/classes/class_lunalogista.webp',
+    iconImg: './assets/classes/class_lunalogista.webp',
     emoji: '🌿',
+    golem: 'bell', // Hito 95 (combat/GolemSystem.js)
     maxHP: 230,
     maxPA: 6,
     maxPM: 3,
     initiative: 86,
-    spells: ['lunalogist_bramble', 'lunalogist_spores', 'lunalogist_berry', 'lunalogist_seed', 'lunalogist_cloak', 'lunalogist_bloom'],
+    spells: ['lunalogist_alarm_toll', 'lunalogist_bell_golem', 'lunalogist_mourning_tone', 'lunalogist_warning_whisper', 'lunalogist_purify', 'lunalogist_blood_moon'],
     spellPreviews: [
       {
-        id: 'lunalogist_bramble',
-        name: 'Zarzas Lunares',
+        id: 'lunalogist_alarm_toll',
+        name: 'Tañido de Alarma',
         cost: '3 AP',
         range: '1-3',
-        type: 'Control / Drenaje',
+        type: 'Ataque / Marca',
         icon: './assets/skills/heroes/lunalogist/1.webp',
-        desc: 'Zarzas botánicas que inmovilizan al enemigo: causan 38-48 de daño de naturaleza y drenan 1 PM y 1 PA.'
+        desc: 'La campana delata la corrupción: 35-45 de daño y Frágil (+25 % de daño recibido) hasta el final de su próximo turno.'
       },
       {
-        id: 'lunalogist_spores',
-        name: 'Esporas Vigorizantes',
-        cost: '3 AP',
-        range: '1-3',
-        type: 'Área / Drenaje',
-        icon: './assets/skills/heroes/lunalogist/2.webp',
-        desc: 'Nube de esporas en cruz que daña enemigos por 30-40 y restaura 25 HP al Sapidae y aliados cercanos.'
-      },
-      {
-        id: 'lunalogist_berry',
-        name: 'Baya Lunar Alquímica',
-        cost: '2 AP',
-        range: '1-3',
-        type: 'Soporte / PM',
-        icon: './assets/skills/heroes/lunalogist/3.webp',
-        desc: 'Alimenta al compañero con una baya de rocío lunar: otorga +40 de Escudo y +1 PM inmediato.'
-      },
-      {
-        id: 'lunalogist_seed',
-        name: 'Semilla Parásita',
-        cost: '3 AP',
-        range: '1-3',
-        type: 'Drenaje Vital',
-        icon: './assets/skills/heroes/lunalogist/4.webp',
-        desc: 'Implanta una semilla botánica que inflige 35-45 de daño y sana al Sapidae el 60% del daño infligido.'
-      },
-      {
-        id: 'lunalogist_cloak',
-        name: 'Manto Clorofílico',
-        cost: '2 AP',
-        range: 'Auto',
-        type: 'Defensa Natural',
-        icon: './assets/skills/heroes/lunalogist/5.webp',
-        desc: 'Se envuelve en hojas densas de Lunacia: +55 de Escudo y reduce un 30% el daño recibido a distancia.'
-      },
-      {
-        id: 'lunalogist_bloom',
-        name: 'Brotación Primigenia',
+        id: 'lunalogist_bell_golem',
+        name: 'Gólem Campanario',
         cost: '4 AP',
+        range: '1-2',
+        type: 'Invocación / Curación',
+        icon: './assets/skills/heroes/lunalogist/2.webp',
+        desc: 'Moldea un Gólem Campanario con el 45 % de tu vida máxima, que lleva una Wind Bell. Al final de tu turno suena: aliados a 2 casillas o menos +20 de vida y pierden un estado negativo; enemigos a esa distancia quedan Frágiles. Al romperse, su último tañido cura 40 en radio 2.'
+      },
+      {
+        id: 'lunalogist_mourning_tone',
+        name: 'Tono de Duelo',
+        cost: '2 AP',
         range: '1-3',
-        type: 'Control Masivo (3x3)',
+        type: 'Curación / Purificación',
+        icon: './assets/skills/heroes/lunalogist/3.webp',
+        desc: 'El tono grave de la campana: cura 40-55 y quita veneno, sangrado y quemadura.'
+      },
+      {
+        id: 'lunalogist_warning_whisper',
+        name: 'Susurro de Advertencia',
+        cost: '2 AP',
+        range: '1-4',
+        type: 'Apoyo / Guarda',
+        icon: './assets/skills/heroes/lunalogist/4.webp',
+        desc: 'El viento avisa del golpe: +35 de escudo y Guarda (el próximo enemigo que golpee al aliado queda Debilitado, −20 % de daño, 1 turno).'
+      },
+      {
+        id: 'lunalogist_purify',
+        name: 'Purificar',
+        cost: '3 AP',
+        range: '1-3',
+        type: 'Ataque / Disipar',
+        icon: './assets/skills/heroes/lunalogist/5.webp',
+        desc: 'Limpia la corrupción del enemigo: 30-40 de daño y le quita todos sus efectos positivos.'
+      },
+      {
+        id: 'lunalogist_blood_moon',
+        name: 'Resonancia de la Luna de Sangre',
+        cost: '4 AP',
+        range: 'Todo el escuadrón',
+        type: 'Supremo / Escuadrón',
         icon: './assets/skills/heroes/lunalogist/6.webp',
-        desc: 'Eclosión botánica masiva: inflige 45-60 de daño en área 3x3 e inmoviliza a todos los enemigos (-2 PM).'
-      }
+        desc: 'Las campanas suenan con una resonancia extraña: todos tus aliados regeneran 20 de vida al empezar su turno durante 2 turnos y quedan Inmunes (aturdir, dormir y miedo) 1 turno.'
+      },
     ]
   },
   stargazer: {
     id: 'stargazer',
-    name: 'Astromante',
-    title: 'Sabio de la Gravedad Cósmica',
-    archetype: 'Sapidae Astromante (Manipulación Espacial y Vórtices)',
-    description: 'Sabios que canalizan el poder de las fases lunares y la curvatura cósmica. Especialistas en posicionamiento táctico: transposición espacial con el Axie compañero, vórtices gravitacionales de colisión y saltos astrales.',
-    icon: './assets/classes/class_astromante.jpg',
-    iconImg: './assets/classes/class_astromante.jpg',
+    name: 'Rastreador Gogo',
+    title: 'El Petrasentido de Lunacia',
+    archetype: 'Sapidae Rastreador Gogo (Terreno y Control)',
+    description: 'Exploradores que leen el suelo con su petrasentido y siguen a los caracoles Gogo, que marcan la tierra estable. Abren grietas bajo el enemigo y aseguran el terreno para sus Axies.',
+    icon: './assets/classes/class_astromante.webp',
+    iconImg: './assets/classes/class_astromante.webp',
     emoji: '🔮',
+    golem: 'shell', // Hito 95 (combat/GolemSystem.js)
     maxHP: 210,
     maxPA: 6,
-    maxPM: 3, // 6 PA y 3 PM para todos (19-oct)
+    maxPM: 3,
     initiative: 92,
-    spells: ['stargazer_vortex', 'stargazer_transpose', 'stargazer_jump', 'stargazer_nova', 'stargazer_gravity_well', 'stargazer_eclipse'],
+    spells: ['stargazer_yielding_ground', 'stargazer_shell_golem', 'stargazer_petrasense', 'stargazer_shell_march', 'stargazer_corrupt_rift', 'stargazer_dawn_spiral'],
     spellPreviews: [
       {
-        id: 'stargazer_vortex',
-        name: 'Vórtice Gravitacional',
+        id: 'stargazer_yielding_ground',
+        name: 'Suelo que Cede',
         cost: '3 AP',
         range: '1-3',
-        type: 'Gravedad / Colisión',
+        type: 'Ataque / Control',
         icon: './assets/skills/heroes/stargazer/1.webp',
-        desc: 'Onda cósmica que inflige 49-63 de daño y empuja al enemigo 2 casillas con daño masivo de colisión.'
+        desc: 'Tu petrasentido abre el suelo bajo el enemigo: 40-52 de daño y −1 PM en su próximo turno.'
       },
       {
-        id: 'stargazer_transpose',
-        name: 'Transposición Estelar',
-        cost: '2 AP',
-        range: '1-4',
-        type: 'Movilidad Dimensional',
-        icon: './assets/skills/heroes/stargazer/2.webp',
-        desc: 'Curvatura espacial: intercambia instantáneamente de posición con el Axie compañero, otorgando +25 de Escudo a ambos.'
-      },
-      {
-        id: 'stargazer_jump',
-        name: 'Salto Astral',
-        cost: '2 AP',
-        range: '2-4',
-        type: 'Teletransporte',
-        icon: './assets/skills/heroes/stargazer/3.webp',
-        desc: 'Fase dimensional a casilla vacía (2-4 rango): gana +35 de Escudo y ralentiza (-1 PM) a los enemigos adyacentes.'
-      },
-      {
-        id: 'stargazer_nova',
-        name: 'Nova Estelar',
-        cost: '3 AP',
-        range: '1-3',
-        type: 'Área Cósmica',
-        icon: './assets/skills/heroes/stargazer/4.webp',
-        desc: 'Detona una estrella comprimida: 55-71 de daño en cruz y ciega a los enemigos reduciendo su alcance en -1.'
-      },
-      {
-        id: 'stargazer_gravity_well',
-        name: 'Pozo Gravitatorio',
-        cost: '2 AP',
-        range: '1-4',
-        type: 'Alteración Espacial',
-        icon: './assets/skills/heroes/stargazer/5.webp',
-        desc: 'Crea una zona de baja gravedad: aliados que la crucen ganan +2 PM y los enemigos pierden -1 PM.'
-      },
-      {
-        id: 'stargazer_eclipse',
-        name: 'Eclipse Cataclísmico',
+        id: 'stargazer_shell_golem',
+        name: 'Gólem Caparazón',
         cost: '4 AP',
+        range: '1-2',
+        type: 'Invocación / Terreno',
+        icon: './assets/skills/heroes/stargazer/2.webp',
+        desc: 'Moldea un Gólem Caparazón con el 50 % de tu vida máxima, cubierto de caracoles Gogo. Su casilla y las de alrededor son tierra estable: los aliados que empiezan su turno allí ganan +1 PM y Arraigado, y pierden quemadura y veneno. Al romperse, los caracoles dejan tierra estable en 3×3 durante 2 rondas.'
+      },
+      {
+        id: 'stargazer_petrasense',
+        name: 'Petrasentido',
+        cost: '2 AP',
+        range: '1-6',
+        type: 'Marca / Debilitar',
+        icon: './assets/skills/heroes/stargazer/3.webp',
+        desc: 'Sientes al enemigo a través del suelo, sin necesidad de verlo: Frágil (+25 % de daño recibido) y −1 de alcance durante 2 turnos.'
+      },
+      {
+        id: 'stargazer_shell_march',
+        name: 'Marcha del Caparazón',
+        cost: '2 AP',
+        range: '1-3 (desde el gólem)',
+        type: 'Gólem / Terreno',
+        icon: './assets/skills/heroes/stargazer/4.webp',
+        desc: 'Tu gólem avanza hasta 3 casillas desde donde está. Por donde pasa queda tierra estable durante 2 rondas. 1 vez por turno.'
+      },
+      {
+        id: 'stargazer_corrupt_rift',
+        name: 'Grieta Corrupta',
+        cost: '2 AP',
         range: '1-4',
-        type: 'Supremo Gravitatorio',
+        type: 'Zona / Control',
+        icon: './assets/skills/heroes/stargazer/5.webp',
+        desc: 'Zona de 2×2 durante 2 rondas: los enemigos que empiezan su turno dentro pierden 2 PM.'
+      },
+      {
+        id: 'stargazer_dawn_spiral',
+        name: 'Espiral del Alba',
+        cost: '4 AP',
+        range: '1-3',
+        type: 'Supremo / Área',
         icon: './assets/skills/heroes/stargazer/6.webp',
-        desc: 'Invoca un eclipse total: desata 60-78 de daño masivo en área y atrae a todos los enemigos hacia el epicentro.'
-      }
+        desc: 'Los caracoles Gogo trazan una espiral en área 3×3: 45-58 de daño solo a los enemigos; los aliados ganan +25 de vida y pierden quemadura y veneno.'
+      },
     ]
-  }
+  },
+};
+
+/** Hito 95: habilidades de cada clase antes del rediseño, por ranura (para conservar sus niveles al migrar). */
+export const SAPIDAE_LEGACY_SPELLS = {
+  crafter: ['craft_anvil', 'craft_totem', 'craft_barricade', 'craft_quake', 'craft_reinforce', 'craft_turret'],
+  shepard: ['shepard_astral_strike', 'shepard_balsam', 'shepard_attunement', 'shepard_pack_howl', 'shepard_spirit_bond', 'shepard_chimeric_awakening'],
+  lunalogist: ['lunalogist_bramble', 'lunalogist_spores', 'lunalogist_berry', 'lunalogist_seed', 'lunalogist_cloak', 'lunalogist_bloom'],
+  stargazer: ['stargazer_vortex', 'stargazer_transpose', 'stargazer_jump', 'stargazer_nova', 'stargazer_gravity_well', 'stargazer_eclipse'],
 };
 
 // Textos de héroes y clases en el idioma activo (i18n/*/heroes.js). Los ids, clases y el nombre de clase del Sapidae no cambian.
@@ -382,7 +394,7 @@ for (const h of HERO_ROSTER) {
   for (const f of ['archetype', 'description']) { const k = `heroes.${h.heroKey}.${f}`, v = i18n.t(k); if (v !== k) h[f] = v; }
   i18n.applyText(h.skills, `heroes.${h.heroKey}.skill`, ['name', 'partName', 'type', 'desc', 'range']);
 }
-i18n.applyText(SAPIDAE_CLASSES, 'heroes.class', ['title', 'archetype', 'description']);
+i18n.applyText(SAPIDAE_CLASSES, 'heroes.class', ['name', 'title', 'archetype', 'description']); // Hito 95: el nombre de clase también se traduce
 for (const c of Object.values(SAPIDAE_CLASSES)) i18n.applyText(c.spellPreviews, `heroes.class.${c.id}.spell`, ['name', 'type', 'desc', 'range']);
 
 /**

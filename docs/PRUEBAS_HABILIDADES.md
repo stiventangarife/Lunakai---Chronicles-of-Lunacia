@@ -93,77 +93,52 @@ Todo el bloque:
 await lkDebug.probarLista(['part_beast_eyes_puppy', 'part_reptile_horn_scaly_spoon', 'part_plant_eyes_blossom', 'part_plant_ears_hollow', 'part_plant_back_bidens', 'starter_bing_eyes', 'starter_bing_back', 'starter_pomodoro_eyes', 'starter_pomodoro_ears', 'starter_pomodoro_mouth', 'starter_pomodoro_horn', 'starter_pomodoro_tail'])
 ```
 
-## Sapidae (24)
+## Recarga y usos (Hito 97)
 
-Las lanza tu Sapidae si es de esa clase; si no, las lanza el Axie principal (sirve para ver el efecto y el daño).
-
-### Cuerpo a cuerpo (muñeco a 1 casilla)
+En la arena, la carta que pruebas con `lkDebug.probar` siempre está lista (sin recarga ni espera). En un combate normal:
 
 ```js
-lkDebug.probar('craft_anvil', 1)             // Yunque Táctico · Forjacubiles · AL 1–2
-lkDebug.probar('craft_quake', 1)             // Impacto Sísmico · Forjacubiles · AL 1–2
-lkDebug.probar('craft_turret', 1)            // Balista de Lunacia · Forjacubiles · AL 1–4
-lkDebug.probar('shepard_astral_strike', 1)   // Fulgor Cósmico · Susurrador · AL 1–3
-lkDebug.probar('lunalogist_bramble', 1)      // Zarzas Lunares · Lunalogista · AL 1–3
-lkDebug.probar('lunalogist_spores', 1)       // Esporas Vigorizantes · Lunalogista · AL 1–3
-lkDebug.probar('lunalogist_seed', 1)         // Semilla Parásita · Lunalogista · AL 1–3
-lkDebug.probar('lunalogist_bloom', 1)        // Brotación Primigenia · Lunalogista · AL 1–3
-lkDebug.probar('stargazer_vortex', 1)        // Vórtice Gravitacional · Astromante · AL 1–3
-lkDebug.probar('stargazer_nova', 1)          // Nova Estelar · Astromante · AL 1–3
-lkDebug.probar('stargazer_gravity_well', 1)  // Pozo Gravitatorio · Astromante · AL 1–4
-lkDebug.probar('stargazer_eclipse', 1)       // Eclipse Cataclísmico · Astromante · AL 1–4
+lkDebug.recargas()               // recarga, espera inicial, turnos que faltan y usos de cada unidad
+lkDebug.recargas('active')       // solo la unidad del turno
+lkDebug.sinRecargas('active')    // deja todas sus cartas listas
+lkDebug.nivel('kotaro', 7)       // Hito 98: nivel del héroe (cuernos 3, espalda 7, cola 10; Sapidae 4.ª/5.ª/6.ª)
 ```
 
-Todo el bloque:
+## Sapidae (24) — Hito 95: clases y gólems
+
+Las lanza tu Sapidae si es de esa clase; si no, las lanza el Axie principal (sirve para ver el efecto y el daño). Las cartas que necesitan gólem (Fortificar, Marcha del Caparazón) piden primero la invocación. Para sacar un gólem sin carta: `await lkDebug.golem('sentinel'|'hat'|'bell'|'shell')`; para ver los que hay: `lkDebug.golems()`.
+
+### Ataques (muñeco a 1 casilla y a distancia)
 
 ```js
-await lkDebug.probarLista(['craft_anvil', 'craft_quake', 'craft_turret', 'shepard_astral_strike', 'lunalogist_bramble', 'lunalogist_spores', 'lunalogist_seed', 'lunalogist_bloom', 'stargazer_vortex', 'stargazer_nova', 'stargazer_gravity_well', 'stargazer_eclipse'], 1)
+await lkDebug.probarLista(['craft_clay_fist', 'shepard_hat_headbutt', 'lunalogist_alarm_toll', 'lunalogist_purify', 'stargazer_yielding_ground', 'stargazer_petrasense', 'stargazer_corrupt_rift', 'stargazer_dawn_spiral'], 1)
+await lkDebug.probarLista(['craft_clay_fist', 'shepard_hat_headbutt', 'lunalogist_alarm_toll', 'lunalogist_purify', 'stargazer_yielding_ground', 'stargazer_petrasense', 'stargazer_corrupt_rift', 'stargazer_dawn_spiral'], 2)
 ```
 
-### Distancia
+### Gólems (casilla vacía)
 
 ```js
-lkDebug.probar('craft_anvil', 2)             // Yunque Táctico · Forjacubiles · AL 1–2
-lkDebug.probar('craft_quake', 2)             // Impacto Sísmico · Forjacubiles · AL 1–2
-lkDebug.probar('craft_turret', 3)            // Balista de Lunacia · Forjacubiles · AL 1–4
-lkDebug.probar('shepard_astral_strike', 3)   // Fulgor Cósmico · Susurrador · AL 1–3
-lkDebug.probar('lunalogist_bramble', 3)      // Zarzas Lunares · Lunalogista · AL 1–3
-lkDebug.probar('lunalogist_spores', 3)       // Esporas Vigorizantes · Lunalogista · AL 1–3
-lkDebug.probar('lunalogist_seed', 3)         // Semilla Parásita · Lunalogista · AL 1–3
-lkDebug.probar('lunalogist_bloom', 3)        // Brotación Primigenia · Lunalogista · AL 1–3
-lkDebug.probar('stargazer_vortex', 3)        // Vórtice Gravitacional · Astromante · AL 1–3
-lkDebug.probar('stargazer_nova', 3)          // Nova Estelar · Astromante · AL 1–3
-lkDebug.probar('stargazer_gravity_well', 3)  // Pozo Gravitatorio · Astromante · AL 1–4
-lkDebug.probar('stargazer_eclipse', 3)       // Eclipse Cataclísmico · Astromante · AL 1–4
+lkDebug.probar('craft_sentinel_golem', 1)     // Centinela de Vasija · Alfarero de Gólems · provoca, −25 % de daño a aliados al lado
+lkDebug.probar('shepard_hat_golem', 1)        // Gólem Sombrero · Comandante de Sombrero · repite órdenes, +1 PM al lado
+lkDebug.probar('lunalogist_bell_golem', 1)    // Gólem Campanario · Guardián de Campanas · cura, limpia y fragiliza al final de tu turno
+lkDebug.probar('stargazer_shell_golem', 1)    // Gólem Caparazón · Rastreador Gogo · tierra estable alrededor
 ```
 
-Todo el bloque:
+### Apoyo
 
 ```js
-await lkDebug.probarLista(['craft_anvil', 'craft_quake', 'craft_turret', 'shepard_astral_strike', 'lunalogist_bramble', 'lunalogist_spores', 'lunalogist_seed', 'lunalogist_bloom', 'stargazer_vortex', 'stargazer_nova', 'stargazer_gravity_well', 'stargazer_eclipse'], 3)
-```
-
-### Apoyo: sobre sí mismo, aliados o casilla vacía
-
-```js
-lkDebug.probar('craft_totem')                 // Tótem de Resguardo · Forjacubiles · AL 1–3 · sobre un aliado
-lkDebug.probar('craft_barricade', 1)          // Barricada de Lunacia · Forjacubiles · AL 1–3 · casilla vacía
-lkDebug.probar('craft_reinforce')             // Refuerzo de Placas · Forjacubiles · AL 1–3 · sobre un aliado
-lkDebug.probar('shepard_balsam')              // Bálsamo Astral · Susurrador · AL 1–3 · sobre un aliado
-lkDebug.probar('shepard_attunement')          // Sintonía Genética · Susurrador · AL 1–4 · sobre un aliado
-lkDebug.probar('shepard_pack_howl')           // Aullido de Manada · Susurrador · AL 0 · sobre sí mismo
-lkDebug.probar('shepard_spirit_bond')         // Lazo Simbiótico · Susurrador · AL 1–4 · sobre un aliado
-lkDebug.probar('shepard_chimeric_awakening')  // Despertar Quimérico · Susurrador · AL 1–3 · sobre un aliado
-lkDebug.probar('lunalogist_berry')            // Baya Lunar Alquímica · Lunalogista · AL 1–3 · sobre un aliado
-lkDebug.probar('lunalogist_cloak')            // Manto Clorofílico · Lunalogista · AL 0 · sobre sí mismo
-lkDebug.probar('stargazer_transpose')         // Transposición Estelar · Astromante · AL 1–4 · sobre un aliado
-lkDebug.probar('stargazer_jump', 2)           // Salto Astral · Astromante · AL 2–4 · casilla vacía
-```
-
-Todo el bloque:
-
-```js
-await lkDebug.probarLista(['craft_totem', 'craft_barricade', 'craft_reinforce', 'shepard_balsam', 'shepard_attunement', 'shepard_pack_howl', 'shepard_spirit_bond', 'shepard_chimeric_awakening', 'lunalogist_berry', 'lunalogist_cloak', 'stargazer_transpose', 'stargazer_jump'])
+lkDebug.probar('craft_stone_veins')           // Vetas de Piedra · escudo + Arraigado (sobre el gólem: +80 de vida)
+lkDebug.probar('craft_clay_wall', 1)          // Muralla de Arcilla · casilla vacía
+lkDebug.probar('craft_carry_wounded')         // Llevar al Herido · trae al aliado junto al gólem
+lkDebug.probar('craft_fortify')               // Fortificar · solo sobre tu gólem
+lkDebug.probar('shepard_translate_warning')   // Traducir el Aviso · +2 PM
+lkDebug.probar('shepard_shared_order')        // Orden Compartida · +1 PA y +15 % de daño al Axie
+lkDebug.probar('shepard_guided_retreat')      // Retirada Guiada · escudo y se aleja 2 casillas
+lkDebug.probar('shepard_relief')              // Relevo · intercambio con aliado o gólem
+lkDebug.probar('lunalogist_mourning_tone')    // Tono de Duelo · cura y limpia
+lkDebug.probar('lunalogist_warning_whisper')  // Susurro de Advertencia · escudo + Guarda
+lkDebug.probar('lunalogist_blood_moon')       // Resonancia de la Luna de Sangre · todos los aliados
+lkDebug.probar('stargazer_shell_march', 1)    // Marcha del Caparazón · mueve el gólem y deja rastro
 ```
 
 ## Cartas de partes · Bestia

@@ -147,7 +147,7 @@ export class SavannaGenshinLandmarks {
       { model: 'house', ...L.camp.house, name: 'Savanna_BingHouse' },
       { model: 'totem_2', ...L.camp.totem, name: 'Savanna_BingTotem' },
       { model: 'altar', x: L.altar.x, z: L.altar.z, yaw: L.altar.face, name: 'Savanna_AtiaAltar' },
-      { model: 'house', ...L.forge.house, yaw: L.forge.face, name: 'Savanna_BarukHouse' },
+      { model: 'house', ...L.forge.house, yaw: L.forge.face, name: 'Savanna_BarukHouse', smoke: true },
       { model: 'surf', ...L.dock.surf, name: 'Savanna_SurfBoard' },
       { model: 'canoe', ...L.dock.canoe, name: 'Savanna_Canoe' }
     ];

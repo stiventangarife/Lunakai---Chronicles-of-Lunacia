@@ -32,10 +32,12 @@ export class TacticalAI {
       return scoreA - scoreB;
     });
 
-    // Provocación: los héroes que provocan van primero (también al decidir hacia dónde moverse)
+    // Provocación: los héroes que provocan van primero (también al decidir hacia dónde moverse).
+    // Hito 95: el Centinela de Vasija provoca a los enemigos que tiene al lado (isTauntingFor)
     const statuses = this.spellManager.statuses;
     if (statuses) {
-      prioritizedHeroes.sort((a, b) => Number(statuses.has(b, 'taunt')) - Number(statuses.has(a, 'taunt')));
+      const taunts = (u) => Number(this.spellManager.isTauntingFor ? this.spellManager.isTauntingFor(u, enemyUnit) : statuses.has(u, 'taunt'));
+      prioritizedHeroes.sort((a, b) => taunts(b) - taunts(a));
     }
 
     // Miedo: no puede atacar; se aleja todo lo que pueda y termina el turno
@@ -119,7 +121,7 @@ export class TacticalAI {
 
     const attackSpells = enemyUnit.spellIds
       .map(id => this.spellManager.getSpell(id))
-      .filter(s => s && this.spellManager.isDamageSpell(s) && enemyUnit.currentPA >= s.paCost);
+      .filter(s => s && this.spellManager.isDamageSpell(s) && this.spellManager.canCastNow(enemyUnit, s)); // Hito 97: PA, usos y recarga
 
     const best = this.pickAttack(enemyUnit, heroes, attackSpells);
     if (!best) return false;
@@ -173,7 +175,7 @@ export class TacticalAI {
   async _trySupport(enemyUnit, allies) {
     const sm = this.spellManager;
     const spells = enemyUnit.spellIds.map(id => sm.getSpell(id))
-      .filter(s => s && s.targetType !== 'enemy' && !sm.isDamageSpell(s) && !s.baseMinHeal && (s.shieldAmount || (s.effects || []).some(e => e.type === 'shield' || e.type === 'status')) && enemyUnit.currentPA >= s.paCost);
+      .filter(s => s && s.targetType !== 'enemy' && !sm.isDamageSpell(s) && !s.baseMinHeal && (s.shieldAmount || (s.effects || []).some(e => e.type === 'shield' || e.type === 'status')) && sm.canCastNow(enemyUnit, s));
     for (const spell of spells) {
       const cells = sm.getValidTargetCells(enemyUnit, spell);
       const who = [enemyUnit, ...allies]

@@ -254,7 +254,7 @@ export class MysticLandmarks {
     const O = S.observatory;
     const [ox, oz] = this._toWorld(O.x, O.z, O.yaw, 3.8, 6.2);   // beside the right lantern of the door
     const list = [
-      { model: 'house', ...S.house, name: 'Mystic_AstrologerHouse' },
+      { model: 'house', ...S.house, name: 'Mystic_AstrologerHouse', smoke: true },
       { model: 'statue_mystic', x: S.pillar.x, z: S.pillar.z, yaw: S.pillar.yaw, name: 'Mystic_IsletStatue' },
       { model: 'statue_mystic', x: ox, z: oz, yaw: O.yaw, name: 'Mystic_ObservatoryStatue' }
     ];

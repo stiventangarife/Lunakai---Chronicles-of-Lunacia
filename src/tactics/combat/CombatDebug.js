@@ -21,6 +21,7 @@ const EVENT_NAMES = [
   'unit:pushStart', 'unit:collision', 'unit:healBlocked', 'unit:teleported', 'unit:pulled',
   'status:applied', 'status:expired', 'status:tick', 'status:skipTurn', 'status:resisted',
   'field:obstaclePlaced', 'field:obstacleExpired', 'field:zonePlaced', 'field:zoneExpired',
+  'spell:cooldown', 'spell:ready', 'golem:summoned', 'golem:retired', 'golem:pulse', 'golem:broken', 'golem:stableGround', 'unit:retreat',
 ];
 
 export function installCombatDebug(game) {
@@ -49,6 +50,67 @@ export function installCombatDebug(game) {
   };
 
   const api = {
+    // Hito 95 · gólems del Sapidae
+    async golem(kind = null, x = null, z = null) {
+      const sm = game.spellManager;
+      const sap = (game.units || []).find((u) => !u.isDead && u.type === 'sapidae' && u.team === 'player');
+      if (!sm?.golems || !sap) throw new Error('[lkDebug] Hace falta un combate con el Sapidae.');
+      let cell = x != null && z != null ? { x, z } : null;
+      if (!cell) {
+        for (const [dx, dz] of [[1, 0], [-1, 0], [0, 1], [0, -1], [1, 1], [-1, -1], [2, 0], [0, 2]]) {
+          const t = game.gridManager.getTile(sap.gridX + dx, sap.gridZ + dz);
+          if (t && !t.unit && !t.obstacle && t.walkable !== false) { cell = { x: sap.gridX + dx, z: sap.gridZ + dz }; break; }
+        }
+      }
+      if (!cell) throw new Error('[lkDebug] No hay casilla libre junto al Sapidae.');
+      return sm.golems.summon(sap, cell, kind);
+    },
+    golems() {
+      const rows = (game.spellManager?.golems?.golems || []).map((g) => ({
+        id: g.id, tipo: g.golemKind, dueño: g.owner?.name, vivo: !g.isDead, x: g.gridX, z: g.gridZ,
+        hp: `${g.currentHP}/${g.maxHP}`, escudo: g.shield || 0, estados: (g.statuses || []).map((s) => `${s.id}:${s.duration}`).join(' '),
+      }));
+      console.table(rows);
+      return rows;
+    },
+    /** Hito 97: recargas y usos de cada unidad viva (o de una: recargas("active")). */
+    recargas(who = null) {
+      const sm = game.spellManager;
+      const list = who ? [find(who)].filter(Boolean) : (game.units || []).filter((u) => !u.isDead && !u.isGolem);
+      const rows = [];
+      for (const u of list) {
+        for (const id of u.spellIds || []) {
+          const s = sm.getSpell(id, u);
+          if (!s || !(s.cooldown || s.initialCooldown || s.castsPerTurn || s.castsPerTarget)) continue;
+          rows.push({ unidad: u.name, turno: u._turnNo || 0, carta: id, recarga: sm.cooldownOf(u, s), espera: s.initialCooldown || 0,
+            faltan: sm.cooldownLeft(u, s), porTurno: s.castsPerTurn || '', usados: u._castsThisTurn?.[id] || 0, porObjetivo: s.castsPerTarget || '' });
+        }
+      }
+      console.table(rows);
+      return rows;
+    },
+    /** Hito 98: cambia el nivel de un héroe (guardado) y, en combate, el de su unidad: prueba los desbloqueos. */
+    nivel(who = 'active', lvl = 1) {
+      const u = find(who);
+      const heroId = u ? (u.id === 'sapidae_hero' ? 'sapidae' : u.id) : String(who);
+      const em = game.equipmentManager;
+      const prog = em?.getProgression?.(heroId);
+      const n = Math.max(1, Math.min(20, Math.round(Number(lvl) || 1)));
+      if (prog) prog.level = n;
+      if (u?.config) u.config.heroLevel = n;
+      if (u) refresh(u);
+      console.log(`[lkDebug] ${heroId}: nivel ${n}`);
+      return n;
+    },
+    /** Hito 97: deja todas las cartas listas (recargas y usos a cero). */
+    sinRecargas(who = 'active') {
+      const u = find(who);
+      if (!u) return false;
+      u._spellReady = {}; u._castsThisTurn = {}; u._castsOnTarget = {};
+      for (const id of u.spellIds || []) if (game.spellManager.getSpell(id, u)?.initialCooldown) u._spellReady[id] = 0;
+      game._updateHUD?.(u);
+      return true;
+    },
     help() {
       console.log([
         'lkDebug — consola de pruebas del combate',
@@ -67,6 +129,11 @@ export function installCombatDebug(game) {
         '  cast("active", {effects:[...], targetType:"enemy", areaType:"cross1"}, x, z)   prueba una habilidad por datos',
         '  auditParts()                  cartas de partes de cada Axie del escuadrón (fuente: caché / API / genes)',
         '  axieParts(585)                diagnóstico de un Axie por ID: partes de Sky Mavis, genes, colecciones y cartas',
+        '  golem("bell")                 Hito 95: invoca el gólem (sentinel | hat | bell | shell) del Sapidae junto a él',
+        '  golems()                      gólems en el tablero (tipo, dueño, vida, escudo, estados)',
+        '  recargas() / recargas("active")   Hito 97: recarga, espera inicial, turnos que faltan y usos por turno / por objetivo',
+        '  sinRecargas("active")         deja todas sus cartas listas (sin recarga ni usos gastados)',
+        '  nivel("kotaro", 7)           Hito 98: cambia el nivel del héroe (cuernos 3, espalda 7, cola 10; Sapidae: 4.ª, 5.ª y 6.ª habilidad)',
         '  bond(100)                     vínculo con el Axie principal (se guarda; en combate también habilita la Ultimate ya)',
         '  ult()                         estado de la Duo Ultimate y por qué no se puede lanzar',
         '  runes()                       runas y charms activos en este combate (estadísticas y cartas modificadas)',

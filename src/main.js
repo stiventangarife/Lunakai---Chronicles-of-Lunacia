@@ -1,4 +1,5 @@
 // main.js - Core Orchestrator for Axie Tactics 3D with Biomes, Equipment & Guided Tutorial
+import { unlockLevelOf, newlyUnlocked } from './tactics/combat/SkillUnlocks.js'; // Hito 98
 import * as THREE from 'three';
 import './ui/AccessPrefs.js'; // Hito 85: preferencias de accesibilidad aplicadas antes de crear la interfaz
 if (typeof window !== 'undefined') window.THREE = THREE;
@@ -72,7 +73,8 @@ function tutorialCardOrder(ids) {
   const sp = (id) => SPELLS_DB[id];
   const melee = (s) => s && s.targetType === 'enemy' && (s.effects || []).some((e) => e.type === 'damage')
     && (s.minRange ?? 1) <= 1 && (s.maxRange ?? 1) >= 1 && (s.paCost ?? 0) <= 6;
-  const options = ids.filter((id) => melee(sp(id)));
+  // Hito 98: a nivel 1 solo ojos, orejas y boca están desbloqueadas: la carta de la ranura [1] sale de ellas
+  const options = ids.filter((id) => melee(sp(id)) && unlockLevelOf(sp(id)) <= 1);
   if (!options.length) return null;
   const first = options.find((id) => (sp(id).maxRange || 1) >= 2) || options[0];
   return [first, ...ids.filter((id) => id !== first)];
@@ -179,11 +181,29 @@ class AxieTacticsGame {
             const slot = document.getElementById(`spell-slot-${i}`);
             const s = this.spellManager.getSpell(id, u);
             const spent = Boolean(s && this.spellManager.castLimitReached(u, s));
+            // Hito 98: carta aún bloqueada por el nivel del héroe (candado y «Nv. N»)
+            const lockLv = s && this.spellManager.isLocked?.(u, s) ? this.spellManager.unlockLevel(u, s) : 0;
+            // Hito 97: turnos de recarga que faltan (número grande sobre la carta)
+            const cd = s && !lockLv ? this.spellManager.cooldownLeft(u, s) : 0;
+            // Hito 95: cartas que necesitan el gólem en pie (Fortificar, Marcha del Caparazón)
+            const noGolem = Boolean(s && (s.rangeFrom === 'golem' || s.allyFilter === 'golem') && !this.spellManager.golems?.golemOf(u));
             if (!slot) return;
-            if (spent) slot.classList.add('disabled');
+            if (spent || cd || noGolem || lockLv) slot.classList.add('disabled');
+            if (lockLv) slot.setAttribute('data-locked', String(lockLv)); else slot.removeAttribute('data-locked');
+            let lockEl = slot.querySelector('.lk-lock-badge');
+            if (lockLv && !lockEl) { lockEl = document.createElement('span'); lockEl.className = 'lk-lock-badge'; lockEl.setAttribute('aria-hidden', 'true'); slot.appendChild(lockEl); }
+            if (lockEl) lockEl.innerHTML = lockLv ? `<svg viewBox="0 0 24 24"><path d="M7 10V7a5 5 0 0 1 10 0v3h1.5A1.5 1.5 0 0 1 20 11.5v8A1.5 1.5 0 0 1 18.5 21h-13A1.5 1.5 0 0 1 4 19.5v-8A1.5 1.5 0 0 1 5.5 10H7Zm2 0h6V7a3 3 0 0 0-6 0v3Z" fill="currentColor"/></svg><b>${i18n.t('game.levelShortN', { n: lockLv })}</b>` : '';
             slot.toggleAttribute('data-spent', spent);
-            if (spent) slot.title = i18n.t('game.spellSpent');
-            else if (slot.title === i18n.t('game.spellSpent')) slot.removeAttribute('title');
+            slot.toggleAttribute('data-no-golem', noGolem);
+            if (cd) slot.setAttribute('data-cd', String(cd)); else slot.removeAttribute('data-cd');
+            let cdEl = slot.querySelector('.lk-cd-badge');
+            if (cd && !cdEl) { cdEl = document.createElement('span'); cdEl.className = 'lk-cd-badge'; cdEl.setAttribute('aria-hidden', 'true'); slot.appendChild(cdEl); }
+            if (cdEl) cdEl.textContent = cd ? String(cd) : '';
+            const cdTxt = (n) => i18n.t(n === 1 ? 'game.spellCooldown1' : 'game.spellCooldownN', { n });
+            const why = lockLv ? i18n.t('game.spellLocked', { n: lockLv }) : cd ? cdTxt(cd) : spent ? i18n.t('game.spellSpent') : noGolem ? i18n.t('golems.needsGolem') : null;
+            if (why) slot.title = why;
+            else if (slot.title && (slot.title === i18n.t('game.spellSpent') || slot.title === i18n.t('golems.needsGolem') || slot.dataset.cdTitle === slot.title)) slot.removeAttribute('title');
+            if (cd || lockLv) slot.dataset.cdTitle = why; else delete slot.dataset.cdTitle;
           });
         } catch { /* la interfaz nunca rompe el combate */ }
         return r;
@@ -1114,6 +1134,7 @@ class AxieTacticsGame {
       critRate: sapStats ? (sapStats.critRate || 20) : 20,
       supportPower: sapStats ? (sapStats.supportPower ?? 25) : 25,
       skillLevels: sapProg ? (sapProg.skillLevels || {}) : {},
+      heroLevel: sapProg?.level || 1, // Hito 98: habilidades que se desbloquean por nivel
       spellIds: sapidaeClassDef.spells,
       scale: 1.05,
       isSapidae: true,
@@ -1191,6 +1212,7 @@ class AxieTacticsGame {
         critRate: stats.critRate || 0,
         supportPower: stats.supportPower || 0,
         skillLevels: prog ? prog.skillLevels : {},
+        heroLevel: prog?.level || 1, // Hito 98: cuernos a nivel 3, espalda a 7, cola a 10
         // Cartas de partes reales (Fase 4). En el tutorial también, con un ataque cuerpo a cuerpo en la ranura [1]
         // (el paso 6 pide la [1]); si el Axie no tiene ninguno, usa los hechizos de siempre.
         spellIds: (isAxie && (config.isTutorial ? tutorialCardOrder(this.partsResolver?.idsFor(baseInfo)) : this.partsResolver?.idsFor(baseInfo))) || (heroId === 'kotaro' ? (baseInfo.spellIds || getHeroSpells(baseInfo.heroKey || baseInfo.axieId)) : (HERO_SPELLS[heroId] || baseInfo.spellIds)) || ['kotaro_slash'],
@@ -1395,7 +1417,7 @@ class AxieTacticsGame {
       const squadIds = typeof this.equipmentManager.getSquad === 'function' ? this.equipmentManager.getSquad() : [];
       const activeHero = squadIds[1] || this.selectedHeroId || 'kotaro';
       const participatingHeroIds = [...new Set(this.units
-        .filter(u => u.team === 'player')
+        .filter(u => u.team === 'player' && !u.isGolem) // Hito 95: los gólems no son héroes
         .map(u => (u.id === 'sapidae_hero' ? 'sapidae' : u.id)))];
       const before = {};
       participatingHeroIds.forEach(hId => {
@@ -1417,6 +1439,15 @@ class AxieTacticsGame {
           cls: this._heroClassKey(h),
           level: res.currentLevel,
           levelsGained: res.levelsGained,
+          // Hito 98: habilidades desbloqueadas con los niveles de este combate
+          unlocked: (() => {
+            if (!b || !(res.levelsGained > 0)) return [];
+            const u = this.units.find((x) => x.id === (hId === 'sapidae' ? 'sapidae_hero' : hId));
+            const isSap = Boolean(h?.isSapidae || hId === 'sapidae');
+            const ids = isSap ? (SAPIDAE_CLASSES[this.equipmentManager.heroesBase?.sapidae?.sapidaeClassKey]?.spells || u?.spellIds) : u?.spellIds;
+            return newlyUnlocked(ids, (id) => this.spellManager.getSpell(id), b.level, res.currentLevel, isSap)
+              .map((x) => ({ name: x.spell.name, part: isSap ? null : x.spell.part, level: x.level }));
+          })(),
           gain: Math.floor(baseExp * this.equipmentManager.getExpShare(hId, activeHero)),
           basePct: res.levelsGained > 0 || !b ? 0 : expPct(b.exp, b.req),
           afterPct: expPct(res.currentExp, res.requiredExp),
@@ -1468,7 +1499,7 @@ class AxieTacticsGame {
       const rcView = rcLoot.map(({ kind, x }) => ({ id: `${kind}:${x.id}`, name: x.name, rarity: RC_RAR(x.rarity), icon: runeCharmArt(kind, x.id) || `./assets/ui/icons/${kind === 'runes' ? 'rune' : 'charm'}.png`, slot: kind === 'runes' ? i18n.t('game.rune') : i18n.t('game.charm'), stats: {}, description: `${i18n.t(kind === 'runes' ? 'game.runeNeutralDesc' : 'game.charmNeutralDesc')} ${x.desc || ''}` }));
 
       // Valoración y resumen con datos reales del combate
-      const allies = this.units.filter(u => u.team === 'player');
+      const allies = this.units.filter(u => u.team === 'player' && !u.isGolem);
       const foes = this.units.filter(u => u.team === 'enemy');
       const rounds = this.turnManager.round || 1;
       const alliesKO = allies.filter(u => u.isDead).length;
@@ -1515,7 +1546,7 @@ class AxieTacticsGame {
       const config = this.activeBattleConfig || LEVELS_CONFIG[this.currentLevel] || LEVELS_CONFIG[1];
       const squadIds = typeof this.equipmentManager.getSquad === 'function' ? this.equipmentManager.getSquad() : [];
       const activeHero = squadIds[1] || this.selectedHeroId || 'kotaro';
-      const allies = this.units.filter(u => u.team === 'player');
+      const allies = this.units.filter(u => u.team === 'player' && !u.isGolem);
       const foesAlive = this.units.filter(u => u.team === 'enemy' && !u.isDead);
       const squad = allies.map(u => {
         const hid = u.id === 'sapidae_hero' ? 'sapidae' : u.id;
@@ -1608,7 +1639,7 @@ class AxieTacticsGame {
    */
   _writeBackSquadHP() {
     if (!this._battleUsesPersistentHP || !this.equipmentManager) return;
-    this.units.filter((u) => u.team === 'player').forEach((u) => {
+    this.units.filter((u) => u.team === 'player' && !u.isGolem).forEach((u) => {
       const heroId = u.id === 'sapidae_hero' ? 'sapidae' : u.id;
       // La vida extra de runas y charms solo existe en combate: se descuenta al volver al mundo abierto
       const hp = (u.isDead || !(u.currentHP > 0)) ? 1 : Math.max(1, u.currentHP - (u._rcHpDelta || 0));

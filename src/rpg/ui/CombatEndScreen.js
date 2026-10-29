@@ -199,15 +199,25 @@ export class CombatEndScreen {
     const points = !zero && u.levelsGained > 0
       ? `<div class="lk-axp-meta"><span>${i18n.t('combatEnd.statPoints', { n: u.levelsGained * 3 })}</span></div>` : '';
     const sub = u.isSapidae && !zero ? `${u.sub}${i18n.t('combatEnd.xpOnly')}` : u.sub;
+    const unlocked = this._unlockedHtml(u, zero);
     return `<div class="lk-u-prog">${this._portrait(u)}<div class="lk-rows">
       <div class="lk-u-name"><b>${esc(u.name)}</b><small>${esc(sub)}</small>${lvlUp}${axpUp}</div>
       <div class="lk-prow lk-xp ${zero ? 'lk-is-zero' : ''}"><span class="lk-chip">XP</span><span class="lk-lv">${i18n.t('combatEnd.lv', { n: u.level })}</span>${this._bar(u, zero)}<span class="lk-gain">+${zero ? 0 : num(u.gain)}</span></div>
-      ${this._axpRow(u, zero)}${this._axpMeta(u, zero)}${points}</div></div>`;
+      ${this._axpRow(u, zero)}${this._axpMeta(u, zero)}${points}${unlocked}</div></div>`;
+  }
+
+  /** Hito 98: «¡Nueva habilidad!» con las cartas desbloqueadas al subir de nivel. */
+  _unlockedHtml(u, zero) {
+    if (zero || !u.unlocked?.length) return '';
+    const PART = { horn: 'combatHud.partHorn', back: 'combatHud.partBack', tail: 'combatHud.partTail' };
+    const list = u.unlocked.map((x) => `<b>${esc(x.name)}</b>${x.part && PART[x.part] ? ` <small>(${esc(i18n.t(PART[x.part]))})</small>` : ''}`).join(' · ');
+    return `<div class="lk-axp-meta lk-new-skill"><span>✦ ${i18n.t(u.unlocked.length > 1 ? 'combatEnd.newSkills' : 'combatEnd.newSkill')} ${list}</span></div>`;
   }
 
   _supRow(u, zero) {
     const up = !zero && u.levelsGained > 0 ? `<small class="lk-sup-up">${i18n.t('combatEnd.lvUpShort', { n: u.level })}</small>` : '';
-    return `<div class="lk-sup ${u.axp ? '' : 'lk-xp-only'}">${this._portrait(u)}<b><span style="overflow:hidden;text-overflow:ellipsis">${esc(u.name)}</span>${up}</b><div class="lk-prow lk-xp ${zero ? 'lk-is-zero' : ''}"><span class="lk-chip">XP</span>${this._bar(u, zero)}<span class="lk-gain">+${zero ? 0 : num(u.gain)}</span></div>${this._axpRow(u, zero, true)}</div>`;
+    const newSkill = !zero && u.unlocked?.length ? `<small class="lk-sup-up lk-new-skill" title="${esc(u.unlocked.map((x) => x.name).join(' · '))}">✦ ${i18n.t('combatEnd.newSkillShort', { n: u.unlocked.length })}</small>` : '';
+    return `<div class="lk-sup ${u.axp ? '' : 'lk-xp-only'}">${this._portrait(u)}<b><span style="overflow:hidden;text-overflow:ellipsis">${esc(u.name)}</span>${up}${newSkill}</b><div class="lk-prow lk-xp ${zero ? 'lk-is-zero' : ''}"><span class="lk-chip">XP</span>${this._bar(u, zero)}<span class="lk-gain">+${zero ? 0 : num(u.gain)}</span></div>${this._axpRow(u, zero, true)}</div>`;
   }
 
   /** Añade la AXP de demostración a cada axie (no al Sapidae). */

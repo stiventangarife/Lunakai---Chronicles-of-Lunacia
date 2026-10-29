@@ -105,8 +105,28 @@ const ENEMY_VFX = new Set([
   'bear_dad_shield',
   'bear_dad_slam',
 ]);
+/**
+ * Hito 95: habilidades del Sapidae rediseñadas → efecto ya hecho que reutilizan (la clave del efecto es el id de la
+ * habilidad antigua). null = sin efecto del motor: el gólem sale de la tierra con su propia animación (GolemSystem).
+ * Cuando haya efectos propios, basta con quitar la entrada y registrar el efecto con el id nuevo en su módulo.
+ */
+const SAPIDAE_VFX_ALIAS = {
+  craft_clay_fist: 'craft_anvil', craft_sentinel_golem: null, craft_stone_veins: 'craft_reinforce',
+  craft_clay_wall: 'craft_barricade', craft_carry_wounded: 'shepard_balsam', craft_fortify: 'craft_totem',
+  shepard_hat_headbutt: 'shepard_astral_strike', shepard_hat_golem: null, shepard_translate_warning: 'shepard_attunement',
+  shepard_shared_order: 'shepard_chimeric_awakening', shepard_guided_retreat: 'lunalogist_berry', shepard_relief: 'stargazer_transpose',
+  lunalogist_alarm_toll: 'lunalogist_bramble', lunalogist_bell_golem: null, lunalogist_mourning_tone: 'shepard_balsam',
+  lunalogist_warning_whisper: 'lunalogist_berry', lunalogist_purify: 'lunalogist_seed', lunalogist_blood_moon: 'shepard_pack_howl',
+  stargazer_yielding_ground: 'stargazer_vortex', stargazer_shell_golem: null, stargazer_petrasense: 'stargazer_nova',
+  stargazer_shell_march: null, stargazer_corrupt_rift: 'stargazer_gravity_well', stargazer_dawn_spiral: 'lunalogist_spores',
+};
 function specialVfx(id) {
   if (ULTIMATE_VFX[id]) return ULTIMATE_VFX[id];
+  if (id in SAPIDAE_VFX_ALIAS) {
+    const key = SAPIDAE_VFX_ALIAS[id];
+    const mm = key && /^(craft|shepard|lunalogist|stargazer)_/.exec(key);
+    return mm ? [key, SAPIDAE_MODULE[mm[1]]] : null;
+  }
   if (ENEMY_VFX.has(id)) return [id, 'enemigos'];
   if (STARTER_VFX[id]) return STARTER_VFX[id];
   const m = /^(craft|shepard|lunalogist|stargazer)_/.exec(id || '');

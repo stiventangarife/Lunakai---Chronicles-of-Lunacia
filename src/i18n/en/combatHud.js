@@ -92,5 +92,15 @@ export default {
   "combatHud.uses": "Uses",
   "combatHud.vision": "Sight",
   "combatHud.weakened": "Weakened",
-  "combatHud.withCharms": "with charms"
+  "combatHud.withCharms": "with charms",
+  "combatHud.cooldown": "Cooldown",
+  "combatHud.initialCd": "Initial wait",
+  "combatHud.uses": "Uses",
+  "combatHud.perTurnN": "{n} per turn",
+  "combatHud.perTargetN": "{n} per target",
+  "combatHud.readyIn1": "Recharging: ready in 1 turn.",
+  "combatHud.readyInN": "Recharging: ready in {n} turns.",
+  "combatHud.spentTip": "No uses of this card left this turn.",
+  "combatHud.lockedAt": "Locked: unlocks at level {n}.",
+  "combatHud.lockedAtPart": "Locked: unlocks at level {n} ({part})."
 };

@@ -65,6 +65,8 @@ export class BattlefieldObjects {
       const friendly = zn.owner && zn.owner.team === unit.team;
       const fx = friendly ? zn.ally : zn.enemy;
       if (!fx) continue;
+      // Hito 95 · tierra estable (rastro y restos del Gólem Caparazón): la aplica GolemSystem
+      if (fx.stable && typeof this.onStableGround === 'function') this.onStableGround(unit, zn.owner);
       if (fx.pm) unit.currentPM = Math.max(0, unit.currentPM + fx.pm);
       if (fx.pa) unit.currentPA = Math.max(0, unit.currentPA + fx.pa);
       if (fx.pm || fx.pa) {

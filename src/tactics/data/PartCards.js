@@ -299,7 +299,49 @@ export function withDisplayFields(card) {
   const givesTempo = c.effects.some((e) => (e.type === 'resource' && ((e.pa || 0) > 0 || (e.pm || 0) > 0) && !/enem/i.test(e.target || ''))
     || (e.type === 'status' && e.status === 'energized'));
   if (givesTempo && c.castsPerTurn == null) c.castsPerTurn = 1;
+  applyUseLimits(c, givesTempo);
   return c;
+}
+
+// ------------------------------------------------------------------ Hito 97 · recarga y usos de las cartas de Axie
+//
+// Reglas automáticas (solo rellenan lo que la carta no traiga ya; una carta puede fijar cooldown: 0 para no tener):
+//   · Aturdir, dormir o miedo al enemigo ............ recarga 2 y 1 vez por objetivo
+//   · Daño alto para su coste (≥ HIGH_DAMAGE) ........ 1 vez por turno y recarga 2
+//   · Daño en área ................................... recarga 1
+//   · Da PA o PM a tu equipo ......................... 1 vez por turno (Fase 5) y recarga 1
+//   · Curación grande (≥ BIG_HEAL) ................... recarga 1
+//   · Curar o proteger a un aliado ................... 1 vez por objetivo y turno
+//   · Escudo en área o a todos los aliados ........... 1 vez por turno
+//   · Ataque de 1 PA ................................. 2 veces por objetivo y turno
+// Las partes de nivel 2 (+20 % de daño) se miden con su daño base: mejorar una parte no le pone recarga.
+export const USE_LIMITS = {
+  HIGH_DAMAGE: { 1: 32, 2: 80, 3: 140 },   // ≈ el 20 % de cartas con más daño de cada coste
+  BIG_HEAL: 45,
+  CC_STATUSES: ['stun', 'sleep', 'fear'],
+};
+
+function applyUseLimits(c, givesTempo) {
+  const L = USE_LIMITS;
+  const fx = c.effects || [];
+  const set = (k, v) => { if (c[k] == null || (typeof c[k] === 'number' && c[k] < v && k === 'cooldown')) c[k] = v; };
+  const explicitCd = Object.prototype.hasOwnProperty.call(c, 'cooldown');
+  const cd = (v) => { if (!explicitCd) c.cooldown = Math.max(c.cooldown || 0, v); };
+  const cc = fx.some((e) => e.type === 'status' && L.CC_STATUSES.includes(e.status) && !/self|all?ll?ies/i.test(e.target || ''));
+  const dmgRef = (c.baseMaxDamage || 0) / (c.stage >= 2 ? 1.2 : 1); // STAGE2_BONUS (VariantCards)
+  const high = dmgRef > 0 && typeof c.paCost === 'number' && dmgRef >= (L.HIGH_DAMAGE[c.paCost] ?? Infinity);
+  const aoe = c.areaType && c.areaType !== 'single';
+  const support = c.targetType === 'ally' && fx.some((e) => e.type === 'heal' || e.type === 'shield');
+  if (cc) { cd(2); set('castsPerTarget', 1); }
+  if (high) { cd(2); set('castsPerTurn', 1); }
+  if (aoe) cd(1);
+  if (givesTempo) cd(1);
+  if ((c.baseMaxHeal || 0) >= L.BIG_HEAL) cd(1);
+  if (support) set('castsPerTarget', 1);
+  // Escudo en área o a todo el equipo (Platypus, Mint, Lost Dream…): 1 vez por turno
+  const areaShield = fx.some((e) => e.type === 'shield' && (/all|area|team/i.test(e.target || '') || (aoe && !/self|caster/i.test(e.target || ''))));
+  if (areaShield) set('castsPerTurn', 1);
+  if (c.paCost === 1 && c.baseMaxDamage && !c.castsPerTarget) c.castsPerTarget = 2;
 }
 
 /** Hechizos listos para SPELLS_DB (con campos de interfaz). */

@@ -155,11 +155,7 @@ export class OverworldManager {
         }
       };
       this.inventoryModal.onItemEquipped = (heroId, slot, itemId) => {
-        if (slot === 'weapon') this._refreshCompanionWeapon(); // el Axie compañero también lleva su arma (Hito 52)
-        if (this.player && typeof this.player.applyEquipment === 'function') {
-          const currentEquipped = this.equipmentManager ? (this.equipmentManager.equipped.sapidae || this.equipmentManager.equipped.kotaro || {}) : {};
-          this.player.applyEquipment(currentEquipped);
-        }
+        this._syncWorldEquipment(); // Hito 96: el mismo camino que la Forja (Sapidae y arma del Axie compañero)
         if (this.equipmentManager && typeof this.equipmentManager._updateSapidaePortrait === 'function') {
           this.equipmentManager._updateSapidaePortrait();
         }
@@ -176,11 +172,7 @@ export class OverworldManager {
         }
       };
       this.inventoryModal.onItemUnequipped = (heroId, slot) => {
-        if (slot === 'weapon') this._refreshCompanionWeapon();
-        if (this.player && typeof this.player.applyEquipment === 'function') {
-          const currentEquipped = this.equipmentManager ? (this.equipmentManager.equipped.sapidae || this.equipmentManager.equipped.kotaro || {}) : {};
-          this.player.applyEquipment(currentEquipped);
-        }
+        this._syncWorldEquipment();
         if (this.equipmentManager && typeof this.equipmentManager._updateSapidaePortrait === 'function') {
           this.equipmentManager._updateSapidaePortrait();
         }
@@ -282,8 +274,8 @@ export class OverworldManager {
           <div class="lk-intro__line" aria-hidden="true"><i></i></div>
           <div class="lk-intro__meta">
             <span class="lk-intro__chip">
-              <span class="lk-intro__cls"><img id="intro-hero-class-ico" src="./assets/classes/class_forjacubiles.jpg" alt=""></span>
-              <span class="lk-intro__txt"><small id="intro-hero-role">Sapidae · ${i18n.t('overworld.levelShort', { n: 1 })}</small><b id="intro-hero-class">Forjacubiles</b></span>
+              <span class="lk-intro__cls"><img id="intro-hero-class-ico" src="./assets/classes/class_forjacubiles.webp" alt=""></span>
+              <span class="lk-intro__txt"><small id="intro-hero-role">Sapidae · ${i18n.t('overworld.levelShort', { n: 1 })}</small><b id="intro-hero-class">${SAPIDAE_CLASSES.crafter.name}</b></span>
             </span>
             <span class="lk-intro__chip">
               <span class="lk-intro__med" id="intro-hero-avatar"></span>
@@ -552,6 +544,30 @@ export class OverworldManager {
    * El Axie compañero del mundo abierto sigue al principal del escuadrón (squad[1]).
    * animate: el anterior desaparece en una nubecita de humo y aparece el nuevo (PlayerEntity.swapCompanion).
    */
+  /**
+   * Hito 96: el modelo del mundo (equipo del Sapidae y arma del Axie compañero) sigue al inventario venga de donde
+   * venga el cambio: Mochila, Forja (al evolucionar la pieza se quita y al recogerla vuelve evolucionada), Tienda…
+   * Escucha `EquipmentManager` y solo toca el modelo si cambió algo (el aviso también salta con la vida o el oro).
+   */
+  _syncWorldEquipment(force = false) {
+    const em = this.equipmentManager;
+    if (!em || !this.player) return;
+    const eq = em.equipped?.sapidae || em.equipped?.kotaro || {};
+    const key = JSON.stringify(Object.keys(eq).sort().map((k) => [k, eq[k] || null]));
+    if (force || key !== this._worldEquipKey) {
+      this._worldEquipKey = key;
+      if (typeof this.player.applyEquipment === 'function') this.player.applyEquipment(eq);
+    }
+    this._refreshCompanionWeapon(); // ya compara con el arma que lleva
+  }
+
+  _watchEquipment() {
+    const em = this.equipmentManager;
+    if (!em || typeof em.addListener !== 'function') return;
+    if (!this._onEquipChange) this._onEquipChange = () => this._syncWorldEquipment();
+    em.addListener(this._onEquipChange); // no se duplica: addListener comprueba la referencia
+  }
+
   /** El arma del Axie compañero es la que tenga equipada ese Axie en el inventario (Hito 52). */
   _refreshCompanionWeapon() {
     const em = this.equipmentManager;
@@ -976,11 +992,8 @@ export class OverworldManager {
     // El compañero que sigue al Sapidae es el Axie principal del escuadrón (al cargar, sin animación)
     this._companionHeroId = 'kotaro';
     this._syncCompanionToSquad(false);
-    const initialEquipped = this.equipmentManager ? (this.equipmentManager.equipped.sapidae || this.equipmentManager.equipped.kotaro) : null;
-    if (initialEquipped) {
-      this.player.applyEquipment(initialEquipped);
-    }
-    this._refreshCompanionWeapon();
+    this._syncWorldEquipment(true);
+    this._watchEquipment();
     this.scene.add(this.player.group);
     if (this.player.companionGroup && !this.player.companionGroup.parent) {
       this.scene.add(this.player.companionGroup);

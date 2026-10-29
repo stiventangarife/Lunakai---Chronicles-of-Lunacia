@@ -14,6 +14,7 @@
 
 import * as THREE from 'three';
 import { cloneGLTF, evictGLTF } from '../../render/ModelCache.js';
+import { ChimneySmoke, chimneyPoint } from './ChimneySmoke.js'; // Hito 96
 import { VILLAGE, VILLAGE_MODELS, VILLAGE_ZONE, VILLAGE_STREET } from './ForestVillageLayout.js';
 
 const TAG = 'forest_village';
@@ -115,7 +116,7 @@ export class ForestVillage {
               this.items.push({
                 ...v, def, c: Math.cos(v.yaw), s: Math.sin(v.yaw), y: 0,
                 hw: (box.max.x - box.min.x) / 2 * def.scale, hd: (box.max.z - box.min.z) / 2 * def.scale,
-                part: name, index: list.indexOf(v),
+                part: name, index: list.indexOf(v), cx0: center.x, cz0: center.z,
                 baseHW: (base.max.x - base.min.x) / 2 * def.scale, baseHD: (base.max.z - base.min.z) / 2 * def.scale,
                 baseCX: ((base.min.x + base.max.x) / 2 - center.x) * def.scale, baseCZ: ((base.min.z + base.max.z) / 2 - center.z) * def.scale
               });
@@ -166,6 +167,15 @@ export class ForestVillage {
     if (changed) this._writeMatrices();
   }
 
+  /** Hito 96: humo de las casas con `smoke` (una sola llamada de dibujo; sigue la altura de cada casa). */
+  _syncSmoke() {
+    if (!this.group) return;
+    const pts = this.items.filter((it) => it.smoke && it.model === 'house')
+      .map((it) => chimneyPoint({ x: it.x, y: it.y, z: it.z, yaw: it.yaw, scale: it.def.scale, cx: it.cx0, cz: it.cz0 }));
+    if (!this.smoke) this.smoke = new ChimneySmoke(this.group, pts);
+    else this.smoke.setPoints(pts);
+  }
+
   _writeMatrices() {
     const T = new THREE.Matrix4(), R = new THREE.Matrix4(), S = new THREE.Matrix4(), C = new THREE.Matrix4(), M = new THREE.Matrix4();
     this.parts.forEach((im) => {
@@ -185,6 +195,7 @@ export class ForestVillage {
       im.instanceMatrix.needsUpdate = true;
       im.computeBoundingSphere();
     });
+    this._syncSmoke();
     if (this.plinthMesh) {
       this.items.filter((it) => it.plinth).forEach((it) => {
         const h = Math.max(0.05, it.y + 0.02 - it.plinthBottom);
@@ -236,6 +247,7 @@ export class ForestVillage {
       if (this.group?.parent) this.group.parent.remove(this.group);
       (this.parts || []).forEach((im) => im.dispose());
       if (this.plinthMesh) { this.plinthMesh.geometry.dispose(); this.plinthMesh.material.dispose(); this.plinthMesh.dispose(); }
+      this.smoke?.dispose(); this.smoke = null;
       [...new Set(VILLAGE.map((v) => VILLAGE_MODELS[v.model].url))].forEach((url) => evictGLTF(url));
       this.group = null; this._loading = null; this.parts = []; this.items = []; this.plinthMesh = null;
     };

@@ -74,7 +74,7 @@ const ATTRS = [
   ['agility', i18n.t('inventory.attrAgility'), i18n.t('inventory.hintAgility')],
   ['essence', i18n.t('inventory.attrEssence'), i18n.t('inventory.hintEssence')]
 ];
-/** Qué hace cada atributo según el héroe (19-oct): el Sapidae Lunalogista y Astromante usan la Esencia como daño. */
+/** Qué hace cada atributo según el héroe (19-oct): el Sapidae Guardián de Campanas (lunalogist) y Rastreador Gogo (stargazer) usan la Esencia como daño. */
 function attrHints(heroId, base) {
   const magic = heroId === 'sapidae' && ['lunalogist', 'stargazer'].includes(base?.sapidaeClassKey);
   if (!magic) return ATTRS;

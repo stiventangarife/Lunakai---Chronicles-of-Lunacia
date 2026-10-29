@@ -7,6 +7,24 @@
 import * as THREE from 'three';
 import * as i18n from '../../i18n/i18n.js';
 import { STATUS_DEFS } from './StatusSystem.js';
+import { TILE_SIZE } from '../GridManager.js';
+
+// Hito 95 · marcas en el suelo de las zonas (tierra estable, grieta corrupta…). Geometría y materiales compartidos
+// por todas las marcas y combates (no se crean materiales en cada lanzamiento).
+const ZONE_DECAL_COLORS = { stable_ground: 0xa6e37a, corrupt_rift: 0x9b5cf0, gravity_well: 0x6fb7ff };
+let _zoneGeo = null;
+const _zoneMats = {};
+function zoneDecalGeo() {
+  if (!_zoneGeo) { _zoneGeo = new THREE.PlaneGeometry(TILE_SIZE * 0.86, TILE_SIZE * 0.86); _zoneGeo.rotateX(-Math.PI / 2); }
+  return _zoneGeo;
+}
+function zoneDecalMat(kind) {
+  const color = ZONE_DECAL_COLORS[kind] ?? 0x7fe3d0;
+  if (!_zoneMats[color]) {
+    _zoneMats[color] = new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.32, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 });
+  }
+  return _zoneMats[color];
+}
 
 export class SpellPresentation {
   constructor({ sceneManager, gridManager, audio, combatText, vfx }) {
@@ -185,8 +203,22 @@ export class SpellPresentation {
     on('runeCharm:proc', ({ unit, label }) => {
       if (unit && label) this.combatText.spawn(this._posOf(unit), `✦ ${label}`, 'buff');
     });
-    on('field:zonePlaced', ({ positions }) => {
-      if (positions[0]) this.combatText.spawn(positions[0], i18n.t('combatFx.zone'), 'buff');
+    on('field:zonePlaced', (zone) => {
+      const { positions, kind } = zone;
+      if (positions[0]) this.combatText.spawn(positions[0], kind === 'stable_ground' ? i18n.t('golems.stable') : i18n.t('combatFx.zone'), 'buff');
+      this._addZoneDecal(zone);
+    });
+    on('field:zoneExpired', (zone) => this._removeZoneDecal(zone));
+    // Hito 95 · gólems del Sapidae
+    on('golem:summoned', ({ golem, pos }) => {
+      this.combatText.spawn(pos || this._posOf(golem), i18n.t('golems.summoned', { name: golem.name }), 'buff');
+      this.sceneManager.shake?.(0.12);
+    });
+    on('golem:broken', ({ golem, pos }) => {
+      this.combatText.spawn(pos || this._posOf(golem), i18n.t('golems.broken'), 'pm');
+    });
+    on('golem:pulse', ({ golem, kind }) => {
+      if (kind === 'bell') this.combatText.spawn(this._posOf(golem), i18n.t('golems.toll'), 'heal');
     });
 
     // Hito 88: sonidos de golpes por clase y peso, escudos, estados, caídas, Ultimate y latido (CombatSfx)
@@ -198,6 +230,41 @@ export class SpellPresentation {
   uninstall() {
     this._offs.forEach((off) => off());
     this._offs = [];
+    this.clearZoneDecals();
+  }
+
+  // ---------------------------------------------- marcas de zona (Hito 95)
+  _zoneKey(z) { return `${z.kind}|${z.expiresAtRound}|${(z.cells || []).map((c) => `${c.x},${c.z}`).join(';')}`; }
+
+  _addZoneDecal(zone) {
+    const scene = this.sceneManager?.scene;
+    if (!scene || !zone?.positions?.length) return;
+    this._zoneDecals ||= new Map();
+    const group = new THREE.Group();
+    group.name = `zone_${zone.kind}`;
+    for (const p of zone.positions) {
+      const m = new THREE.Mesh(zoneDecalGeo(), zoneDecalMat(zone.kind));
+      m.position.set(p.x, 0.045, p.z);
+      m.renderOrder = 2;
+      group.add(m);
+    }
+    scene.add(group);
+    this._zoneDecals.set(this._zoneKey(zone), group);
+  }
+
+  _removeZoneDecal(zone) {
+    const key = this._zoneKey(zone);
+    const g = this._zoneDecals?.get(key);
+    if (!g) return;
+    g.parent?.remove(g);
+    this._zoneDecals.delete(key);
+  }
+
+  /** Quita todas las marcas de zona (al empezar otro combate o al desinstalar). */
+  clearZoneDecals() {
+    if (!this._zoneDecals) return;
+    for (const g of this._zoneDecals.values()) g.parent?.remove(g);
+    this._zoneDecals.clear();
   }
 
   /** Efecto propio de cada habilidad (tajo, ondas, raíces, pilar de cura, explosión, hielo). */

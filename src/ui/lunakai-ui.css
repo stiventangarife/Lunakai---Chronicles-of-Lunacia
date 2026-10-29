@@ -112,7 +112,7 @@ button.lk-acct { border: 0; cursor: pointer; font: inherit; color: inherit; text
 .lk-cc-screen .lk-cc-scene { pointer-events: none; }
 .lk-cc-screen .lk-cc-panel { min-height: 0; }
 .lk-cc-screen .lk-cc-pane { max-height: none; min-height: 0; overflow-y: auto; scrollbar-gutter: stable; }
-.lk-crest > img { width: 100%; height: 100%; object-fit: cover; border-radius: 50%; }
+.lk-crest > img { width: 100%; height: 100%; object-fit: contain; filter: drop-shadow(0 1px 2px rgba(0, 0, 0, .55)); } /* Hito 95: emblemas con fondo transparente */
 .lk-opt .dofus-item-svg { width: 30px; height: 30px; }
 .lk-stat-chips svg { width: 14px; height: 14px; color: var(--lk-pm, #8CF09B); }
 .lk-spell .lk-spell-part { position: absolute; right: 2px; bottom: 2px; width: 24px; height: 24px; object-fit: contain; filter: drop-shadow(0 1px 2px rgba(0, 0, 0, .8)); }
@@ -404,7 +404,7 @@ body.state-combat .lk-ow-hud, body.state-combat .lk-ow-minimap { display: none !
 .lk-party-tip header { display: flex; align-items: center; gap: 10px; }
 .lk-pt-cls { flex: none; width: 34px; height: 34px; display: grid; place-items: center; border-radius: 50%; background: rgba(11, 15, 28, .45); box-shadow: inset 0 0 0 1px rgba(238, 211, 154, .45); }
 .lk-pt-cls img { width: 24px; height: 24px; object-fit: contain; filter: drop-shadow(0 1px 2px rgba(0, 0, 0, .6)); }
-.lk-pt-cls.lk-is-sapi img { width: 100%; height: 100%; border-radius: 50%; object-fit: cover; }
+.lk-pt-cls.lk-is-sapi img { width: 100%; height: 100%; object-fit: contain; }
 /* Vínculo del principal: orbe con corazón arriba a la derecha (en diagonal con la ficha de nivel) */
 .lk-pm-bond { position: absolute; right: -8px; top: -6px; z-index: 2; width: 26px; height: 26px; display: block; filter: drop-shadow(0 0 5px rgba(242, 123, 160, .55)) drop-shadow(0 2px 3px rgba(0, 0, 0, .55)); }
 .lk-pm-bond svg { width: 100%; height: 100%; display: block; }
@@ -517,7 +517,7 @@ body.state-combat #npc-interaction-prompt { display: none !important; }
 .lk-intro__meta { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 4px; animation: lkIntroUp .5s var(--lk-ease, ease-out) .4s both; }
 .lk-intro__chip { display: flex; align-items: center; gap: 10px; padding: 5px 16px 5px 5px; border-radius: var(--lk-r-pill); background: rgba(11, 15, 28, .62); box-shadow: inset 0 0 0 1px rgba(211, 174, 108, .3); -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px); }
 .lk-intro__cls, .lk-intro__med { flex: none; width: 40px; height: 40px; border-radius: 50%; overflow: hidden; display: grid; place-items: center; background: radial-gradient(circle at 50% 35%, #2C3A62, #141B2E); box-shadow: 0 0 0 2px rgba(11, 15, 28, .8), 0 0 0 3px rgba(211, 174, 108, .55); }
-.lk-intro__cls img { width: 100%; height: 100%; object-fit: cover; }
+.lk-intro__cls img { width: 100%; height: 100%; object-fit: contain; }
 .lk-intro__med img { width: 118%; height: 118%; object-fit: contain; }
 .lk-intro__txt { display: grid; gap: 1px; line-height: 1.15; }
 .lk-intro__txt small { font: 800 .64rem/1.2 var(--lk-font-ui); letter-spacing: .14em; text-transform: uppercase; color: #9AA3BA; }
@@ -700,6 +700,31 @@ body:not(.state-combat) #ui-overlay .lk-cb-enemy, body:not(.state-combat) #ui-ov
 #ui-overlay .spell-slot.lk-is-unaffordable { filter: saturate(.25) brightness(.62); }
 #ui-overlay .spell-slot.lk-is-unaffordable .lk-card-cost::before { background: linear-gradient(135deg, #FFD6D3, var(--lk-danger-crimson) 50%, #8A2622); box-shadow: 0 0 0 1.5px var(--lk-night-900), 0 0 0 2.5px #FF9C95; }
 #ui-overlay .spell-slot.lk-is-idle { filter: saturate(.6) brightness(.8); }
+/* Hito 97: carta en recarga (número de turnos que faltan) o sin usos este turno */
+#ui-overlay .spell-slot[data-cd], #ui-overlay .spell-slot[data-spent] { filter: saturate(.15) brightness(.55); }
+#ui-overlay .spell-slot .lk-cd-badge { position: absolute; inset: 0; z-index: 4; display: grid; place-items: center; pointer-events: none; font: 800 2.6rem/1 var(--lk-font-display, inherit); color: #F4EBDD; text-shadow: 0 2px 0 rgba(11, 15, 28, .9), 0 0 14px rgba(11, 15, 28, .85); }
+#ui-overlay .spell-slot .lk-cd-badge:empty { display: none; }
+/* Hito 98: carta bloqueada por nivel (candado y «Nv. N») */
+#ui-overlay .spell-slot[data-locked] { filter: saturate(0) brightness(.45); }
+#ui-overlay .spell-slot .lk-lock-badge { position: absolute; inset: 0; z-index: 4; display: grid; place-content: center; justify-items: center; gap: 2px; pointer-events: none; color: #F4EBDD; text-shadow: 0 2px 0 rgba(11, 15, 28, .9); }
+#ui-overlay .spell-slot .lk-lock-badge:empty { display: none; }
+#ui-overlay .spell-slot .lk-lock-badge svg { width: 30px; height: 30px; filter: drop-shadow(0 2px 2px rgba(11, 15, 28, .9)); }
+#ui-overlay .spell-slot .lk-lock-badge b { font: 800 .85rem/1 var(--lk-font-ui, system-ui, sans-serif); letter-spacing: .02em; padding: 3px 7px; border-radius: 999px; background: rgba(11, 15, 28, .78); box-shadow: inset 0 0 0 1px rgba(211, 174, 108, .45); }
+#ui-overlay .spell-slot[data-locked] .lk-card-dmg { visibility: hidden; }
+.lk-new-skill { color: var(--lk-gilt-200, #EED39A); }
+.lk-new-skill b { color: #FFF4D6; }
+/* Hito 98: runas y charms · habilidad aún bloqueada por nivel */
+.lk-part-row.lk-is-locked { cursor: not-allowed; }
+.lk-part-row.lk-is-locked .lk-bag-runes__spell, .lk-part-row.lk-is-locked .lk-pn { filter: saturate(0) brightness(.6); opacity: .8; }
+.lk-part-row.lk-is-locked .lk-socket-charm.lk-is-empty { filter: saturate(0); opacity: .55; cursor: not-allowed; }
+.lk-part-row.lk-is-locked .lk-socket-charm.lk-is-filled { filter: saturate(.3) brightness(.7); }
+.lk-bag-runes__lock { font-weight: 800; color: var(--lk-gilt-200, #EED39A); }
+/* Hito 98: fichas y cartas fuera del combate */
+.lk-spell.lk-is-locked img:not(.lk-spell-part) { filter: saturate(0) brightness(.5); }
+.lk-spell .lk-spell-lock { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); z-index: 2; font: 800 .72rem/1 var(--lk-font-display, inherit); color: #F4EBDD; text-shadow: 0 1px 0 rgba(11, 15, 28, .9), 0 0 8px rgba(11, 15, 28, .9); white-space: nowrap; pointer-events: none; }
+#ui-overlay .spell-slot.lk-cd-ready { animation: lkCdReady .9s var(--lk-ease, ease-out) 1; }
+@keyframes lkCdReady { 0% { box-shadow: inset 0 0 0 2px #FFF4D6, 0 0 0 4px rgba(238, 211, 154, .9), 0 0 30px rgba(238, 211, 154, .9); } 100% { box-shadow: inset 0 0 0 1px rgba(211, 174, 108, .35), 0 6px 16px rgba(0, 0, 0, .4); } }
+@media (prefers-reduced-motion: reduce) { #ui-overlay .spell-slot.lk-cd-ready { animation: none; } }
 #ui-overlay .spell-slot.tut-highlight, #ui-overlay .lk-btn-end-turn.tut-highlight { border: 0 !important; box-shadow: 0 0 0 3px var(--lk-gilt-300), 0 0 26px rgba(238, 211, 154, .85) !important; animation: lkTutTarget 1.4s ease-in-out infinite !important; }
 
 /* Pasar turno */
@@ -718,6 +743,7 @@ img.lk-part-ico--mech { --lk-ico-tint: grayscale(1) brightness(1.3) contrast(1.0
 img.lk-part-ico--dawn { --lk-ico-tint: grayscale(1) sepia(1) hue-rotate(200deg) saturate(2) brightness(1.2); }
 img.lk-part-ico--dusk { --lk-ico-tint: grayscale(1) sepia(1) hue-rotate(130deg) saturate(2.2); }
 .lk-cb-tip .lk-cb-tip-warn { margin: 0; font-size: .76rem; font-weight: 800; color: #B3423C; }
+.lk-tooltip-tactical .lk-cb-tip-warn { margin: 0; font-size: .76rem; font-weight: 800; color: #B3423C; } /* Hito 98: también fuera del combate */
 
 /* Pronóstico del objetivo */
 #ui-overlay .lk-cb-forecast { position: absolute; right: 20px; top: auto; bottom: 190px; left: auto; transform: none; width: 250px; padding: 0; border: 0; border-radius: var(--lk-r-md); overflow: hidden; color: var(--lk-ink-900); background: var(--lk-ivory-100); box-shadow: 0 14px 30px rgba(0, 0, 0, .45), 0 0 0 1px rgba(0, 0, 0, .3); backdrop-filter: none; pointer-events: none; animation: none; }
@@ -796,6 +822,9 @@ img.lk-part-ico--dusk { --lk-ico-tint: grayscale(1) sepia(1) hue-rotate(130deg) 
 .lk-cb-ut .lk-cb-ut-read { display: flex; justify-content: space-between; margin-bottom: 4px; font-size: .74rem; font-weight: 800; color: var(--lk-ink-600); }
 .lk-cb-ut .lk-cb-ut-read b { color: var(--lk-ink-900); font-variant-numeric: tabular-nums; }
 .lk-cb-ut .lk-cb-ut-read i { font-style: normal; color: #1E8C83; }
+/* Hito 95: función del gólem en la ficha de unidad */
+.lk-cb-ut .lk-cb-ut-golem { margin: 6px 0 0; font-size: .74rem; line-height: 1.35; font-weight: 700; color: var(--lk-ink-700, #3b3326); max-width: 15rem; }
+.lk-cb-ut .lk-cb-ut-golem small { font-weight: 600; color: var(--lk-ink-500, #6b5e4a); }
 .lk-cb-ut .lk-bar { height: 7px; background: rgba(46, 52, 72, .18); box-shadow: inset 0 0 0 1px rgba(46, 52, 72, .12); }
 .lk-cb-ut .lk-tt-stat .lk-tl svg { width: 14px; height: 14px; color: #14876C; }
 .lk-cb-ut .lk-cb-ut-sts { display: flex; flex-wrap: wrap; gap: 4px; }

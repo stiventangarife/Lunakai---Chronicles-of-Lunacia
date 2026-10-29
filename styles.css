@@ -2907,92 +2907,92 @@ body, html {
   border: 1px solid rgba(16, 185, 129, 0.4);
 }
 
-/* 4. Sapidae: Astromante (Morado / Púrpura Cósmico) */
+/* 4. Sapidae: Rastreador Gogo (Musgo oliva) (Hito 95) */
 .squad-member-card.class-sapidae-stargazer {
-  border-left: 3px solid #a855f7;
+  border-left: 3px solid #8F9E3A;
 }
 .squad-member-card.class-sapidae-stargazer:hover {
-  border-color: #c084fc;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.7), 0 0 16px rgba(168, 85, 247, 0.4);
+  border-color: #B4C25A;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.7), 0 0 16px rgba(143, 158, 58, 0.4);
 }
 .squad-member-card.class-sapidae-stargazer .squad-frame-outer {
-  border: 2px solid #a855f7;
-  background: radial-gradient(circle, rgba(168, 85, 247, 0.3) 0%, rgba(88, 28, 135, 0.55) 100%);
-  box-shadow: 0 0 10px rgba(168, 85, 247, 0.55), inset 0 0 6px rgba(168, 85, 247, 0.35);
+  border: 2px solid #8F9E3A;
+  background: radial-gradient(circle, rgba(143, 158, 58, 0.3) 0%, rgba(74, 83, 28, 0.55) 100%);
+  box-shadow: 0 0 10px rgba(143, 158, 58, 0.55), inset 0 0 6px rgba(143, 158, 58, 0.35);
 }
 .squad-member-card.class-sapidae-stargazer .squad-frame-gem {
-  background: #c084fc;
-  box-shadow: 0 0 8px #a855f7;
+  background: #B4C25A;
+  box-shadow: 0 0 8px #8F9E3A;
 }
 .squad-member-card.class-sapidae-stargazer .squad-level-badge {
-  border-color: #c084fc;
-  color: #e9d5ff;
+  border-color: #B4C25A;
+  color: #E3E9B8;
 }
 
-/* 5. Sapidae: Forjacubiles (Dorado / Ámbar Forja) */
+/* 5. Sapidae: Alfarero de Gólems (Terracota) (Hito 95) */
 .squad-member-card.class-sapidae-crafter {
-  border-left: 3px solid #f59e0b;
+  border-left: 3px solid #C8643B;
 }
 .squad-member-card.class-sapidae-crafter:hover {
-  border-color: #fbbf24;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.7), 0 0 16px rgba(245, 158, 11, 0.4);
+  border-color: #E0845C;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.7), 0 0 16px rgba(200, 100, 59, 0.4);
 }
 .squad-member-card.class-sapidae-crafter .squad-frame-outer {
-  border: 2px solid #fbbf24;
-  background: radial-gradient(circle, rgba(251, 191, 36, 0.3) 0%, rgba(180, 83, 9, 0.5) 100%);
-  box-shadow: 0 0 10px rgba(251, 191, 36, 0.55), inset 0 0 6px rgba(251, 191, 36, 0.35);
+  border: 2px solid #C8643B;
+  background: radial-gradient(circle, rgba(200, 100, 59, 0.3) 0%, rgba(110, 48, 20, 0.55) 100%);
+  box-shadow: 0 0 10px rgba(200, 100, 59, 0.55), inset 0 0 6px rgba(200, 100, 59, 0.35);
 }
 .squad-member-card.class-sapidae-crafter .squad-frame-gem {
-  background: #fbbf24;
-  box-shadow: 0 0 8px #f59e0b;
+  background: #E0845C;
+  box-shadow: 0 0 8px #C8643B;
 }
 .squad-member-card.class-sapidae-crafter .squad-level-badge {
-  border-color: #fbbf24;
-  color: #fde68a;
+  border-color: #E0845C;
+  color: #F6D2BF;
 }
 
-/* 6. Sapidae: Susurrador (Celeste Astral / Cyan Místico) */
+/* 6. Sapidae: Comandante de Sombrero (Vino) (Hito 95) */
 .squad-member-card.class-sapidae-shepard {
-  border-left: 3px solid #38bdf8;
+  border-left: 3px solid #A83A44;
 }
 .squad-member-card.class-sapidae-shepard:hover {
-  border-color: #38bdf8;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.7), 0 0 16px rgba(56, 189, 248, 0.4);
+  border-color: #CC5A63;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.7), 0 0 16px rgba(168, 58, 68, 0.4);
 }
 .squad-member-card.class-sapidae-shepard .squad-frame-outer {
-  border: 2px solid #38bdf8;
-  background: radial-gradient(circle, rgba(56, 189, 248, 0.3) 0%, rgba(2, 132, 199, 0.5) 100%);
-  box-shadow: 0 0 10px rgba(56, 189, 248, 0.55), inset 0 0 6px rgba(56, 189, 248, 0.35);
+  border: 2px solid #A83A44;
+  background: radial-gradient(circle, rgba(168, 58, 68, 0.3) 0%, rgba(90, 24, 32, 0.55) 100%);
+  box-shadow: 0 0 10px rgba(168, 58, 68, 0.55), inset 0 0 6px rgba(168, 58, 68, 0.35);
 }
 .squad-member-card.class-sapidae-shepard .squad-frame-gem {
-  background: #38bdf8;
-  box-shadow: 0 0 8px #38bdf8;
+  background: #CC5A63;
+  box-shadow: 0 0 8px #A83A44;
 }
 .squad-member-card.class-sapidae-shepard .squad-level-badge {
-  border-color: #38bdf8;
-  color: #bae6fd;
+  border-color: #CC5A63;
+  color: #F2C9CC;
 }
 
-/* 7. Sapidae: Lunalogista (Verde Esmeralda / Naturaleza) */
+/* 7. Sapidae: Guardián de Campanas (Jade de pátina) (Hito 95) */
 .squad-member-card.class-sapidae-lunalogist {
-  border-left: 3px solid #10b981;
+  border-left: 3px solid #3FB89A;
 }
 .squad-member-card.class-sapidae-lunalogist:hover {
-  border-color: #34d399;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.7), 0 0 16px rgba(168, 85, 247, 0.4);
+  border-color: #62D3B5;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.7), 0 0 16px rgba(63, 184, 154, 0.4);
 }
 .squad-member-card.class-sapidae-lunalogist .squad-frame-outer {
-  border: 2px solid #10b981;
-  background: radial-gradient(circle, rgba(16, 185, 129, 0.3) 0%, rgba(5, 150, 105, 0.5) 100%);
-  box-shadow: 0 0 10px rgba(16, 185, 129, 0.55), inset 0 0 6px rgba(16, 185, 129, 0.35);
+  border: 2px solid #3FB89A;
+  background: radial-gradient(circle, rgba(63, 184, 154, 0.3) 0%, rgba(20, 94, 76, 0.55) 100%);
+  box-shadow: 0 0 10px rgba(63, 184, 154, 0.55), inset 0 0 6px rgba(63, 184, 154, 0.35);
 }
 .squad-member-card.class-sapidae-lunalogist .squad-frame-gem {
-  background: #10b981;
-  box-shadow: 0 0 8px #10b981;
+  background: #62D3B5;
+  box-shadow: 0 0 8px #3FB89A;
 }
 .squad-member-card.class-sapidae-lunalogist .squad-level-badge {
-  border-color: #34d399;
-  color: #a7f3d0;
+  border-color: #62D3B5;
+  color: #C3F0E3;
 }
 
 /* Portrait Frame Details */

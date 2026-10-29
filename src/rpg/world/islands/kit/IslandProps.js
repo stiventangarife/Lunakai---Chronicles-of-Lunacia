@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { cloneGLTF } from '../../../../render/ModelCache.js';
+import { ChimneySmoke, chimneyPoint } from '../../ChimneySmoke.js';
 
 /**
  * IslandProps — GLB set pieces shared by the Grand Islands (Savanna, Arctic, Mystic, Genesis). Hito 55–58.
@@ -53,9 +54,11 @@ function plinthParts(color) {
  * Places a list of props under `parent`. Colliders are returned at once (callers register them before the
  * GLBs arrive); the models are added when loaded. One load per model: later copies share geometry and materials.
  * @param {THREE.Object3D} parent
- * @param {Array<{model:string,x:number,z:number,yaw?:number,name?:string,scale?:number}>} list
+ * @param {Array<{model:string,x:number,z:number,yaw?:number,name?:string,scale?:number,smoke?:boolean}>} list
+ *   smoke: humo en la chimenea (solo `house`, Hito 96). El humo se añade a `parent` cuando cargan los modelos.
  * @param {{ height:(x:number,z:number)=>number, seaLevel?:number, plinthColor?:number }} opts
- * @returns {{ colliders:Array<[number,number,number]>, floating:Array, ready:Promise<void> }}
+ * @returns {{ colliders:Array<[number,number,number]>, floating:Array, ready:Promise<void>, smoke:ChimneySmoke|null }}
+ *   `smoke` se rellena al cargar (null si ninguna casa lleva humo).
  */
 export function placeIslandProps(parent, list, { height, seaLevel = 0.45, plinthColor = 0x8c8378 }) {
   const colliders = [];
@@ -66,7 +69,9 @@ export function placeIslandProps(parent, list, { height, seaLevel = 0.45, plinth
     if (def.r) colliders.push([it.x, it.z, def.r * k]);
   });
   const names = [...new Set(list.map((it) => it.model))];
-  const ready = Promise.all(names.map((n) => cloneGLTF(urlOf(n)).then(({ scene }) => [n, prepare(scene)])))
+  const result = { colliders, floating, ready: null, smoke: null };
+  const chimneys = [];
+  result.ready = Promise.all(names.map((n) => cloneGLTF(urlOf(n)).then(({ scene }) => [n, prepare(scene)])))
     .then((loaded) => {
       const scenes = new Map(loaded);
       const used = new Set();
@@ -76,10 +81,15 @@ export function placeIslandProps(parent, list, { height, seaLevel = 0.45, plinth
         used.add(it.model);
         parent.add(g);
         if (ISLAND_PROPS[it.model].float) floating.push({ g, y: g.position.y, x: it.x, z: it.z, yaw: it.yaw || 0 });
+        if (it.smoke && it.model === 'house') {
+          const o = src.userData.origin;
+          chimneys.push(chimneyPoint({ x: it.x, y: g.position.y, z: it.z, yaw: it.yaw || 0, scale: it.scale ?? ISLAND_PROPS.house.scale, cx: o.cx, cy: o.minY, cz: o.cz }));
+        }
       });
+      if (chimneys.length) result.smoke = new ChimneySmoke(parent, chimneys);
     })
     .catch((err) => console.error('[IslandProps] GLB models failed:', err));
-  return { colliders, floating, ready };
+  return result;
 }
 
 /** Bobbing and rocking of floating props (same motion as the Forest raft). */
@@ -103,6 +113,7 @@ function prepare(scene) {
   });
   const cx = (box.min.x + box.max.x) / 2, cz = (box.min.z + box.max.z) / 2;
   scene.position.set(-cx, -box.min.y, -cz);
+  scene.userData.origin = { cx, cz, minY: box.min.y }; // para situar puntos del GLB (chimenea) en la pieza colocada
   scene.userData.foot = {
     hw: (box.max.x - box.min.x) / 2, hd: (box.max.z - box.min.z) / 2,
     bx: (base.min.x + base.max.x) / 2 - cx, bz: (base.min.z + base.max.z) / 2 - cz,

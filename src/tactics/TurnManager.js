@@ -39,7 +39,8 @@ export class TurnManager {
    */
   _computeOrder(units) {
     const byInit = (a, b) => b.initiative - a.initiative;
-    const alive = units.filter(u => !u.isDead).sort(byInit);
+    // Hito 95: los gólems del Sapidae no tienen turno propio (actúan al final del turno de su dueño)
+    const alive = units.filter(u => !u.isDead && !u.isGolem).sort(byInit);
     if (!this.alternateTeams) return alive;
     const players = alive.filter(u => u.team === 'player');
     const enemies = alive.filter(u => u.team !== 'player');
@@ -56,7 +57,7 @@ export class TurnManager {
 
   buildInitiativeQueue({ reset = false } = {}) {
     if (reset || !this.turnOrder) this.turnOrder = this._computeOrder(this.units);
-    const newcomers = this.units.filter(u => !u.isDead && !this.turnOrder.includes(u));
+    const newcomers = this.units.filter(u => !u.isDead && !u.isGolem && !this.turnOrder.includes(u));
     if (newcomers.length) this.turnOrder.push(...this._computeOrder(newcomers));
     this.queue = this.turnOrder.filter(u => !u.isDead);
   }
@@ -168,7 +169,7 @@ export class TurnManager {
 
     // Hito 48: regla de fin propia (duelo de entrenamiento: al 30 % de vida). Cuenta como victoria del escuadrón.
     if (typeof this.endRule === 'function') {
-      const reason = this.endRule(this.units);
+      const reason = this.endRule(this.units.filter(u => !u.isGolem));
       if (reason) {
         this.isCombatOver = true;
         this.endReason = reason;
@@ -177,8 +178,9 @@ export class TurnManager {
       }
     }
 
-    const playersAlive = this.units.filter(u => u.team === 'player' && !u.isDead);
-    const enemiesAlive = this.units.filter(u => u.team === 'enemy' && !u.isDead);
+    // Hito 95: un gólem en pie no evita la derrota ni la victoria
+    const playersAlive = this.units.filter(u => u.team === 'player' && !u.isDead && !u.isGolem);
+    const enemiesAlive = this.units.filter(u => u.team === 'enemy' && !u.isDead && !u.isGolem);
 
     if (enemiesAlive.length === 0) {
       this.isCombatOver = true;

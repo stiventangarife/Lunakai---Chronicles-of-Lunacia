@@ -17,6 +17,7 @@
 // «Cuerpo a cuerpo» = objetivo a 1 casilla; «a distancia» / «proyectil» = a 2 o más casillas.
 // Solo los Axies del jugador llevan runas y charms; el tutorial no las aplica (su guion es fijo).
 
+import { PART_UNLOCK_LEVEL } from './SkillUnlocks.js'; // Hito 98
 import { RUNE_BY_ID, CHARM_BY_ID, runeFits, charmFits, ppCanSet } from '../data/RunesCharms.js';
 import { STATUS_DEFS } from './StatusSystem.js';
 import * as i18n from '../../i18n/i18n.js';
@@ -385,7 +386,13 @@ export class RuneCharmSystem {
       if (u.team !== 'player' || u.type === 'sapidae' || u.config?.isSapidae) continue;
       const cards = (u.spellIds || []).map((id) => this.sm.getSpell(id)).filter((s) => s && s.part);
       const byPart = Object.fromEntries(cards.map((s) => [s.part, s]));
-      const profile = buildProfile(loadoutOf(u.id), u.axieClass, byPart);
+      // Hito 98: los charms de partes aún bloqueadas por nivel no hacen nada (ni la carta ni sus estadísticas)
+      const raw = loadoutOf(u.id);
+      const lvl = u.config?.heroLevel;
+      const loadout = raw && Number.isFinite(lvl) && raw.charms
+        ? { ...raw, charms: Object.fromEntries(Object.entries(raw.charms).filter(([pt]) => lvl >= (PART_UNLOCK_LEVEL[pt] || 1))) }
+        : raw;
+      const profile = buildProfile(loadout, u.axieClass, byPart);
       if (!profile) continue;
       this._applyStats(u, profile);
       // Cartas modificadas por los charms de su parte (y por la runa, en el alcance)
