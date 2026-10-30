@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { cloneGLTF } from '../../../../render/ModelCache.js';
+import { trackLoad } from '../../../../render/LoadGate.js';
 import { ChimneySmoke, chimneyPoint } from '../../ChimneySmoke.js';
 
 /**
@@ -87,8 +88,11 @@ export function placeIslandProps(parent, list, { height, seaLevel = 0.45, plinth
         }
       });
       if (chimneys.length) result.smoke = new ChimneySmoke(parent, chimneys);
+      if (typeof window !== 'undefined') window.environmentSystem?.markShadowCastersDirty?.();
     })
     .catch((err) => console.error('[IslandProps] GLB models failed:', err));
+  // 29-oct: changeMap espera estos modelos antes del precalentado (antes entraban con el telón ya abierto)
+  trackLoad(result.ready, `props ${names.join('/')}`);
   return result;
 }
 

@@ -28,13 +28,13 @@ import { access } from '../ui/AccessPrefs.js';
 
 /** Habilidades del Sapidae (la clave del efecto es el id del hechizo) y Ultimates de dúo → [clave, módulo]. */
 const SAPIDAE_MODULE = { craft: 'sapidae-forjacubiles', shepard: 'sapidae-susurrador', lunalogist: 'sapidae-lunalogista', stargazer: 'sapidae-astromante' };
-const ULTIMATE_VFX = {
+export const ULTIMATE_VFX = {
   duo_destructiva: ['duo_embestida', 'duo-embestida'],
   duo_gaia: ['duo_gaia', 'duo-gaia'],
   duo_maelstrom: ['duo_maelstrom', 'duo-maelstrom'],
 };
 /** Cartas α de Bing y Pomodoro con efecto propio (la clave del efecto es el id de la carta). */
-const STARTER_VFX = {
+export const STARTER_VFX = {
   starter_bing_mouth: ['starter_bing_mouth', 'starter-bing'],
   starter_bing_horn: ['starter_bing_horn', 'starter-bing'],
   starter_bing_back: ['starter_bing_back', 'starter-bing'],
@@ -42,7 +42,7 @@ const STARTER_VFX = {
   starter_pomodoro_back: ['starter_pomodoro_back', 'starter-pomodoro'],
 };
 /** Habilidades de enemigos: la clave del efecto es el id del hechizo (instancias de los efectos básicos, mod-enemigos.js). */
-const ENEMY_VFX = new Set([
+export const ENEMY_VFX = new Set([
   'chimera_bite',
   'chimera_bellow',
   'chimera_spit',
@@ -110,7 +110,7 @@ const ENEMY_VFX = new Set([
  * habilidad antigua). null = sin efecto del motor: el gólem sale de la tierra con su propia animación (GolemSystem).
  * Cuando haya efectos propios, basta con quitar la entrada y registrar el efecto con el id nuevo en su módulo.
  */
-const SAPIDAE_VFX_ALIAS = {
+export const SAPIDAE_VFX_ALIAS = {
   craft_clay_fist: 'craft_anvil', craft_sentinel_golem: null, craft_stone_veins: 'craft_reinforce',
   craft_clay_wall: 'craft_barricade', craft_carry_wounded: 'shepard_balsam', craft_fortify: 'craft_totem',
   shepard_hat_headbutt: 'shepard_astral_strike', shepard_hat_golem: null, shepard_translate_warning: 'shepard_attunement',
@@ -120,6 +120,45 @@ const SAPIDAE_VFX_ALIAS = {
   stargazer_yielding_ground: 'stargazer_vortex', stargazer_shell_golem: null, stargazer_petrasense: 'stargazer_nova',
   stargazer_shell_march: null, stargazer_corrupt_rift: 'stargazer_gravity_well', stargazer_dawn_spiral: 'lunalogist_spores',
 };
+/**
+ * Piloto del estilo nuevo (29-oct, mod-estilizado-piloto.js): con lkDebug.vfxEstilo(true) estos efectos sustituyen a
+ * los actuales para compararlos en combate. La clave es el id de la carta, del hechizo o del efecto que se reemplaza.
+ */
+const STYLE_PILOT_MODULE = 'estilizado-piloto';
+const STYLE_PILOT = {
+  part_plant_horn_watermelon: 'sty_sandia',
+  lunalogist_spores: 'sty_esporas',          // también la Espiral del Alba (alias en SAPIDAE_VFX_ALIAS)
+};
+// Los 61 ataques de enemigos: misma tabla con las fábricas estilizadas, clave sty__<id> (mod-estilizado-enemigos.js)
+const STYLE_ENEMY_MODULE = 'estilizado-enemigos';
+// Las 24 habilidades del Sapidae (Hito 95) y los pulsos y roturas de los gólems, con efecto propio estilizado:
+// clave sty_<id de la habilidad> / golem_pulse_<tipo> / golem_break_<tipo>, un módulo por clase.
+const STYLE_SAPIDAE_MODULE = { craft: 'estilizado-sapidae-alfarero', shepard: 'estilizado-sapidae-comandante', lunalogist: 'estilizado-sapidae-guardian', stargazer: 'estilizado-sapidae-rastreador' };
+export const GOLEM_KIND_MODULE = { sentinel: 'estilizado-sapidae-alfarero', hat: 'estilizado-sapidae-comandante', bell: 'estilizado-sapidae-guardian', shell: 'estilizado-sapidae-rastreador' };
+const GOLEM_KIND_OF_CLASS = { crafter: 'sentinel', shepard: 'hat', lunalogist: 'bell', stargazer: 'shell' };
+const STYLE_KEY = 'lunakai_vfx_estilo';
+/** Hito 101: módulos de cartas que ya tienen versión estilizada (estilizado-<módulo>, claves sty_<clave original>).
+ *  Se añaden a medida que se terminan; los demás siguen con su efecto actual. */
+const styCardFx = (k) => { if (!/^sty_/.test(k)) return null; const e = [...Object.values(CARD_VFX), ...Object.values(STARTER_VFX), ...Object.values(ULTIMATE_VFX)].find((v) => `sty_${v[0]}` === k); return e ? [k, `estilizado-${e[1]}`] : null; };
+/** Hito 102: cartas α cuyo objetivo no es el de su carta base (la base va sobre sí mismo y la α sobre un aliado o
+ *  un enemigo): con el estilo nuevo tienen efecto propio en vez del de la carta base. */
+export const STYLE_STARTER_EXTRA = {
+  starter_bing_eyes: ['sty_starter_bing_eyes', 'estilizado-starter-bing'],
+  starter_bing_ears: ['sty_starter_bing_ears', 'estilizado-starter-bing'],
+  starter_pomodoro_eyes: ['sty_starter_pomodoro_eyes', 'estilizado-starter-pomodoro'],
+  starter_pomodoro_ears: ['sty_starter_pomodoro_ears', 'estilizado-starter-pomodoro'],
+};
+export const STYLE_CARD_READY = new Set([
+  'planta-cuernos', 'planta-boca', 'planta-orejas', 'planta-ojos', 'planta-espalda', 'planta-cola',
+  'pajaro-cuernos', 'pajaro-boca', 'pajaro-orejas', 'pajaro-ojos', 'pajaro-espalda', 'pajaro-cola',
+  'reptil-cuernos', 'reptil-boca', 'reptil-orejas', 'reptil-ojos', 'reptil-espalda', 'reptil-cola',
+  'bestia-cuernos', 'bestia-boca', 'bestia-orejas', 'bestia-ojos', 'bestia-espalda', 'bestia-cola',
+  'bicho-cuernos', 'bicho-boca', 'bicho-orejas', 'bicho-ojos', 'bicho-espalda', 'bicho-cola',
+  'acuatico-cuernos', 'acuatico-boca', 'acuatico-orejas', 'acuatico-ojos', 'acuatico-espalda', 'acuatico-cola',
+  'starter-bing', 'starter-pomodoro',
+  'duo-embestida', 'duo-gaia', 'duo-maelstrom',
+]);
+
 function specialVfx(id) {
   if (ULTIMATE_VFX[id]) return ULTIMATE_VFX[id];
   if (id in SAPIDAE_VFX_ALIAS) {
@@ -191,6 +230,7 @@ export class VfxBridge {
     this.enabled = this._readPref();
     this.scale = this._readScale();
     this.allCards = true; // todas las cartas con efecto (lkDebug.vfxAll(false) = solo la lista piloto)
+    this.stylePilot = this._readStyle(); // piloto del estilo nuevo (lkDebug.vfxEstilo)
     this.pilot = new Set(VFX_PILOT_CARDS);
     this.core = null;
     this._coreReady = null;
@@ -250,6 +290,9 @@ export class VfxBridge {
   install(events, turnManager) {
     this._offs.push(events.on('spell:cast', (ctx) => { try { this._onCast(ctx); } catch (e) { console.warn('[vfx]', e); } }));
     this._offs.push(events.on('ultimate:ready', ({ spell } = {}) => { if (spell) this.prepare([{ spellIds: [] }]).catch(() => {}); }));
+    // gólems (Hito 95): pulso al final del turno de su dueño y efecto final al romperse
+    this._offs.push(events.on('golem:pulse', ({ golem, kind } = {}) => { try { this._onGolemFx('pulse', golem, kind); } catch (e) { console.warn('[vfx]', e); } }));
+    this._offs.push(events.on('golem:broken', ({ golem, kind } = {}) => { try { this._onGolemFx('break', golem, kind); } catch (e) { console.warn('[vfx]', e); } }));
     if (turnManager) {
       const orig = turnManager.onCombatStart;
       turnManager.onCombatStart = (...a) => {
@@ -289,6 +332,27 @@ export class VfxBridge {
   }
 
   effectFor(spell) {
+    const fx = this._effectFor(spell);
+    // piloto del estilo nuevo: sustituye por id de carta/hechizo o por la clave del efecto
+    // habilidades del Sapidae (antes que el piloto: la Espiral del Alba tiene efecto propio)
+    if (this.stylePilot && spell && spell.id in SAPIDAE_VFX_ALIAS) {
+      const m = /^(craft|shepard|lunalogist|stargazer)_/.exec(spell.id);
+      if (m) return { id: spell.id, key: `sty_${spell.id}`, module: STYLE_SAPIDAE_MODULE[m[1]] };
+    }
+    if (this.stylePilot && spell && STYLE_STARTER_EXTRA[spell.id]) {
+      const [key, module] = STYLE_STARTER_EXTRA[spell.id];
+      return { id: spell.id, key, module };
+    }
+    if (fx && this.stylePilot) {
+      const sty = STYLE_PILOT[fx.id] || STYLE_PILOT[fx.key];
+      if (sty) return { id: fx.id, key: sty, module: STYLE_PILOT_MODULE };
+      if (fx.module === 'enemigos' && ENEMY_VFX.has(fx.key)) return { id: fx.id, key: `sty__${fx.key}`, module: STYLE_ENEMY_MODULE };
+      if (STYLE_CARD_READY.has(fx.module)) return { id: fx.id, key: `sty_${fx.key}`, module: `estilizado-${fx.module}` };
+    }
+    return fx;
+  }
+
+  _effectFor(spell) {
     // Sapidae, Ultimates, cartas α propias de los iniciales y enemigos: siempre (ya están en el motor)
     const sp = spell && specialVfx(spell.id);
     if (sp) return { id: spell.id, key: sp[0], module: sp[1] };
@@ -296,6 +360,29 @@ export class VfxBridge {
     if (!id || (!this.allCards && !this.pilot.has(id))) return null;
     const [key, module] = CARD_VFX[id];
     return { id, key, module };
+  }
+
+  // Hito 101: el estilo nuevo va encendido por defecto; lkDebug.vfxEstilo(false) lo apaga (se recuerda en el navegador)
+  _readStyle() { try { return localStorage.getItem(STYLE_KEY) !== 'off'; } catch { return true; } }
+  setStylePilot(on) {
+    this.stylePilot = !!on;
+    try { localStorage.setItem(STYLE_KEY, on ? 'on' : 'off'); } catch { /* sin almacenamiento */ }
+    return this.stylePilot;
+  }
+
+  /** Luz del tablero para el kit estilizado: dirección y color del sol, color de la sombra (cielo). */
+  _syncStyleLight() {
+    const sty = typeof window !== 'undefined' && window.VFX?.sty;
+    if (!sty) return;
+    let sun = null, hemi = null;
+    this.sm.scene.traverse((o) => {
+      if (o.isDirectionalLight && o.visible && (!sun || o.intensity > sun.intensity)) sun = o;
+      else if (o.isHemisphereLight && !hemi) hemi = o;
+    });
+    if (!sun) return;
+    const p = sun.getWorldPosition(new THREE.Vector3());
+    const t = sun.target ? sun.target.getWorldPosition(new THREE.Vector3()) : new THREE.Vector3();
+    sty.setLight(p.sub(t), sun.color, hemi ? hemi.color : null);
   }
 
   // ------------------------------------------------------------ núcleo y carga
@@ -363,6 +450,11 @@ export class VfxBridge {
     }
     const ult = this.effectFor(this.game.spellManager?.ultimates?.spell);
     if (ult) wanted.set(ult.key, ult);
+    if (this.stylePilot) for (const u of units || []) {
+      const kind = GOLEM_KIND_OF_CLASS[u?.config?.sapidaeClass];
+      if (!kind) continue;
+      for (const ev of ['pulse', 'break']) { const key = `golem_${ev}_${kind}`; wanted.set(key, { id: key, key, module: GOLEM_KIND_MODULE[kind] }); }
+    }
     return wanted;
   }
 
@@ -374,6 +466,14 @@ export class VfxBridge {
    */
   prepareInBackground(units) {
     if (!this.enabled) return Promise.resolve(0);
+    // 29-oct (Hito 103): sin compilación de shaders en paralelo (KHR_parallel_shader_compile), _precompile tiene que
+    // forzar el enlazado de cada shader en el hilo principal, y en algunos equipos cada uno tarda 0,5–3 s: daría
+    // tirones mientras se explora. En ese caso no se prepara nada aquí; el combate lo prepara detrás de su velo
+    // (_prewarmBattle), como siempre. Con la extensión (Chrome/Edge en Windows) se mantiene: medido, ~65 ms en total.
+    const r = this.sm && this.sm.renderer;
+    if (!(r && r.extensions && typeof r.extensions.has === 'function' && r.extensions.has('KHR_parallel_shader_compile'))) {
+      return Promise.resolve(0);
+    }
     if (!this._preparedKeys) this._preparedKeys = new Set();
     // Combate en marcha: sin esperar (lo necesita ya). Explorando: en un rato libre. Cargando una
     // zona, cinemática, etc.: esperar a que se vuelva a explorar, para no competir con la carga.
@@ -470,6 +570,49 @@ export class VfxBridge {
     }
   }
 
+  /**
+   * Anclas de diseño de un efecto (29-oct): dónde están el lanzador y el objetivo del laboratorio en reposo.
+   * Antes el puente suponía siempre −3,7 → 3,4 (7,1 u.), pero los efectos cuerpo a cuerpo (Tajo, VFX.basic.MORDISCO,
+   * ZARPAZO…) ponen los muñecos juntos (p. ej. −0,6 → 1,2): el golpe caía a mitad de camino y encogido al 57 %.
+   * Un módulo puede declararlas (`anchors: { caster: x, target: x }`); si no, se miden evaluando la pose en t = 0.
+   */
+  _anchorsOf(ab) {
+    if (ab._lkAnchors) return ab._lkAnchors;
+    let c = LAB_CASTER.clone(), t = LAB_TARGET.clone();
+    const core = this.core;
+    if (ab.anchors) {
+      if (Number.isFinite(ab.anchors.caster)) c.x = ab.anchors.caster;
+      if (Number.isFinite(ab.anchors.target)) t.x = ab.anchors.target;
+    } else if (core) {
+      try {
+        core.evaluate(ab, 0);
+        c.set(core.caster.position.x, 0, core.caster.position.z);
+        t.set(core.target.position.x, 0, core.target.position.z);
+      } catch { /* sin pose medible: anclas por defecto */ }
+      for (const d of [core.caster, core.target, ...(core.allies || []), ...(core.enemies || [])]) d.visible = false;
+    }
+    // solo anclas sensatas sobre el eje del laboratorio; si no, las de siempre
+    if (!(t.x - c.x >= 0.8) || Math.abs(c.z) > 0.05 || Math.abs(t.z) > 0.05) { c = LAB_CASTER.clone(); t = LAB_TARGET.clone(); }
+    ab._lkAnchors = { c, t };
+    return ab._lkAnchors;
+  }
+
+  /**
+   * Pulso o rotura de un gólem con su efecto estilizado (solo con el estilo nuevo encendido; si no, el anillo de siempre).
+   * No interrumpe un efecto en curso: el pulso llega al final del turno, cuando ya no hay hechizos reproduciéndose.
+   */
+  _onGolemFx(ev, golem, kind) {
+    if (!this.enabled || !this.stylePilot || !golem || this.current) return;
+    kind = kind || golem.golemKind;
+    const key = `golem_${ev}_${kind}`, module = GOLEM_KIND_MODULE[kind];
+    if (!module) return;
+    const ab = this.core?.ABS[key];
+    if (!ab || !ab.built) { this.prepare([{ spellIds: [], config: golem.owner?.config }]).catch(() => {}); return; }
+    // roto: ya no tiene malla; el efecto sale de su casilla
+    const unit = ev === 'break' || golem.isDead ? { gridX: golem.gridX, gridZ: golem.gridZ, team: golem.team, group: null, isDead: true } : golem;
+    this.play(ab, unit, { x: golem.gridX, z: golem.gridZ }, { spell: { id: key, targetType: 'self', effects: [] }, targetUnit: unit });
+  }
+
   // ------------------------------------------------------------ lanzamiento
   _onCast(ctx) {
     if (!this.enabled || !ctx || !ctx.spell || !ctx.caster) return;
@@ -505,25 +648,42 @@ export class VfxBridge {
     // ancla en el laboratorio: un aliado (efectos con aliados) o el objetivo
     const allyTarget = spell && (spell.targetType === 'ally' || spell.targetType === 'self') && targetUnit && targetUnit !== caster;
     const useAlly = allyTarget && (typeof ab.allies === 'function' ? ab.allies() : ab.allies) > 0;
-    const labB = useAlly ? core.ALLY_POS[0].clone() : LAB_TARGET.clone();
+    const anc = this._anchorsOf(ab);
+    // con aliado del laboratorio, el lanzador vuelve a su sitio de siempre (ALLY_POS está pensado desde −3,7)
+    let labC = useAlly ? LAB_CASTER.clone() : anc.c.clone();
+    let labB = useAlly ? core.ALLY_POS[0].clone() : anc.t.clone();
     // «sobre sí mismo» solo si la casilla objetivo es la del lanzador. Una carta de área lanzada sobre una casilla vacía
     // (Green Thorns, Hollow…) apunta a esa casilla, no al lanzador: antes se tomaba como propia y el efecto salía hacia la
     // derecha de la cámara, así que cambiaba de dirección según desde dónde se mirara el tablero.
     const onOwnCell = !targetCell || (targetCell.x === caster.gridX && targetCell.z === caster.gridZ);
     const self = targetUnit === caster || onOwnCell || A.distanceTo(B) < 0.01;
     // sobre sí mismo: el eje del efecto mira al enemigo vivo más cercano (no depende de la cámara)
+    // Hito 101: carta de aliado lanzada sobre sí mismo (alcance 0). Si el efecto tiene variante «propio», se usa esa;
+    // si no, el punto del laboratorio donde el efecto dibuja al receptor (ab.receiver: 'target' | 'ally'; por defecto el
+    // aliado si el efecto tiene aliados) se lleva a la casilla del lanzador, que se mueve como ese muñeco.
+    let selfRecv = null;
+    const hasPropio = !!ab.variants?.some((v) => v[0] === 'propio');
+    if (self && !hasPropio && spell?.targetType === 'ally') {
+      const nAl = typeof ab.allies === 'function' ? ab.allies() : ab.allies;
+      // sin receptor declarado: el objetivo (antes se quedaba en la casilla de delante; Hito 102)
+      const rc = ab.receiver || (nAl > 0 ? 'ally' : 'target');
+      if (rc === 'ally' && core.ALLY_POS?.[0] && core.allies?.[0]) selfRecv = { lab: core.ALLY_POS[0].clone(), dummy: core.allies[0] };
+      else if (rc === 'target') selfRecv = { lab: anc.t.clone(), dummy: core.target };
+      if (selfRecv) { const ax = anc.t.clone().sub(anc.c).setY(0).normalize(); labC = selfRecv.lab.clone(); labB = selfRecv.lab.clone().addScaledVector(ax, 7.1); }
+    }
     let dirHint = null;
     if (self) {
       const foe = (this.game.units || []).filter((u) => !u.isDead && u.team !== caster.team && u.group)
         .sort((a, b) => a.group.position.distanceToSquared(A) - b.group.position.distanceToSquared(A))[0];
       if (foe) dirHint = foe.group.position.clone().sub(A);
     }
-    this._placeRoot(A, B, labB, self, dirHint);
+    this._placeRoot(A, B, labB, self, dirHint, labC, ab);
 
     // variante: Esporas cura si apunta a un aliado y daña si apunta a un enemigo; los dúos usan el efecto completo
     if (ab.variants && ab.setVariant) {
       const names = ab.variants.map((v) => v[0]);
       let v = names.includes('full') ? 'full' : names[0];
+      if (self && hasPropio) v = 'propio';
       if (names.includes('cura') && names.includes('dano')) v = targetUnit && targetUnit.team === caster.team ? 'cura' : 'dano';
       if (ab.v !== v) ab.setVariant(v);
     }
@@ -533,6 +693,7 @@ export class VfxBridge {
     if (!ab._vfxOrdered) { ab.root.traverse((o) => { o.renderOrder = 1000; }); ab._vfxOrdered = true; }
     const pal = core.palOf(ab);
     core.setPalette(pal && core.PALETTES[pal] ? pal : 'Arcano');
+    if (ab.stylized) this._syncStyleLight();
     core.glow.visible = true;
     core.light.visible = true;
 
@@ -540,8 +701,8 @@ export class VfxBridge {
     const movesUnits = Array.isArray(spell?.effects) && spell.effects.some((e) => /push|pull|teleport|swap|jump|dash|knock/i.test(e.type || ''));
     const visuals = [];
     if (!movesUnits) {
-      if (caster.group && !caster.isMoving) visuals.push({ unit: caster, dummy: core.caster, lab: LAB_CASTER, base: caster.group.position.clone(), gx: caster.gridX, gz: caster.gridZ });
-      if (targetUnit?.group && targetUnit !== caster && !targetUnit.isMoving && !useAlly) visuals.push({ unit: targetUnit, dummy: core.target, lab: LAB_TARGET, base: targetUnit.group.position.clone(), gx: targetUnit.gridX, gz: targetUnit.gridZ });
+      if (caster.group && !caster.isMoving) visuals.push({ unit: caster, dummy: selfRecv ? selfRecv.dummy : core.caster, lab: labC, base: caster.group.position.clone(), gx: caster.gridX, gz: caster.gridZ });
+      if (targetUnit?.group && targetUnit !== caster && !targetUnit.isMoving && !useAlly) visuals.push({ unit: targetUnit, dummy: core.target, lab: anc.t, base: targetUnit.group.position.clone(), gx: targetUnit.gridX, gz: targetUnit.gridZ });
       // compañero: el aliado objetivo (cartas sobre aliados) o el Axie principal en las Ultimates de dúo
       const partner = useAlly ? targetUnit : (spell?.isUltimate ? this.game.spellManager?.ultimates?.axie : null);
       if (partner?.group && partner !== caster && !partner.isDead && !partner.isMoving && core.allies?.[0]) visuals.push({ unit: partner, dummy: core.allies[0], lab: core.ALLY_POS[0], base: partner.group.position.clone(), gx: partner.gridX, gz: partner.gridZ });
@@ -561,9 +722,9 @@ export class VfxBridge {
   }
 
   /** Coloca el grupo raíz: espacio del laboratorio → línea lanzador (A) → objetivo (B) del tablero. */
-  _placeRoot(A, B, labB, self, dirHint = null) {
+  _placeRoot(A, B, labB, self, dirHint = null, labC = LAB_CASTER, ab = null) {
     const s = (GAME_UNIT_HEIGHT / LAB_DUMMY_HEIGHT) * this.scale;
-    const uL = labB.clone().sub(LAB_CASTER); uL.y = 0;
+    const uL = labB.clone().sub(labC); uL.y = 0;
     const labDist = uL.length() || 1; uL.divideScalar(labDist);
     let dW = B.clone().sub(A); dW.y = 0;
     let worldDist = dW.length();
@@ -577,14 +738,14 @@ export class VfxBridge {
     const alpha = Math.atan2(uL.z, uL.x) - Math.atan2(dW.z, dW.x);
 
     // pasillo: el objetivo del laboratorio (a labDist del lanzador) debe caer a worldDist / s
-    this._setWarp(uL, labDist, self ? labDist : worldDist / s);
+    this._setWarp(uL, labDist, self ? labDist : worldDist / s, labC, ab);
 
     const M = new THREE.Matrix4();
     const tmp = new THREE.Matrix4();
     M.makeTranslation(A.x, A.y, A.z)
       .multiply(tmp.makeRotationY(alpha))
       .multiply(new THREE.Matrix4().makeScale(s, s, s))
-      .multiply(new THREE.Matrix4().makeTranslation(-LAB_CASTER.x, -LAB_CASTER.y, -LAB_CASTER.z));
+      .multiply(new THREE.Matrix4().makeTranslation(-labC.x, -labC.y, -labC.z));
 
     // espejo para que el «frente» del efecto (el +Z del laboratorio, hacia su cámara) mire a la cámara del juego
     const front = new THREE.Vector3(0, 0, 1).transformDirection(M);
@@ -598,8 +759,8 @@ export class VfxBridge {
         0, 1, 0, 0,
         -2 * n.z * n.x, 0, 1 - 2 * n.z * n.z, 0,
         0, 0, 0, 1);
-      const Tl = new THREE.Matrix4().makeTranslation(LAB_CASTER.x, LAB_CASTER.y, LAB_CASTER.z);
-      const Tli = new THREE.Matrix4().makeTranslation(-LAB_CASTER.x, -LAB_CASTER.y, -LAB_CASTER.z);
+      const Tl = new THREE.Matrix4().makeTranslation(labC.x, labC.y, labC.z);
+      const Tli = new THREE.Matrix4().makeTranslation(-labC.x, -labC.y, -labC.z);
       M.multiply(Tl).multiply(Rf).multiply(Tli);
     }
     this.root.matrix.copy(M);
@@ -612,11 +773,13 @@ export class VfxBridge {
    * Prepara la deformación del pasillo. D = distancia lanzador → objetivo en el laboratorio; D2 = la que debe tener.
    * Zonas rígidas alrededor de cada extremo; si no caben (cuerpo a cuerpo), se comprimen un poco las dos por igual.
    */
-  _setWarp(u, D, D2) {
+  _setWarp(u, D, D2, labC = LAB_CASTER, ab = null) {
     const U = this.warpU;
     U.uVfxU.value.set(u.x, 0, u.z);
-    U.uVfxC.value.copy(LAB_CASTER);
-    const rc = Math.min(ZONE_CASTER, D * 0.4), rt = Math.min(ZONE_TARGET, D * 0.45);
+    U.uVfxC.value.copy(labC);
+    // un efecto puede pedir zonas rígidas mayores (áreas en cruz: zoneTarget = la cruz entera, que no se deforme)
+    const zc = ab?.zoneCaster || ZONE_CASTER, zt = ab?.zoneTarget || ZONE_TARGET;
+    const rc = Math.min(zc, D * 0.4), rt = Math.min(zt, D * 0.45);
     const t0 = rc, t1 = D - rt;
     if (Math.abs(D2 - D) < 1e-3) { U.uVfxK.value.set(t0, t1, t0, t1); U.uVfxS.value.set(1, 1, 1); return; }
     // Las zonas conservan su tamaño mientras quede pasillo suficiente. Si no (1–2 casillas), las zonas y todo el efecto
@@ -676,7 +839,8 @@ export class VfxBridge {
     // velo: entra en 0,15 s y sale en los últimos 0,35 s; o.dark del módulo lo oscurece más
     if (this.dim) {
       const a = Math.min(1, pb.te / 0.15) * Math.min(1, Math.max(0, (ab.dur - pb.te) / 0.35));
-      const v = Math.max(DIM_ALPHA * a, Math.min(0.9, O.dark || 0));
+      // los efectos estilizados se leen sobre el tablero iluminado: sin velo (solo el o.dark que pida el módulo)
+      const v = Math.max(ab.stylized ? 0 : DIM_ALPHA * a, Math.min(0.9, O.dark || 0));
       this.dim.material.uniforms.uA.value = v;
       this.dim.visible = v > 0.001;
     }
@@ -685,12 +849,14 @@ export class VfxBridge {
       this.white.material.uniforms.uA.value = w;
       this.white.visible = w > 0.001;
     }
-    this.core.light.intensity *= 2.2; // el combate usa luces físicas (r160): más intensidad para el mismo brillo
+    // el combate usa luces físicas (r160): más intensidad para el mismo brillo. Los estilizados ya traen su brillo
+    // pintado: con ×2,2 la luz lavaba el suelo de blanco bajo el impacto
+    this.core.light.intensity *= ab.stylized ? 0.8 : 2.2;
     this._warpPoint(this.core.light.position);
 
     // bloom un poco más fuerte mientras dura el efecto
     // (con «Reducir movimiento» no hay pico de brillo: el bloom se queda como estaba)
-    if (pb.bloomBase && this.sm.bloomPass && !access.reduceMotion) {
+    if (pb.bloomBase && this.sm.bloomPass && !access.reduceMotion && !ab.stylized) {
       this.sm.bloomPass.strength = Math.max(pb.bloomBase.s, 0.55 * TT.bloom);
       this.sm.bloomPass.threshold = Math.min(pb.bloomBase.t, 0.72);
     }
@@ -751,9 +917,18 @@ export class VfxBridge {
     };
     d.vfxScale = (v) => (v === undefined ? this.scale : this.setScale(v)); // lkDebug.vfxScale(1.6) · lkDebug.vfxScale(null) = por defecto
     d.vfxAll = (on = true) => { this.allCards = !!on; return this.prepare(this.game.units || []); };
-    d.vfxPlay = async (cardId, from = null, to = null) => {
-      const spell = this.game.spellManager.getSpell(cardId) || { id: cardId };
-      const fx = CARD_VFX[this.cardIdFor(spell) || cardId];
+    // piloto del estilo nuevo: lkDebug.vfxEstilo(true) · lkDebug.vfxEstilo(false) · lkDebug.vfxEstilo() = estado
+    d.vfxEstilo = (on) => {
+      if (on === undefined) { const info = { estilo: this.stylePilot, efectos: [...Object.keys(STYLE_PILOT), `${ENEMY_VFX.size} ataques de enemigos`] }; console.table(info.efectos); return info; }
+      this.setStylePilot(on);
+      return this.prepare(this.game.units || []).then(() => this.stylePilot);
+    };
+    d.vfxPlay = async (cardId, from = null, to = null, spellOverride = null) => {
+      // Hito 102: getSpell devuelve el Mordisco de quimera si no conoce el id (Ultimates, gólems, claves sty_…)
+      const known = this.game.spellManager.getSpell(cardId);
+      const spell = spellOverride || (known && known.id === cardId ? known : { id: cardId });
+      const eff = this.effectFor(spell);
+      const fx = eff ? [eff.key, eff.module] : (CARD_VFX[this.cardIdFor(spell) || cardId] || (/^golem_(pulse|break)_/.test(cardId) ? [cardId, GOLEM_KIND_MODULE[cardId.split('_')[2]]] : /^sty_(craft|shepard|lunalogist|stargazer)_/.test(cardId) ? [cardId, STYLE_SAPIDAE_MODULE[cardId.split('_')[1]]] : /^sty__/.test(cardId) ? [cardId, STYLE_ENEMY_MODULE] : /^sty_basic_/.test(cardId) ? [cardId, `estilizado-${/^sty_basic_(mordisco|zarpazo|golpe|embestida|estocada|golpe_sismico|giro_empuje)$/.test(cardId) ? 'cuerpo' : /^sty_basic_(escupitajo|baba_pegajosa|flecha|proyectil_magico|rafaga|nova_cruz|cataclismo)$/.test(cardId) ? 'distancia' : 'apoyo'}`] : styCardFx(cardId) || (/^sty_/.test(cardId) ? [cardId, STYLE_PILOT_MODULE] : null)));
       if (!fx) throw new Error(`[vfx] ${cardId} no tiene efecto`);
       await this._ensureCore();
       await loadVfxModules(this._base(), [fx[1]]);

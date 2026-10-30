@@ -10,6 +10,7 @@ import { getHeroSpells } from '../SaveSlotManager.js';
 import { portraitService } from '../../tactics/CharacterPortraitService.js';
 import { asset, sprite, toast, curIcon } from '../../ui/lk.js';
 import { HeroModelPreview } from './HeroModelPreview.js';
+import { warmupRender } from '../../render/RenderWarmup.js';
 import { createRunesView, runesPending } from '../../ui/RunesCharmsPanel.js';
 import { RuneCharmService } from '../RuneCharmService.js';
 import { loadRuneCharmArt, runeCharmArt } from '../../ui/RuneCharmArt.js';
@@ -412,6 +413,7 @@ export class InventoryModal {
    */
   async prewarmModel() {
     if (this.model || this.isOpen) return;
+    const t0 = performance.now();
     try {
       const em = this.equipmentManager;
       if (em && typeof em.isHeroUnlocked === 'function' && !em.isHeroUnlocked(this.selectedHeroId)) {
@@ -422,7 +424,14 @@ export class InventoryModal {
       this._modelShown = key;
       await this.model.show(this.selectedHeroId, this._base(), this._equipped());
       const d = this.model.d;
-      if (d && d.renderer && d.scene && d.camera) d.renderer.compile(d.scene, d.camera);
+      if (d && d.renderer && d.scene && d.camera) {
+        // 29-oct: renderer.compile solo veía lo visible y no esperaba al enlazado: la primera apertura enlazaba
+        // ~9 programas a la fuerza (≈4 s) y cada casco o armadura nuevo compilaba el suyo al equiparlo.
+        // warmupRender compila TODAS las piezas (también cascos y armaduras ocultos) y espera al driver.
+        await warmupRender(d.renderer, d.scene, d.camera, { deadline: t0 + 12000 });
+        // Un fotograma real detrás del telón: compila los shaders de sombra (compile no los hace)
+        if (!this.isOpen && performance.now() - t0 < 12000) { d._onResize?.(); d.renderer.render(d.scene, d.camera); }
+      }
     } catch (err) {
       if (this._modelShown === this._modelKey()) this._modelShown = null;
       console.warn('[InventoryModal] Precalentado del visor omitido:', err);

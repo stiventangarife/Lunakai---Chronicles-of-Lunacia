@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { GENSHIN_PALETTE, SUN_DIRECTION, GLSL_NOISE, getGroundColorGLSL, resolveQuality } from './GenshinArtDirection.js';
 import { GenshinTerrainData } from './GenshinTerrainData.js';
+import { trackLoad } from '../../../../render/LoadGate.js';
 import { GenshinSky } from './GenshinSky.js';
 import { GenshinMountains } from './GenshinMountains.js';
 import { GenshinGrassField } from './GenshinGrassField.js';
@@ -353,7 +354,8 @@ export class GenshinForestArt {
       ['uDirtHgt', 'height_1k.webp', false]
     ];
     let pending = specs.length;
-    specs.forEach(([key, file, srgb]) => {
+    // 29-oct: changeMap / init las esperan (LoadGate) para subirlas a la GPU detrás del telón
+    trackLoad(Promise.all(specs.map(([key, file, srgb]) => new Promise((resolve) => {
       loader.load(base + file, (tex) => {
         tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
         tex.anisotropy = aniso;
@@ -361,8 +363,9 @@ export class GenshinForestArt {
         tex.needsUpdate = true;
         u[key].value = tex;
         if (--pending === 0) u.uDirtReady.value = 1.0;
-      }, undefined, () => { console.warn('[GenshinForestArt] dirt texture failed:', file); });
-    });
+        resolve();
+      }, undefined, () => { console.warn('[GenshinForestArt] dirt texture failed:', file); resolve(); });
+    }))), 'tierra de caminos (Bosque)');
   }
 
   _ensurePostFX() {

@@ -6,6 +6,8 @@
 // Zonas «someras» (p. ej. un oasis que se cruza entero): su profundidad se limita a `shallowMax` y `walkHeight`
 // devuelve el suelo elevado hasta esa profundidad, para que el personaje no se hunda.
 // El cálculo se reparte en trozos de pocos ms (sin tirones). Mientras no termina, nada se bloquea (como antes).
+import { sliceBudget } from '../../../../render/LoadGate.js';
+
 const LAND = -10;
 
 export class IslandTerrainMask {
@@ -62,7 +64,7 @@ export class IslandTerrainMask {
           }
           k++;
           if (k >= N) { k = 0; phase++; continue; }
-          if ((k & 255) === 0 && performance.now() - t0 > budgetMs) break;
+          if ((k & 255) === 0 && performance.now() - t0 > sliceBudget(budgetMs)) break; // con el telón cerrado, trozos más grandes
         }
         if (phase >= 2) {
           // ajustes propios de la isla (p. ej. paredes que sí se pueden subir junto a una rampa)

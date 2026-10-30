@@ -489,7 +489,10 @@ export class SaveSlotManager {
   applyCloudSlot(slotId, data, version) {
     const prev = this.slots[slotId];
     const merged = { ...data, id: slotId };
-    if (prev && prev.sapidaePortrait && !merged.sapidaePortrait) merged.sapidaePortrait = prev.sapidaePortrait;
+    if (prev && prev.sapidaePortrait && !merged.sapidaePortrait) {
+      merged.sapidaePortrait = prev.sapidaePortrait;
+      if (prev.sapidaePortraitKey) merged.sapidaePortraitKey = prev.sapidaePortraitKey; // va con su retrato (29-oct)
+    }
     this.slots[slotId] = merged;
     this.sync.versions[slotId] = version;
     delete this.sync.dirty[slotId];
@@ -758,6 +761,7 @@ export class SaveSlotManager {
     if (progressData.currentHP) slot.currentHP = progressData.currentHP; // vida persistente de cada héroe
     if (progressData.sapidaeModel) slot.sapidaeModel = playerSapidaeModel(progressData.sapidaeModel);
     if (progressData.sapidaePortrait) slot.sapidaePortrait = progressData.sapidaePortrait;
+    if (progressData.sapidaePortraitKey) slot.sapidaePortraitKey = progressData.sapidaePortraitKey; // 29-oct: apariencia del retrato
     if (progressData.playerName) slot.playerName = progressData.playerName;
     if (progressData.sapidaeClass) slot.sapidaeClass = progressData.sapidaeClass;
     if (progressData.customization) slot.customization = progressData.customization;

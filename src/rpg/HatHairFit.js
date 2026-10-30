@@ -18,10 +18,29 @@ const NA = 72; // direcciones alrededor (acimut)
 const NP = 36; // direcciones de arriba abajo (polar)
 const MIN_HIT = 0.25; // choques más cerca del centro que esto no son el casco (tapas internas)
 
-const _maps = new WeakMap(); // geometría del casco → Map(geometría de referencia de la cabeza → mapa de distancias)
-const _fits = new WeakMap(); // geometría de origen → Map(clave → geometría ajustada)
-const _centers = new WeakMap(); // geometría de referencia de la cabeza → [x, y, z]
-const _skins = new WeakMap(); // geometría de referencia de la cabeza → distancia a la piel en cada dirección
+// 29-oct (Hito 103): las cachés caras (rayos contra el casco y la piel) van por la HUELLA del contenido de la geometría,
+// no por el objeto. El Sapidae se carga en tres sitios (mundo, visor de la Mochila y estudio de retratos), cada uno con
+// sus propias geometrías: con cachés por objeto, rayMap se repetía tres veces en la carga (~650 ms medidos en DevTools).
+const _maps = new Map(); // huella del casco + huella de la cabeza → mapa de distancias
+const _fits = new WeakMap(); // geometría de origen → Map(clave → geometría ajustada) (barato: por objeto)
+const _centers = new Map(); // huella de la cabeza de referencia → [x, y, z]
+const _skins = new Map(); // huella de la cabeza de referencia → distancia a la piel en cada dirección
+const _prints = new WeakMap(); // geometría → huella
+
+/** Huella del contenido de una geometría: nº de vértices e índices y 48 vértices de muestra. */
+function geoPrint(geo) {
+  let k = _prints.get(geo);
+  if (k) return k;
+  const p = geo.attributes.position, n = p.count, idx = geo.index ? geo.index.count : 0;
+  let h = 0x811c9dc5;
+  const step = Math.max(1, Math.floor(n / 48));
+  for (let i = 0; i < n; i += step) {
+    for (const v of [p.getX(i), p.getY(i), p.getZ(i)]) h = Math.imul(h ^ (Math.round(v * 1e4) | 0), 16777619);
+  }
+  k = `${n}|${idx}|${(h >>> 0).toString(36)}`;
+  _prints.set(geo, k);
+  return k;
+}
 
 const posArray = (geo) => {
   const p = geo.attributes.position;
@@ -38,12 +57,13 @@ export function baseGeometry(mesh) {
 
 /** Centro de la cabeza (centro de su caja). */
 export function headCenter(headGeo) {
-  let c = _centers.get(headGeo);
+  const hk = geoPrint(headGeo);
+  let c = _centers.get(hk);
   if (!c) {
     const P = posArray(headGeo), min = [Infinity, Infinity, Infinity], max = [-Infinity, -Infinity, -Infinity];
     for (let i = 0; i < P.length; i += 3) for (let a = 0; a < 3; a++) { const v = P[i + a]; if (v < min[a]) min[a] = v; if (v > max[a]) max[a] = v; }
     c = [(min[0] + max[0]) / 2, (min[1] + max[1]) / 2, (min[2] + max[2]) / 2];
-    _centers.set(headGeo, c);
+    _centers.set(hk, c);
   }
   return c;
 }
@@ -86,17 +106,16 @@ function rayMap(geos, c, tminMap, tminK) {
 
 /** Mapa de distancias del casco (con la cabeza de referencia para descartar tapas internas y huecos rellenos). */
 function hatMap(hatGeos, headRef) {
-  const key0 = hatGeos[0];
-  let byHead = _maps.get(key0);
-  if (!byHead) { byHead = new Map(); _maps.set(key0, byHead); }
-  let T = byHead.get(headRef);
+  const mk = `${hatGeos.map(geoPrint).join('+')}#${geoPrint(headRef)}`;
+  let T = _maps.get(mk);
   if (T) return T;
   const c = headCenter(headRef);
-  let H = _skins.get(headRef);
+  const sk = geoPrint(headRef);
+  let H = _skins.get(sk);
   if (!H) {
     H = rayMap([headRef], c, null, 0);
     for (let i = 0; i < H.length; i++) if (H[i] < 0) H[i] = 0;
-    _skins.set(headRef, H);
+    _skins.set(sk, H);
   }
   T = rayMap(hatGeos, c, H, 0.9);
   // Huecos del casco: si más abajo en la misma columna hay casco, el hueco cuenta como casco.
@@ -112,7 +131,7 @@ function hatMap(hatGeos, headRef) {
       T[ip * NA + ia] = last > 0 ? Math.min(last, next) : next;
     }
   }
-  byHead.set(headRef, T);
+  _maps.set(mk, T);
   return T;
 }
 

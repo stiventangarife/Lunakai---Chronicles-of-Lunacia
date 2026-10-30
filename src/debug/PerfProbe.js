@@ -13,6 +13,11 @@
 //   lkDebug.perf.hud(true|false)    contador en pantalla (FPS, ms, draw calls, triángulos)
 //   lkDebug.perf.scene()            desglose de la escena actual por grupo (visible y oculto)
 //   lkDebug.perf.export()           descarga el último informe en JSON
+//
+// 29-oct: en Chrome/Edge (API «Long Animation Frames») cada fotograma largo dice QUÉ código lo ocupó: archivo,
+// línea y función de los scripts que más tardaron, más el tiempo de estilos/maquetación y de dibujo. Va en la
+// tabla «framesLargos» del informe y en la columna «codigo» de los tirones. Las marcas lk:* (telón, precalentado…)
+// se ponen solas desde el juego con perfMark() y también salen en el panel Performance de DevTools.
 
 const now = () => performance.now();
 
@@ -22,6 +27,75 @@ function pct(sorted, p) {
   return sorted[i];
 }
 const r1 = (v) => Math.round(v * 10) / 10;
+
+/**
+ * Marca un momento del juego: en el perfilador (si está grabando) y en el panel Performance de DevTools
+ * (performance.mark). Seguro de llamar siempre: sin perfilador no hace nada más.
+ */
+export function perfMark(label) {
+  try { performance.mark(`lk:${label}`); } catch (_) { /* opcional */ }
+  try { if (typeof window !== 'undefined') window.lkDebug?.perf?.mark?.(label); } catch (_) { /* opcional */ }
+}
+
+/**
+ * 29-oct: llamadas que pueden BLOQUEAR el hilo principal esperando a la GPU (compilar/enlazar shaders, subir texturas,
+ * leer píxeles, toDataURL…). Mientras se graba se cronometran en TODOS los contextos WebGL (el del juego, el de los
+ * retratos, el visor de la Mochila) y las de más de 25 ms se guardan con su pila de llamadas (qué función del juego
+ * las pidió). Al parar se restauran las originales.
+ */
+const GL_SLOW_MS = 25;
+// Mientras se graba, pilas más largas (por defecto el navegador guarda 10 líneas: no llegaban al código del juego)
+const STACK_LIMIT = 60;
+const GL_WATCH = ['getProgramParameter', 'getShaderParameter', 'getProgramInfoLog', 'linkProgram', 'compileShader', 'useProgram',
+  'texImage2D', 'texSubImage2D', 'texImage3D', 'texStorage2D', 'compressedTexImage2D', 'generateMipmap', 'readPixels',
+  'bufferData', 'bufferSubData', 'finish', 'getError', 'clientWaitSync'];
+function shortStack(stack) {
+  const all = String(stack || '').split('\n').slice(2)
+    .map((l) => l.trim().replace(/^at /, ''))
+    .filter((l) => !/PerfProbe\.js/.test(l))
+    .map((l) => l.replace(/https?:\/\/[^/]+\//, '').replace(/\?[^:)]*/, ''));
+  // 29-oct: las primeras líneas de three.js y luego las del JUEGO (src/…), que dicen qué objeto o sistema lo pidió
+  const head = all.slice(0, 3);
+  const game = all.slice(3).filter((l) => /src\//.test(l)).slice(0, 8);
+  return [...head, ...(game.length ? ['…', ...game] : all.slice(3, 9))].join(' ← ');
+}
+function installGlSpy(sink) {
+  const restore = [];
+  const prevLimit = Error.stackTraceLimit;
+  Error.stackTraceLimit = STACK_LIMIT;
+  restore.push(() => { Error.stackTraceLimit = prevLimit; });
+  const wrap = (proto, name, label) => {
+    const orig = proto && proto[name];
+    if (typeof orig !== 'function' || orig.__lkSpy) return;
+    const fn = function (...args) {
+      const t = performance.now();
+      try { return orig.apply(this, args); } finally {
+        const ms = performance.now() - t;
+        if (ms > GL_SLOW_MS) sink({ t, ms: Math.round(ms), call: label || name, pila: shortStack(new Error().stack) });
+      }
+    };
+    fn.__lkSpy = true;
+    proto[name] = fn;
+    restore.push(() => { proto[name] = orig; });
+  };
+  for (const C of [typeof WebGL2RenderingContext !== 'undefined' && WebGL2RenderingContext, typeof WebGLRenderingContext !== 'undefined' && WebGLRenderingContext]) {
+    if (!C) continue;
+    for (const n of GL_WATCH) wrap(C.prototype, n, `gl.${n}`);
+  }
+  if (typeof HTMLCanvasElement !== 'undefined') { wrap(HTMLCanvasElement.prototype, 'toDataURL', 'canvas.toDataURL'); wrap(HTMLCanvasElement.prototype, 'toBlob', 'canvas.toBlob'); }
+  if (typeof CanvasRenderingContext2D !== 'undefined') { wrap(CanvasRenderingContext2D.prototype, 'getImageData', 'ctx2d.getImageData'); wrap(CanvasRenderingContext2D.prototype, 'drawImage', 'ctx2d.drawImage'); }
+  return () => restore.forEach((f) => f());
+}
+
+/** «src/rpg/world/Foo.js:123 · nombreFuncion» a partir de un script de Long Animation Frames. */
+function describeScript(s) {
+  let file = s.sourceURL || '';
+  const i = file.indexOf('/src/');
+  file = i >= 0 ? file.slice(i + 1) : file.replace(/^https?:\/\/[^/]+\//, '');
+  const pos = Number.isFinite(s.sourceCharPosition) && s.sourceCharPosition >= 0 ? `@${s.sourceCharPosition}` : '';
+  const fn = s.sourceFunctionName || '(anónima)';
+  return `${file || '?'}${pos} · ${fn} [${s.invokerType || s.invoker || '?'}]`;
+}
 
 function triCount(geo) {
   if (!geo) return 0;
@@ -45,6 +119,10 @@ export function installPerfProbe(game) {
     hitches: [],     // tirones con causa
     marks: [],       // { t, label }
     longTasks: [],   // { t, dur }
+    loafs: [],       // 29-oct: fotogramas largos con su código { t, dur, bloqueo, estilos, dibujo, scripts:[…] }
+    glSlow: [],      // 29-oct: llamadas a WebGL/canvas que bloquearon más de 25 ms, con su pila
+    heap: null,      // 29-oct: { inicio, min, max, fin } en MB (una lectura por segundo; el mínimo ≈ memoria real tras el GC)
+    heapTimer: null,
     domMutations: 0, // mutaciones del DOM desde el último fotograma
     peak: { programs: 0, geometries: 0, textures: 0, calls: 0, tris: 0 },
     start: { programs: 0, geometries: 0, textures: 0 },
@@ -57,6 +135,8 @@ export function installPerfProbe(game) {
 
   let mo = null;
   let po = null;
+  let loafPo = null;
+  let unspyGl = null;
   const origAnimate = game._animate;
   let prevAutoReset = info.autoReset;
   let wrapped = false;
@@ -117,10 +197,14 @@ export function installPerfProbe(game) {
         const c = S.prev.causes.slice();
         const lt = S.longTasks.filter((x) => x.t > t - S.t0 - dt - 5);
         if (lt.length) c.push(`tarea larga ${Math.round(Math.max(...lt.map((x) => x.dur)))} ms`);
+
         const mk = S.marks.filter((m) => m.t > t - S.t0 - 1000).map((m) => m.label);
         if (!c.length) c.push(S.prev.cpu > 0.6 * dt ? 'CPU del bucle (update/render)' : 'fuera del bucle: GPU, recolector de basura (GC) o navegador');
         if (mk.length) c.push(`cerca de: ${[...new Set(mk)].join(' | ')}`);
-        S.hitches.push({ t: r1((t - S.t0) / 1000), frameMs: Math.round(dt), cpuPrevMs: Math.round(S.prev.cpu), state, causas: c.join(' · ') });
+        S.hitches.push({
+          t: r1((t - S.t0) / 1000), frameMs: Math.round(dt), cpuPrevMs: Math.round(S.prev.cpu), state, causas: c.join(' · '),
+          _from: t - S.t0 - dt - 20, _to: t - S.t0, // el código se rellena en el informe (el navegador lo entrega después)
+        });
       }
       S.prev = cur;
     }
@@ -176,7 +260,33 @@ export function installPerfProbe(game) {
         drawCallsPico: S.peak.calls, triangulosPico: S.peak.tris,
       },
       heapMB: performance.memory ? Math.round(performance.memory.usedJSHeapSize / 1048576) : null,
-      tirones: S.hitches.slice(),
+      // 29-oct: el heap sube y baja con el recolector de basura; para ver si crece de verdad, mirar el mínimo
+      heap: S.heap ? { inicio: S.heap.inicio, min: S.heap.min, max: S.heap.max, fin: S.heap.fin,
+        minPrimeraMitad: S.heap.muestras.length > 3 ? Math.min(...S.heap.muestras.slice(0, S.heap.muestras.length >> 1)) : null,
+        minSegundaMitad: S.heap.muestras.length > 3 ? Math.min(...S.heap.muestras.slice(S.heap.muestras.length >> 1)) : null } : null,
+      tirones: S.hitches.map(({ _from, _to, ...h }) => {
+        // 29-oct: el código que ocupó ese hueco (Long Animation Frames, si el navegador lo da)
+        const lf = S.loafs.filter((x) => x.t < _to && x.t + x.dur > _from).sort((a, b) => b.dur - a.dur)[0];
+        return { ...h, codigo: lf && lf.scripts.length ? lf.scripts.slice(0, 2).map((s) => `${s.ms} ms ${s.donde}`).join(' | ') : '' };
+      }),
+      // 29-oct: los fotogramas más largos y el código que los ocupó (los 40 peores)
+      framesLargos: S.loafs.slice().sort((a, b) => b.dur - a.dur).slice(0, 40).map((x) => ({
+        s: r1(x.t / 1000), ms: x.dur, bloqueoMs: x.bloqueo, estilosMs: x.estilos, scriptsMs: x.scriptsMs,
+        codigo: x.scripts.map((s) => `${s.ms} ms ${s.donde}`).join(' | ') || '(sin scripts: GPU, maquetación o navegador)',
+      })),
+      // 29-oct: llamadas a WebGL/canvas que bloquearon (las 30 peores) y quién las pidió
+      llamadasLentasGL: S.glSlow.slice().sort((a, b) => b.ms - a.ms).slice(0, 30).map((x) => ({ s: r1(x.t / 1000), ms: x.ms, llamada: x.call, pila: x.pila })),
+      llamadasLentasGLTotal: (() => {
+        const acc = new Map();
+        for (const x of S.glSlow) { const k = `${x.call} ← ${x.pila.split(' ← ').slice(0, 3).join(' ← ')}`; const a = acc.get(k) || { veces: 0, ms: 0 }; a.veces++; a.ms += x.ms; acc.set(k, a); }
+        return [...acc.entries()].sort((a, b) => b[1].ms - a[1].ms).slice(0, 15).map(([donde, a]) => ({ ms: a.ms, veces: a.veces, donde }));
+      })(),
+      // y el código que más tiempo sumó en todos los fotogramas largos
+      codigoMasPesado: (() => {
+        const acc = new Map();
+        for (const x of S.loafs) for (const s of x.scripts) acc.set(s.donde, (acc.get(s.donde) || 0) + s.ms);
+        return [...acc.entries()].sort((a, b) => b[1] - a[1]).slice(0, 15).map(([donde, ms]) => ({ ms: Math.round(ms), donde }));
+      })(),
       marcas: S.marks.map((m) => ({ s: r1(m.t / 1000), marca: m.label })),
       renderer: {
         pixelRatio: renderer.getPixelRatio(),
@@ -192,6 +302,9 @@ export function installPerfProbe(game) {
     console.table(rep.porEstado);
     console.log('GPU:', rep.gpu, ' heap:', rep.heapMB, 'MB', ' renderer:', rep.renderer);
     if (rep.tirones.length) console.table(rep.tirones);
+    if (rep.framesLargos && rep.framesLargos.length) { console.log('Fotogramas largos (Long Animation Frames):'); console.table(rep.framesLargos); }
+    if (rep.codigoMasPesado && rep.codigoMasPesado.length) { console.log('Código que más tiempo sumó:'); console.table(rep.codigoMasPesado); }
+    if (rep.llamadasLentasGL && rep.llamadasLentasGL.length) { console.log('Llamadas a WebGL/canvas que bloquearon:'); console.table(rep.llamadasLentasGL); console.table(rep.llamadasLentasGLTotal); }
     if (rep.marcas.length) console.table(rep.marcas);
     console.groupEnd();
   }
@@ -202,7 +315,12 @@ export function installPerfProbe(game) {
       S.rec = true;
       S.t0 = now();
       S.lastFrameAt = 0;
-      S.frames = []; S.hitches = []; S.marks = []; S.longTasks = [];
+      S.frames = []; S.hitches = []; S.marks = []; S.longTasks = []; S.loafs = []; S.glSlow = [];
+      const mb = () => (performance.memory ? Math.round(performance.memory.usedJSHeapSize / 1048576) : null);
+      S.heap = { inicio: mb(), min: mb(), max: mb(), fin: null, muestras: [] };
+      clearInterval(S.heapTimer);
+      S.heapTimer = setInterval(() => { const v = mb(); if (v == null) return; S.heap.min = Math.min(S.heap.min, v); S.heap.max = Math.max(S.heap.max, v); S.heap.muestras.push(v); }, 1000);
+      try { if (unspyGl) unspyGl(); unspyGl = installGlSpy((e) => { if (S.glSlow.length < 2000) S.glSlow.push({ ...e, t: e.t - S.t0 }); }); } catch (_) { unspyGl = null; }
       S.lastState = null;
       S.prev = null;
       S.start = { programs: programsCount(), geometries: info.memory.geometries, textures: info.memory.textures };
@@ -219,6 +337,21 @@ export function installPerfProbe(game) {
         });
         po.observe({ type: 'longtask', buffered: false });
       } catch (_) { po = null; }
+      // 29-oct: Long Animation Frames (Chrome/Edge 123+): qué script ocupó cada fotograma de más de 50 ms
+      try {
+        loafPo = new PerformanceObserver((list) => {
+          for (const e of list.getEntries()) {
+            const scripts = (e.scripts || []).slice().sort((a, b) => b.duration - a.duration).slice(0, 4)
+              .map((s) => ({ ms: Math.round(s.duration), donde: describeScript(s) }));
+            S.loafs.push({
+              t: e.startTime - S.t0, dur: Math.round(e.duration), bloqueo: Math.round(e.blockingDuration || 0),
+              estilos: Math.round(e.styleAndLayoutStart ? (e.startTime + e.duration - e.styleAndLayoutStart) : 0),
+              scriptsMs: Math.round((e.scripts || []).reduce((a, s) => a + s.duration, 0)), scripts,
+            });
+          }
+        });
+        loafPo.observe({ type: 'long-animation-frame', buffered: false });
+      } catch (_) { loafPo = null; }
       clearTimeout(S.autoStopTimer);
       S.autoStopTimer = setTimeout(() => { if (S.rec) api.stop(); }, maxSeconds * 1000);
       console.log(`[perf] Grabando (máx. ${maxSeconds} s). Juega normalmente y escribe lkDebug.perf.stop() al terminar.`);
@@ -230,6 +363,10 @@ export function installPerfProbe(game) {
       clearTimeout(S.autoStopTimer);
       if (mo) { mo.disconnect(); mo = null; }
       if (po) { po.disconnect(); po = null; }
+      if (loafPo) { loafPo.disconnect(); loafPo = null; }
+      if (unspyGl) { try { unspyGl(); } catch (_) { /* nada */ } unspyGl = null; }
+      clearInterval(S.heapTimer);
+      if (S.heap) S.heap.fin = performance.memory ? Math.round(performance.memory.usedJSHeapSize / 1048576) : null;
       info.autoReset = S.hudEl ? false : prevAutoReset;
       const rep = buildReport();
       S.lastReport = rep;

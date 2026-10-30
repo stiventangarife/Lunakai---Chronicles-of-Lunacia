@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { GLSL_NOISE } from '../../demo_scena/genshin/GenshinArtDirection.js';
 import { GenshinTerrainData } from '../../demo_scena/genshin/GenshinTerrainData.js';
 import { makeGroundGLSL } from './IslandGrassField.js';
+import { trackLoad } from '../../../../render/LoadGate.js';
 
 /**
  * Painterly lit terrain for the islands (MeshStandardMaterial + shader patch), built on the
@@ -197,15 +198,17 @@ function loadDirtTextures(u) {
     const loader = new THREE.TextureLoader();
     const specs = [['col', 'basecolor_1k.webp', true], ['nrm', 'normal_gl_1k.webp', false], ['hgt', 'height_1k.webp', false]];
     let pending = specs.length;
-    specs.forEach(([key, file, srgb]) => {
+    // 29-oct: changeMap la espera (LoadGate) para subir las texturas a la GPU detrás del telón
+    trackLoad(Promise.all(specs.map(([key, file, srgb]) => new Promise((resolve) => {
       loader.load(base + file, (tex) => {
         tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
         tex.anisotropy = 8;
         if (srgb) tex.colorSpace = THREE.SRGBColorSpace;
         _dirtSet[key] = tex;
         if (--pending === 0) { _dirtSet.ready = true; _dirtSet.waiters.forEach((fn) => fn()); _dirtSet.waiters = []; }
-      }, undefined, () => console.warn('[IslandTerrainMaterial] dirt texture failed:', file));
-    });
+        resolve();
+      }, undefined, () => { console.warn('[IslandTerrainMaterial] dirt texture failed:', file); resolve(); });
+    }))), 'tierra de caminos (islas)');
   }
   _dirtSet.waiters.push(apply);
 }

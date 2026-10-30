@@ -1,6 +1,9 @@
 // WorldMapManager.js - Master coordinator for 5x5 World Grid, 5 Biomes, Dofus Portals & World Map UI
 import { GRAND_ISLAND_ZONES, GRAND_ISLAND_TRAVEL } from './islands/GrandIslands.js';
 import { warmupRender, releaseTextures } from '../../render/RenderWarmup.js';
+import { waitForLoads, holdLoads } from '../../render/LoadGate.js';
+import { perfMark } from '../../debug/PerfProbe.js';
+import { applyGenshinCharacterStyle } from './demo_scena/genshin/GenshinMaterials.js';
 import { canonicalZoneId, mergedZonesOf, FERRY_DOCKS } from './islands/IslandWorldLayout.js';
 import * as THREE from 'three';
 import { MAP_REGISTRY, getZoneByCoord, ISLANDS_REGISTRY } from './MapRegistry.js';
@@ -71,7 +74,29 @@ export class WorldMapManager {
     await this.loadMap(initialMapId || 'zone_2_2', playerPosOverride);
   }
 
-  async changeMap(targetMapId, targetPortalDirection) {
+  /**
+   * Cambia de isla o zona. Lo llama quien ya cerró el telón (barquero, vuelta de un combate…).
+   * @param {string} targetMapId
+   * @param {string} [targetPortalDirection]
+   * @param {{x:number,z:number,yaw?:number}|null} [spawnOverride] 29-oct: punto de llegada (p. ej. el muelle del
+   *   barquero). Se aplica ANTES del precalentado, con la cámara ya encuadrada ahí; antes se teletransportaba
+   *   después y la cámara se deslizaba desde el centro de la isla con el telón abriéndose.
+   */
+  async changeMap(targetMapId, targetPortalDirection, spawnOverride = null) {
+    // 29-oct: con el telón cerrado, los cálculos por trozos (máscaras de agua y pendiente) van en trozos grandes
+    const release = holdLoads();
+    // 29-oct: sin dibujar el mundo mientras dura el cambio (ver OverworldManager.render)
+    const om = this.om;
+    om._renderSuspended = (om._renderSuspended || 0) + 1;
+    try {
+      return await this._changeMapImpl(targetMapId, targetPortalDirection, spawnOverride);
+    } finally {
+      om._renderSuspended = Math.max(0, (om._renderSuspended || 1) - 1);
+      release();
+    }
+  }
+
+  async _changeMapImpl(targetMapId, targetPortalDirection, spawnOverride = null) {
     // The corner zones of the demo 1.0.0 grid were merged into the islands
     targetMapId = canonicalZoneId(targetMapId);
     console.log(`[WorldMapManager] Changing map from ${this.currentMapId} -> ${targetMapId} (entering at ${targetPortalDirection})`);
@@ -153,7 +178,9 @@ export class WorldMapManager {
     }
 
     let spawn = targetMap.defaultSpawn;
-    if (targetPortalDirection && targetMap.portals[targetPortalDirection]) {
+    if (spawnOverride && Number.isFinite(spawnOverride.x) && Number.isFinite(spawnOverride.z)) {
+      spawn = spawnOverride;
+    } else if (targetPortalDirection && targetMap.portals[targetPortalDirection]) {
       const portalDef = targetMap.portals[targetPortalDirection];
       spawn = portalDef.spawnOffset || portalDef.position;
     }
@@ -333,6 +360,15 @@ export class WorldMapManager {
         : 'N/A';
       console.log(`[Memory Monitor] 📍 Zone: ${targetMap.id} (${targetMap.biome}) | 🖼️ GPU Textures: ${this.om.renderer.info.memory.textures} | 📐 Geometries: ${this.om.renderer.info.memory.geometries} | 🧠 Heap: ${heapMB}`);
     }
+
+    // 29-oct: todo lo que la isla carga en diferido (pueblo, edificios GLB, texturas de caminos, máscaras de agua y
+    // pendiente) termina AQUÍ, con el telón cerrado, para que el precalentado lo incluya. Tope de 8 s: con red lenta
+    // o un GLB roto el viaje sigue igual que antes.
+    perfMark('viaje: esperando cargas diferidas');
+    const waited = await waitForLoads(8000);
+    perfMark('viaje: cargas diferidas listas');
+    if (waited > 50) console.log(`[WorldMapManager] Cargas diferidas de la isla esperadas: ${waited} ms`);
+    this.om.environmentSystem?.markShadowCastersDirty?.();
 
     await this._warmupShaders(this.om.renderer, this.om.scene, this.om.camera);
 
@@ -1009,43 +1045,18 @@ export class WorldMapManager {
   }
 
   async travelToIsland(islandId) {
+    // 29-oct: el muelle de llegada se pasa a changeMap, que coloca ahí al jugador y la cámara ANTES de esperar las
+    // cargas y precalentar. Antes se teletransportaba después, sin encuadrar la cámara: con el telón abriéndose,
+    // la cámara se deslizaba desde el centro de la isla hasta el muelle y todo ese recorrido entraba en pantalla.
+    const at = (p) => (p ? { x: p.x, z: p.z, yaw: p.yaw } : null);
     const grand = GRAND_ISLAND_TRAVEL[islandId];
-    if (grand) {
-      console.log(`[WorldMapManager] ⛵ Viajando a ${islandId}...`);
-      await this.changeMap(grand.zone);
-      if (this.om.player) {
-        const sp = grand.spawn;
-        const y = this.om.getGroundHeight ? this.om.getGroundHeight(sp.x, sp.z) : 2;
-        this.om.player.teleport(sp.x, y, sp.z, sp.yaw);
-        if (this.om.player.velocity) this.om.player.velocity.set(0, 0, 0);
-      }
-      return;
-    }
     console.log(`[WorldMapManager] ⛵ Viajando a ${islandId}...`);
-    if (islandId === 'island_savannah') {
-      await this.changeMap('zone_3_2');
-      if (this.om.player) {
-        const dock = FERRY_DOCKS.zone_3_2.arrive;
-        const spawnX = dock.x;
-        const spawnZ = dock.z;
-        const spawnY = (this.om.savannaZone && typeof this.om.savannaZone.getHeight === 'function')
-          ? this.om.savannaZone.getHeight(spawnX, spawnZ)
-          : 25.5;
-        this.om.player.teleport(spawnX, spawnY, spawnZ, dock.yaw);
-        if (this.om.player.velocity) this.om.player.velocity.set(0, 0, 0);
-      }
+    if (grand) {
+      await this.changeMap(grand.zone, null, at(grand.spawn));
+    } else if (islandId === 'island_savannah') {
+      await this.changeMap('zone_3_2', null, at(FERRY_DOCKS.zone_3_2 && FERRY_DOCKS.zone_3_2.arrive));
     } else if (islandId === 'island_forest') {
-      await this.changeMap('zone_2_2');
-      if (this.om.player) {
-        const dock = FERRY_DOCKS.zone_2_2.arrive;
-        const spawnX = dock.x;
-        const spawnZ = dock.z;
-        const spawnY = (this.om.demoScenaZone && typeof this.om.demoScenaZone.getHeight === 'function')
-          ? this.om.demoScenaZone.getHeight(spawnX, spawnZ)
-          : 4.5;
-        this.om.player.teleport(spawnX, spawnY, spawnZ, dock.yaw);
-        if (this.om.player.velocity) this.om.player.velocity.set(0, 0, 0);
-      }
+      await this.changeMap('zone_2_2', null, at(FERRY_DOCKS.zone_2_2 && FERRY_DOCKS.zone_2_2.arrive));
     }
   }
 
@@ -1062,6 +1073,51 @@ export class WorldMapManager {
    * Además sube a la GPU todas las texturas ya cargadas (initTexture), que si no se suben la
    * primera vez que entran en pantalla.
    */
+  /** ¿La isla activa aplica el estilo anime a los personajes? (capa de arte encendida) */
+  _activeArtStylesCharacters() {
+    const om = this.om;
+    const forest = om.demoScenaZone;
+    if (forest && forest.isActive) return Boolean(forest.genshinArt && forest.genshinArt.enabled !== false);
+    const sav = om.savannaZone;
+    if (sav && sav.isActive) return Boolean(sav.genshinArt && sav.genshinArt.layer && sav.genshinArt.layer.active);
+    return Object.values(om.grandIslands || {}).some((z) => z && z.isActive && z.art);
+  }
+
+  /**
+   * 29-oct: dibuja UN fotograma con todo lo visible de la isla activa sin recorte por cámara y con el mapa de sombras
+   * forzado. `compile()` no prepara el pase de sombras (MeshDepthMaterial, sombras con viento de las copas) ni sube
+   * la geometría a la GPU: three lo hace la primera vez que DIBUJA cada malla. Sin esto ocurría al girar la cámara
+   * los primeros segundos (fotogramas de 60–160 ms en el combate, donde ya se hacía así desde el Hito 49).
+   * Se salta las islas inactivas y lo oculto. Desactivable con `window.lkNoFullWarm = true` (para comparar).
+   * @returns {number} ms del fotograma (0 si no se hizo)
+   */
+  _renderFullWarmFrame(skipRoots = []) {
+    const om = this.om;
+    const env = om.environmentSystem;
+    const scene = om.scene;
+    if (!env || !scene || (typeof window !== 'undefined' && window.lkNoFullWarm)) return 0;
+    const t0 = performance.now();
+    const skip = new Set(skipRoots);
+    const flipped = [];
+    const walk = (o) => {
+      if (skip.has(o) || !o.visible) return;
+      if (o.frustumCulled && (o.isMesh || o.isPoints || o.isLine)) { o.frustumCulled = false; flipped.push(o); }
+      const ch = o.children;
+      for (let i = 0; i < ch.length; i++) walk(ch[i]);
+    };
+    try {
+      walk(scene);
+      if (typeof env.refreshShadowCasters === 'function') env.refreshShadowCasters(); // sombras como quedarán al jugar
+      if (typeof env.renderWithShadows === 'function') env.renderWithShadows();
+      else if (env.composer) env.composer.render();
+    } catch (e) {
+      console.warn('[WorldMapManager] Fotograma de precalentado omitido:', e);
+    } finally {
+      for (const o of flipped) o.frustumCulled = true;
+    }
+    return Math.round(performance.now() - t0);
+  }
+
   async _warmupShaders(renderer, scene, camera) {
     if (!renderer || !scene || !camera) return;
     const om = this.om;
@@ -1070,13 +1126,25 @@ export class WorldMapManager {
     // vuelve a llamar a este método al final de la carga.
     if (!om.environmentSystem) return;
     const t0 = performance.now();
+    perfMark('precalentado: inicio');
     try {
-      // 1. Estilo de personajes antes de compilar (si no, recompilan a los pocos segundos de juego)
+      // 1. Estilo de personajes antes de compilar (si no, recompilan a los pocos segundos de juego).
+      //    29-oct: en todas las islas con capa de arte (antes solo en el Bosque: en la Sabana, el Ártico, la Mística
+      //    y Genesis los NPC nuevos recompilaban su shader en pleno juego). Solo actúa una vez por material.
       try {
-        const ga = om.demoScenaZone && om.demoScenaZone.genshinArt;
-        if (ga && ga.enabled !== false && om.demoScenaZone.isActive && typeof ga._styleCharacters === 'function') {
-          ga._styleCharacters();
+        if (this._activeArtStylesCharacters()) {
+          const p = om.player;
+          if (p && p.mesh) applyGenshinCharacterStyle(p.mesh, p.toonOutline || null);
+          for (const npc of ((om.npcManager && om.npcManager.npcs) || [])) if (npc && npc.group) applyGenshinCharacterStyle(npc.group);
         }
+      } catch (_) { /* opcional */ }
+
+      // 1b. 29-oct: transparencia de la cámara (CameraOcclusion) aplicada YA, para compilar aquí sus versiones del
+      //     shader. Antes llegaba 600 ms después de abrir el telón y recompilaba árboles y edificios en pleno juego
+      //     (medido: un fotograma de 18 s al empezar la partida).
+      try {
+        const occ = om.cameraController && om.cameraController.occlusion;
+        if (occ && typeof occ.prepareForWarmup === 'function') { perfMark('precalentado: transparencia de cámara'); occ.prepareForWarmup(); }
       } catch (_) { /* opcional */ }
 
       // 2. Compilar con el mismo destino que usa el render real (el composer si existe) y subir texturas
@@ -1091,7 +1159,11 @@ export class WorldMapManager {
       const released = releaseTextures(scene, inactive);
       const res = await warmupRender(renderer, scene, camera, { target, skipRoots: inactive });
       if (released) console.log(`[WorldMapManager] Texturas de islas inactivas liberadas de la GPU: ${released}`);
-      console.log(`[WorldMapManager] Precalentado: ${res.programs} programas nuevos (${res.total} en total), ${res.textures} texturas, ${Math.round(performance.now() - t0)} ms`);
+      // 3. 29-oct: un fotograma completo detrás del telón (como _prewarmBattle en el combate)
+      perfMark('precalentado: fotograma completo');
+      const full = this._renderFullWarmFrame(inactive);
+      perfMark('precalentado: fin');
+      console.log(`[WorldMapManager] Precalentado: ${res.programs} programas nuevos (${res.total} en total), ${res.textures} texturas, fotograma completo ${full} ms, ${Math.round(performance.now() - t0)} ms`);
     } catch (e) {
       console.warn('[WorldMapManager] Shader warmup error (safely skipped):', e);
     }

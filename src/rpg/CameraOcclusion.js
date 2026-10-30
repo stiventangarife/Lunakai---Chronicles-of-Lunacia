@@ -52,7 +52,26 @@ export class CameraOcclusion {
     return s;
   }
 
-  rebuild() {
+  /**
+   * 29-oct: llamar detrás del telón, ANTES del precalentado de shaders. La transparencia de lo fino cambia el shader de
+   * cada material que toca (_patchSeeThrough → needsUpdate): si se hace con el juego ya visible, cada material
+   * recompila en pleno juego. Medido: un fotograma de 18 s al abrir el telón (13 shaders de árboles y edificios) por el
+   * rebuild que llegaba 600 ms después de entrar en la zona. Aquí se aplica ya, también a lo que aún está oculto
+   * (los árboles de GenshinTrees siguen ocultos hasta su primer recorte), y el precalentado compila esas versiones.
+   */
+  prepareForWarmup() {
+    try {
+      this.rebuild({ includeHidden: true });
+      this._zoneKey = this.om?.worldMapManager?.currentMapDef?.id || null;
+      const now = performance.now();
+      this._rebuildAt = [now + 4000, now + 12000]; // las cajas ya están: solo los repasos por si algo llega tarde
+    } catch (e) {
+      console.warn('[CameraOcclusion] preparación omitida', e);
+    }
+  }
+
+  /** @param {{ includeHidden?: boolean }} [opts] includeHidden: también parchea (por nombre) lo oculto; cajas solo de lo visible */
+  rebuild({ includeHidden = false } = {}) {
     const om = this.om;
     if (!om?.scene) return;
     const t0 = performance.now();
@@ -94,7 +113,16 @@ export class CameraOcclusion {
     const walk = (obj, visible) => {
       if (skipRoots.has(obj)) return;
       const vis = visible && obj.visible;
-      if (!vis) return;
+      if (!vis) {
+        if (!includeHidden) return;
+        // 29-oct: oculto (p. ej. árboles antes de su primer recorte): sin cajas, solo la transparencia por nombre
+        if (obj.isMesh && !obj.isSkinnedMesh && obj.material) {
+          const name = `${obj.name || ''}|${obj.parent?.name || ''}|${obj.parent?.parent?.name || ''}`;
+          if (SEE_THROUGH.test(name)) (Array.isArray(obj.material) ? obj.material : [obj.material]).forEach((mt) => this._patchSeeThrough(mt));
+        }
+        for (let i = 0; i < obj.children.length; i++) walk(obj.children[i], false);
+        return;
+      }
       // Hito 94: una pieza puede traer sus propias cajas (userData.cameraBoxes, Box3 en sus ejes locales) en lugar de
       // la de toda su geometría (p. ej. un arco: pilares y muros, sin el hueco), o pedir que se ignore (cameraIgnore)
       if (obj.isMesh && obj.userData?.cameraIgnore) { this.skippedSmall++; }

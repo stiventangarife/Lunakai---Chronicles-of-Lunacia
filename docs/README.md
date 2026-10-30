@@ -438,6 +438,22 @@ Bienvenido al repositorio de documentación técnica, arquitectura y especificac
     - Las cartas pueden tener recarga (turnos propios sin poder usarla), espera inicial y usos por objetivo y turno, además de los usos por turno. La carta en recarga se apaga con los turnos que faltan y la ficha lo explica. Valores: invocaciones de gólem 3, Luna de Sangre 4 (espera 1), áreas y control del Sapidae 1–2; cartas de Axie por reglas (control, daño alto, área, PA/PM, curas, apoyo, 1 PA: 105 de 235 con límite); enemigos solo en sus golpes fuertes. La IA respeta las recargas.
 98. [**Hito 98: Habilidades que se desbloquean al subir de nivel**](HITO_98_HABILIDADES_POR_NIVEL.md)
     - A nivel 1 cada héroe tiene 3 cartas: en los Axies, ojos, orejas y boca; cuernos a nivel 3, espalda a 7 y cola a 10 (por tipo de parte). El Sapidae, igual por posición: 4.ª, 5.ª y 6.ª habilidad a 3, 7 y 10. Candado y «Nv. N» en la carta, aviso de «¡Nueva habilidad!» al subir, candados en el creador y en runas y charms. El tutorial elige la carta de la ranura [1] entre las desbloqueadas.
+99. [**Hito 99: VFX cuerpo a cuerpo corregidos y piloto del estilo estilizado**](HITO_99_VFX_CUERPO_A_CUERPO_Y_PILOTO_ESTILIZADO.md)
+    - Los ataques cuerpo a cuerpo ya caen sobre el objetivo y a tamaño completo: el puente usa las anclas de diseño de cada efecto (antes, a 1 casilla el mordisco caía a mitad de camino y al 57 %).
+    - Kit estilizado `src/vfx/vfx-stylized.js` (erosión del alfa, rampa de 4 tonos, mezcla por capas, luz del sol en 3 bandas, atlas de formas) y piloto con Mordisco, Watermelon y Esporas. Se enciende con `lkDebug.vfxEstilo(true)`; comparación lado a lado en `tools/vfx-lab/estilizado.html`.
+100. [**Hito 100: VFX estilizados para los 61 ataques de enemigos, las 24 habilidades del Sapidae y los gólems**](HITO_100_VFX_ESTILIZADOS_ENEMIGOS_Y_SAPIDAE.md)
+    - Las 21 plantillas básicas en el estilo nuevo (cuerpo a cuerpo, distancia y área, control y apoyo), con estados estilizados compartidos; los 61 ataques de enemigos las usan (`mod-estilizado-enemigos.js`).
+    - Efecto propio para las 24 habilidades del Sapidae (fuera la tabla de alias) y para el pulso y la rotura de los gólems; 114 efectos estilizados en total, apagados por defecto (`lkDebug.vfxEstilo(true)`).
+101. [**Hito 101: VFX estilizados hechos a mano para las 235 cartas de partes, las cartas α y las Ultimates**](HITO_101_VFX_ESTILIZADOS_CARTAS.md)
+    - El estilo nuevo va encendido por defecto (`lkDebug.vfxEstilo(false)` lo apaga). Las 235 cartas de partes (36 módulos `mod-estilizado-<clase>-<parte>.js`), las 5 cartas α de Bing y Pomodoro y las 3 Ultimates de dúo tienen efecto estilizado propio; las cartas de colección usan el de su carta base.
+    - Cartas de aliado lanzadas sobre sí mismo dibujadas en el lanzador; partículas repartidas en grupos parejos (`vfx-core.js`); laboratorio con `?fx=card:<id>`.
+102. [**Hito 102: Recorrido de todos los VFX y efectos de aliado que caían sobre el lanzador**](HITO_102_RECORRIDO_VFX_Y_ALIADOS.md)
+    - `lkDebug.vfxRecorrido()` reproduce en orden los 387 efectos (cartas, α, Ultimates, Sapidae, enemigos, gólems) con su nombre en pantalla; M marca «necesita arreglo» y `lkDebug.vfxMarcadas()` exporta la lista.
+    - Cuatro cartas α que usaban un efecto de su carta base pensado para otro objetivo tienen efecto propio; las cartas de aliado sin receptor declarado ya no se dibujan delante del lanzador.
+103. [**Hito 103: Sin congelamientos al empezar la partida ni al viajar entre islas**](HITO_103_TIRONES_MUNDO_ABIERTO_Y_VIAJES.md)
+    - Al abrir el telón: de un fotograma de 18 s a ninguno por encima de 70 ms. Causas: la transparencia de la cámara cambiaba los shaders de árboles y edificios tras el precalentado, y el retrato del autoguardado compilaba el Sapidae en un segundo contexto WebGL en cada sesión. Ahora la transparencia se aplica antes de precalentar y el retrato solo se rehace si cambia el aspecto, en segundo plano (`captureModelAsync`).
+    - Viajes en barca: de ~17 s con congelamientos a 2–5 s detrás del telón. El mundo no se dibuja mientras se cambia de isla, el jugador y la cámara llegan al muelle antes del precalentado, y el pueblo, los edificios GLB, las texturas de caminos y las máscaras se esperan detrás del telón (`src/render/LoadGate.js`). El precalentado dibuja un fotograma completo con sombras.
+    - `lkDebug.perf` dice qué código ocupó cada fotograma largo, qué llamadas a WebGL bloquearon y quién las pidió (con su pila), y la evolución del heap.
 
 ---
 

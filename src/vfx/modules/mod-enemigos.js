@@ -78,6 +78,7 @@ const G={
  ["bear_dad_slam","Titanic Bash","GOLPE_SISMICO","Tierra",{}],
 ],
 };
+VFX.ENEMY_ROWS=G; // la versión estilizada (mod-estilizado-enemigos.js) instancia la misma tabla
 for(const [mod,rows] of Object.entries(G)){
   const defs=[];
   for(const [key,name,type,pal,opt] of rows){

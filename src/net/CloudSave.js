@@ -10,7 +10,7 @@ import { NET_CONFIG } from './config.js';
 import { supabaseFetch } from './AuthService.js';
 import * as i18n from '../i18n/i18n.js';
 
-const LOCAL_ONLY_FIELDS = ['sapidaePortrait']; // pesados y regenerables: no viajan a la nube
+const LOCAL_ONLY_FIELDS = ['sapidaePortrait', 'sapidaePortraitKey']; // pesados y regenerables: no viajan a la nube (la clave va con su retrato)
 
 /** Copia de la ranura lista para subir. */
 export function toCloudData(slot) {

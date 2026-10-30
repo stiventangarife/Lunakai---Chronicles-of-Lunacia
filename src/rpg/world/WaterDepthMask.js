@@ -5,6 +5,8 @@
 // tierra seca); depthAt() interpola entre las 4 celdas vecinas, así el borde no sale en escalones.
 // El cálculo se reparte en trozos de pocos milisegundos (bake), para no dar tirones al cargar la isla. Mientras no
 // termina, depthAt() devuelve null y nadie se bloquea (como antes).
+import { sliceBudget } from '../../render/LoadGate.js';
+
 const LAND = -10;
 
 export class WaterDepthMask {
@@ -39,7 +41,7 @@ export class WaterDepthMask {
           const d = depthFn(minX + i * cell, minZ + j * cell);
           data[k] = (d === null || !Number.isFinite(d)) ? LAND : d;
           k++;
-          if ((k & 255) === 0 && performance.now() - t0 > budgetMs) break;
+          if ((k & 255) === 0 && performance.now() - t0 > sliceBudget(budgetMs)) break; // con el telón cerrado, trozos más grandes
         }
         if (k >= n * n) { this.ready = true; resolve(); return; }
         setTimeout(step, 0);

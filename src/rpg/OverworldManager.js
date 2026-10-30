@@ -45,6 +45,8 @@ import { createGrandIslands, getActiveGrandIsland, GRAND_ISLAND_ZONES } from './
 import { canonicalZoneId, FERRY_DOCKS, mergedBattleAnchor } from './world/islands/IslandWorldLayout.js';
 import { PALADILL_SPOT } from './world/ForestVillageLayout.js';
 import * as i18n from '../i18n/i18n.js';
+import { waitForLoads, holdLoads, trackLoad } from '../render/LoadGate.js';
+import { perfMark } from '../debug/PerfProbe.js';
 
 /**
  * The 80 m terrains of the demo 1.0.0 grid (9 macro-zones) are retired: every zone is now one of the
@@ -823,6 +825,16 @@ export class OverworldManager {
   }
 
   async init(heroConfig = {}, slotData = null) {
+    // 29-oct: mientras dura la carga (telón cerrado) los cálculos repartidos van en trozos grandes (LoadGate)
+    const release = holdLoads();
+    try {
+      return await this._initImpl(heroConfig, slotData);
+    } finally {
+      release();
+    }
+  }
+
+  async _initImpl(heroConfig = {}, slotData = null) {
     // 1. Build Stylized Meadow Environment (Grass, Flowers, Cobblestone SDF Path, Trees, Wind)
     if (!this.stylizedEnv) {
       console.log('[DIAG] Iniciando StylizedEnvironment...');
@@ -1180,8 +1192,18 @@ export class OverworldManager {
     // creaba su contexto WebGL, cargaba el modelo y compilaba: tirón de ~200–570 ms). Tope de 1,5 s
     // para no alargar la carga si la red va lenta (si no termina, sigue en segundo plano).
     if (this.inventoryModal && typeof this.inventoryModal.prewarmModel === 'function') {
-      await Promise.race([this.inventoryModal.prewarmModel(), new Promise((r) => setTimeout(r, 1500))]);
+      // 29-oct: se apunta como carga diferida: waitForLoads (tope 8 s) la espera con el resto detrás del telón
+      trackLoad(this.inventoryModal.prewarmModel(), 'visor de la mochila');
     }
+
+    // 29-oct: el pueblo del Bosque, los edificios GLB de la isla, las texturas de los caminos y las máscaras de
+    // agua y pendiente se cargaban en diferido y entraban 1–3 s DESPUÉS de abrir el telón (tirones al empezar).
+    // Se esperan aquí (tope 8 s) para que el precalentado los incluya.
+    perfMark('carga: esperando cargas diferidas');
+    const waited = await waitForLoads(8000);
+    perfMark('carga: cargas diferidas listas');
+    if (waited > 50) console.log(`[OverworldManager] Cargas diferidas esperadas antes de abrir el telón: ${waited} ms`);
+    this.environmentSystem?.markShadowCastersDirty?.();
 
     // Precalentado final: ahora sí existen el composer, las luces definitivas, la forja y los nodos
     // de recolección. El de loadMap() se hizo antes de todo eso y sus programas no coinciden.
@@ -2327,6 +2349,16 @@ export class OverworldManager {
   }
 
   render(time, dt) {
+    // 29-oct: durante un cambio de isla (WorldMapManager.changeMap, con el telón de carga cerrado) el mundo no se dibuja.
+    // Antes el bucle seguía dibujando detrás del telón: cada pieza nueva de la isla compilaba su shader de forma
+    // síncrona al entrar en escena y el precalentado (compilación en paralelo) tenía que competir con él. Medido en el
+    // viaje Bosque → Sabana: 35 compilaciones bloqueantes, 14,3 s, y el viaje entero duraba ~17 s.
+    // El precalentado dibuja su propio fotograma completo (WorldMapManager._renderFullWarmFrame).
+    if (this._renderSuspended > 0 && this.hasRenderedFrame) {
+      const cbs = this._onNextFrameCallbacks;
+      if (cbs && cbs.length) { this._onNextFrameCallbacks = []; cbs.forEach((fn) => { try { fn(); } catch (err) { console.error('[OverworldManager] Frame callback error:', err); } }); }
+      return;
+    }
     // Con un panel a pantalla completa abierto (Mochila, Forja, Tienda, Escuadrón, Diario, Mapa)
     // el mundo queda oscurecido detrás: se dibuja 1 de cada 4 fotogramas en lugar de todos.
     // El canvas conserva la última imagen, así que no se nota y la GPU queda libre para el panel.

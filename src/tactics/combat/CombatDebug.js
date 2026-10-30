@@ -360,6 +360,7 @@ export function installCombatDebug(game) {
         }
         if ('normalBiasTexels' in opts && opts.normalBiasTexels != null) D.normalBias = null;
         LightingManager.refreshAllBias();
+        window.environmentSystem?.markShadowCastersDirty?.(); // legacy / frontFaces: repasar las caras de sombra
       }
       const rows = [];
       for (const lm of LightingManager.instances) {

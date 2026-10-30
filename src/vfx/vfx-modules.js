@@ -22,11 +22,25 @@ export const VFX_MODULES = [
   'starter-bing', 'starter-pomodoro',
   // efectos básicos reutilizables (fábricas VFX.basic.*) y las 61 habilidades de enemigos que los usan
   'basicos-cuerpo', 'basicos-distancia', 'basicos-apoyo', 'enemigos',
+  // estilo nuevo (29-oct): usa el kit vfx-stylized.js, que se carga solo cuando hace falta
+  'estilizado-piloto', 'estilizado-cuerpo', 'estilizado-distancia', 'estilizado-apoyo', 'estilizado-enemigos',
+  'estilizado-sapidae-alfarero', 'estilizado-sapidae-comandante', 'estilizado-sapidae-guardian', 'estilizado-sapidae-rastreador',
 ];
+
+/** Módulos hechos con el kit estilizado (vfx-stylized.js + texturas de src/vfx/textures/). */
+export const VFX_STYLIZED_MODULES = new Set(VFX_MODULES.filter((n) => n.startsWith('estilizado-')));
+const isStylized = (n) => VFX_STYLIZED_MODULES.has(n) || n.startsWith('estilizado-');
+
+/** Hito 101: versiones estilizadas de las cartas (estilizado-<clase>-<parte>, estilizado-starter-*, estilizado-duo-*).
+ *  No hace falta listarlas en VFX_MODULES: se cargan al final, después de las plantillas que pueden reutilizar. */
+const STY_TEMPLATES = ['estilizado-cuerpo', 'estilizado-distancia', 'estilizado-apoyo'];
+const isStyCard = (n) => /^estilizado-(bestia|planta|acuatico|pajaro|bicho|reptil|starter|duo)-/.test(n);
 
 /** Módulos que necesitan otros cargados antes (se añaden solos al pedirlos). */
 export const VFX_MODULE_DEPS = {
   enemigos: ['basicos-cuerpo', 'basicos-distancia', 'basicos-apoyo'],
+  // la versión estilizada usa la tabla de mod-enemigos.js y, para los tipos que aún no tenga, sus fábricas originales
+  'estilizado-enemigos': ['enemigos', 'basicos-cuerpo', 'basicos-distancia', 'basicos-apoyo', 'estilizado-cuerpo', 'estilizado-distancia', 'estilizado-apoyo'],
 };
 
 const loaded = new Map(); // url → Promise
@@ -54,8 +68,14 @@ export async function loadVfxModules(base, names = VFX_MODULES) {
   if (typeof window === 'undefined' || !window.VFX) throw new Error('[vfx] Crea window.VFX antes de cargar los módulos');
   await loadScript(`${base}vfx-lib.js`);
   const want = new Set(names);
-  for (const n of names) for (const d of VFX_MODULE_DEPS[n] || []) want.add(d);
-  const ordered = VFX_MODULES.filter((n) => want.has(n));
+  for (const n of names) for (const d of VFX_MODULE_DEPS[n] || (isStyCard(n) ? STY_TEMPLATES : [])) want.add(d);
+  const ordered = [...VFX_MODULES.filter((n) => want.has(n)), ...[...want].filter((n) => isStyCard(n) && !VFX_MODULES.includes(n))];
+  // el kit estilizado va después de vfx-lib.js y antes de sus módulos; sus texturas deben estar listas
+  // antes de construir y precompilar (así el primer lanzamiento no sube texturas)
+  if (ordered.some(isStylized)) {
+    await loadScript(`${base}vfx-stylized.js`);
+    if (window.VFX.sty?.ready) await window.VFX.sty.ready;
+  }
   await Promise.all(ordered.map((n) => loadScript(`${base}modules/mod-${n}.js`)));
   return ordered;
 }

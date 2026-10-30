@@ -1,0 +1,363 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Laboratorio VFX · piloto estilizado</title>
+<!--
+  Compara los efectos actuales con los del piloto estilizado (mod-estilizado-piloto.js) sobre un tablero con la luz del
+  combate (sol de miel, sombras azuladas, ACES y bloom 0,30), usando el VfxBridge real del juego: la misma colocación,
+  la misma deformación del pasillo y las mismas anclas. Abrir con el servidor del juego:
+    http://localhost:8082/tools/vfx-lab/estilizado.html
+  Parámetros: ?fx=mordisco|sandia|esporas|enemy:<id>|basic:<TIPO>|sapi:<id habilidad>|golem:pulse_<tipo>|golem:break_<tipo> &var=<variante> &self=1 &empty=1 (casilla vacía) &d=1..5 (casillas)  &t=segundos (congela) &cam=0..7 &team=ally &solo=old|new (una versión) &anclas=fijas (el puente de antes del arreglo)
+-->
+<style>
+  :root { color-scheme: dark; }
+  html, body { margin: 0; height: 100%; background: #0d1420; color: #e8eef6; font: 14px/1.4 system-ui, sans-serif; overflow: hidden; }
+  #ui { position: fixed; left: 12px; top: 12px; display: flex; gap: 8px; flex-wrap: wrap; align-items: center; z-index: 2;
+        background: rgba(10,16,26,.82); padding: 8px 10px; border-radius: 10px; max-width: calc(100vw - 48px); }
+  #ui label { display: flex; gap: 6px; align-items: center; }
+  #ui select, #ui button, #ui input { font: inherit; color: inherit; background: #1b2738; border: 1px solid #33465f; border-radius: 6px; padding: 4px 8px; }
+  #ui button { cursor: pointer; }
+  #ui output { min-width: 3.5em; display: inline-block; }
+  .tag { position: fixed; padding: 4px 10px; border-radius: 6px; background: rgba(10,16,26,.75); font-weight: 600; z-index: 2; }
+  #tag { left: 12px; top: 12px; }
+  #err { position: fixed; bottom: 12px; left: 12px; color: #ff9a9a; white-space: pre-wrap; z-index: 2; }
+  canvas { display: block; }
+</style>
+<script type="importmap">{ "imports": { "three": "../../vendor/three.module.js" } }</script>
+</head>
+<body>
+<div id="ui"></div>
+<div class="tag" id="tag"></div>
+<div id="err"></div>
+<script type="module">
+import * as THREE from 'three';
+import { EffectComposer } from '../../vendor/postprocessing/EffectComposer.js';
+import { RenderPass } from '../../vendor/postprocessing/RenderPass.js';
+import { UnrealBloomPass } from '../../vendor/postprocessing/UnrealBloomPass.js';
+import { OutputPass } from '../../vendor/postprocessing/OutputPass.js';
+import { VfxBridge, SAPIDAE_VFX_ALIAS, STARTER_VFX, ULTIMATE_VFX } from '../../src/vfx/VfxBridge.js';
+import { CARD_VFX } from '../../src/vfx/vfx-cards.js';
+import { PART_CARDS_LIST } from '../../src/tactics/data/PartCards.js';
+import { STARTER_CARDS_LIST } from '../../src/tactics/data/StarterCards.js';
+// Hito 102: datos reales de las cartas (partes + α) para reproducirlas como en el combate (?fx=spell:<id>)
+const SPELL_DB = Object.fromEntries([...PART_CARDS_LIST, ...STARTER_CARDS_LIST].map((c) => [c.id, c]));
+window.SPELL_DB = SPELL_DB;
+
+const PAIRS = {
+  mordisco: { old: ['chimera_bite', 'enemigos'], neu: ['sty__chimera_bite', 'estilizado-enemigos'], spell: 'chimera_bite' },
+  sandia:   { old: ['pcWatermelon', 'planta-cuernos'], neu: ['sty_sandia', 'estilizado-piloto'], spell: 'part_plant_horn_watermelon' },
+  esporas:  { old: ['lunalogist_spores', 'sapidae-lunalogista'], neu: ['sty_esporas', 'estilizado-piloto'], spell: 'lunalogist_spores' },
+};
+const TILE = 1.6;
+const q = new URLSearchParams(location.search);
+const $ = (id) => document.getElementById(id);
+const showErr = (e) => { $('err').textContent += String(e && e.stack || e) + '\n'; console.error(e); };
+window.addEventListener('error', (e) => showErr(e.error || e.message));
+
+// ---------- el «combate»: escena, cámara, compositor y el VfxBridge real ----------
+function makeWorld(renderer) {
+  const scene = new THREE.Scene();
+  scene.background = new THREE.Color(0x9cc4e6);
+  scene.fog = new THREE.Fog(0xf3d4b0, 60, 260);
+  const sun = new THREE.DirectionalLight(0xffd7a0, 2.7);
+  sun.position.set(18, 22, 14); sun.castShadow = true;
+  sun.shadow.mapSize.set(2048, 2048); Object.assign(sun.shadow.camera, { left: -14, right: 14, top: 14, bottom: -14, near: 1, far: 80 });
+  sun.shadow.bias = -0.0004; sun.shadow.normalBias = 0.02;
+  scene.add(sun, sun.target);
+  scene.add(new THREE.HemisphereLight(0xb9d6f2, 0x6f8a3c, 0.95));
+  // tablero 9×5 con dos verdes de hierba y un camino de tierra (como un mapa de Bosque)
+  const W = 9, H = 5, geo = new THREE.BoxGeometry(TILE * 0.94, 0.25, TILE * 0.94);
+  const mats = [0x78ad48, 0x6a9f3f, 0xcdb48a].map((c) => new THREE.MeshStandardMaterial({ color: c, roughness: 0.82, metalness: 0.03 }));
+  const tiles = new Map();
+  const gridToWorld = (x, z) => ({ x: (x - (W - 1) / 2) * TILE, y: 0, z: (z - (H - 1) / 2) * TILE });
+  for (let x = 0; x < W; x++) for (let z = 0; z < H; z++) {
+    const m = new THREE.Mesh(geo, mats[z === 2 ? 2 : (x + z) % 2]);
+    const p = gridToWorld(x, z); m.position.set(p.x, -0.125, p.z); m.receiveShadow = true; scene.add(m);
+    tiles.set(`${x},${z}`, { x, z, unit: null });
+  }
+  const ground = new THREE.Mesh(new THREE.CircleGeometry(60, 48).rotateX(-Math.PI / 2), new THREE.MeshStandardMaterial({ color: 0x5f8f3a, roughness: 1 }));
+  ground.position.y = -0.26; ground.receiveShadow = true; scene.add(ground);
+  // unidades: figuras de Axie simplificadas (cuerpo, cabeza, orejas), 1,15 m de alto como en el combate
+  const unit = (color, x, z, team) => {
+    const g = new THREE.Group(), mat = new THREE.MeshStandardMaterial({ color, roughness: 0.6 });
+    const body = new THREE.Mesh(new THREE.SphereGeometry(0.42, 24, 16), mat); body.scale.set(1.1, 0.85, 0.95); body.position.y = 0.42;
+    const head = new THREE.Mesh(new THREE.SphereGeometry(0.34, 24, 16), mat); head.position.set(0, 0.92, 0.05);
+    for (const s of [-1, 1]) { const e = new THREE.Mesh(new THREE.ConeGeometry(0.11, 0.3, 12), mat); e.position.set(0.18 * s, 1.22, 0); e.rotation.z = -0.35 * s; g.add(e); }
+    g.add(body, head); g.traverse((o) => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
+    const p = gridToWorld(x, z); g.position.set(p.x, 0, p.z); scene.add(g);
+    const u = { group: g, gridX: x, gridZ: z, team, isDead: false, isMoving: false, spellIds: [] };
+    tiles.get(`${x},${z}`).unit = u;
+    return u;
+  };
+  const camera = new THREE.PerspectiveCamera(36, 1, 0.1, 400);
+  const composer = new EffectComposer(renderer);
+  composer.addPass(new RenderPass(scene, camera));
+  const bloomPass = new UnrealBloomPass(new THREE.Vector2(512, 512), 0.30, 0.32, 0.86);
+  composer.addPass(bloomPass);
+  composer.addPass(new OutputPass());
+  const sm = { scene, camera, renderer, composer, bloomPass, shake() {}, onBeforeRender: null };
+  const game = {
+    sceneManager: sm, units: [], gameState: 'BATTLE',
+    gridManager: { getTile: (x, z) => tiles.get(`${x},${z}`) || null, gridToWorld },
+    spellManager: { getSpell: (id) => ({ id, targetType: 'enemy', effects: [] }), ultimates: null },
+  };
+  const bridge = new VfxBridge(game);
+  bridge.setStylePilot = () => false; // el laboratorio elige el efecto a mano
+  const world = { scene, camera, composer, bloomPass, bridge, game, tiles, unit, gridToWorld, units: [], W, H };
+  return world;
+}
+
+
+const SOLO = q.get('solo');
+let state = { fx: q.get('fx') || 'mordisco', d: Number(q.get('d') || 2), v: q.get('v') || 'both', team: q.get('team') || 'enemy', cam: Number(q.get('cam') || 0),
+  self: q.get('self') === '1', variant: q.get('var') || '', empty: q.get('empty') === '1' };
+// fx = mordisco|sandia|esporas · enemy:<id del hechizo> (61 ataques de enemigos) · basic:<TIPO> (demostración de la plantilla)
+const BASIC_FILE = { MORDISCO: 'cuerpo', ZARPAZO: 'cuerpo', GOLPE: 'cuerpo', EMBESTIDA: 'cuerpo', ESTOCADA: 'cuerpo', GOLPE_SISMICO: 'cuerpo', GIRO_EMPUJE: 'cuerpo',
+  ESCUPITAJO: 'distancia', BABA_PEGAJOSA: 'distancia', FLECHA: 'distancia', PROYECTIL_MAGICO: 'distancia', RAFAGA: 'distancia', NOVA_CRUZ: 'distancia', CATACLISMO: 'distancia',
+  ESPINAS: 'apoyo', ENREDO: 'apoyo', NUBE_ESPORAS: 'apoyo', RUGIDO: 'apoyo', AUTOBUFF: 'apoyo', ESCUDO: 'apoyo', CURA: 'apoyo' };
+function pairFor(fx) {
+  if (PAIRS[fx]) return PAIRS[fx];
+  const [kind, id] = String(fx).split(':');
+  if (kind === 'enemy') return { old: [id, 'enemigos'], neu: [`sty__${id}`, 'estilizado-enemigos'], spell: id };
+  // habilidades del Sapidae (Hito 95): actual = el efecto antiguo que reutiliza (alias) o ninguno; nuevo = sty_<id>
+  if (kind === 'sapi') {
+    const cls = /^(craft|shepard|lunalogist|stargazer)_/.exec(id)?.[1];
+    const file = { craft: 'alfarero', shepard: 'comandante', lunalogist: 'guardian', stargazer: 'rastreador' }[cls];
+    const OLD = { craft: 'sapidae-forjacubiles', shepard: 'sapidae-susurrador', lunalogist: 'sapidae-lunalogista', stargazer: 'sapidae-astromante' };
+    const alias = SAPIDAE_VFX_ALIAS[id], ac = alias && /^(craft|shepard|lunalogist|stargazer)_/.exec(alias)?.[1];
+    return { old: alias ? [alias, OLD[ac]] : null, neu: [`sty_${id}`, `estilizado-sapidae-${file}`], spell: id };
+  }
+  // gólems: golem:pulse_bell, golem:break_sentinel… (hoy solo un anillo plano: no hay versión actual)
+  if (kind === 'golem') {
+    const g = id.split('_')[1], file = { sentinel: 'alfarero', hat: 'comandante', bell: 'guardian', shell: 'rastreador' }[g];
+    return { old: null, neu: [`golem_${id}`, `estilizado-sapidae-${file}`], spell: `golem_${id}` };
+  }
+  // spell:<id> (Hito 102): la carta con sus datos reales; el efecto lo elige el puente igual que en el combate
+  // (las cartas α usan el de su carta base, el estilo nuevo encendido)
+  if (kind === 'spell') {
+    const sp = SPELL_DB[id] || (ULTIMATE_VFX[id] ? { id, targetType: id === 'duo_gaia' ? 'self' : 'enemy', effects: [], isUltimate: true } : null);
+    if (!sp) throw new Error(`carta desconocida: ${id}`);
+    return { old: null, neu: null, spell: id, real: sp, lazy: true };
+  }
+  // cartas (Hito 101): card:<id de carta | starter_* | duo_*> → actual = su módulo; nuevo = sty_<clave> en estilizado-<módulo>
+  if (kind === 'card') {
+    const e = CARD_VFX[id] || STARTER_VFX[id] || ULTIMATE_VFX[id];
+    if (!e) throw new Error(`carta sin efecto: ${id}`);
+    return { old: e, neu: [`sty_${e[0]}`, `estilizado-${e[1]}`], spell: id };
+  }
+  if (kind === 'basic' && BASIC_FILE[id]) { const k = id.toLowerCase(); return { old: [`basic_${k}`, `basicos-${BASIC_FILE[id]}`], neu: [`sty_basic_${k}`, `estilizado-${BASIC_FILE[id]}`], spell: `basic_${k}` }; }
+  throw new Error(`efecto desconocido: ${fx}`);
+}
+
+if (!SOLO) {
+  // ---------- página de comparación: barra de controles + un iframe por versión ----------
+  // (el núcleo de VFX es único por página: window.VFX; por eso cada versión vive en su propio iframe)
+  $('ui').innerHTML = `
+  <label>Efecto <select id="fx"><optgroup label="Piloto"><option value="mordisco">Mordisco (cuerpo a cuerpo)</option><option value="sandia">Watermelon (proyectil)</option><option value="esporas">Esporas (área en cruz)</option></optgroup><optgroup label="Sapidae (Hito 95)"><option value="sapi:craft_clay_fist">Puño de Arcilla</option><option value="sapi:craft_sentinel_golem">Centinela de Vasija · casilla vacía</option><option value="sapi:craft_stone_veins">Vetas de Piedra · aliado</option><option value="sapi:craft_clay_wall">Muralla de Arcilla · casilla vacía</option><option value="sapi:craft_carry_wounded">Llevar al Herido · aliado</option><option value="sapi:craft_fortify">Fortificar · aliado</option><option value="sapi:shepard_hat_headbutt">Cabezazo del Sombrero</option><option value="sapi:shepard_hat_golem">Gólem Sombrero · casilla vacía</option><option value="sapi:shepard_translate_warning">Traducir el Aviso · aliado</option><option value="sapi:shepard_shared_order">Orden Compartida · aliado</option><option value="sapi:shepard_guided_retreat">Retirada Guiada · aliado</option><option value="sapi:shepard_relief">Relevo · aliado</option><option value="sapi:lunalogist_alarm_toll">Tañido de Alarma</option><option value="sapi:lunalogist_bell_golem">Gólem Campanario · casilla vacía</option><option value="sapi:lunalogist_mourning_tone">Tono de Duelo · aliado</option><option value="sapi:lunalogist_warning_whisper">Susurro de Advertencia · aliado</option><option value="sapi:lunalogist_purify">Purificar</option><option value="sapi:lunalogist_blood_moon">Luna de Sangre · sobre sí mismo</option><option value="sapi:stargazer_yielding_ground">Suelo que Cede</option><option value="sapi:stargazer_shell_golem">Gólem Caparazón · casilla vacía</option><option value="sapi:stargazer_petrasense">Petrasentido</option><option value="sapi:stargazer_shell_march">Marcha del Caparazón · casilla vacía</option><option value="sapi:stargazer_corrupt_rift">Grieta Corrupta · casilla vacía</option><option value="sapi:stargazer_dawn_spiral">Espiral del Alba</option></optgroup><optgroup label="Gólems (marca «Sobre sí mismo»)"><option value="golem:pulse_hat">Pulso del Gólem Sombrero</option><option value="golem:break_sentinel">Rotura del Centinela</option><option value="golem:break_hat">Rotura del Gólem Sombrero</option><option value="golem:pulse_bell">Pulso del Gólem Campanario</option><option value="golem:break_bell">Rotura del Gólem Campanario</option><option value="golem:break_shell">Rotura del Gólem Caparazón</option></optgroup><optgroup id="enemyOpts" label="Ataques de enemigos"></optgroup><optgroup id="cardOpts" label="Cartas"></optgroup><optgroup id="alfaOpts" label="Cartas α (como en el combate)"></optgroup></select></label>
+  <label><input id="self" type="checkbox"> Sobre sí mismo</label>
+  <label><input id="empty" type="checkbox"> Casilla vacía</label>
+  <label>Variante <input id="var" size="8" placeholder="(auto)"></label>
+  <label>Distancia <select id="d"><option>1</option><option>2</option><option>3</option><option>4</option><option>5</option></select> casillas</label>
+  <label>Objetivo <select id="team"><option value="enemy">Enemigo</option><option value="ally">Aliado</option></select></label>
+  <button id="play">▶ Reproducir</button>
+  <button id="tour" title="Recorre todas las opciones de la lista en orden (Hito 102)">⏵ Recorrido</button>
+  <button id="mark" title="Marca el efecto actual como «necesita arreglo»">⚑ Marcar</button>
+  <button id="marks" title="Copia la lista de marcados">📋 Marcados</button>
+  <output id="tourInfo" style="min-width:12em"></output>
+  <label>Velocidad <select id="speed"><option value="1">×1</option><option value="0.5">×0,5</option><option value="0.25">×0,25</option></select></label>
+  <label>t <input id="scrub" type="range" min="0" max="2.5" step="0.01" value="0"><output id="tout">0.00 s</output></label>
+  <label>Cámara <input id="cam" type="range" min="0" max="7" step="1" value="0"></label>`;
+  $('tag').remove();
+  // los 61 ataques de enemigos, leídos de la tabla de mod-enemigos.js
+  fetch('../../src/vfx/modules/mod-enemigos.js').then((r) => r.text()).then((txt) => {
+    const og = $('enemyOpts');
+    for (const m of txt.matchAll(/\["([a-z_]+)","([^"]+)","([A-Z_]+)","([^"]+)",(\{[^}]*\})\]/g)) {
+      const o = document.createElement('option'); o.value = `enemy:${m[1]}`; o.textContent = `${m[1]} · ${m[3]} ${m[5] !== '{}' ? m[5] : ''}`; og.appendChild(o);
+    }
+    $('fx').value = state.fx;
+  }).catch(() => {});
+  { const og = $('cardOpts'); const byId = Object.fromEntries(PART_CARDS_LIST.map((c) => [c.id, c]));
+    for (const id of [...Object.keys(CARD_VFX).sort(), ...Object.keys(STARTER_VFX), ...Object.keys(ULTIMATE_VFX)]) {
+      const c = byId[id], o = document.createElement('option'); o.value = `card:${id}`;
+      o.textContent = `${c?.name || id} · ${(CARD_VFX[id] || STARTER_VFX[id] || ULTIMATE_VFX[id])[1]}${c ? ` · ${c.targetType} ${c.areaType || ''}` : ''}`; og.appendChild(o);
+    } }
+  { const og = $('alfaOpts'); for (const c of STARTER_CARDS_LIST) { const o = document.createElement('option'); o.value = `spell:${c.id}`; o.textContent = `${c.name} α (${c.hero}, ${c.part}) · ${c.targetType}`; og.appendChild(o); } }
+  $('fx').value = state.fx; $('d').value = String(state.d); $('team').value = state.team; $('cam').value = String(state.cam);
+  $('self').checked = state.self; $('empty').checked = state.empty; $('var').value = state.variant;
+  const frames = ['old', 'new'].map((k, i) => {
+    const f = document.createElement('iframe');
+    const p = new URLSearchParams(location.search); p.set('solo', k);
+    f.src = `${location.pathname}?${p}`;
+    Object.assign(f.style, { position: 'fixed', top: '0', left: i ? '50%' : '0', width: '50%', height: '100%', border: '0', borderLeft: i ? '2px solid #0d1420' : '0' });
+    document.body.appendChild(f); return f;
+  });
+  const send = (msg) => frames.forEach((f) => f.contentWindow?.postMessage(msg, '*'));
+  const read = () => { state = { fx: $('fx').value, d: Number($('d').value), team: $('team').value, cam: Number($('cam').value), self: $('self').checked, empty: $('empty').checked, variant: $('var').value.trim() }; send({ cmd: 'set', state, t: Number($('scrub').value) }); };
+  for (const id of ['fx', 'd', 'team', 'self', 'empty', 'var']) $(id).addEventListener('change', read);
+  $('cam').addEventListener('input', read);
+  $('scrub').addEventListener('input', () => { $('tout').textContent = `${Number($('scrub').value).toFixed(2)} s`; send({ cmd: 't', t: Number($('scrub').value) }); });
+  $('play').addEventListener('click', () => send({ cmd: 'play', speed: Number($('speed').value) }));
+  addEventListener('message', (e) => { if (e.data?.cmd === 'time') { $('scrub').max = String(e.data.dur); $('scrub').value = String(e.data.t); $('tout').textContent = `${e.data.t.toFixed(2)} s`; } });
+  // Hito 102: recorrido de todas las opciones del selector, en orden; ⚑ marca el actual (se guarda en el navegador)
+  const MARKS_KEY = 'lunakai_lab_marcadas';
+  const readMarks = () => { try { return JSON.parse(localStorage.getItem(MARKS_KEY) || '[]'); } catch { return []; } };
+  let tourOn = false, durNew = 2;
+  addEventListener('message', (e) => { if (e.data?.cmd === 'dur') durNew = e.data.dur; });
+  const opts = () => [...$('fx').options];
+  async function runTour() {
+    tourOn = !tourOn; $('tour').textContent = tourOn ? '⏸ Parar' : '⏵ Recorrido';
+    while (tourOn) {
+      const list = opts(), i = $('fx').selectedIndex, o = list[i];
+      $('tourInfo').textContent = `${i + 1} / ${list.length} · ${o.textContent}`;
+      read(); await new Promise((r) => setTimeout(r, 700));
+      send({ cmd: 'play', speed: 1 });
+      await new Promise((r) => setTimeout(r, (Math.max(durNew, Number($('scrub').max) || 2) + 0.8) * 1000));
+      if (!tourOn) break;
+      if (i + 1 >= list.length) { tourOn = false; $('tour').textContent = '⏵ Recorrido'; break; }
+      $('fx').selectedIndex = i + 1;
+    }
+  }
+  $('tour').addEventListener('click', runTour);
+  $('mark').addEventListener('click', () => {
+    const o = $('fx').selectedOptions[0], m = readMarks().filter((x) => x.fx !== o.value);
+    m.push({ fx: o.value, nombre: o.textContent, d: state.d, aliado: state.team === 'ally', propio: state.self });
+    try { localStorage.setItem(MARKS_KEY, JSON.stringify(m)); } catch {}
+    $('tourInfo').textContent = `⚑ marcado: ${o.textContent} (${m.length} en total)`;
+  });
+  $('marks').addEventListener('click', () => {
+    const t = readMarks().map((x, i) => `${i + 1}. ${x.nombre} (${x.fx}) · ${x.d} casillas${x.aliado ? ' · aliado' : ''}${x.propio ? ' · sobre sí mismo' : ''}`).join('\n') || '(sin marcados)';
+    navigator.clipboard?.writeText(t).catch(() => {}); console.log(t); $('tourInfo').textContent = `📋 ${readMarks().length} marcados copiados`;
+  });
+  window.labReady = true;
+} else {
+  // ---------- una versión, a pantalla completa ----------
+  $('ui').remove();
+  $('tag').textContent = SOLO === 'old' ? 'Actual' : 'Estilizado';
+  const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
+  renderer.setPixelRatio(Math.min(devicePixelRatio, 1.5));
+  renderer.toneMapping = THREE.ACESFilmicToneMapping;
+  renderer.toneMappingExposure = 1.08;
+  renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+  document.body.appendChild(renderer.domElement);
+  const w = makeWorld(renderer);
+  // ?anclas=fijas reproduce el puente de antes del arreglo (anclas −3,7 → 3,4 para todos los efectos)
+  if (q.get('anclas') === 'fijas') w.bridge._anchorsOf = (ab) => (ab._lkAnchors = { c: new THREE.Vector3(-3.7, 0, 0), t: new THREE.Vector3(3.4, 0, 0) });
+
+  function setupUnits() {
+    for (const u of w.units) { w.scene.remove(u.group); w.tiles.get(`${u.gridX},${u.gridZ}`).unit = null; }
+    const cx = 1, cz = 2, tx = Math.min(w.W - 1, cx + state.d);
+    const caster = w.unit(0x5d8fd6, cx, cz, 'player');
+    const target = w.unit(state.team === 'ally' ? 0x6fc2a8 : 0xd86a7a, tx, cz, state.team === 'ally' ? 'player' : 'enemy');
+    w.units = [caster, target]; w.game.units = w.units;
+    // cámara del combate: 36°, elevada, mirando al punto medio; 8 posiciones alrededor
+    const a = (state.cam / 8) * Math.PI * 2 + 0.55, mid = caster.group.position.clone().lerp(target.group.position, 0.5);
+    w.camera.position.set(mid.x + Math.sin(a) * 12, 8.5, mid.z + Math.cos(a) * 12);
+    w.camera.lookAt(mid.x, 0.6, mid.z);
+    w.camera.updateMatrixWorld();
+    return { caster, target };
+  }
+  async function start(t = 0) {
+    const pair = pairFor(state.fx);
+    if (pair.lazy) {
+      const sty = w.bridge.stylePilot; w.bridge.stylePilot = SOLO !== 'old';
+      const fx = w.bridge.effectFor(pair.real); w.bridge.stylePilot = sty;
+      pair.neu = pair.old = fx ? [fx.key, fx.module] : null; w.lastFx = fx;
+    }
+    const sel = SOLO === 'old' ? pair.old : pair.neu;
+    const { caster, target } = setupUnits();
+    if (!sel) { w.bridge.stop(); w.ab = null; $('tag').textContent = 'Actual: sin efecto propio'; setT(t); return; }
+    const [key, module] = sel;
+    await w.bridge._prepareImpl(null, new Map([[key, { key, module }]]));
+    const ab = w.bridge.core.ABS[key];
+    if (!ab || !ab.built) throw new Error(`no se construyó ${key}`);
+    const self = state.self, tu = self ? caster : target;
+    // casilla vacía (invocaciones, muros, zonas): se quita la unidad objetivo de la casilla
+    if (state.empty && !self) { w.scene.remove(target.group); w.tiles.get(`${target.gridX},${target.gridZ}`).unit = null; w.units = [caster]; w.game.units = w.units; }
+    const tt = self ? (state.team === 'ally' ? 'ally' : 'self') : state.empty ? 'empty' : state.team === 'ally' ? 'ally' : 'enemy';
+    const spellObj = pair.real ? { ...pair.real } : { id: pair.spell, targetType: tt, effects: [] };
+    w.bridge.play(ab, caster, { x: tu.gridX, z: tu.gridZ }, { spell: spellObj, targetUnit: state.empty && !self ? null : tu });
+    if (state.variant && ab.setVariant && ab.variants?.some((v) => v[0] === state.variant)) ab.setVariant(state.variant);
+    w.ab = ab; setT(t);
+  }
+  function setT(t) {
+    const pb = w.bridge.current;
+    if (pb) { pb.te = Math.min(t, pb.ab.dur - 1e-3); pb.hold = 0; pb.impacted = pb.te >= pb.ab.ti; w.bridge.update(0); }
+    if (SOLO === 'old') parent.postMessage({ cmd: 'time', t, dur: w.ab?.dur || 2 }, '*');
+    else if (SOLO === 'new') parent.postMessage({ cmd: 'dur', dur: w.ab?.dur || 2 }, '*');
+  }
+  function resize() { renderer.setSize(innerWidth, innerHeight); w.camera.aspect = innerWidth / innerHeight; w.camera.updateProjectionMatrix(); w.composer.setSize(innerWidth, innerHeight); }
+  let running = null;
+  function loop(now) {
+    if (running) { const t = ((now - running.t0) / 1000) * running.speed; if (t > (w.ab?.dur || 2) + 0.3) running = null; else setT(t); }
+    if (w.bridge.root) w.bridge._syncProxy();
+    w.composer.render();
+    requestAnimationFrame(loop);
+  }
+  addEventListener('message', (e) => {
+    const m = e.data || {};
+    if (m.cmd === 'set') { Object.assign(state, m.state); running = null; start(m.t || 0).catch(showErr); }
+    else if (m.cmd === 't') { running = null; setT(m.t); }
+    else if (m.cmd === 'play') start(0).then(() => { running = { t0: performance.now(), speed: m.speed || 1 }; }).catch(showErr);
+  });
+  addEventListener('resize', resize);
+  // medición para las pruebas: ¿cae el centro del impacto (o.c en ti) sobre el objetivo?
+  // Hito 102: ¿dónde cae el efecto? Se dibuja solo el efecto sobre negro en varios instantes tras el impacto y se
+  // calcula el centro de su brillo en pantalla; se compara con dónde están el lanzador y el receptor.
+  const _rt = new THREE.WebGLRenderTarget(320, 240);
+  const _px = new Uint8Array(320 * 240 * 4);
+  function effectCentroid(ts) {
+    const hidden = [];
+    for (const o of w.scene.children) if (o !== w.bridge.root && o.visible && !o.isLight) { o.visible = false; hidden.push(o); }
+    const bg = w.scene.background, fog = w.scene.fog; w.scene.background = new THREE.Color(0); w.scene.fog = null;
+    const aspect = w.camera.aspect; w.camera.aspect = 320 / 240; w.camera.updateProjectionMatrix();
+    let sx = 0, sy = 0, sw = 0;
+    for (const t of ts) {
+      setT(t); w.bridge._syncProxy?.();
+      renderer.setRenderTarget(_rt); renderer.clear(); renderer.render(w.scene, w.camera);
+      renderer.readRenderTargetPixels(_rt, 0, 0, 320, 240, _px);
+      for (let y = 0; y < 240; y += 2) for (let x = 0; x < 320; x += 2) {
+        const i = (y * 320 + x) * 4, v = Math.max(_px[i], _px[i + 1], _px[i + 2]);
+        if (v > 24) { sx += x * v; sy += y * v; sw += v; }
+      }
+    }
+    renderer.setRenderTarget(null);
+    for (const o of hidden) o.visible = true;
+    w.scene.background = bg; w.scene.fog = fog;
+    const proj = (u) => { const p = u.group.position.clone(); p.y += 0.6; p.project(w.camera); return { x: (p.x * 0.5 + 0.5) * 320, y: (p.y * 0.5 + 0.5) * 240 }; };
+    const out = { c: sw ? { x: sx / sw, y: sy / sw } : null, weight: sw, caster: proj(w.units[0]), target: w.units[1] ? proj(w.units[1]) : null };
+    w.camera.aspect = aspect; w.camera.updateProjectionMatrix();
+    return out;
+  }
+  window.lab = {
+    w, start, setT, state, effectCentroid,
+    /** mode: 'ally' (carta sobre un aliado a d casillas) | 'self' (sobre sí mismo). Devuelve dónde cae el efecto. */
+    async landing(id, d = 2, mode = 'ally') {
+      Object.assign(state, { fx: `spell:${id}`, d, team: 'ally', self: mode === 'self', empty: false, variant: '' });
+      await start(0);
+      const ab = w.ab; if (!ab) return { id, fx: null };
+      const ti = ab.ti || 0.5, ts = [ti, ti + 0.12, ti + 0.24, Math.min(ab.dur - 0.02, ti + 0.4)];
+      const m = effectCentroid(ts);
+      const recv = mode === 'self' ? m.caster : m.target;
+      const dist = (a, b) => (a && b ? Math.hypot(a.x - b.x, a.y - b.y) : null);
+      const sep = dist(m.caster, m.target) || 1;
+      const dc = dist(m.c, m.caster), dr = dist(m.c, recv);
+      return { id, key: ab.key, module: w.lastFx?.module, d, mode, dCaster: dc && +(dc / sep).toFixed(2), dRecv: dr && +(dr / sep).toFixed(2), weight: Math.round(m.weight / 1000) };
+    },
+    async impactError(fx, d) {
+      Object.assign(state, { fx, d }); await start(0);
+      const br = w.bridge, ab = w.ab, pb = br.current;
+      pb.te = ab.ti + 0.02; pb.impacted = true; br.update(0);
+      const c = br.core.O.c.clone(); br._warpPoint(c);
+      const pw = c.applyMatrix4(br.root.matrixWorld), tg = w.units[1].group.position, cs = w.units[0].group.position;
+      return { err: Math.hypot(pw.x - tg.x, pw.z - tg.z), along: (pw.x - cs.x) / (tg.x - cs.x), shrink: br.warpU.uVfxS.value.x, anchors: ab._lkAnchors && { c: ab._lkAnchors.c.x, t: ab._lkAnchors.t.x } };
+    },
+  };
+  resize();
+  start(Number(q.get('t') || 0)).then(() => { window.labReady = true; }).catch(showErr);
+  requestAnimationFrame(loop);
+}
+</script>
+</body>
+</html>

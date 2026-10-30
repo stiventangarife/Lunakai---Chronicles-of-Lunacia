@@ -14,6 +14,7 @@
 
 import * as THREE from 'three';
 import { cloneGLTF, evictGLTF } from '../../render/ModelCache.js';
+import { trackLoad } from '../../render/LoadGate.js';
 import { ChimneySmoke, chimneyPoint } from './ChimneySmoke.js'; // Hito 96
 import { VILLAGE, VILLAGE_MODELS, VILLAGE_ZONE, VILLAGE_STREET } from './ForestVillageLayout.js';
 
@@ -36,7 +37,9 @@ export class ForestVillage {
     if (!qi) return;
     this.qi = qi;
     const load = qi.loadForZone.bind(qi);
-    qi.loadForZone = (key) => { load(key); this._sync(key); };
+    // 29-oct: la carga del pueblo se apunta en LoadGate y changeMap / init la esperan antes del precalentado (antes
+    // entraba 1–3 s después de abrir el telón: texturas, shaders y claros en pleno juego)
+    qi.loadForZone = (key) => { load(key); trackLoad(this._sync(key), 'pueblo del Bosque'); };
     const update = qi.update.bind(qi);
     qi.update = (dt, pos) => { this._tick(dt || 0); update(dt, pos); };
     if (qi.currentZoneKey) this._sync(qi.currentZoneKey);
@@ -233,6 +236,7 @@ export class ForestVillage {
       }
     });
     this._clearVegetation();
+    window.environmentSystem?.markShadowCastersDirty?.(); // farolas sin sombra y caras de sombra (EnvironmentSystem)
   }
 
   /**

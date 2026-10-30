@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { mergeGeometries } from '../../../../../vendor/utils/BufferGeometryUtils.js';
 import { GenshinTrees } from '../../demo_scena/genshin/GenshinTrees.js';
+import { loadTexture, isKtx2Texture } from '../../../../render/Ktx2.js';
 import { createSeededRandom } from '../../demo_scena/MathUtils.js';
 
 /**
@@ -52,13 +53,16 @@ export class IslandTrees extends GenshinTrees {
     const tex = GenshinTrees.BARK_TEXTURES[extra.bark] || GenshinTrees.BARK_TEXTURES.normal;
     if (!this._barkTex) this._barkTex = {};
     if (!this._barkTex[extra.bark]) {
-      const loader = new THREE.TextureLoader();
-      const map = loader.load(tex.map);
+      // 30-oct: corteza en KTX2 (docs/PLAN_KTX2.md). Una textura KTX2 no se voltea al subirla (el PNG sí):
+      // - color (ETC1S, el mismo archivo que usan los .gltf): repeat.y = -1 la deja igual que el PNG;
+      // - normales (UASTC): archivo ya volteado (*.flip.ktx2). Con repeat.y = -1 el relieve saldría invertido, porque
+      //   three calcula la orientación del mapa de normales a partir de las UV transformadas.
+      const map = loadTexture(tex.map);
       map.colorSpace = THREE.SRGBColorSpace;
-      const normalMap = loader.load(tex.normal);
+      const normalMap = loadTexture(tex.normal);
       [map, normalMap].forEach((t) => {
         t.wrapS = t.wrapT = THREE.RepeatWrapping;
-        t.repeat.set(2, 1);
+        t.repeat.set(2, t === map && isKtx2Texture(t) ? -1 : 1);
         t.anisotropy = 4;
       });
       this._barkTex[extra.bark] = { map, normalMap };

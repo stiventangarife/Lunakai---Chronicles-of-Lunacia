@@ -93,7 +93,9 @@ vec3 rnd(){return vec3(aSeed.y,aSeed.z,aSeed.w)*2.-1.;}
 // semilla nueva por ciclo: las partículas en bucle no repiten trayectoria
 vec3 rr(float c){return vec3(hash(vec3(aSeed.x*37.1,aSeed.y*53.7,c*1.31)),hash(vec3(aSeed.z*41.3,c*1.71,aSeed.w*29.9)),hash(vec3(c*2.17,aSeed.w*61.3,aSeed.x*17.9)));}
 void put(vec3 p,float size){vec4 mv=modelViewMatrix*vec4(p,1.);gl_Position=projectionMatrix*mv;gl_PointSize=max(size,0.)*uPx/-mv.z;vMix=aSeed.w;}`;
-function seeds(n,dup){const a=new Float32Array(n*4*dup);for(let i=0;i<n;i++){const s=[Math.random(),Math.random(),Math.random(),Math.random()];for(let d=0;d<dup;d++)a.set(s,(i*dup+d)*4);}return a;}
+// Hito 101: x estratificado ((i+azar)/n) para que floor(aSeed.x*N) reparta las partículas en N grupos parejos (con N pequeño
+// —2 orbes de PA, 3 dardos— el azar puro podía meter varias en el mismo grupo y verse una sola). Sigue uniforme en [0,1).
+function seeds(n,dup){const a=new Float32Array(n*4*dup);for(let i=0;i<n;i++){const s=[(i+Math.random())/n,Math.random(),Math.random(),Math.random()];for(let d=0;d<dup;d++)a.set(s,(i*dup+d)*4);}return a;}
 function points(parent,n,vs,fs,opts){
   const g=new THREE.BufferGeometry();
   g.setAttribute("position",new THREE.BufferAttribute(new Float32Array(n*3),3));

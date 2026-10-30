@@ -224,9 +224,46 @@ export const BODY_THEMES = {
 // más claras sean blancas. Multiplicada por el color elegido da ese color con las sombras del dibujo original.
 // Se calcula una vez por textura (caché por uuid) y conserva su orientación, repetición y espacio de color.
 const _whiteHairCache = new Map();
+
+/**
+ * 29-oct (Hito 103): huella del CONTENIDO de una imagen (tamaño + miniatura de 32×32), para las cachés de teñido.
+ * El Sapidae se carga en tres sitios (mundo, visor de la Mochila y estudio de retratos), cada uno con sus propias
+ * imágenes: con cachés por objeto (uuid, WeakMap) el teñido y el pelo blanco se recalculaban tres veces durante la
+ * carga (~1,3 s de hilo principal medido en DevTools). Con la huella, la 2.ª y 3.ª carga reutilizan el resultado.
+ * Coste: ~1 ms por imagen, una vez (se guarda por objeto).
+ */
+const _imgPrints = new WeakMap();
+let _printCanvas = null;
+export function imageFingerprint(image) {
+  if (!image || typeof image !== 'object') return 'none';
+  const cached = _imgPrints.get(image);
+  if (cached) return cached;
+  const w = image.width || image.naturalWidth || 0, h = image.height || image.naturalHeight || 0;
+  let key = `${w}x${h}`;
+  try {
+    if (typeof document !== 'undefined' && w && h) {
+      if (!_printCanvas) { _printCanvas = document.createElement('canvas'); _printCanvas.width = _printCanvas.height = 32; }
+      const ctx = _printCanvas.getContext('2d', { willReadFrequently: true });
+      ctx.clearRect(0, 0, 32, 32);
+      ctx.drawImage(image, 0, 0, 32, 32);
+      const px = ctx.getImageData(0, 0, 32, 32).data;
+      let h1 = 0x811c9dc5, h2 = 0x01000193;
+      for (let i = 0; i < px.length; i++) { h1 = Math.imul(h1 ^ px[i], 16777619); h2 = Math.imul(h2 + px[i], 2246822519) ^ (h2 >>> 13); }
+      key += `_${(h1 >>> 0).toString(36)}${(h2 >>> 0).toString(36)}`;
+    } else {
+      key += `_${image.src || image.name || Math.random().toString(36).slice(2)}`;
+    }
+  } catch (_) {
+    key += `_${Math.random().toString(36).slice(2)}`; // imagen no legible: sin compartir (como antes)
+  }
+  _imgPrints.set(image, key);
+  return key;
+}
+
 function whiteHairTexture(src) {
   if (!src || !src.image) return null;
-  if (_whiteHairCache.has(src.uuid)) return _whiteHairCache.get(src.uuid);
+  const wkey = imageFingerprint(src.image); // 29-oct: por contenido (antes src.uuid, distinto en cada carga del modelo)
+  if (_whiteHairCache.has(wkey)) return _whiteHairCache.get(wkey);
   const img = src.image;
   const w = img.width || img.naturalWidth, h = img.height || img.naturalHeight;
   if (!w || !h || typeof document === 'undefined') return null;
@@ -257,7 +294,7 @@ function whiteHairTexture(src) {
   tex.repeat.copy(src.repeat); tex.offset.copy(src.offset); tex.center.copy(src.center); tex.rotation = src.rotation;
   tex.name = `${src.name || 'hair'}_white`;
   tex.needsUpdate = true;
-  _whiteHairCache.set(src.uuid, tex);
+  _whiteHairCache.set(wkey, tex);
   return tex;
 }
 
@@ -757,11 +794,12 @@ export class SapidaeModularController {
     mat.needsUpdate = true;
   }
 
-  /** Clave de caché única por imagen (las de los GLB son ImageBitmap sin src ni nombre). */
+  /**
+   * Clave de caché por imagen (las de los GLB son ImageBitmap sin src ni nombre). 29-oct (Hito 103): por contenido
+   * (imageFingerprint), así el mismo GLB cargado en el mundo, la Mochila y los retratos comparte los teñidos.
+   */
   _imgKey(image) {
-    if (!this._imgIds) { this._imgIds = new WeakMap(); this._imgSeq = 0; }
-    if (!this._imgIds.has(image)) this._imgIds.set(image, `img${++this._imgSeq}`);
-    return this._imgIds.get(image);
+    return imageFingerprint(image);
   }
 
   /** Cambia el tono dominante de una tela (hue ± tol) al color elegido, conservando luces y sombras. */

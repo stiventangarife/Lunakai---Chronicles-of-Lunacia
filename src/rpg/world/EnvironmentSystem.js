@@ -538,12 +538,13 @@ export class EnvironmentSystem {
     // Rendimiento (23-oct):
     // · Las sombras se recalculan uno de cada dos fotogramas (el sol apenas se mueve; la sombra de quien
     //   camina se actualiza 30 veces por segundo). Solo aquí, en el mundo abierto: el combate no cambia.
-    // · Cada ~2 s se quita la sombra de la vegetación pequeña y las farolas (ver _trimSmallShadows).
+    // · Sombra de la vegetación pequeña y cara de sombra de lo fijo (_trimSmallShadows / _prepareShadowCasters):
+    //   29-oct, solo cuando entra algo nuevo (markShadowCastersDirty: cambio de isla, pueblo, props, consola) y,
+    //   por si algo aparece sin avisar, un repaso cada ~10 s. Antes: dos recorridos de toda la escena cada ~2 s.
     // · Hito 83: el sol de las islas (LightingManager) solo se mueve en los fotogramas con recálculo,
     //   para que el mapa de sombras y la matriz con que se lee sean siempre de la misma posición.
-    if ((this._trimTick = ((this._trimTick || 0) + 1) % 120) === 1) {
-      this._trimSmallShadows();
-      this._prepareShadowCasters();
+    if ((this._trimTick = ((this._trimTick || 0) + 1) % 600) === 1 || this._castersDirty !== false) {
+      this.refreshShadowCasters();
     }
     const sm = this.renderer.shadowMap;
     const auto = sm.autoUpdate;
@@ -580,6 +581,29 @@ export class EnvironmentSystem {
    * Se salta a los personajes (mallas con esqueleto), a los materiales de dos caras y a los que ya eligen
    * su shadowSide. Se repasa cada ~2 s, como _trimSmallShadows. lkDebug.shadows({ frontFaces:false }) lo deshace.
    */
+  /**
+   * 29-oct: un fotograma con el mapa de sombras recalculado sí o sí (el bucle normal lo hace uno de cada dos).
+   * Lo usa el precalentado del mundo abierto, detrás del telón, para compilar los shaders del pase de sombras.
+   */
+  renderWithShadows() {
+    const sm = this.renderer.shadowMap;
+    if (sm.enabled) sm.needsUpdate = true;
+    LightingManager.commitShadowTargets();
+    if (this.isPostProcessingActive && this.composer) this.composer.render();
+    else this.renderer.render(this.scene, this.camera);
+  }
+
+  /** Algo nuevo entró en la escena (isla, pueblo, edificios) o cambió la consola: se repasa en el próximo fotograma. */
+  markShadowCastersDirty() { this._castersDirty = true; }
+
+  /** Repasa ya la sombra de la vegetación pequeña y la cara de sombra de lo fijo (lo usa también el precalentado). */
+  refreshShadowCasters() {
+    this._castersDirty = false;
+    this._trimTick = 1;
+    this._trimSmallShadows();
+    this._prepareShadowCasters();
+  }
+
   _prepareShadowCasters() {
     const on = LightingManager.debug.frontFaces !== false && !LightingManager.debug.legacy;
     if (!on && !this._frontShadowMats) return;

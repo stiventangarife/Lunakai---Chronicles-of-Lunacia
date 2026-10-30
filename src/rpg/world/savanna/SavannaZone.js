@@ -12,6 +12,7 @@ import { AtmosphereManager } from '../demo_scena/AtmosphereManager.js';
 import { FootstepEffectsManager } from '../demo_scena/FootstepEffectsManager.js';
 import { SavannaGenshinArt } from './SavannaGenshinArt.js';
 import { mergeStaticByMaterial } from '../../../render/StaticMerge.js';
+import { trackLoad } from '../../../render/LoadGate.js';
 import { buildPropColliders } from '../islands/kit/IslandPropColliders.js';
 import { IslandTerrainMask } from '../islands/kit/IslandTerrainMask.js';
 import { SeagullFlocks } from '../Seagulls.js'; // Hito 94: gaviotas en el horizonte
@@ -200,7 +201,7 @@ export class SavannaZone {
       slopeLimit: SAV_SLOPE_MAX, // sin motas de pared sueltas
     });
     const t0 = performance.now();
-    this.terrainMask.bake().then(() => {
+    trackLoad(this.terrainMask.bake(), 'máscara Sabana').then(() => {
       if (this.terrainMask.ready) console.log(`[SavannaZone] Pendientes y agua listas (${(performance.now() - t0).toFixed(0)} ms repartidos)`);
     });
     this._syncCollisions(this.isActive);

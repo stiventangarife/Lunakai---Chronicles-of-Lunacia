@@ -8,6 +8,7 @@ import { placeIslandProps, updateFloatingProps } from './kit/IslandProps.js';
 import { createSeededRandom } from '../demo_scena/MathUtils.js';
 import { IslandArtLayer } from './kit/IslandArtLayer.js';
 import { mergeStaticByMaterial } from '../../../render/StaticMerge.js';
+import { trackLoad } from '../../../render/LoadGate.js';
 import { buildPropColliders, buildPropHulls } from './kit/IslandPropColliders.js';
 import { IslandTerrainMask } from './kit/IslandTerrainMask.js';
 
@@ -175,7 +176,7 @@ export class GrandIslandZone {
       adjust: C.adjust ? (m) => C.adjust(m, this) : undefined,
     });
     const t0 = performance.now();
-    this.terrainMask.bake().then(() => {
+    trackLoad(this.terrainMask.bake(), `máscara ${this.def.label}`).then(() => {
       if (!this.terrainMask.ready) return;
       console.log(`[GrandIslandZone] ${this.def.label}: pendientes y agua listas (${Math.round(performance.now() - t0)} ms repartidos)`);
       if (this.isActive) this._syncIslandCollisions(true);
@@ -356,10 +357,9 @@ export class GrandIslandZone {
       if (active && typeof col.addCircle === 'function') this.colliders.forEach((c, i) => col.addCircle(c.x, c.z, c.r, tag + i));
     }
     if (this.art) this.art.setActive(active);
-    // Hito 71: tras activar la capa de arte (sus mallas pasan a visibles en este mismo setActive)
-    if (this.def.collision) {
-      if (active) setTimeout(() => { if (this.isActive) this._syncIslandCollisions(true); }, 0);
-      else this._syncIslandCollisions(false);
-    }
+    // Hito 71: tras activar la capa de arte (sus mallas pasan a visibles en este mismo setActive).
+    // 29-oct: en el acto (antes con setTimeout 0): setActive corre dentro de changeMap, con el telón cerrado, y así
+    // el cálculo de colisiones y contornos de la primera visita no cae en los primeros fotogramas de juego.
+    if (this.def.collision) this._syncIslandCollisions(active);
   }
 }

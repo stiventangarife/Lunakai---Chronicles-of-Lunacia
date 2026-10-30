@@ -1,6 +1,25 @@
 // CharacterPortraitService.js - Real-Time 3D Model Snapshot Service for Axie Portraits
 import * as THREE from 'three';
 import { GLTFLoader } from '../../vendor/GLTFLoader.js';
+import { clone as cloneSkinned } from '../../vendor/utils/SkeletonUtils.js';
+
+/**
+ * 29-oct: copia del modelo para el retrato SIN pasar userData por JSON. three.js copia userData con
+ * JSON.parse(JSON.stringify(...)) y el Sapidae guarda ahí texturas y mallas (origMap, sourceMesh del contorno…):
+ * cada copia serializaba sus imágenes con canvas.toDataURL (~60 imágenes, 2,5–3 s de congelamiento por cada
+ * equipar / desequipar). Aquí cada copia recibe una copia superficial del userData de su original (mismas referencias).
+ */
+function cloneWithoutUserDataJson(model) {
+  const src = [];
+  model.traverse((o) => { src.push([o, o.userData]); o.userData = {}; });
+  let copy;
+  try { copy = cloneSkinned(model); } finally { for (const [o, ud] of src) o.userData = ud; }
+  let i = 0;
+  copy.traverse((c) => { const s = src[i++]; if (s && s[1]) c.userData = { ...s[1] }; });
+  return copy;
+}
+import { waitProgramsReady } from '../render/RenderWarmup.js';
+import { cloneGLTF } from '../render/ModelCache.js';
 import { sapidaeModularController } from '../rpg/SapidaeModularController.js';
 import { sapidaeModelUrl, SAPIDAE_BASES } from '../rpg/SapidaeModels.js';
 
@@ -503,6 +522,54 @@ export class CharacterPortraitService {
     return dataUrl;
   }
 
+  /**
+   * 29-oct: como captureModel, pero SIN congelar el juego. Los retratos se dibujan en un segundo contexto WebGL que
+   * no comparte shaders con el del juego: la primera vez que entra un modelo, three compila y enlaza todos sus
+   * shaders al dibujar (síncrono). Medido: 5 shaders del Sapidae ≈ 9,5 s de juego congelado en el primer autoguardado.
+   * Aquí se compila en paralelo (KHR_parallel_shader_compile) esperando sin bloquear, se suben las texturas de una en
+   * una y solo entonces se dibuja. Usa una COPIA del modelo (comparte geometría y materiales): la malla viva del
+   * jugador no sale del mundo mientras se espera.
+   * @returns {Promise<string|null>} dataURL, o null si no se pudo (se reintentará en otro guardado)
+   */
+  async captureModelAsync(id, model, options = {}, { timeoutMs = 15000 } = {}) {
+    this._initRenderer();
+    if (!this._initialized || !model) return null;
+    let copy;
+    try { copy = cloneWithoutUserDataJson(model); } catch (_) { return null; }
+    copy.position.set(0, 0, 0);
+    copy.rotation.set(0, 0, 0);
+    copy.updateMatrixWorld(true);
+    const r = this.renderer;
+    try {
+      // Solo lo que se ve en el retrato (las variantes ocultas del Sapidae no se compilan ni se suben)
+      const visible = [];
+      const walk = (o) => { if (!o.visible) return; if (o.material) visible.push(o); o.children.forEach(walk); };
+      walk(copy);
+      const proxy = { traverse: (cb) => visible.forEach(cb), traverseVisible: () => {} };
+      r.setRenderTarget(null);
+      const mats = r.compile(proxy, this.camera, this.scene);
+      await waitProgramsReady(r, mats || [], timeoutMs);
+      const seen = new Set();
+      for (const o of visible) {
+        for (const m of [].concat(o.material || [])) {
+          for (const k in m) {
+            const t = m[k];
+            if (!t || !t.isTexture || seen.has(t) || (t.userData && t.userData.lkNoPrewarm)) continue;
+            seen.add(t);
+            try { r.initTexture(t); } catch (_) { /* opcional */ }
+            await new Promise((res) => setTimeout(res, 0)); // una textura por tarea
+          }
+        }
+      }
+      return this.captureModel(id, copy, options);
+    } catch (e) {
+      console.warn('[CharacterPortraitService] Retrato en segundo plano omitido:', e);
+      return null;
+    } finally {
+      if (copy.parent) copy.parent.remove(copy);
+    }
+  }
+
   captureAxieHero(id, model, options = {}) {
     const url = this.captureModel(id, model, Object.assign({
       isAxie: true,
@@ -631,9 +698,21 @@ export class CharacterPortraitService {
       if (!this._initialized) return null;
 
       const modelPath = sapidaeModelUrl(modelId);
+      // 29-oct: copia del GLB en caché (el mismo que el mundo) en vez de descargarlo y leerlo de nuevo en cada
+      // cambio de equipo (~250 ms por cambio, y la copia no se liberaba nunca). Materiales propios: el teñido no
+      // debe tocar los del original en caché. Al terminar se liberan materiales y geometrías propios (no las texturas).
+      const ownMats = [];
+      let owned = [];
       try {
-        const gltf = await this.loader.loadAsync(modelPath);
+        const gltf = await cloneGLTF(modelPath, { cloneGeometry: true });
+        owned = gltf.ownedGeometries || [];
         const model = gltf.scene;
+        const cloneMat = (m) => {
+          if (!m) return m;
+          const ud = m.userData; m.userData = {}; // Material.copy pasa userData por JSON (serializaría texturas)
+          try { const c = m.clone(); c.userData = { ...ud }; ownMats.push(c); return c; } finally { m.userData = ud; }
+        };
+        model.traverse((o) => { if (o.isMesh && o.material) o.material = Array.isArray(o.material) ? o.material.map(cloneMat) : cloneMat(o.material); });
 
         // Avanzar la animación a pose idle para que esté parada naturalmente
         if (gltf.animations && gltf.animations.length > 0) {
@@ -664,7 +743,8 @@ export class CharacterPortraitService {
           aliases: ['sapidae', modelId]
         };
 
-        const dataUrl = this.captureModel(customKey, model, captureOpts);
+        // En segundo plano: espera a los shaders y sube las texturas de una en una (sin congelar el juego)
+        const dataUrl = (await this.captureModelAsync(customKey, model, captureOpts)) || this.getPortraitSync(modelId) || `./assets/portraits/${modelId}.png`;
 
         this.pending.delete(customKey);
         return dataUrl;
@@ -672,6 +752,9 @@ export class CharacterPortraitService {
         console.warn('[CharacterPortraitService] Could not generate custom Sapidae portrait:', err);
         this.pending.delete(customKey);
         return this.getPortraitSync(modelId) || `./assets/portraits/${modelId}.png`;
+      } finally {
+        ownMats.forEach((m) => { try { m.dispose(); } catch (_) { /* nada */ } });
+        owned.forEach((g) => { try { g.dispose(); } catch (_) { /* nada */ } });
       }
     })();
 

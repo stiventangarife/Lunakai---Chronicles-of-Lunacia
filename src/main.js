@@ -1,4 +1,6 @@
 // main.js - Core Orchestrator for Axie Tactics 3D with Biomes, Equipment & Guided Tutorial
+// Debe ser la primera importación: cuenta la memoria de GPU desde el primer contexto WebGL (lkDebug.gpu)
+import { installGpuProbe } from './debug/GpuProbe.js';
 import { unlockLevelOf, newlyUnlocked } from './tactics/combat/SkillUnlocks.js'; // Hito 98
 import * as THREE from 'three';
 import './ui/AccessPrefs.js'; // Hito 85: preferencias de accesibilidad aplicadas antes de crear la interfaz
@@ -42,7 +44,11 @@ import { installCombatDebug } from './tactics/combat/CombatDebug.js';
 import { CombatTelemetry } from './tactics/combat/CombatTelemetry.js';
 import { VfxBridge } from './vfx/VfxBridge.js';
 import { installTestArena } from './tactics/combat/TestArena.js';
-import { installPerfProbe } from './debug/PerfProbe.js';
+import { installVfxTour } from './tactics/combat/VfxTour.js';
+import { installPerfProbe, perfMark } from './debug/PerfProbe.js';
+import { installAssetAudit } from './debug/AssetAudit.js';
+import { installKtx2 } from './render/Ktx2.js';
+import { installShadowMapGC } from './render/ShadowMapGC.js';
 import { warmupRender } from './render/RenderWarmup.js';
 import { installProgramKeepAlive } from './render/ProgramKeepAlive.js';
 import { BondService } from './rpg/BondService.js';
@@ -249,8 +255,17 @@ class AxieTacticsGame {
     try { this.vfxBridge = new VfxBridge(this).install(this.spellManager.events, this.turnManager); this.vfxBridge.extendDebug(); } catch (e) { console.warn('[vfx]', e); }
     // Arena de pruebas de habilidades: lkDebug.arena(), lkDebug.probar('id', distancia)
     try { installTestArena(this); } catch (e) { console.warn('[pruebas]', e); }
+    try { installVfxTour(this); } catch (e) { console.warn('[recorrido]', e); } // Hito 102: lkDebug.vfxRecorrido()
     // Perfilador de rendimiento: lkDebug.perf.start() / stop() / hud() / scene()
     try { installPerfProbe(this); } catch (e) { console.warn('[perf]', e); }
+    // Diagnóstico de texturas (KTX2) y props (triángulos): lkDebug.assets.audit() / export()
+    try { installAssetAudit(this); } catch (e) { console.warn('[assets]', e); }
+    // Texturas KTX2 (docs/PLAN_KTX2.md): un solo lector para todos los GLTFLoader del juego
+    try { installKtx2(this.sceneManager.renderer); } catch (e) { console.warn('[KTX2]', e); }
+    // Memoria de la tarjeta gráfica que reserva el juego: lkDebug.gpu() / mark() / diff() / export()
+    try { installGpuProbe(this); } catch (e) { console.warn('[gpu]', e); }
+    // 30-oct: suelta los mapas de sombra (32 MB cada uno) de las luces que llevan un rato sin dibujarse: lkDebug.shadowGC()
+    try { installShadowMapGC(this.sceneManager.renderer); } catch (e) { console.warn('[sombras]', e); }
     // Hito 35: mapas de combate por bioma — lkDebug.map('savannah_oasis') fuerza un mapa, lkDebug.map(null) vuelve al azar
     try { this._installBattleMapDebug(); } catch (e) { console.warn('[mapas]', e); }
     // Hito 37: dither fading — el escenario se disuelve donde tapa a una unidad o a la casilla bajo el ratón
@@ -321,26 +336,40 @@ class AxieTacticsGame {
     // El retrato solo se vuelve a capturar si cambió la apariencia (modelo, personalización o
     // equipo) o si aún no hay. Capturarlo usa un segundo contexto WebGL y codifica una imagen de
     // forma síncrona: hacerlo en CADA autoguardado (cada 15 s y con cada misión) daba tirones.
+    //
+    // 29-oct: (1) la clave ya no lleva el uuid de la malla (cambia en cada carga: el primer autoguardado de CADA sesión
+    // rehacía el retrato aunque nada hubiera cambiado) y se guarda en la ranura (sapidaePortraitKey). (2) El retrato se
+    // hace en segundo plano (captureModelAsync): antes compilaba los shaders del Sapidae en el contexto de retratos de
+    // forma síncrona y congelaba el juego ~10 s justo después de entrar. Mientras tanto se guarda con el retrato anterior.
     let appearanceKey = '';
     try {
-      appearanceKey = JSON.stringify([p?.sapidaeModel || activeSlot?.sapidaeModel || '', p?.customization || activeSlot?.customization || null, exported.equipped || null, p?.mesh?.uuid || '']);
+      appearanceKey = JSON.stringify([p?.sapidaeModel || activeSlot?.sapidaeModel || '', p?.customization || activeSlot?.customization || null, exported.equipped || null]);
     } catch (_) { appearanceKey = String(Math.random()); }
-    const needPortrait = !currentPortrait || appearanceKey !== this._lastPortraitKey;
+    const slotId = saveSlotManager.activeSlotId;
+    this._portraitKeys = this._portraitKeys || {};
+    const knownKey = this._portraitKeys[slotId] ?? activeSlot?.sapidaePortraitKey ?? null;
+    const needPortrait = !currentPortrait || appearanceKey !== knownKey;
     if (needPortrait && this.overworldManager?.player?.mesh && portraitService) {
-      this._lastPortraitKey = appearanceKey;
-      try {
-        const dynSnap = portraitService.captureModel('active_player_slot', this.overworldManager.player.mesh, {
-          fullBody: true,
-          isHumanoid: true,
-          zoomFactor: 0.98,
-          yaw: -0.15,
-          pitch: 0.02
-        });
-        if (dynSnap) {
-          currentPortrait = dynSnap;
-        }
-      } catch (_) {}
+      this._portraitKeys[slotId] = appearanceKey;
+      // 29-oct: se espera a que el jugador termine de cambiarse (equipar varias piezas seguidas = un solo retrato)
+      clearTimeout(this._portraitTimer);
+      this._portraitTimer = setTimeout(() => {
+      if (saveSlotManager.activeSlotId !== slotId || this._portraitKeys[slotId] !== appearanceKey) return;
+      const mesh = this.overworldManager?.player?.mesh;
+      if (!mesh) { delete this._portraitKeys[slotId]; return; }
+      const opts = { fullBody: true, isHumanoid: true, zoomFactor: 0.98, yaw: -0.15, pitch: 0.02 };
+      const job = typeof portraitService.captureModelAsync === 'function'
+        ? portraitService.captureModelAsync('active_player_slot', mesh, opts)
+        : Promise.resolve().then(() => portraitService.captureModel('active_player_slot', mesh, opts));
+      job.then((snap) => {
+        if (!snap) { if (this._portraitKeys[slotId] === appearanceKey) delete this._portraitKeys[slotId]; return; }
+        // Solo si sigue siendo la misma partida y la misma apariencia (si cambió, ya hay otro retrato en camino)
+        if (saveSlotManager.activeSlotId !== slotId || this._portraitKeys[slotId] !== appearanceKey) return;
+        saveSlotManager.updateActiveSlot({ sapidaePortrait: snap, sapidaePortraitKey: appearanceKey });
+      }).catch(() => { if (this._portraitKeys[slotId] === appearanceKey) delete this._portraitKeys[slotId]; });
+      }, 2000);
     }
+    const portraitKey = needPortrait ? (activeSlot?.sapidaePortraitKey || null) : appearanceKey;
 
     saveSlotManager.updateActiveSlot({
       level: this.equipmentManager.heroProgression?.kotaro?.level || 1,
@@ -353,6 +382,7 @@ class AxieTacticsGame {
       sapidaeModel: p?.sapidaeModel || activeSlot?.sapidaeModel || 'sapidae-f-a',
       customization: p?.customization || activeSlot?.customization,
       sapidaePortrait: currentPortrait,
+      sapidaePortraitKey: portraitKey,
       unlockedHeroes: exported.unlockedHeroes || ['kotaro'],
       squad: exported.squad,
       accountAxies: exported.accountAxies,
@@ -731,7 +761,9 @@ class AxieTacticsGame {
 
     // Get active hero config from equipmentManager (flexible for dynamic user-owned Axies)
     const activeHero = this.equipmentManager.heroesBase[this.selectedHeroId] || this.equipmentManager.heroesBase['kotaro'];
+    perfMark('carga: inicio (telón cerrado)');
     await this.overworldManager.init(activeHero, slotData);
+    perfMark('carga: init terminado');
 
     // Ensure player controls are kept disabled while loading screen is active
     if (this.overworldManager.playerController) {
@@ -759,7 +791,9 @@ class AxieTacticsGame {
 
     // Clean exit transition: Smooth fade out once first useful frame is drawn
     if (this.overworldManager.worldMapManager?.transitionManager) {
+      perfMark('telón: empieza a abrirse');
       await this.overworldManager.worldMapManager.transitionManager.hideLoading(500);
+      perfMark('telón: abierto');
     } else if (curtain) {
       curtain.classList.remove('active');
       await new Promise((r) => setTimeout(r, 500));
@@ -810,7 +844,9 @@ class AxieTacticsGame {
       try {
         try { await this._resolvePartCards(); } catch (_) { /* sin red: cartas por defecto */ }
         const t0 = performance.now();
+        perfMark('VFX segundo plano: inicio');
         const n = await this.vfxBridge.prepareInBackground([{ spellIds: this._squadSpellIds() }]);
+        perfMark('VFX segundo plano: fin');
         if (n) console.log(`[vfx] ${n} efectos del escuadrón preparados en segundo plano (${Math.round(performance.now() - t0)} ms)`);
       } catch (e) {
         console.warn('[vfx] preparación en segundo plano omitida', e);

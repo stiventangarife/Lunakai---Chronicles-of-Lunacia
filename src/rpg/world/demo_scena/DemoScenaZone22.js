@@ -16,6 +16,7 @@ import { GenshinForestArt } from './genshin/GenshinForestArt.js';
 import { ForestBridge, FOREST_BRIDGE_VILLAGE, FOREST_PIER } from './ForestBridge.js';
 import { RiverFords } from './RiverFords.js';
 import { mergeStaticByMaterial } from '../../../render/StaticMerge.js';
+import { trackLoad } from '../../../render/LoadGate.js';
 import { buildForestColliders, FOREST_COLLIDER_TAG } from './ForestColliders.js';
 import { WaterDepthMask } from '../WaterDepthMask.js';
 import { SeagullFlocks } from '../Seagulls.js'; // Hito 94: gaviotas en el horizonte
@@ -173,7 +174,7 @@ export class DemoScenaZone22 {
   _bakeWaterMask() {
     if (!this.waterMask) this.waterMask = new WaterDepthMask({ minX: -160, minZ: -160, size: 320, cell: 1 });
     const t0 = performance.now();
-    this.waterMask.bake((x, z) => this.getWaterDepthRaw(x, z)).then(() => {
+    trackLoad(this.waterMask.bake((x, z) => this.getWaterDepthRaw(x, z)), 'agua del Bosque').then(() => {
       if (this.waterMask.ready) console.log(`[DemoScenaZone22] Agua: profundidades listas (${(performance.now() - t0).toFixed(0)} ms repartidos)`);
     });
     if (this.isActive) this.om?.collisions?.setWaterMask?.(this.waterMask, WADE_MAX_DEPTH);

@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { mergeGeometries } from '../../../../../vendor/utils/BufferGeometryUtils.js';
 import { createSeededRandom, SimplexNoise } from '../MathUtils.js';
 import { LightingManager } from '../LightingManager.js';
+import { loadTexture, isKtx2Texture } from '../../../../render/Ktx2.js';
 
 // Viento del follaje: el mismo código en el material visible y en el de sombras (Hito 84).
 const FOLIAGE_SWAY_PARS = /* glsl */ `
@@ -73,9 +74,9 @@ export class GenshinTrees {
    * avg = linear-space average colour of each texture (measured offline).
    */
   static BARK_TEXTURES = {
-    normal: { map: './assets/nature/Bark_NormalTree.png', normal: './assets/nature/Bark_NormalTree_Normal.png', avg: [0.2646, 0.0999, 0.0568] },
-    twisted: { map: './assets/nature/Bark_TwistedTree.png', normal: './assets/nature/Bark_TwistedTree_Normal.png', avg: [0.0912, 0.0751, 0.0663] },
-    pine: { map: './assets/nature/Bark_DeadTree.png', normal: './assets/nature/Bark_DeadTree_Normal.png', avg: [0.0539, 0.0473, 0.0520] }
+    normal: { map: './assets/nature/Bark_NormalTree.ktx2', normal: './assets/nature/Bark_NormalTree_Normal.flip.ktx2', avg: [0.2646, 0.0999, 0.0568] },
+    twisted: { map: './assets/nature/Bark_TwistedTree.ktx2', normal: './assets/nature/Bark_TwistedTree_Normal.flip.ktx2', avg: [0.0912, 0.0751, 0.0663] },
+    pine: { map: './assets/nature/Bark_DeadTree.ktx2', normal: './assets/nature/Bark_DeadTree_Normal.flip.ktx2', avg: [0.0539, 0.0473, 0.0520] }
   };
 
   /**
@@ -226,13 +227,16 @@ export class GenshinTrees {
     const tex = GenshinTrees.BARK_TEXTURES[def.bark];
     if (!this._barkTex) this._barkTex = {};
     if (!this._barkTex[def.bark]) {
-      const loader = new THREE.TextureLoader();
-      const map = loader.load(tex.map);
+      // 30-oct: corteza en KTX2 (docs/PLAN_KTX2.md). Una textura KTX2 no se voltea al subirla (el PNG sí):
+      // - color (ETC1S, el mismo archivo que usan los .gltf): repeat.y = -1 la deja igual que el PNG;
+      // - normales (UASTC): archivo ya volteado (*.flip.ktx2). Con repeat.y = -1 el relieve saldría invertido, porque
+      //   three calcula la orientación del mapa de normales a partir de las UV transformadas.
+      const map = loadTexture(tex.map);
       map.colorSpace = THREE.SRGBColorSpace;
-      const normalMap = loader.load(tex.normal);
+      const normalMap = loadTexture(tex.normal);
       [map, normalMap].forEach((t) => {
         t.wrapS = t.wrapT = THREE.RepeatWrapping;
-        t.repeat.set(2, 1);
+        t.repeat.set(2, t === map && isKtx2Texture(t) ? -1 : 1);
         t.anisotropy = 4;
       });
       this._barkTex[def.bark] = { map, normalMap };

@@ -18,6 +18,7 @@ const SHADOW_DEFAULTS = {
 const _instances = new Set();
 let _lastCommit = -Infinity;
 let _refreshRequested = false;
+let _sunSeq = 0;
 
 /**
  * Gestor de Iluminación estilizada Fantasy MMORPG para Demo_Scena en Macro-Zona [2, 2].
@@ -91,6 +92,7 @@ export class LightingManager {
   initLights() {
     // 1. Sol DirectionalLight principal con sombras suaves
     this.dirLight = new THREE.DirectionalLight(0xfff3db, 2.2);
+    this.dirLight.name = `SolIsla#${++_sunSeq}`; // nombre de su mapa de sombras en lkDebug.gpu / lkDebug.shadowGC
     this.dirLight.castShadow = true;
 
     // Configuración de resolución de sombras

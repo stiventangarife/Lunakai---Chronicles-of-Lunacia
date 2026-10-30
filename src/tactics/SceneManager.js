@@ -269,6 +269,7 @@ export class SceneManager {
 
     // 3. Sun Key Light: Warm golden sunlight with crisp PCF soft shadows
     this.sunLight = new THREE.DirectionalLight(0xfff6ea, 2.8);
+    this.sunLight.name = 'SolCombate'; // nombre de su mapa de sombras en lkDebug.gpu / lkDebug.shadowGC
     this.sunLight.position.set(16, 28, 14);
     this.sunLight.target.position.set(0, 0, 0);
     this.scene.add(this.sunLight.target);
