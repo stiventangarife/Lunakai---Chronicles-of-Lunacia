@@ -108,7 +108,8 @@ void main(){vec2 p=(vUv-.5)*vec2(2.,1.25);if(uUp<.5)p.y=-p.y;
  float n=styNoise(vec2(p.x*.6+uUp*.37,p.y*.3)+.1).b;float nb=styNoise(vUv*1.3+uUp).r;
  float db=bandD(p)+(nb-.5)*.04;float dt=teethD(p);float d=min(db,dt);
  float m=smoothstep(.015,-.015,d);if(m<.01)discard;
- float er=styErode(n*.55+.45*clamp(-d*6.,0.,1.),uEr,.1);float a=m*er*uA;if(a<.01)discard;
+ float n2=styNoise(vUv*vec2(2.4,1.6)+uUp*.53).g;float ev=n2*.72+n*.28;
+ float er=styErode(ev,uEr,.05);float a=m*er*uA;if(a<.01)discard;float dz=uEr>0.?smoothstep(.09,0.,ev-uEr):0.;
  float isT=step(dt,db);float ry=length(p-vec2(0.,-.61))-.925;
  vec3 N=normalize(vec3(-p.x*.45,-ry*12.,1.));float l=styLight(N,stySunV());
  vec3 body=mix(styRampOf(uLip,clamp(.25+.55*l,0.,1.)),styRampOf(uScale,clamp(.3+.55*l,0.,1.)),smoothstep(-.03,.06,ry));
@@ -119,6 +120,7 @@ void main(){vec2 p=(vUv-.5)*vec2(2.,1.25);if(uUp<.5)p.y=-p.y;
  vec3 c=mix(body,tooth,isT);
  float rim=smoothstep(-.055,-.015,d);c=mix(c,${lin(.02,.05,.08)},rim*.9);
  c+=uLip*1.6*uHot*smoothstep(.06,.0,abs(dt))*isT;
+ c=mix(c,styRampOf(${WATER},.75)*1.25,dz);
  gl_FragColor=vec4(c,a);}`;
 const makeBite=(parent,up)=>{const m=new THREE.Mesh(new THREE.PlaneGeometry(1.25,0.78),S.mat(BITE_FS,{uUp:{value:up},uEr:{value:0},uHot:{value:0},
   uScale:{value:col3(linA(.62,.7,.74))},uTooth:{value:col3(linA(.95,.9,.76))},uLip:{value:col3(linA(.75,.1,.12))}},{mode:'matter',depthTest:false}));parent.add(m);return m;};
@@ -333,6 +335,11 @@ build(a){
   [[TI,20,WATERDROP_FS],[TD,18,S.MATTER_FS(C.drop,{relief:4,col:BLOOD})]].forEach(([t,n,fs])=>S.pts(L.part,n,VV+K+`void main(){float s=${f(t)}+aSeed.x*.04;float tt=max(uT-s,0.);float age=(uT-s)/(.5+aSeed.y*.25);
    vec3 v=normalize(rnd()+vec3(-.3,.6,.4))*(1.3+1.7*aSeed.z);vec3 p=PC+v*tt+vec3(0.,-5.5*tt*tt,0.);
    vR=3.14159+atan(v.x,v.y)*.3;vK=smoothstep(.6,1.,age);vA=(age>0.&&age<1.&&p.y>.04)?1.:0.;put(p,.19+.1*aSeed.w);}`,fs));
+  // las fauces se deshacen: rocío de agua y sangre a lo largo de las dos medias lunas
+  [[44,WATERDROP_FS],[22,S.MATTER_FS(C.drop,{relief:4,col:BLOOD})]].forEach(([n,fs])=>S.pts(L.part,n,VV+K+`void main(){float s=TD+.05+aSeed.x*.28;float tt=max(uT-s,0.);float age=(uT-s)/(.38+aSeed.y*.2);
+   float px=(aSeed.w-.5)*1.5;float sg=aSeed.z>.5?1.:-1.;float op=.55*clamp((s-TD)/.36,0.,1.);
+   vec3 b=PC+vec3(px*.75,sg*(.2+op+.42*(1.-px*px*1.6)),.25);vec3 v=vec3(px*1.6,sg*1.2+.6,(aSeed.y-.5)*1.4);vec3 p=b+v*tt+vec3(0.,-6.*tt*tt,0.);
+   vR=3.14159+atan(v.x,v.y-12.*tt)*.5;vK=smoothstep(.5,1.,age);vA=(age>0.&&age<1.&&p.y>.04)?1.:0.;put(p,.13+.08*fract(aSeed.w*7.));}`,fs));
   // escamas plateadas que saltan en el desgarro
   S.pts(L.part,14,VV+K+`void main(){float s=TD+aSeed.x*.05;float tt=max(uT-s,0.);float age=(uT-s)/(.55+aSeed.y*.3);
    vec3 v=normalize(rnd()+vec3(.2,.5,.5))*(1.4+1.6*aSeed.z);vec3 p=PC+v*tt+vec3(0.,-5.*tt*tt,0.);
@@ -361,14 +368,15 @@ build(a){
     else if(te<TI){const k=(te-TI+0.06)/0.06;op=1-1.05*k*k;}
     else if(te<TD-0.04)op=-0.05+0.35*ss(TI+0.02,TD-0.05,te);
     else if(te<TD){const k=(te-TD+0.04)/0.04;op=0.3-0.4*k*k;}
-    else op=-0.1+0.4*ss(TD+0.25,TB+0.3,te);
-    const form=ss(TF-0.04,TF+0.06,te), dis=ss(TD+0.25,TB+0.35,te);
+    else op=-0.1+0.95*ss(TD,TD+0.36,te);
+    // tras el desgarro las fauces se separan y se deshacen en agua (sin restos): ocultas en TD+0,4
+    const form=ss(TF-0.04,TF+0.06,te), dis=ss(TD+0.04,TD+0.36,te);
     R.set(1,0,0).applyQuaternion(camera.quaternion);
     bites.forEach((m,i)=>{const s=i?-1:1;                     // 0 = arriba, 1 = abajo
-      m.visible=te>=TF-0.04&&te<TB+0.45; towardCam(m.position,tmp.copy(PC).add(tmp2.set(0,s*0.55*op,0)),0.4+0.03*i);
+      m.visible=te>=TF-0.04&&te<TD+0.4; towardCam(m.position,tmp.copy(PC).add(tmp2.set(0,s*0.55*op,0)),0.4+0.03*i);
       billboard(m,s*0.44+s*0.1*Math.max(op,0)+(id>0?0.18*Math.sin(id*40)*Math.exp(-id*7):0));
       m.position.addScaledVector(R,s*0.16+(id>0?0.06*Math.sin(id*35)*Math.exp(-id*6):0));
-      m.scale.set(1.85,1.45,1); const u=m.material.uniforms; u.uA.value=form; u.uEr.value=-0.1+1.1*dis;
+      m.scale.set(1.85,1.45,1); const u=m.material.uniforms; u.uA.value=form*(1-ss(TD+0.26,TD+0.4,te)); u.uEr.value=dis>0?-0.02+1.05*dis:-0.1;
       u.uHot.value=Math.max(hitE(ia,12),hitE(id,12));});
     sp1.pose(ia,PC,1.0); sp2.pose(id,tmp.copy(PC).add(tmp2.set(0.1,-0.1,0.2)),0.85); ring.pose(ia,3.4,0,0.45,1);
     set(stain,-0.1+1.1*ss(TE-0.35,TE+0.1,te),ia>0?ss(0,0.3,ia):0);

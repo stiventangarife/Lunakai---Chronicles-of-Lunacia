@@ -74,7 +74,10 @@ const RING_COL=col=>`void main(){vec4 s=styShape(7.,vUv);float er=styErode(s.r*.
 // mancha en cruz (5 casillas) con la rampa de la paleta; uP = erosión, uK = alcance (0..1) desde el centro
 const CROSS_FS=(alpha=.45,col=null)=>`uniform float uK;void main(){vec2 p=(vUv-.5)*${f(TILE*3.4)};
  float a=max(abs(p.x)-${f(TILE*1.5)},abs(p.y)-${f(TILE*.5)});float b=max(abs(p.x)-${f(TILE*.5)},abs(p.y)-${f(TILE*1.5)});
- float sd=min(a,b);float n=styNoise(vUv*.9).r;float m=smoothstep(.15,-.25,sd+(n-.5)*.7);
+ float sd=min(a,b);float n=styNoise(vUv*.9).r;float m=smoothstep(.03,-.12,sd+(n-.5)*.12);
+ // Hito 105: casillas enteras con borde marcado (antes un borde de ruido que se comía las esquinas)
+ vec2 cq=p/${f(TILE)};vec2 cc=floor(cq+.5);float ce=max(abs(cq.x-cc.x),abs(cq.y-cc.y))*2.;
+ m=m*(.8+.9*smoothstep(.82,.95,ce)*smoothstep(1.02,.97,ce));
  m*=smoothstep(uK*${f(TILE*1.75)}+.2,uK*${f(TILE*1.75)}-.3,max(abs(p.x),abs(p.y)));
  if(m<.01)discard;float er=styErode(n*.6+m*.4,uP,.15);
  vec3 c=${col?`styRampOf(${col},.25+.3*n)`:`styRamp(.2+.25*n)`};
@@ -240,7 +243,7 @@ defs.push(def);
 // 3 · DEATH SHROOM — veneno en cruz. Un hongo negro de motas rojas brota detrás de la casilla, se hincha con grietas
 //     de toxina lima y revienta: trozos de sombrero, cinco nubes de esporas violetas en cruz, gotas y veneno.
 // =====================================================================
-defs.push({key:"sty_peDeathShroom",name:"Death Shroom (estilizado)",dur:2.34,ti:0.7475,tier:2,pal:"Hongo letal",stylized:true,zoneTarget:TILE*1.6,
+defs.push({gridArea:'root',key:"sty_peDeathShroom",name:"Death Shroom (estilizado)",dur:2.34,ti:0.7475,tier:2,pal:"Hongo letal",stylized:true,zoneTarget:TILE*1.6,
   phases:[["Brote",0],["Hinchazón",0.3575],["Estallido",0.7475],["Cruz tóxica",0.8775],["Veneno",1.3]],
 build(a){
   const L=a.L,TI=0.7475,MP=V3(TX+0.62,0,0.5);
@@ -672,7 +675,7 @@ defs.push(def);
 // 9 · SHIITAKE — veneno en cruz (alcance 1–2). Un racimo de tres shiitakes pardos brota en la casilla; el micelio
 //     corre por el suelo en cruz y, al soltar la esporada, anillos de esporas ocres ruedan por los cuatro brazos.
 // =====================================================================
-defs.push({key:"sty_peShiitake",name:"Shiitake (estilizado)",dur:2.331,ti:0.504,tier:2,pal:"Shiitake",stylized:true,zoneTarget:TILE*1.6,
+defs.push({gridArea:'root',key:"sty_peShiitake",name:"Shiitake (estilizado)",dur:2.331,ti:0.504,tier:2,pal:"Shiitake",stylized:true,zoneTarget:TILE*1.6,
   phases:[["Brote",0],["Esporada",0.504],["Veneno",0.756],["Fin",1.89]],
 build(a){
   const L=a.L,TI=0.504,TE=1.89;
@@ -687,12 +690,12 @@ build(a){
     const st=new THREE.Mesh(stemG,stemMat),cp=new THREE.Mesh(capG,capMat);cp.position.y=0.66;cp.rotation.z=dx*0.25;g.add(st,cp);
     g.position.set(TX+dx,0,dz);L.mesh.add(g);return {g,cp,sc:sc*1.45,dl};});
   const myc=gp(TILE*3.4,CEN.x,0,0.02,S.mat(`uniform float uK;void main(){vec2 p=(vUv-.5)*${f(TILE*3.4)};
-   float a=max(abs(p.x)-${f(TILE*1.5)},abs(p.y)-${f(TILE*.45)});float b=max(abs(p.x)-${f(TILE*.45)},abs(p.y)-${f(TILE*1.5)});
+   float a=max(abs(p.x)-${f(TILE*1.5)},abs(p.y)-${f(TILE*.5)});float b=max(abs(p.x)-${f(TILE*.5)},abs(p.y)-${f(TILE*1.5)});
    float sd=min(a,b);float n=styNoise(vUv*2.3).b;float th=smoothstep(.08,0.,abs(n-.5)-.02)+smoothstep(.05,0.,abs(styNoise(vUv*1.4+.3).b-.5)-.015)*.7;
    float reach=smoothstep(uK*${f(TILE*1.7)}+.1,uK*${f(TILE*1.7)}-.4,length(p));
    float m=th*smoothstep(.2,-.3,sd)*reach;if(m<.03)discard;float er=styErode(n*.5+m*.5,uP,.15);
    gl_FragColor=vec4(styRampOf(vec3(.95,.88,.7),.55+.35*m),min(m,1.)*er*uA*.85);}`,{uK:{value:0}},{mode:'matter'})); L.decal.add(myc);
-  const stain=gp(TILE*3.4,CEN.x,0,0.022,S.mat(CROSS_FS(.32,'mix(uC2,vec3(.5,.55,.2),.4)'),{uK:{value:0}},{mode:'matter'})); L.decal.add(stain);
+  const stain=gp(TILE*3.4,CEN.x,0,0.022,S.mat(CROSS_FS(.45,'mix(uC2,vec3(.5,.55,.2),.4)'),{uK:{value:0}},{mode:'matter'})); L.decal.add(stain);
   const gring=S.groundRing(L.decal,3.2);
   const spark=S.hitSpark(L.mesh,1.4,{seed:0.81});
   const K=`const float TI=${f(TI)};const vec3 CEN=${v3(CEN)};${CROSS_GLSL}`;

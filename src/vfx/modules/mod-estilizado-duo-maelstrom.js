@@ -1,10 +1,13 @@
 // =====================================================================
-// ESTILIZADO · DÚO · MAELSTROM CELESTE (Hito 101) — Ultimate de agua y viento Sapidae + su Axie, kit vfx-stylized.js.
+// ESTILIZADO · DÚO · MAELSTROM CELESTE (Hito 101; Hito 104: tornado de arcilla espiritual, agua y plumas) — Ultimate de agua y viento Sapidae + su Axie, kit vfx-stylized.js.
 // Clave: sty_duo_maelstrom. Mismos dur / ti / fases / piezas y la misma coreografía que mod-duo-maelstrom.js: el dúo
 // levita, se abre un tornado de marea en el centro de la cruz rival, los arcos arrastran a los dos rivales vecinos,
 // cae un relámpago y la marea detona en cruz (2 casillas). La carta: daño en cruz, −2 PM y luego −1 PA.
 // Agua en materia turquesa saturada (no espuma blanca), viento en pincel turquesa, arcos rosa/violeta, relámpago
 // cian-violeta con destello moderado (el original llegaba a 0,85 de blanco).
+// Hito 104: el tornado trenza cintas de arcilla espiritual (terracota con vetas de oro) con el agua y las plumas; la
+// detonación lleva barro y terrones, y la cruz se alinea con las casillas (S.gridAlign) también en diagonal. Los arcos
+// salen de los rivales reales que haya en la cruz (VFX.foes) o, si no hay, de las casillas vecinas.
 // =====================================================================
 (function(){
 if(!window.VFX||!VFX.lib||!VFX.sty)return;
@@ -13,7 +16,8 @@ const {v3,billboard,towardCam,taperTube,variantGroups}=VFX.lib;
 const S=VFX.sty, CE=S.CELL;
 const PAL="Sty Dúo · Maelstrom"; VFX.palette(PAL,["#6fe3e8","#0b6f96"]);
 const lin=h=>{const c=new THREE.Color(h);return `vec3(${f(c.r)},${f(c.g)},${f(c.b)})`;};
-const WATER=lin(0x1aa3c4), WATERD=lin(0x0a4f74), FOAM=lin(0x9fe8e6), PINK=lin(0xff6f9a), VIOLET=lin(0x8a7dff), SOOT=lin(0x22343e), TEALG=lin(0x3fe0d8);
+const WATER=lin(0x1aa3c4), WATERD=lin(0x0a4f74), FOAM=lin(0x9fe8e6), PINK=lin(0xff6f9a), VIOLET=lin(0x8a7dff), SOOT=lin(0x22343e), TEALG=lin(0x3fe0d8),
+  CLAY=lin(0xa4552f), CLAYD=lin(0x4a2012), MUD=lin(0x6e3f26), GOLD=lin(0xffc45a);
 const VV=`varying float vR;varying float vK;`;
 const ZG="vfx_mael_zero_gravity",WR="vfx_mael_wind_ribbons",WV="vfx_mael_water_vortex",
   SA="vfx_mael_suction_arcs",SL="vfx_mael_sky_lightning",TS="vfx_mael_tidal_splash",IDS=[ZG,WR,WV,SA,SL,TS];
@@ -45,7 +49,7 @@ const mael={key:"sty_duo_maelstrom",name:"Maelstrom Celeste (estilizado)",tier:3
   phases:[["Levitación",0],["Tornado",0.6],["Succión",0.95],["Relámpago",1.7],["Detonación",1.8],["Disipación",2.55]],
 build(a){
   const TV0=0.6,TV1=1.8,TA0=0.95,TL=1.7,TI=1.8,C=V3(3.4,0,0),CORE=V3(3.4,1.2,0),D=V3(-3.7,0,-0.5);
-  const EB=[V3(2.4,0,0),V3(3.4,0,-1.0)];
+  const EB=[V3(3.4-1.93,0,0),V3(3.4,0,-1.93)];
   const VG=variantGroups(a,IDS), N={};
   const lev=te=>0.38*ss(0,0.65,te)*(1-ss(2.55,3.1,te))+0.04*Math.sin(te*3.2)*ss(0,0.4,te)*(1-ss(2.6,3.1,te));
   const ZE=`const vec3 D=${v3(D)};float zEnv(){return smoothstep(0.,.45,uT)*(1.-smoothstep(2.5,3.1,uT));}`;
@@ -58,7 +62,11 @@ build(a){
   +S.pts(VG[ZG].part,18,VV+ZE+`void main(){float life=2.6+aSeed.y*.9;float k=uT/life+aSeed.x;float age=fract(k);vec3 r=rr(floor(k));
    float an=r.x*6.2832;float rd=.55+1.45*sqrt(r.y);
    vec3 p=D+vec3(cos(an)*rd,.2+r.z*1.5+age*.9,sin(an)*rd*.85)+vec3(sin(uT*.9+r.z*8.)*.18,sin(uT*1.7+r.x*5.)*.05,cos(uT*.8+r.y*6.)*.15);
-   vR=r.y*6.2832+uT*(r.z-.5)*1.6;vA=zEnv()*step(.05,age)*step(age,.95);vK=smoothstep(.75,1.,age);put(p,.38+.12*aSeed.z);}`,S.MATTER_FS(CE.leaf,{relief:4,col:PINK}));
+   vR=r.y*6.2832+uT*(r.z-.5)*1.6;vA=zEnv()*step(.05,age)*step(age,.95);vK=smoothstep(.75,1.,age);put(p,.38+.12*aSeed.z);}`,S.MATTER_FS(CE.leaf,{relief:4,col:PINK}))
+  +S.pts(VG[ZG].part,14,VV+ZE+`void main(){float life=2.5+aSeed.y*.8;float k=uT/life+aSeed.x;float age=fract(k);vec3 r=rr(floor(k));
+   float an=r.x*6.2832+uT*.4;float rd=.7+1.3*sqrt(r.y);
+   vec3 p=D+vec3(cos(an)*rd,.1+r.z*1.3+age*1.,sin(an)*rd*.85);
+   vR=r.y*6.2832+uT*(r.z-.5)*2.;vA=zEnv()*step(.05,age)*step(age,.95);vK=smoothstep(.75,1.,age);put(p,.2+.1*aSeed.z);}`,S.MATTER_FS(CE.shard,{relief:3.2,col:CLAY,bias:.03}));
 
   // ---------- 2 · viento: tres cintas helicoidales de pincel turquesa bajo los pies ----------
   const pts=[];for(let i=0;i<=60;i++){const t=i/60,an=t*Math.PI*2*1.4,r=1.25-0.35*t;pts.push(V3(Math.cos(an)*r,t*0.6,Math.sin(an)*r));}
@@ -82,7 +90,11 @@ build(a){
    float fr=1.-abs(dot(normalize(vN),normalize(vV)));float l=styLight(normalize(vN),stySunV());
    float edge=smoothstep(0.,.12,h)*smoothstep(1.,.78,h);float crest=smoothstep(.06,0.,abs(h-uP*1.15))*step(uP,.99);
    vec3 c=styRampOf(${WATER},clamp(.18+.42*l+.15*fr,0.,1.))*styTint(l);c=mix(c,${FOAM},clamp(foam*.4+crest*.7,0.,1.));c=mix(c,${PINK},pk*.6);
-   float al=${mode==='matter'?`(.55+.3*foam+.15*fr)`:`(.12+.35*foam)`}*edge*${amp}+crest*.6;if(al<.02)discard;
+   float bq=fract(u*2.+tw*.2+s.g*.25);float cb=smoothstep(.34,.42,bq)*(1.-smoothstep(.84,.92,bq))*smoothstep(.04,.2,h);
+   float vg=styNoise(vec2(u*5.+tw*.4,h*2.6)+.19).g;float vein=smoothstep(.3,.21,vg)*smoothstep(.03,.1,vg);
+   ${mode==='matter'?`vec3 cc=styRampOf(${CLAY},clamp(.3+.6*l+.15*fr+(s2.g-.5)*.2,0.,1.))*styTint(l);cc=mix(cc,styRampOf(${CLAYD},.25),smoothstep(.75,.88,bq)*.6);
+   cc+=${GOLD}*vein*1.7;c=mix(c,cc,cb);`:`c=mix(c,${GOLD},cb*vein*.9);`}
+   float al=${mode==='matter'?`mix(.55+.3*foam+.15*fr,1.,cb)`:`(.12+.35*foam+cb*vein*.5)`}*edge*${amp}+crest*.6;if(al<.02)discard;
    gl_FragColor=vec4(c${mode==='matter'?'':'*1.2'},min(al,1.)*uA);}`;
   const vortex=new THREE.Group(); vortex.position.copy(C); VG[WV].mesh.add(vortex);
   const funnel=new THREE.Mesh(new THREE.CylinderGeometry(1.55,0.3,3.6,56,18,true),S.mat(TW("3.","1.","matter"),{},{mode:'matter',side:THREE.DoubleSide}));
@@ -96,11 +108,20 @@ build(a){
   +S.pts(VG[WV].part,80,VV+VC+`void main(){float life=.6+aSeed.y*.35;float k=uT/life+aSeed.x;float age=fract(k);float sp=uT-age*life;vec3 r=rr(floor(k));
    float y=.1+age*3.6;float rad=mix(.25,1.6,age)+r.y*.25+smoothstep(.8,1.,age)*.6;float an=r.x*6.2832+age*9.+uT*3.;
    vec3 p=C+vec3(cos(an)*rad,y,sin(an)*rad);vR=an;vK=smoothstep(.6,1.,age);
-   vA=(sp>=TV0&&sp<=TV1-.05)?step(y,grow()*3.8):0.;put(p,.14+.08*r.z);}`,S.MATTER_FS(CE.drop,{relief:5,col:WATER,bias:.08}));
+   vA=(sp>=TV0&&sp<=TV1-.05)?step(y,grow()*3.8):0.;put(p,.14+.08*r.z);}`,S.MATTER_FS(CE.drop,{relief:5,col:WATER,bias:.08}))
+  +S.pts(VG[WV].part,56,VV+VC+`void main(){float life=.75+aSeed.y*.35;float k=uT/life+aSeed.x;float age=fract(k);float sp=uT-age*life;vec3 r=rr(floor(k));
+   float y=.15+age*3.3;float rad=mix(.35,1.7,age)*(.85+.3*r.y);float an=r.x*6.2832+age*8.+uT*2.6;
+   vec3 p=C+vec3(cos(an)*rad,y,sin(an)*rad);vR=an*1.7+r.z*6.;vK=smoothstep(.75,1.,age);
+   vA=(sp>=TV0&&sp<=TV1-.08)?step(y,grow()*3.7):0.;put(p,.26+.16*r.z);}`,S.MATTER_FS(CE.shard,{relief:3.2,col:CLAY,bias:.03}))
+  +S.pts(VG[WV].part,30,VV+VC+`void main(){float life=.5+aSeed.y*.3;float k=uT/life+aSeed.x;float age=fract(k);float sp=uT-age*life;vec3 r=rr(floor(k));
+   float y=.2+age*3.4;float rad=mix(.4,1.65,age)+.1*r.y;float an=r.x*6.2832+age*10.+uT*3.;
+   vec3 p=C+vec3(cos(an)*rad,y,sin(an)*rad);vR=0.;vK=age*.6;
+   vA=(sp>=TV0&&sp<=TV1-.05)?step(y,grow()*3.8)*sin(age*3.14159):0.;put(p,.1+.06*r.z);}`,S.ENERGY_FS(CE.spark,{gain:1.3}),{mode:'energy'});
   const base=groundPlane(3.6,C.x,0.02,S.mat(`void main(){vec2 p=vUv-.5;float r=length(p)*2.;float an=atan(p.y,p.x)-uT*4.+r*3.;
    vec4 s=styNoise(vec2(an*.3,r*.8));float st=smoothstep(.05,0.,abs(s.b-.5));
    float m=(st*.7+smoothstep(.08,0.,abs(r-.35))*.5)*smoothstep(1.,.5,r)*smoothstep(0.,.2,r);if(m<.02)discard;
-   gl_FragColor=vec4(mix(styRampOf(${WATERD},.4),${FOAM},st*.6),m*.85*uA);}`));
+   float cl2=step(.5,fract(an*.4776));vec3 bc=mix(styRampOf(${WATERD},.4),styRampOf(${MUD},.35),cl2);
+   gl_FragColor=vec4(mix(bc,cl2>.5?${GOLD}:${FOAM},st*.6),m*.85*uA);}`));
   VG[WV].decal.add(base);
 
   // ---------- 4 · arcos de succión: trazos quebrados rosa/violeta hacia el núcleo, con cuentas de plasma ----------
@@ -155,16 +176,26 @@ build(a){
   vec3 armDir(float j){return j<1.?vec3(1.,0.,0.):j<2.?vec3(-1.,0.,0.):j<3.?vec3(0.,0.,1.):vec3(0.,0.,-1.);}`;
   N[TS]=S.pts(VG[TS].part,44,VV+TC+`void main(){vec3 dir=armDir(floor(aSeed.x*4.));vec3 side=vec3(dir.z,0.,dir.x);
    float s=TI+aSeed.w*.08;float t=max(uT-s,0.);float life=.65+aSeed.y*.35;float age=(uT-s)/life;
-   float d=(.2+2.*aSeed.z)*(1.-exp(-t*5.));float up=(1.5+2.6*aSeed.y)*t-4.5*t*t;
+   float d=(.2+4.4*aSeed.z)*(1.-exp(-t*5.));float up=(1.5+2.6*aSeed.y)*t-4.5*t*t;
    vec3 p=C+dir*d+side*(aSeed.y-.5)*.55+vec3(0.,max(up,0.)+.1,0.);
    vA=(age>0.&&age<1.)?1.:0.;vK=smoothstep(.3,1.,age);vR=aSeed.w*6.28;put(p,(.6+.35*aSeed.w)*(.6+.6*age));}`,S.MATTER_FS(CE.puff,{relief:4,col:WATER,bias:.12}))
   +S.pts(VG[TS].part,90,VV+TC+`void main(){vec3 dir=armDir(floor(aSeed.x*4.));vec3 side=vec3(dir.z,0.,dir.x);
    float s=TI+aSeed.w*.05;float t=max(uT-s,0.);float life=.5+aSeed.y*.4;float age=(uT-s)/life;
-   float d=(.3+2.4*aSeed.z)*(1.-exp(-t*6.));float vy=(2.+4.*aSeed.y);float up=vy*t-7.*t*t;
+   float d=(.3+4.6*aSeed.z)*(1.-exp(-t*6.));float vy=(2.+4.*aSeed.y);float up=vy*t-7.*t*t;
    vec3 p=C+dir*d+side*(aSeed.w-.5)*.35+vec3(0.,max(up,0.)+.05,0.);
    vA=(age>0.&&age<1.&&up>-.05)?1.:0.;vK=smoothstep(.5,1.,age);vR=atan(dir.x*.3,vy-14.*t);put(p,(.16+.08*aSeed.y));}`,S.MATTER_FS(CE.drop,{relief:5,col:WATER,bias:.06}))
+  +S.pts(VG[TS].part,48,VV+TC+`void main(){vec3 dir=armDir(floor(aSeed.x*4.));vec3 side=vec3(dir.z,0.,dir.x);
+   float s=TI+aSeed.w*.05;float t=max(uT-s,0.);float life=.55+aSeed.y*.35;float age=(uT-s)/life;
+   float d=(.3+4.4*aSeed.z)*(1.-exp(-t*5.));float vy=(2.2+3.5*aSeed.y);float up=vy*t-7.*t*t;
+   vec3 p=C+dir*d+side*(aSeed.w-.5)*.45+vec3(0.,max(up,0.)+.05,0.);
+   vA=(age>0.&&age<1.&&up>-.05)?1.:0.;vK=smoothstep(.55,1.,age);vR=aSeed.y*6.28+t*9.;put(p,(.17+.12*aSeed.y));}`,S.MATTER_FS(CE.shard,{relief:3.2,col:CLAY,bias:.03}))
+  +S.pts(VG[TS].part,40,VV+TC+`void main(){vec3 dir=armDir(floor(aSeed.x*4.));vec3 side=vec3(dir.z,0.,dir.x);
+   float s=TI+aSeed.w*.06;float t=max(uT-s,0.);float life=.5+aSeed.y*.3;float age=(uT-s)/life;
+   float d=(.2+4.5*aSeed.z)*(1.-exp(-t*6.));float up=(1.6+2.4*aSeed.y)*t-6.*t*t;
+   vec3 p=C+dir*d+side*(aSeed.w-.5)*.5+vec3(0.,max(up,0.)+.05,0.);
+   vA=(age>0.&&age<1.&&up>-.05)?1.:0.;vK=smoothstep(.5,1.,age);vR=aSeed.w*6.28;put(p,(.15+.08*aSeed.y));}`,S.MATTER_FS(CE.drop,{relief:4,col:MUD,bias:.05}))
   +S.pts(VG[TS].part,40,VV+TC+`void main(){vec3 dir=armDir(floor(aSeed.x*4.));float s=TI+.2+aSeed.y*.8;float t=max(uT-s,0.);float life=.5+aSeed.z*.4;float age=(uT-s)/life;
-   vec3 p=C+dir*(aSeed.z*2.2)+vec3(dir.z,0.,dir.x)*(aSeed.w-.5)*.8+vec3(0.,.05+t*.45,0.);
+   vec3 p=C+dir*(aSeed.z*4.4)+vec3(dir.z,0.,dir.x)*(aSeed.w-.5)*.8+vec3(0.,.05+t*.45,0.);
    vA=(age>0.&&age<1.)?sin(age*3.14159):0.;vK=.3;vR=aSeed.w*6.28;put(p,.16+.12*aSeed.w);}`,S.ENERGY_FS(CE.spark,{gain:1.2}),{mode:'energy'});
   const crown=new THREE.Mesh(new THREE.CylinderGeometry(1,0.7,1,48,6,true),S.mat(`void main(){float u=vUv.x,h=vUv.y;
    vec4 s=styNoise(vec2(u*3.,.2));float sp=.55+.45*s.r;if(h>sp*(1.-.25*uP))discard;
@@ -173,33 +204,44 @@ build(a){
    vec3 c=styRampOf(${WATER},clamp(.3+.45*l+.25*tip,0.,1.))*styTint(l);c=mix(c,${FOAM},tip*.6+smoothstep(.06,0.,abs(s2.b-.5))*.4);
    gl_FragColor=vec4(c,(.75+.2*tip)*(1.-uP*.5)*uA);}`,{},{mode:'matter',side:THREE.DoubleSide}));
   VG[TS].mesh.add(crown);
-  const rings=groundPlane(6,C.x,0.035,S.mat(`void main(){vec2 p=(vUv-.5)*6.;float m=0.;
+  // Hito 105: anillos y charco en casillas reales del tablero (CELL = 1,93 u.; antes 1 u., la cruz salía a la mitad)
+  const CELL=1.93,PL=CELL*5.4;
+  const rings=groundPlane(PL,C.x,0.035,S.mat(`void main(){vec2 p=(vUv-.5)*${f(PL/CELL)};float m=0.;
    for(int i=0;i<9;i++){float fi=float(i);float j=mod(fi-1.,4.);float dd=fi<.5?0.:(fi<4.5?1.:2.);
     vec2 dir=j<.5?vec2(1.,0.):j<1.5?vec2(-1.,0.):j<2.5?vec2(0.,1.):vec2(0.,-1.);
-    vec2 c=dir*dd;float t=uP-dd*.09;float r=length(p-c);float R=t*(dd<.5?2.6:1.5);
+    vec2 c=dir*dd;float t=uP-dd*.09;float r=length(p-c);float R=t*(dd<.5?1.3:.75);
     float k=step(0.,t)*max(0.,1.-t/.6);m+=(smoothstep(.07+.06*t,0.,abs(r-R))+smoothstep(.04,0.,abs(r-R*.6))*.5)*k;}
-   vec4 s=styNoise(p*.25+.3);m*=.6+.4*s.r;if(m<.02)discard;
+   vec4 s=styNoise(p*.5+.3);m*=.6+.4*s.r;if(m<.02)discard;
    gl_FragColor=vec4(mix(styRamp(.6),${FOAM},.35)*1.15,min(m,1.2)*uA);}`,{},{mode:'energy'}));
-  const puddle=groundPlane(6,C.x,0.03,S.mat(`vec2 h2(vec2 c){return vec2(hash(vec3(c,1.7)),hash(vec3(c.yx,4.3)));}
-  void main(){vec2 p=(vUv-.5)*6.;float wob=(styNoise(p*.3).r-.5)*.25;vec2 q=abs(p);
-   float sd=min(min(max(q.x-2.4*uP,q.y-.48),max(q.x-.48,q.y-2.4*uP)),length(p)-.95*uP)+wob;
-   float inside=smoothstep(.05,-.05,sd);
-   vec2 g=p*3.;vec2 id=floor(g),fp=fract(g);float m1=8.,m2=8.;
+  const puddle=groundPlane(PL,C.x,0.03,S.mat(`vec2 h2(vec2 c){return vec2(hash(vec3(c,1.7)),hash(vec3(c.yx,4.3)));}
+  void main(){vec2 p=(vUv-.5)*${f(PL/CELL)};float wob=(styNoise(p*.6).r-.5)*.04;vec2 q=abs(p);
+   float sd=min(max(q.x-2.5*uP,q.y-.5),max(q.x-.5,q.y-2.5*uP))+wob;
+   float inside=smoothstep(.03,-.03,sd);
+   vec2 cq=abs(p-floor(p+.5));float cell=smoothstep(.43,.49,max(cq.x,cq.y))*inside;
+   vec2 g=p*5.;vec2 id=floor(g),fp=fract(g);float m1=8.,m2=8.;
    for(int y=-1;y<=1;y++)for(int x=-1;x<=1;x++){vec2 o=vec2(float(x),float(y));vec2 r=o+h2(id+o)-fp;float d=dot(r,r);
     if(d<m1){m2=m1;m1=d;}else if(d<m2){m2=d;}}
-   float line=smoothstep(.09,0.,sqrt(m2)-sqrt(m1));float rim=smoothstep(.12,0.,abs(sd));float al=inside*(.45+line*.3)+rim*.5;if(al<.02)discard;
-   vec3 c=mix(styRampOf(${WATERD},.45),${FOAM},line*.5+rim*.5);gl_FragColor=vec4(c,al*uA);}`));
-  const frac=groundPlane(5.6,C.x,0.025,S.mat(CRACK_FS,{uK:{value:0}}));
+   float line=smoothstep(.09,0.,sqrt(m2)-sqrt(m1));float rim=smoothstep(.12,0.,abs(sd));float al=inside*(.45+line*.3)+rim*.5+cell*.45;if(al<.02)discard;
+   float mudC=step(.55,hash(vec3(id+floor(h2(id)*2.),2.1)));vec3 base=mix(styRampOf(${WATERD},.45),styRampOf(${MUD},.35),mudC*.8);
+   vec3 c=mix(base,mudC>.5?${GOLD}:${FOAM},line*.55+rim*.4);c=mix(c,${FOAM}*1.1,cell*.7);gl_FragColor=vec4(c,al*uA);}`));
+  const frac=groundPlane(5.6*1.6,C.x,0.025,S.mat(CRACK_FS.replace(`${TEALG}*1.6`,`${GOLD}*1.7`),{uK:{value:0}}));
   VG[TS].decal.add(rings,puddle,frac);
 
   a.setVariant=v=>{if(v!=="full"&&!VG[v])v="full";a.v=v;
     for(const id of IDS)for(const l of VFX.LK)VG[id][l].visible=v==="full"||v===id;
     a.count=IDS.reduce((s,id)=>s+(v==="full"||v===id?N[id]:0),0);};
 
-  const dir=EB.map(e=>e.clone().sub(C).normalize()), cyan=new THREE.Color(0x1aa3c4), vio=new THREE.Color(0x8a7dff), sp=V3(C.x,0.9,C.z);
+  const dir=EB.map(e=>e.clone().sub(C).normalize()), EA=EB.map(e=>e.clone()), cyan=new THREE.Color(0x1aa3c4), vio=new THREE.Color(0x8a7dff), sp=V3(C.x,0.9,C.z);
   const lf=te=>{const x=te-TI;if(x<0||x>0.25)return 0;return x<0.06?1:x<0.1?0.35:x<0.14?1:Math.exp(-(x-0.14)*18);};
   a.pose=function(te,o){
     const v=a.v,on=id=>v==="full"||v===id, ia=te-TI, h=lev(te);
+    // cruz alineada con las casillas (también en diagonal): piezas de la marea giradas alrededor del centro
+    for(const l of VFX.LK)S.gridAlign(VG[TS][l],C.x,C.z);
+    // rivales arrastrados: los reales que estén en la cruz (VFX.foes) o, si no hay, las casillas vecinas giradas
+    {const g=-(VFX.gridSnap||0),cg=Math.cos(g),sg=Math.sin(g),fo=(VFX.foes||[]).filter(q=>{const dx=q.x-C.x,dz=q.z-C.z,d=Math.hypot(dx,dz);return d>0.45&&d<5.0;});
+      for(let i=0;i<2;i++){const q=fo[i];
+        if(q)EA[i].set(q.x,0,q.z); else{const dx=EB[i].x-C.x,dz=EB[i].z-C.z;EA[i].set(C.x+cg*dx+sg*dz,0,C.z-sg*dx+cg*dz);}
+        dir[i].copy(EA[i]).sub(C).setY(0); if(dir[i].lengthSq()<1e-6)dir[i].set(-1,0,0); dir[i].normalize();}}
     caster.position.set(-3.7,h,0); allies[0].position.set(-3.7,h,-1.0);
     caster.rotation.z=0.05*Math.sin(te*2.1)*ss(0,0.5,te)-0.12*ss(TL-0.3,TL,te)*(1-ss(TI,TI+0.5,te));
     allies[0].rotation.z=0.05*Math.sin(te*2.1+1.3)*ss(0,0.5,te);
@@ -216,7 +258,7 @@ build(a){
     uAr.value=ss(TA0,TA0+0.1,te)*(1-ss(TI-0.05,TI+0.02,te));
     const pull=0.38*ss(TA0,TI-0.05,te)*(1-ss(TI,TI+0.06,te)), kb=ia>=0?0.55*(1-Math.exp(-ia*12))*(1-ss(2.3,3.0,te)):0;
     const fr=Math.floor(te/0.05), flick=0.5+0.5*Math.sin(fr*12.9898);
-    enemies.forEach((e,i)=>{e.position.copy(EB[i]).addScaledVector(dir[i],kb-pull);
+    enemies.forEach((e,i)=>{e.position.copy(EA[i]).addScaledVector(dir[i],kb-pull);
       e.rotation.z=0.07*Math.sin(te*31+i*2)*uAr.value-(ia>=0?0.3*Math.exp(-ia*5)*Math.cos(ia*14)*(i?1:-1):0);
       if(on(SA)){e.userData.m.emissive.copy(i?cyan:vio);e.userData.m.emissiveIntensity=0.45*uAr.value*flick;}});
     uE0.value.copy(enemies[0].position); uE1.value.copy(enemies[1].position);

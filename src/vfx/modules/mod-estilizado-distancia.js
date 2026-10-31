@@ -364,7 +364,7 @@ B.PROYECTIL_MAGICO=function(cfg){cfg=cfg||{};
 // cada uno estalla en una nube con luz, un anillo de pincel y motas. Marcas de pincel en las casillas.
 // =====================================================================
 B.RAFAGA=function(cfg){cfg=cfg||{};
-  const def={zoneTarget:TILE*1.6,key:cfg.key||"sty_basic_rafaga",name:cfg.name||"Ráfaga",dur:0.9,ti:0.43,tier:2,pal:cfg.pal||"Naturaleza",stylized:true,
+  const def={areaCells:1,zoneTarget:TILE*1.6,key:cfg.key||"sty_basic_rafaga",name:cfg.name||"Ráfaga",dur:0.9,ti:0.43,tier:2,pal:cfg.pal||"Naturaleza",stylized:true,
     phases:[["Abanico",0],["Vuelo",0.06],["Caída",0.4],["Disipación",0.6]],
   build(a){
     const L=a.L,TI=0.43,P0=V3(-3.3,1.6,0);
@@ -377,20 +377,23 @@ B.RAFAGA=function(cfg){cfg=cfg||{};
     ORBS.forEach((q)=>{
       q.L=V3(TX+q.c[0]*TILE,0.2,q.c[1]*TILE);q.m=new THREE.Mesh(new THREE.SphereGeometry(1,20,14),orbMat);L.mesh.add(q.m);
       q.ring=S.groundRing(L.decal,1.9);q.sh=S.contactShadow(L.decal,0.8);
-      const K=`const float T0=${f(q.t0)};const float T1=${f(q.t1)};const vec3 A=${v3(P0)};const vec3 BB=${v3(q.L)};
+      // Hito 104: la casilla de destino es un uniforme, para girarla con la cuadrícula en los lanzamientos en diagonal
+      q.uBB={value:q.L.clone()};q.L0=q.L.clone();
+      const K=`const float T0=${f(q.t0)};const float T1=${f(q.t1)};const vec3 A=${v3(P0)};uniform vec3 uBB;
+      #define BB uBB
       vec3 path(float t){float k=clamp((t-T0)/(T1-T0),0.,1.);return mix(A,BB,k)+vec3(0.,${f(4*q.h)}*k*(1.-k),${f(q.sz)}*sin(3.14159*k));}`;
       // estela de motas
       S.pts(L.part,12,VV+K+`void main(){float s=T0+aSeed.x*(T1-T0);float life=.16+aSeed.y*.16;float age=(uT-s)/life;float t=max(uT-s,0.);
        vec3 r=rnd();vec3 p=path(s)+r*.05+r*.2*t+vec3(0.,.15*t,0.);vR=aSeed.w*6.28;vK=age;
-       vA=(age>0.&&age<1.)?1.:0.;put(p,(.12+.06*aSeed.w)*(1.-age*.5));}`,PUFF_M);
+       vA=(age>0.&&age<1.)?1.:0.;put(p,(.12+.06*aSeed.w)*(1.-age*.5));}`,PUFF_M,{uniforms:{uBB:q.uBB}});
       // nube del impacto
       S.pts(L.part,8,VV+K+`void main(){float s=T1+aSeed.x*.03;float life=.38+aSeed.y*.18;float age=(uT-s)/life;float t=max(uT-s,0.);
        float an=aSeed.z*6.2832;vec3 p=BB+vec3(cos(an),0.,sin(an))*(.15+.4*(1.-exp(-t*6.)))+vec3(0.,.15+.5*t+aSeed.w*.2,0.);
-       vR=aSeed.w*6.28;vK=smoothstep(.2,1.,age);vA=(age>0.&&age<1.)?1.:0.;put(p,(.3+.16*aSeed.y)*(.6+.6*age));}`,PUFF_M);
+       vR=aSeed.w*6.28;vK=smoothstep(.2,1.,age);vA=(age>0.&&age<1.)?1.:0.;put(p,(.3+.16*aSeed.y)*(.6+.6*age));}`,PUFF_M,{uniforms:{uBB:q.uBB}});
       // chispas del impacto
       S.pts(L.part,8,VV+K+`void main(){float s=T1+aSeed.x*.03;float life=.22+aSeed.y*.12;float age=(uT-s)/life;float t=max(uT-s,0.);
        vec3 d=normalize(rnd()+vec3(0.,.9,0.));vec3 p=BB+d*(.3+.8*aSeed.z)*(1.-exp(-t*6.));vR=aSeed.y*6.28;vK=age;
-       vA=(age>0.&&age<1.)?1.:0.;put(p,.12+.06*aSeed.w);}`,SPARK_E,{mode:'energy'});
+       vA=(age>0.&&age<1.)?1.:0.;put(p,.12+.06*aSeed.w);}`,SPARK_E,{mode:'energy',uniforms:{uBB:q.uBB}});
       q.path=(te,out)=>{const k=cl((te-q.t0)/(q.t1-q.t0));return out.set(P0.x+(q.L.x-P0.x)*k,P0.y+(q.L.y-P0.y)*k+q.h*4*k*(1-k),q.L.z*k+q.sz*Math.sin(Math.PI*k));};
     });
     a.pose=function(te,o){
@@ -398,6 +401,9 @@ B.RAFAGA=function(cfg){cfg=cfg||{};
       caster.rotation.z=0.12*g0-0.25*ss(0.06,0.12,te)+0.13*ss(0.2,0.5,te);
       bb(hand,P0,0.3,te*5);hand.scale.setScalar(0.6+0.5*g0);hand.material.uniforms.uA.value=g0*(1-ss(0.18,0.26,te));hand.material.uniforms.uP.value=-0.1;
       set(tiles,cl(te/0.4),ss(0,0.08,te)*(1-ss(0.7,0.9,te)));
+      S.gridAlign(tiles,TX,0);
+      const ga=-(VFX.gridSnap||0),gc=Math.cos(ga),gs=Math.sin(ga);
+      for(const q of ORBS){const dx=q.L0.x-TX,dz=q.L0.z;q.L.set(TX+gc*dx+gs*dz,q.L0.y,-gs*dx+gc*dz);q.uBB.value.copy(q.L);}
       for(const q of ORBS){const fl=te>=q.t0-0.04&&te<q.t1;q.m.visible=fl;q.path(Math.max(te,q.t0),q.m.position);
         q.m.scale.setScalar(Math.max(0.15*ss(q.t0-0.04,q.t0+0.02,te),0.001));
         q.sh.pose(q.m.position.x,q.m.position.z,0.45,fl?0.5*ss(q.t1-0.2,q.t1,te):0);
@@ -425,7 +431,7 @@ B.NOVA_CRUZ=function(cfg){cfg=cfg||{};
   const VAR=cfg.demo?{cristal:{style:"cristal"},esporas:{style:"esporas"},llamas:{style:"llamas"},estrellas:{style:"estrellas"},
     lento:{style:"cristal",slow:1},debil:{style:"esporas",weak:1},fragil:{style:"estrellas",fragile:1},quema:{style:"llamas",burn:1}}:null;
   const style0=SP[cfg.style]?cfg.style:(PS[cfg.pal]||"cristal");
-  const def={zoneTarget:TILE*1.6,key:cfg.key||"sty_basic_nova_cruz",name:cfg.name||"Nova en cruz",dur:1.0,ti:0.3,tier:2,enemies:2,stylized:true,
+  const def={gridArea:'root',zoneTarget:TILE*1.6,key:cfg.key||"sty_basic_nova_cruz",name:cfg.name||"Nova en cruz",dur:1.0,ti:0.3,tier:2,enemies:2,stylized:true,
     pal:VAR?()=>SP[(VAR[def.v]||VAR.cristal).style]:(cfg.pal||SP[style0]),
     phases:[["Carga",0],["Estallido",0.3],["Cruz",0.38],["Disipación",0.6]],
   build(a){
@@ -549,7 +555,7 @@ const CRACK_FS=`void main(){vec2 p=(vUv-.5)*${f(TILE*3.6)};float r=length(p);flo
  gl_FragColor=vec4(mix(dark,hot,clamp(rays*uA,0.,1.)),min(m,1.)*(.55+.45*uA));}`;
 B.CATACLISMO=function(cfg){cfg=cfg||{};
   const VAR=cfg.demo?{normal:{burn:false},quema:{burn:true}}:null;
-  const def={zoneTarget:TILE*1.6,key:cfg.key||"sty_basic_cataclismo",name:cfg.name||"Cataclismo",dur:1.6,ti:0.75,tier:3,enemies:2,pal:cfg.pal||"Fuego",stylized:true,
+  const def={gridArea:'root',areaCells:1,zoneTarget:TILE*1.6,key:cfg.key||"sty_basic_cataclismo",name:cfg.name||"Cataclismo",dur:1.6,ti:0.75,tier:3,enemies:2,pal:cfg.pal||"Fuego",stylized:true,
     phases:[["Velo",0],["Concentración",0.3],["Columna",0.62],["Impacto",0.75],["Ondas",0.9],["Disipación",1.25]],
   build(a){
     const L=a.L,TB=0.62,TI=0.75,CX=TX,SKY=5.6;

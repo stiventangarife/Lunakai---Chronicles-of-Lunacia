@@ -228,35 +228,39 @@ build(a){
 defs.push({key:"sty_ijNeo",name:"Neo (estilizado)",dur:1.3,ti:0.38,pal:P_NEO,tier:1,stylized:true,zoneCaster:0.5,zoneTarget:1.1,
   phases:[["Circuitos",0],["Láser",0.2],["Impacto",0.38],["Anulación",0.6]],
 build(a){
-  const L=a.L,TL=0.2,TI=0.38,TN=0.6,TE=1.3, HP=V3(TX-0.3,1.25,0.04), ST=V3(TX,2.45,0);
+  const L=a.L,TL=0.2,TI=0.38,TN=0.6,TE=1.3, HP=V3(TX-0.3,1.25,0.04), ST=V3(TX,2.75,0);
   const eyes=mkEyes(L,GLINT(L3("#c0f040")));
-  const star=new THREE.Mesh(new THREE.PlaneGeometry(1.2,1.2),S.mat(`uniform float uS;uniform float uK;uniform float uQ;
+  const star=new THREE.Mesh(new THREE.PlaneGeometry(2.0,2.0),S.mat(`uniform float uS;uniform float uK;uniform float uQ;
   void main(){vec2 p=(vUv-.5)*2.;float jag=.05*sin(p.x*22.)+.03*sin(p.x*41.);float sd=p.y-.35*p.x-jag;float side=sign(sd);
-   vec2 n=normalize(vec2(-.35,1.));vec2 q=p-side*n*uS*.6-vec2(side*uS*.15,-uS*uS*.9);
+   vec2 n=normalize(vec2(-.35,1.));vec2 q=p-side*n*uS*.75-vec2(side*uS*.35,-uS*uS*.9);
    vec2 aq=abs(q);float d=min(min(aq.x*3.2+aq.y,aq.x+aq.y*3.2)-.82,aq.x+aq.y-.4);
-   float m=smoothstep(.04,-.02,d);vec2 ap=abs(p);float dp=min(min(ap.x*3.2+ap.y,ap.x+ap.y*3.2)-.82,ap.x+ap.y-.4);
-   float seam=smoothstep(.07,0.,abs(sd))*step(dp,0.)*uK*(1.-step(.02,uS));
+   float m=smoothstep(.04,-.02,d);if(uS>.02)m*=step(0.,side*(q.y-.35*q.x-.05*sin(q.x*22.)-.03*sin(q.x*41.)));vec2 ap=abs(p);float dp=min(min(ap.x*3.2+ap.y,ap.x+ap.y*3.2)-.82,ap.x+ap.y-.4);
+   float br=.04*sin(p.x*9.+1.)*step(.5,uK);float seam=(smoothstep(.12,0.,abs(sd))+.7*smoothstep(.05,0.,abs(p.y-.9*p.x-.1+br))*step(abs(p.x),.35*uK))*step(dp,0.)*uK*(1.-step(.02,uS));
    if(m<.02&&seam<.02)discard;if(styErode(styNoise(p*.7+.3).r,uQ,.1)<.5)discard;
    float rim=smoothstep(-.17,-.04,d);vec3 c=mix(styRampOf(${GOLD},.8-.3*length(q)),${OUTL},rim);
-   c=mix(c,${CRIM}*2.2,seam);gl_FragColor=vec4(c,max(m,seam)*uA);}`,{uS:{value:0},uK:{value:0},uQ:{value:-1}},{mode:'matter',side:THREE.DoubleSide,depthTest:false}));
+   c=mix(c,${CRIM}*2.6,min(seam*1.6,1.));c=mix(c,${OUTL},smoothstep(.6,1.,seam));gl_FragColor=vec4(c,max(m,seam)*uA);}`,{uS:{value:0},uK:{value:0},uQ:{value:-1}},{mode:'matter',side:THREE.DoubleSide,depthTest:false}));
   star.renderOrder=3; L.mesh.add(star);
   const spark=S.hitSpark(L.mesh,0.9,{seed:0.48}), ring=S.groundRing(L.decal,2.0);
   const K=`const float TL=${f(TL)};const float TI=${f(TI)};const float TN=${f(TN)};const vec3 HP=${v3(HP)};const vec3 ST=${v3(ST)};
   vec3 manh(vec3 A,vec3 B,float u){return u<.55?vec3(A.x,mix(A.y,B.y,u/.55),A.z):vec3(mix(A.x,B.x,(u-.55)/.45),B.y,mix(A.z,B.z,(u-.55)/.45));}`;
-  // circuitos del caparazón: 6 trazos de puntos en escuadra de los pies a los ojos
-  S.pts(L.part,72,VV+K+`void main(){float i=floor(aSeed.x*6.);float j=fract(aSeed.x*6.);float an=i*1.047+.4;
+  // circuitos del caparazón (Hito 104: más densos y legibles): 6 trazos en escuadra de los pies a los ojos, cada uno con
+  // pistas cuadradas nítidas lima con borde verde oscuro (se leen sobre la hierba) y un halo de energía encima
+  const CIRC=VV+K+`void main(){float i=floor(aSeed.x*6.);float j=fract(aSeed.x*6.);float an=i*1.047+.4;
    vec3 A=vec3(-3.7+cos(an)*.48,.2+.15*fract(i*.37),sin(an)*.42),B=vec3(${f(CX+0.3)},1.62,(i-2.5)*.03);
-   float head=(uT-i*.015)/TL;float u=head-j*.35;vec3 p=manh(A,B,clamp(u,0.,1.));
-   vA=(u>0.&&u<1.)?(1.-j):0.;vA*=1.-smoothstep(TI,TI+.15,uT);vK=0.;vR=0.;put(p,.13*(1.-.5*j)+.03);}`,DOT_E(1.1),{mode:'energy'});
+   float head=(uT-i*.015)/TL;float u=head-j*.6;vec3 p=manh(A,B,clamp(u,0.,1.));
+   vA=(u>0.&&u<1.)?(1.-.6*j):0.;vA*=1.-smoothstep(TI+.05,TI+.25,uT);vK=0.;vR=0.;put(p,SZ*(1.-.35*j)+.03);}`;
+  S.pts(L.part,180,'const float SZ=.12;'+CIRC,S.PV+`void main(){vec2 q=abs(styPC()-.5);float d=max(q.x,q.y);if(d>.46||vA<.05)discard;
+   vec3 c=d>.3?${L3("#14380a")}:${LIME}*1.5;gl_FragColor=vec4(c,vA);}`,{mode:'matter'});
+  S.pts(L.part,90,'const float SZ=.26;'+CIRC,DOT_E(0.9),{mode:'energy'});
   // dos rayos finos de puntos densos de los ojos al pecho del rival
-  S.pts(L.part,96,VV+K+`void main(){float i=floor(aSeed.x*2.);float j=fract(aSeed.x*2.);vec3 A=vec3(${f(CX+0.4)},1.64,(i-.5)*.2),B=HP+vec3(0.,0.,(i-.5)*.08);
+  S.pts(L.part,56,VV+K+`void main(){float i=floor(aSeed.x*2.);float j=fract(aSeed.x*2.);vec3 A=vec3(${f(CX+0.4)},1.64,(i-.5)*.2),B=HP+vec3(0.,0.,(i-.5)*.08);
    float head=clamp((uT-TL)/(TI-TL),0.,1.);vec3 p=mix(A,B,j);float on=step(j,head)*step(TL,uT)*(1.-smoothstep(TI+.02,TI+.16,uT));
-   vA=on;vK=0.;vR=0.;put(p,.16+.08*smoothstep(head-.08,head,j));}`,DOT_E(1.2),{mode:'energy'});
+   vA=on;vK=0.;vR=0.;put(p,.15+.28*smoothstep(head-.08,head,j));}`,DOT_E(1.8),{mode:'energy'});
   // el circuito se extiende por el rival (de la herida hacia abajo)
-  S.pts(L.part,60,VV+K+`void main(){float i=floor(aSeed.x*5.);float j=fract(aSeed.x*5.);float an=i*1.26+2.;
+  S.pts(L.part,130,VV+K+`void main(){float i=floor(aSeed.x*5.);float j=fract(aSeed.x*5.);float an=i*1.26+2.;
    vec3 A=HP,B=vec3(${f(TX)}+cos(an)*.5,.15+.2*fract(i*.53),sin(an)*.45);
    float head=(uT-TI)/.22;float u=head-j*.4;vec3 p=mix(A,vec3(A.x,B.y,A.z),clamp(u/.5,0.,1.));if(u>.5)p=mix(vec3(A.x,B.y,A.z),B,clamp((u-.5)/.5,0.,1.));
-   vA=(u>0.&&u<1.)?(1.-j):0.;vA*=1.-smoothstep(TN,TN+.25,uT);vK=0.;vR=0.;put(p,.12*(1.-.5*j)+.03);}`,DOT_E(1.0),{mode:'energy'});
+   vA=(u>0.&&u<1.)?(1.-j):0.;vA*=1.-smoothstep(TN,TN+.25,uT);vK=0.;vR=0.;put(p,.16*(1.-.5*j)+.04);}`,DOT_E(1.4),{mode:'energy'});
   // píxeles de la estrella al deshacerse
   S.pts(L.part,30,VV+K+`void main(){float s=TN+.12+aSeed.x*.25;float life=.5+aSeed.y*.2;float age=(uT-s)/life;float t=max(uT-s,0.);
    vec3 p=ST+vec3((aSeed.z-.5)*.8,(aSeed.w-.5)*.6,0.)+vec3((aSeed.z-.5)*.8*t,-1.6*t*t+.3*t,0.);
@@ -266,7 +270,7 @@ build(a){
     eyes.pose(ss(0,0.05,te)*(1-ss(0.5,0.7,te)),0.35,0.5+0.5*ss(0.12,TL,te),1+0.15*hitE(te-TL,9),0);
     spark.pose(ia,HP,0.8); ring.pose(ia,TX,0,0.4,0.8);
     const sa=ss(TI,TI+0.08,te)*(1-ss(1.0,1.15,te)); star.visible=sa>0.01; towardCam(star.position,ST,0.4); billboard(star,0.05*Math.sin(te*9));
-    star.scale.setScalar(Math.max(0.7+0.3*back(ss(TI,TI+0.12,te)),0.001)); star.material.uniforms.uA.value=sa;
+    star.scale.setScalar(Math.max(0.75+0.25*back(ss(TI,TI+0.12,te)),0.001)); star.material.uniforms.uA.value=sa;
     star.material.uniforms.uK.value=ss(TI+0.1,TN,te); star.material.uniforms.uS.value=ss(TN,TN+0.35,te);
     star.material.uniforms.uQ.value=-0.1+1.15*ss(TN+0.15,1.1,te);
     const h=hitE(ia,10); target.position.x=TX+0.1*h*(1-Math.exp(-Math.max(ia,0)*30)); target.rotation.z=-0.08*h;

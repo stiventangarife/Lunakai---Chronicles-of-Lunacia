@@ -458,18 +458,40 @@ build(a){
 // =====================================================================
 const FISH_FS=`uniform float uGl;uniform float uEr;
 void main(){vec3 n=normalize(vN);float l=styLight(n,stySunV());vec3 q=vP;
- vec2 g=vec2(q.x*7.,q.y*7.+.5*floor(q.x*7.));float sc=smoothstep(.35,.5,length(fract(g)-vec2(.5,.2)));
- vec4 ns=styNoise(q.xy*.8+.3);if(uEr>0.&&ns.r*.6+.4*ns.a<uEr)discard;
- vec3 col=mix(${L3('#ffb236')},${L3('#e3581a')},smoothstep(-.1,.3,-q.y)+ns.g*.2);
- vec3 c=styRampOf(col,.3+.55*l-.12*sc)*styTint(l);float fr=1.-abs(dot(n,normalize(vV)));
- c+=${GOLD}*(.3*smoothstep(.6,.75,fr)*step(.5,l)+uGl);gl_FragColor=vec4(c,1.);}`;
-const WEN_FS=`void main(){vec3 n=normalize(vN);float l=styLight(n,stySunV());vec4 ns=styNoise(vP.xz*2.+vP.y);float b=smoothstep(.55,.7,ns.g);
- vec3 c=styRampOf(mix(${L3('#e0301c')},${L3('#ff7a3a')},b),.3+.55*l)*styTint(l);gl_FragColor=vec4(c,1.);}`;
+ vec2 g=vec2(q.x*9.,q.y*9.+.5*floor(q.x*9.));float sc=smoothstep(.3,.5,length(fract(g)-vec2(.5,.2)));
+ vec4 ns=styNoise(q.xy*.9+q.z*.3+.3);if(uEr>0.&&ns.r*.6+.4*ns.a<uEr)discard;
+ float back=smoothstep(-.05,.35,q.y+(ns.g-.5)*.25), belly=smoothstep(.0,-.4,q.y);
+ vec3 col=mix(${L3('#ffa21c')},${L3('#e2280e')},back);col=mix(col,${L3('#ffc860')},belly*.6);
+ float pat=smoothstep(.62,.7,ns.b)*(1.-belly);col=mix(col,${L3('#ff5a14')},pat*.4);
+ vec3 c=styRampOf(col,.2+.58*l-.06*sc)*styTint(l);float fr=1.-abs(dot(n,normalize(vV)));
+ c+=${GOLD}*(.45*smoothstep(.55,.75,fr)+uGl)+vec3(1.,.9,.6)*.25*step(.93,l)*(1.-sc);gl_FragColor=vec4(c,1.);}`;
+const WEN_FS=`void main(){vec3 n=normalize(vN);float l=styLight(n,stySunV());vec4 ns=styNoise(vP.xy*5.+vP.z*3.);
+ float b=smoothstep(.45,.75,ns.g);float fr=1.-abs(dot(n,normalize(vV)));
+ vec3 c=styRampOf(mix(${L3('#c8180e')},${L3('#ff6a2a')},b),.22+.62*l)*styTint(l)+${L3('#ff9a40')}*.3*smoothstep(.6,.8,fr);gl_FragColor=vec4(c,1.);}`;
 const FIN_FS=`uniform float uEr;void main(){vec2 p=vUv;float rays=smoothstep(.35,.5,abs(fract(p.y*9.)-.5)*2.);
  vec4 ns=styNoise(p*vec2(.6,1.2)+uT*.1);float w=.12+.36*pow(p.x,.7);float dy=abs(p.y-.5);
  float edge=smoothstep(w,w-.06,dy);float tip=.78+.18*sin(p.y*18.+uT*6.)*.5+ns.r*.15;
  float m=edge*smoothstep(tip,tip-.12,p.x);if(m<.02)discard;float er=styErode(ns.b*.6+.4*(1.-p.x),uEr,.1);if(er<.01)discard;
- vec3 col=mix(${L3('#ffcf6e')},${L3('#ff5a24')},p.x*.8+rays*.2);gl_FragColor=vec4(styRampOf(col,.55+.3*rays)*1.05,m*er*uA*.85);}`;
+ vec3 col=mix(${L3('#ffc24a')},${L3('#f0401a')},p.x*.8+rays*.2);gl_FragColor=vec4(styRampOf(col,.55+.3*rays)*1.05,m*er*uA*(.5+.3*rays));}`;
+// cola de velo: plano subdividido que se ensancha y se dobla en ola con el nado (vértices), translúcido con radios
+const VEIL_VS=`uniform float uWag;uniform float uBend;varying vec2 vUv;varying vec3 vN;varying vec3 vV;varying vec3 vP;
+void main(){vUv=uv;vec3 p=position;float k=clamp(uv.x,0.,1.);p.y*=1.+.7*k;
+ p.z+=uBend*k*k+.26*sin(uWag-k*4.2)*k;p.y+=.07*sin(uWag*.8-k*5.+uv.y*3.)*k;
+ vP=position;vec4 mv=modelViewMatrix*vec4(p,1.);vN=normalize(normalMatrix*vec3(0.,0.,1.));vV=normalize(-mv.xyz);gl_Position=projectionMatrix*mv;}`;
+const VEIL_FS=`uniform float uEr;void main(){vec2 p=vUv;float dy=abs(p.y-.5)*2.;vec4 ns=styNoise(p*vec2(.5,1.1)+uT*.05);
+ float w=.42+.58*pow(p.x,.55);float tip=.83+.1*sin(p.y*15.+uT*4.)+.07*ns.r;
+ float m=smoothstep(w,w-.1,dy)*smoothstep(tip,tip-.14,p.x);if(m<.02)discard;
+ float er=styErode(ns.b*.55+.45*(1.-p.x),uEr,.1);if(er<.01)discard;
+ float ry=abs(fract(p.y*10.+(p.y-.5)*p.x*4.)-.5)*2.;float rays=smoothstep(.55,.85,ry);
+ float rim=smoothstep(tip-.12,tip-.02,p.x);
+ vec3 col=mix(${L3('#ffb83a')},${L3('#ee3412')},smoothstep(.1,.9,p.x)*.85+.15*ns.g);
+ vec3 c=styRampOf(col,.5+.3*rays+.15*rim)*1.08+${GOLD}*.25*rim;
+ gl_FragColor=vec4(c,m*er*uA*(.38+.32*rays+.25*rim+.25*(1.-p.x)));}`;
+// corona de agua del picado (cilindro abierto que sube y se erosiona)
+const CROWN_FS=`uniform float uK;void main(){float v=vUv.y;vec4 ns=styNoise(vec2(vUv.x*3.,v*.6-uK*.4));
+ float top=.5+.5*ns.r;float m=smoothstep(top,top-.15,v);float er=styErode(ns.g*.6+.4*v,uK*1.1-.12,.12);
+ if(m*er<.02)discard;vec3 c=styRampOf(${WATER},.32+.55*v+.18*ns.b)+${GOLD}*.3*smoothstep(.45,1.,v)*(1.-uK);
+ gl_FragColor=vec4(c,m*er*uA*.85);}`;
 const ORB_FS=`uniform float uCr;void main(){vec3 n=normalize(vN);float fr=1.-abs(dot(n,normalize(vV)));vec4 ns=styNoise(vP.xy*2.+.4);
  float crack=smoothstep(.06,0.,abs(ns.b-.5))*uCr;vec3 c=styRampOf(${L3('#7fd8ff')},.5+.4*fr)+${GOLD}*.4*fr+vec3(1.,.95,.8)*crack*1.5;
  gl_FragColor=vec4(c,(.55+.4*fr)*uA);}`;
@@ -480,15 +502,22 @@ build(a){
   const V0=V3(-2.7,1.3,0.4), DC=V3(3.4,2.9,0), BP=V3(3.25,1.25,0), DA=V3(2.5,2.9,0.6), dir=V3(1,0,0), pD=V3(0,0,0);
   const fish=new THREE.Group(); L.mesh.add(fish);
   const fm=S.mat(FISH_FS,{uGl:{value:0},uEr:{value:0}},{mode:'solid'});
-  const body=new THREE.Mesh(new THREE.SphereGeometry(0.5,26,18),fm); body.scale.set(1.6,1.05,0.8); fish.add(body);
-  const wen=new THREE.Mesh(new THREE.IcosahedronGeometry(0.26,2),S.mat(WEN_FS,{},{mode:'solid'})); wen.position.set(0.6,0.3,0); wen.scale.set(1.35,1,1.15); fish.add(wen);
+  const body=new THREE.Mesh(new THREE.SphereGeometry(0.5,28,20),fm); body.scale.set(1.28,1.12,0.92); fish.add(body);
+  // gorro (wen): racimo de bultos rojos sobre la cabeza
+  const wenM=S.mat(WEN_FS,{},{mode:'solid'}), wenG=new THREE.IcosahedronGeometry(0.13,2);
+  [[0.42,0.38,0,1.25],[0.55,0.28,0.17,1],[0.55,0.28,-0.17,1],[0.28,0.47,0.13,0.95],[0.28,0.47,-0.13,0.95],[0.62,0.12,0.22,0.8],[0.62,0.12,-0.22,0.8],[0.15,0.52,0,0.85],[0.67,0.3,0,0.9]]
+    .forEach(([x,y,z,k])=>{const w=new THREE.Mesh(wenG,wenM);w.position.set(x,y,z);w.scale.setScalar(k);fish.add(w);});
   const finM=S.mat(FIN_FS,{uEr:{value:0}},{mode:'matter',side:THREE.DoubleSide});
-  const finG=new THREE.PlaneGeometry(1.25,1.05).translate(0.62,0,0);
-  const tailA=new THREE.Mesh(finG,finM), tailB=new THREE.Mesh(finG,finM);
-  const tailP=new THREE.Group(); tailP.position.set(-0.72,0,0); tailP.add(tailA,tailB); fish.add(tailP);
-  const dorsal=new THREE.Mesh(new THREE.PlaneGeometry(0.75,0.5).translate(0.37,0,0),finM); dorsal.position.set(0.25,0.5,0); fish.add(dorsal);
-  const pecA=new THREE.Mesh(new THREE.PlaneGeometry(0.35,0.22).translate(0.17,0,0),finM); pecA.position.set(0.2,-0.2,0.2); fish.add(pecA);
-  const pecB=new THREE.Mesh(pecA.geometry,finM); pecB.position.set(0.2,-0.2,-0.2); fish.add(pecB);
+  const veilM=S.mat(VEIL_FS,{uEr:{value:0},uWag:{value:0},uBend:{value:0}},{mode:'matter',side:THREE.DoubleSide,vertexShader:VEIL_VS});
+  const veilG=new THREE.PlaneGeometry(1.75,1.0,16,8).translate(0.875,0,0);
+  const tailP=new THREE.Group(); tailP.position.set(-0.5,0,0); fish.add(tailP);
+  const tails=[0.55,-0.55,0].map((rx,i)=>{const m=new THREE.Mesh(veilG,veilM);m.rotation.x=rx;if(i==2)m.scale.set(0.85,0.8,1);m.renderOrder=2;tailP.add(m);return m;});
+  const dorsal=new THREE.Mesh(new THREE.PlaneGeometry(0.85,0.55).translate(0.42,0,0),finM); dorsal.position.set(0.15,0.5,0); fish.add(dorsal);
+  const pecA=new THREE.Mesh(new THREE.PlaneGeometry(0.42,0.26).translate(0.2,0,0),finM); pecA.position.set(0.18,-0.25,0.24); fish.add(pecA);
+  const pecB=new THREE.Mesh(pecA.geometry,finM); pecB.position.set(0.18,-0.25,-0.24); fish.add(pecB);
+  const analA=new THREE.Mesh(pecA.geometry,finM); analA.position.set(-0.35,-0.42,0.08); fish.add(analA);
+  const crownM=S.mat(CROWN_FS,{uK:{value:0}},{mode:'matter',side:THREE.DoubleSide});
+  const crown=new THREE.Mesh(new THREE.CylinderGeometry(1,0.7,1,40,1,true).translate(0,0.5,0),crownM); crown.position.set(BP.x,0.02,BP.z); L.mesh.add(crown);
   const orbM=S.mat(ORB_FS,{uCr:{value:0}},{mode:'energy'});
   const orbs=[0,1].map(()=>{const m=new THREE.Mesh(new THREE.SphereGeometry(0.17,16,12),orbM);L.mesh.add(m);return m;});
   const vortex=groundPlane(2.2,V0.x,0.03,S.mat(`void main(){vec2 p=vUv-.5;float r=length(p)*2.;float an=atan(p.y,p.x);
@@ -532,7 +561,11 @@ build(a){
     else{const k=(te-TP)/(TI-TP);const an=Math.PI+Math.PI*2*1.25;pD.set(DC.x+Math.cos(an)*0.7,DC.y+0.4*ss(0,0.35,k),Math.sin(an)*0.56);
       fish.position.lerpVectors(pD,BP,k*k);fish.scale.setScalar(1);dir.copy(BP).sub(pD);}
     if(dir.lengthSq()>1e-6){dir.normalize();fish.quaternion.setFromUnitVectors(XA,dir);}
-    const sw=Math.sin(te*14);tailP.rotation.set(0,Math.PI+0.35*sw,0);tailA.rotation.set(0.5,0,0.15*sw);tailB.rotation.set(-0.5,0,-0.15*sw);
+    const sw=Math.sin(te*9);tailP.rotation.set(0,Math.PI+0.22*sw,0);fish.scale.multiplyScalar(1.15);
+    veilM.uniforms.uWag.value=te*9-0.9;veilM.uniforms.uBend.value=-0.35*Math.sin(te*9-1.2);veilM.uniforms.uA.value=1;
+    analA.rotation.set(0,Math.PI*0.85,-0.5+0.15*sw);
+    crown.visible=ia>=0&&ia<0.85;{const k=out3(ia/0.4);crown.scale.set(0.5+1.1*k,Math.max(2.2*k*(1-0.35*ss(0.4,0.85,ia)),0.001),0.5+1.1*k);
+      crownM.uniforms.uK.value=ss(0.15,0.85,ia);crownM.uniforms.uA.value=1;}
     pecA.rotation.set(0.6,0.5+0.3*sw,0);pecB.rotation.set(-0.6,0.5-0.3*sw,0);dorsal.rotation.set(0,0,0.1*Math.sin(te*9));
     finM.uniforms.uA.value=1;
     // estela de burbujas (historial aproximado de la trayectoria)

@@ -111,6 +111,51 @@ export function installCombatDebug(game) {
       game._updateHUD?.(u);
       return true;
     },
+    /**
+     * Hito 106: respawn de mobs.
+     *  lkDebug.respawn()                estado: cola de reapariciones, mobs vivos y su estado
+     *  lkDebug.respawn({ fast: true })  retardos ×25 (normales ~3 s, jefes y misiones ~12 s) · { fast: false } los restaura
+     *  lkDebug.respawn({ kill: true })  retira como si hubieras ganado el mob libre más cercano y programa su respawn
+     */
+    respawn(opts = {}) {
+      const om = window.overworldManager;
+      const mon = om?.monsters;
+      const dir = mon?.respawn;
+      if (!dir) { console.warn('[lkDebug] El respawn no está disponible (hace falta el mundo abierto).'); return null; }
+      const slimes = om.demoScenaZone?.slimeCreaturesManager;
+      if (opts.fast !== undefined) {
+        dir.speed = opts.fast ? 25 : 1;
+        console.log(`[lkDebug] Retardos de respawn ×${dir.speed}.`);
+      }
+      const p = om.player?.position;
+      const distTo = (g) => (p && g ? Math.hypot(g.position.x - p.x, g.position.z - p.z) : null);
+      if (opts.kill) {
+        const cands = [
+          ...mon.monsters.filter((m) => m.respawnSpec).map((m) => ({ id: m.id, d: distTo(m.group), slime: false })),
+          ...(slimes?.slimes || []).map((s) => ({ id: s.id, d: distTo(s.group), slime: true }))
+        ].filter((c) => c.d !== null).sort((a, b) => a.d - b.d);
+        const c = cands[0];
+        if (!c) console.warn('[lkDebug] No hay ningún mob que retirar en esta isla.');
+        else {
+          if (c.slime) slimes.despawnSlime(c.id); else mon.despawnMonster(c.id);
+          console.log(`[lkDebug] Retirado ${c.id} (a ${c.d.toFixed(0)} m). Programado su respawn.`);
+        }
+      }
+      const st = dir.status();
+      console.log(`[lkDebug] Respawn · isla ${st.isla} · reloj ${st.reloj} s · velocidad ×${st.velocidad}`);
+      if (st.cola.length) console.table(st.cola); else console.log('[lkDebug] Cola vacía (todo en pie).');
+      const rows = [
+        ...mon.monsters.map((m) => ({ id: m.id, nombre: m.name, respawn: m.respawnSpec?.kind || '—', estado: m.state, x: Math.round(m.group.position.x), z: Math.round(m.group.position.z), dist: distTo(m.group) === null ? '—' : Math.round(distTo(m.group)) })),
+        ...(slimes?.slimes || []).map((s) => ({ id: s.id, nombre: s.name, respawn: 'slime', estado: s.state, x: Math.round(s.group.position.x), z: Math.round(s.group.position.z), dist: distTo(s.group) === null ? '—' : Math.round(distTo(s.group)) }))
+      ];
+      console.table(rows);
+      return st;
+    },
+    /** Hito 106: genera los puntos de aparición de mobs de la isla actual (ver rpg/world/SpawnPoolTool.js). */
+    async spawnPool(opts) {
+      const m = await import('../../rpg/world/SpawnPoolTool.js');
+      return m.runSpawnPoolTool(window.overworldManager, opts);
+    },
     help() {
       console.log([
         'lkDebug — consola de pruebas del combate',
@@ -140,11 +185,14 @@ export function installCombatDebug(game) {
         '  timer(false|true)             apaga / enciende el reloj del turno · timer({ base: 30, max: 45 }) cambia sus valores',
         '  rune("kotaro", "beast-brutal-claw") / charm("kotaro", "horn", "neutral-deadly-spell")   equipa (se aplica en el próximo combate)',
         '  ultReset()                    permite volver a usar la Ultimate en este combate (pruebas)',
+        '  respawn()                     Hito 106: cola de reapariciones y mobs vivos · respawn({fast:true}) retardos ×25 · respawn({kill:true}) retira el mob más cercano',
+        '  spawnPool()                   puntos de aparición de mobs de la isla actual · spawnPool({clear:true}) quita los pilares',
         '  shadows()                     sombras del mundo abierto: estado · shadows({legacy:true}) comparar con lo anterior',
         '                                shadows({everyFrame, freeze, bias, normalBiasTexels, normalBias, depthStep, reset})',
         '  a11y()                        accesibilidad: preferencias activas y textos que no crecen con «Tamaño del texto»',
         '  a11y({ textSize: "xlarge", contrast: true, colorblind: "rg", reduceMotion: true, shake: false, autoAdvance: "slow" })   cambia y guarda',
         '  sfx()                         sonidos del mundo: grabaciones encontradas y último suelo pisado · sfx("pasos" | "voz" | "criaturas" | "pesca" | "recoleccion" | "golpes" | "combate") los toca',
+        '  sfx("skills" | "sapidae" | "enemigos" | "estados" | "ultimates")   audio de habilidades por grupo · sfx("recorrido", { grupo }) todos los VFX con su sonido · sfx("skill", id) qué suena · sfx("memoria") sonidos cargados',
         '  audio()                       sonido ambiente: isla, modo, mar y fuentes cercanas · audio({ island: "arctic" }) fuerza una isla · audio({ off: true }) quita el forzado',
       ].join('\n'));
     },
@@ -401,6 +449,15 @@ export function installCombatDebug(game) {
       const w = window.lunakaiWorldSfx || game.audio?.world;
       if (!w) { console.log('[lkDebug] Los sonidos del mundo no están cargados.'); return null; }
       if (what === 'golpes' || what === 'combate') { game.audio?.init?.(); return game.audio?.combat?.test(what === 'golpes' ? 'golpes' : 'efectos'); }
+      // Audio de skills (fases 3–5): pruebas por grupo, recorrido con sonido, una habilidad y memoria
+      if (['skills', 'sapidae', 'enemigos', 'estados', 'ultimates'].includes(what)) { game.audio?.init?.(); return game.audio?.combat?.test(what); }
+      if (what === 'recorrido') { game.audio?.init?.(); return window.lkDebug?.vfxRecorrido?.(arguments[1] || {}); }
+      if (what === 'skill') {
+        const c = game.audio?.combat, sp = game.spellManager?.getSpell?.(arguments[1]);
+        const desc = c?.describe?.(sp, game.activeUnit || null);
+        console.log(`[lkDebug] ${arguments[1]}: ${desc}`); return desc;
+      }
+      if (what === 'memoria') { const st = game.audio?.combat?.skills?.status?.(); console.table([st]); return st; }
       if (what) { game.audio?.init?.(); return w.test(what); }
       const st = w.status(); console.table([st]); return st;
     },

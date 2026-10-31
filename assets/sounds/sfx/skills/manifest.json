@@ -1,0 +1,1283 @@
+{
+ "version": 1,
+ "description": "Pack de sonidos de habilidades (fase 1). Clave lógica → archivo. Generado por tools/audio/build_skill_sfx.py; no editar a mano.",
+ "format": {
+  "codec": "mp3",
+  "channels": 1,
+  "sampleRate": 48000,
+  "lame": "VBR q3"
+ },
+ "loudness": {
+  "standard": "EBU R128",
+  "targetsLUFS": {
+   "attack": -18.0,
+   "hit": -18.0,
+   "impact": -18.0,
+   "status": -20.0,
+   "fly": -22.0
+  },
+  "truePeakCeil": -1.5
+ },
+ "classes": [
+  "aquatic",
+  "beast",
+  "bird",
+  "bug",
+  "dawn",
+  "dusk",
+  "mech",
+  "plant",
+  "reptile"
+ ],
+ "anims": [
+  "bite",
+  "cast",
+  "gore",
+  "projectile",
+  "slash",
+  "smash",
+  "throw"
+ ],
+ "sounds": {
+  "aquatic_bite_attack": {
+   "file": "aquatic_bite_attack.mp3",
+   "cat": "attack",
+   "cls": "aquatic",
+   "anim": "bite",
+   "dur": 1.728,
+   "lufs": -18.0,
+   "tp": -1.8
+  },
+  "aquatic_cast_attack": {
+   "file": "aquatic_cast_attack.mp3",
+   "cat": "attack",
+   "cls": "aquatic",
+   "anim": "cast",
+   "dur": 2.184,
+   "lufs": -19.8,
+   "tp": -1.6
+  },
+  "aquatic_cast_hit": {
+   "file": "aquatic_cast_hit.mp3",
+   "cat": "hit",
+   "cls": "aquatic",
+   "anim": "cast",
+   "dur": 2.064,
+   "lufs": -18.0,
+   "tp": -2.9
+  },
+  "aquatic_fly": {
+   "file": "aquatic_fly.mp3",
+   "cat": "fly",
+   "cls": "aquatic",
+   "dur": 2.424,
+   "lufs": -22.4,
+   "tp": -6.6
+  },
+  "aquatic_gore_attack": {
+   "file": "aquatic_gore_attack.mp3",
+   "cat": "attack",
+   "cls": "aquatic",
+   "anim": "gore",
+   "dur": 1.776,
+   "lufs": -18.1,
+   "tp": -3.4
+  },
+  "aquatic_projectile_attack": {
+   "file": "aquatic_projectile_attack.mp3",
+   "cat": "attack",
+   "cls": "aquatic",
+   "anim": "projectile",
+   "dur": 1.248,
+   "lufs": -18.1,
+   "tp": -4.6
+  },
+  "aquatic_projectile_fly": {
+   "file": "aquatic_projectile_fly.mp3",
+   "cat": "fly",
+   "cls": "aquatic",
+   "anim": "projectile",
+   "dur": 2.424,
+   "lufs": -22.4,
+   "tp": -6.6
+  },
+  "aquatic_projectile_hit": {
+   "file": "aquatic_projectile_hit.mp3",
+   "cat": "hit",
+   "cls": "aquatic",
+   "anim": "projectile",
+   "dur": 1.992,
+   "lufs": -19.2,
+   "tp": -1.5
+  },
+  "aquatic_slash_attack": {
+   "file": "aquatic_slash_attack.mp3",
+   "cat": "attack",
+   "cls": "aquatic",
+   "anim": "slash",
+   "dur": 2.304,
+   "lufs": -18.1,
+   "tp": -1.8
+  },
+  "aquatic_smash_attack": {
+   "file": "aquatic_smash_attack.mp3",
+   "cat": "attack",
+   "cls": "aquatic",
+   "anim": "smash",
+   "dur": 2.28,
+   "lufs": -19.2,
+   "tp": -1.3
+  },
+  "aquatic_throw_attack": {
+   "file": "aquatic_throw_attack.mp3",
+   "cat": "attack",
+   "cls": "aquatic",
+   "anim": "throw",
+   "dur": 2.76,
+   "lufs": -20.0,
+   "tp": -1.7
+  },
+  "aquatic_throw_hit": {
+   "file": "aquatic_throw_hit.mp3",
+   "cat": "hit",
+   "cls": "aquatic",
+   "anim": "throw",
+   "dur": 2.112,
+   "lufs": -19.2,
+   "tp": -1.3
+  },
+  "beast_bite_attack": {
+   "file": "beast_bite_attack.mp3",
+   "cat": "attack",
+   "cls": "beast",
+   "anim": "bite",
+   "dur": 1.584,
+   "lufs": -18.1,
+   "tp": -2.0
+  },
+  "beast_cast_attack": {
+   "file": "beast_cast_attack.mp3",
+   "cat": "attack",
+   "cls": "beast",
+   "anim": "cast",
+   "dur": 3.24,
+   "lufs": -21.5,
+   "tp": -1.5
+  },
+  "beast_cast_hit": {
+   "file": "beast_cast_hit.mp3",
+   "cat": "hit",
+   "cls": "beast",
+   "anim": "cast",
+   "dur": 1.92,
+   "lufs": -19.4,
+   "tp": -1.4
+  },
+  "beast_fly": {
+   "file": "beast_fly.mp3",
+   "cat": "fly",
+   "cls": "beast",
+   "dur": 2.208,
+   "lufs": -22.0,
+   "tp": -4.6
+  },
+  "beast_gore_attack": {
+   "file": "beast_gore_attack.mp3",
+   "cat": "attack",
+   "cls": "beast",
+   "anim": "gore",
+   "dur": 1.392,
+   "lufs": -18.1,
+   "tp": -1.5
+  },
+  "beast_projectile_attack": {
+   "file": "beast_projectile_attack.mp3",
+   "cat": "attack",
+   "cls": "beast",
+   "anim": "projectile",
+   "dur": 1.68,
+   "lufs": -18.1,
+   "tp": -2.2
+  },
+  "beast_projectile_fly": {
+   "file": "beast_projectile_fly.mp3",
+   "cat": "fly",
+   "cls": "beast",
+   "anim": "projectile",
+   "dur": 2.208,
+   "lufs": -22.0,
+   "tp": -4.6
+  },
+  "beast_projectile_hit": {
+   "file": "beast_projectile_hit.mp3",
+   "cat": "hit",
+   "cls": "beast",
+   "anim": "projectile",
+   "dur": 1.248,
+   "lufs": -20.8,
+   "tp": -1.5
+  },
+  "beast_slash_attack": {
+   "file": "beast_slash_attack.mp3",
+   "cat": "attack",
+   "cls": "beast",
+   "anim": "slash",
+   "dur": 1.536,
+   "lufs": -19.4,
+   "tp": -1.5
+  },
+  "beast_smash_attack": {
+   "file": "beast_smash_attack.mp3",
+   "cat": "attack",
+   "cls": "beast",
+   "anim": "smash",
+   "dur": 1.464,
+   "lufs": -18.1,
+   "tp": -1.8
+  },
+  "beast_throw_attack": {
+   "file": "beast_throw_attack.mp3",
+   "cat": "attack",
+   "cls": "beast",
+   "anim": "throw",
+   "dur": 1.128,
+   "lufs": -19.7,
+   "tp": -1.7
+  },
+  "beast_throw_hit": {
+   "file": "beast_throw_hit.mp3",
+   "cat": "hit",
+   "cls": "beast",
+   "anim": "throw",
+   "dur": 1.632,
+   "lufs": -18.0,
+   "tp": -2.2
+  },
+  "bird_bite_attack": {
+   "file": "bird_bite_attack.mp3",
+   "cat": "attack",
+   "cls": "bird",
+   "anim": "bite",
+   "dur": 1.464,
+   "lufs": -18.0,
+   "tp": -2.3
+  },
+  "bird_cast_attack": {
+   "file": "bird_cast_attack.mp3",
+   "cat": "attack",
+   "cls": "bird",
+   "anim": "cast",
+   "dur": 1.92,
+   "lufs": -18.2,
+   "tp": -1.7
+  },
+  "bird_cast_hit": {
+   "file": "bird_cast_hit.mp3",
+   "cat": "hit",
+   "cls": "bird",
+   "anim": "cast",
+   "dur": 1.464,
+   "lufs": -18.1,
+   "tp": -1.3
+  },
+  "bird_fly": {
+   "file": "bird_fly.mp3",
+   "cat": "fly",
+   "cls": "bird",
+   "dur": 1.848,
+   "lufs": -22.2,
+   "tp": -7.3
+  },
+  "bird_gore_attack": {
+   "file": "bird_gore_attack.mp3",
+   "cat": "attack",
+   "cls": "bird",
+   "anim": "gore",
+   "dur": 1.56,
+   "lufs": -18.1,
+   "tp": -2.5
+  },
+  "bird_projectile_attack": {
+   "file": "bird_projectile_attack.mp3",
+   "cat": "attack",
+   "cls": "bird",
+   "anim": "projectile",
+   "dur": 2.4,
+   "lufs": -18.1,
+   "tp": -4.3
+  },
+  "bird_projectile_fly": {
+   "file": "bird_projectile_fly.mp3",
+   "cat": "fly",
+   "cls": "bird",
+   "anim": "projectile",
+   "dur": 1.848,
+   "lufs": -22.2,
+   "tp": -7.3
+  },
+  "bird_projectile_hit": {
+   "file": "bird_projectile_hit.mp3",
+   "cat": "hit",
+   "cls": "bird",
+   "anim": "projectile",
+   "dur": 1.512,
+   "lufs": -18.2,
+   "tp": -1.4
+  },
+  "bird_slash_attack": {
+   "file": "bird_slash_attack.mp3",
+   "cat": "attack",
+   "cls": "bird",
+   "anim": "slash",
+   "dur": 1.584,
+   "lufs": -18.0,
+   "tp": -1.5
+  },
+  "bird_smash_attack": {
+   "file": "bird_smash_attack.mp3",
+   "cat": "attack",
+   "cls": "bird",
+   "anim": "smash",
+   "dur": 1.608,
+   "lufs": -18.0,
+   "tp": -3.2
+  },
+  "bird_throw_attack": {
+   "file": "bird_throw_attack.mp3",
+   "cat": "attack",
+   "cls": "bird",
+   "anim": "throw",
+   "dur": 2.232,
+   "lufs": -18.1,
+   "tp": -1.4
+  },
+  "bird_throw_hit": {
+   "file": "bird_throw_hit.mp3",
+   "cat": "hit",
+   "cls": "bird",
+   "anim": "throw",
+   "dur": 1.464,
+   "lufs": -18.1,
+   "tp": -3.9
+  },
+  "bleed": {
+   "file": "bleed.mp3",
+   "cat": "status",
+   "dur": 1.776,
+   "lufs": -20.0,
+   "tp": -5.4
+  },
+  "bubble": {
+   "file": "bubble.mp3",
+   "cat": "status",
+   "dur": 2.304,
+   "lufs": -20.0,
+   "tp": -7.5
+  },
+  "bubble_bomb": {
+   "file": "bubble_bomb.mp3",
+   "cat": "status",
+   "dur": 2.352,
+   "lufs": -20.1,
+   "tp": -6.5
+  },
+  "buff": {
+   "file": "buff.mp3",
+   "cat": "status",
+   "dur": 2.232,
+   "lufs": -20.0,
+   "tp": -5.9
+  },
+  "bug_bite_attack": {
+   "file": "bug_bite_attack.mp3",
+   "cat": "attack",
+   "cls": "bug",
+   "anim": "bite",
+   "dur": 1.488,
+   "lufs": -18.1,
+   "tp": -1.9
+  },
+  "bug_cast_attack": {
+   "file": "bug_cast_attack.mp3",
+   "cat": "attack",
+   "cls": "bug",
+   "anim": "cast",
+   "dur": 0.816,
+   "lufs": -18.1,
+   "tp": -3.0
+  },
+  "bug_cast_hit": {
+   "file": "bug_cast_hit.mp3",
+   "cat": "hit",
+   "cls": "bug",
+   "anim": "cast",
+   "dur": 1.368,
+   "lufs": -18.1,
+   "tp": -2.3
+  },
+  "bug_fly": {
+   "file": "bug_fly.mp3",
+   "cat": "fly",
+   "cls": "bug",
+   "dur": 1.008,
+   "lufs": -22.0,
+   "tp": -9.3
+  },
+  "bug_gore_attack": {
+   "file": "bug_gore_attack.mp3",
+   "cat": "attack",
+   "cls": "bug",
+   "anim": "gore",
+   "dur": 1.512,
+   "lufs": -18.0,
+   "tp": -3.0
+  },
+  "bug_projectile_attack": {
+   "file": "bug_projectile_attack.mp3",
+   "cat": "attack",
+   "cls": "bug",
+   "anim": "projectile",
+   "dur": 1.176,
+   "lufs": -18.7,
+   "tp": -1.4
+  },
+  "bug_projectile_hit": {
+   "file": "bug_projectile_hit.mp3",
+   "cat": "hit",
+   "cls": "bug",
+   "anim": "projectile",
+   "dur": 1.368,
+   "lufs": -18.1,
+   "tp": -2.7
+  },
+  "bug_slash_attack": {
+   "file": "bug_slash_attack.mp3",
+   "cat": "attack",
+   "cls": "bug",
+   "anim": "slash",
+   "dur": 1.128,
+   "lufs": -18.0,
+   "tp": -2.3
+  },
+  "bug_smash_attack": {
+   "file": "bug_smash_attack.mp3",
+   "cat": "attack",
+   "cls": "bug",
+   "anim": "smash",
+   "dur": 1.584,
+   "lufs": -18.5,
+   "tp": -1.6
+  },
+  "bug_throw_attack": {
+   "file": "bug_throw_attack.mp3",
+   "cat": "attack",
+   "cls": "bug",
+   "anim": "throw",
+   "dur": 1.44,
+   "lufs": -18.4,
+   "tp": -1.8
+  },
+  "bug_throw_hit": {
+   "file": "bug_throw_hit.mp3",
+   "cat": "hit",
+   "cls": "bug",
+   "anim": "throw",
+   "dur": 1.224,
+   "lufs": -21.3,
+   "tp": -2.0
+  },
+  "cleanse": {
+   "file": "cleanse.mp3",
+   "cat": "status",
+   "dur": 2.256,
+   "lufs": -20.0,
+   "tp": -5.7
+  },
+  "cleanser": {
+   "file": "cleanser.mp3",
+   "cat": "status",
+   "dur": 2.04,
+   "lufs": -20.0,
+   "tp": -6.8
+  },
+  "counter": {
+   "file": "counter.mp3",
+   "cat": "impact",
+   "dur": 0.912,
+   "lufs": -18.1,
+   "tp": -3.8
+  },
+  "critical": {
+   "file": "critical.mp3",
+   "cat": "impact",
+   "dur": 0.648,
+   "lufs": -18.1,
+   "tp": -3.9
+  },
+  "cure": {
+   "file": "cure.mp3",
+   "cat": "status",
+   "dur": 3.624,
+   "lufs": -20.0,
+   "tp": -6.5
+  },
+  "damage_boost": {
+   "file": "damage_boost.mp3",
+   "cat": "status",
+   "dur": 1.776,
+   "lufs": -20.3,
+   "tp": -6.2
+  },
+  "dawn_bite_attack": {
+   "file": "dawn_bite_attack.mp3",
+   "cat": "attack",
+   "cls": "dawn",
+   "anim": "bite",
+   "dur": 1.32,
+   "lufs": -19.0,
+   "tp": -2.9
+  },
+  "dawn_cast_attack": {
+   "file": "dawn_cast_attack.mp3",
+   "cat": "attack",
+   "cls": "dawn",
+   "anim": "cast",
+   "dur": 1.632,
+   "lufs": -18.3,
+   "tp": -3.4
+  },
+  "dawn_cast_hit": {
+   "file": "dawn_cast_hit.mp3",
+   "cat": "hit",
+   "cls": "dawn",
+   "anim": "cast",
+   "dur": 1.176,
+   "lufs": -18.7,
+   "tp": -1.4
+  },
+  "dawn_fly": {
+   "file": "dawn_fly.mp3",
+   "cat": "fly",
+   "cls": "dawn",
+   "dur": 2.544,
+   "lufs": -22.0,
+   "tp": -6.8
+  },
+  "dawn_gore_attack": {
+   "file": "dawn_gore_attack.mp3",
+   "cat": "attack",
+   "cls": "dawn",
+   "anim": "gore",
+   "dur": 1.272,
+   "lufs": -18.0,
+   "tp": -4.6
+  },
+  "dawn_projectile_attack": {
+   "file": "dawn_projectile_attack.mp3",
+   "cat": "attack",
+   "cls": "dawn",
+   "anim": "projectile",
+   "dur": 1.44,
+   "lufs": -18.1,
+   "tp": -3.7
+  },
+  "dawn_projectile_fly": {
+   "file": "dawn_projectile_fly.mp3",
+   "cat": "fly",
+   "cls": "dawn",
+   "anim": "projectile",
+   "dur": 2.208,
+   "lufs": -22.0,
+   "tp": -4.8
+  },
+  "dawn_projectile_hit": {
+   "file": "dawn_projectile_hit.mp3",
+   "cat": "hit",
+   "cls": "dawn",
+   "anim": "projectile",
+   "dur": 1.296,
+   "lufs": -18.4,
+   "tp": -1.4
+  },
+  "dawn_slash_attack": {
+   "file": "dawn_slash_attack.mp3",
+   "cat": "attack",
+   "cls": "dawn",
+   "anim": "slash",
+   "dur": 1.368,
+   "lufs": -18.0,
+   "tp": -4.1
+  },
+  "dawn_smash_attack": {
+   "file": "dawn_smash_attack.mp3",
+   "cat": "attack",
+   "cls": "dawn",
+   "anim": "smash",
+   "dur": 1.368,
+   "lufs": -18.0,
+   "tp": -2.7
+  },
+  "dawn_throw_attack": {
+   "file": "dawn_throw_attack.mp3",
+   "cat": "attack",
+   "cls": "dawn",
+   "anim": "throw",
+   "dur": 1.632,
+   "lufs": -18.0,
+   "tp": -3.1
+  },
+  "dawn_throw_hit": {
+   "file": "dawn_throw_hit.mp3",
+   "cat": "hit",
+   "cls": "dawn",
+   "anim": "throw",
+   "dur": 1.224,
+   "lufs": -18.7,
+   "tp": -1.5
+  },
+  "debuff": {
+   "file": "debuff.mp3",
+   "cat": "status",
+   "dur": 2.376,
+   "lufs": -20.2,
+   "tp": -5.8
+  },
+  "dispel": {
+   "file": "dispel.mp3",
+   "cat": "status",
+   "dur": 1.896,
+   "lufs": -20.5,
+   "tp": -6.4
+  },
+  "doubt": {
+   "file": "doubt.mp3",
+   "cat": "status",
+   "dur": 1.248,
+   "lufs": -20.0,
+   "tp": -7.7
+  },
+  "drain": {
+   "file": "drain.mp3",
+   "cat": "status",
+   "dur": 3.096,
+   "lufs": -20.0,
+   "tp": -5.9
+  },
+  "dusk_bite_attack": {
+   "file": "dusk_bite_attack.mp3",
+   "cat": "attack",
+   "cls": "dusk",
+   "anim": "bite",
+   "dur": 1.344,
+   "lufs": -18.0,
+   "tp": -1.8
+  },
+  "dusk_cast_attack": {
+   "file": "dusk_cast_attack.mp3",
+   "cat": "attack",
+   "cls": "dusk",
+   "anim": "cast",
+   "dur": 1.728,
+   "lufs": -18.1,
+   "tp": -3.6
+  },
+  "dusk_cast_hit": {
+   "file": "dusk_cast_hit.mp3",
+   "cat": "hit",
+   "cls": "dusk",
+   "anim": "cast",
+   "dur": 2.088,
+   "lufs": -18.1,
+   "tp": -2.1
+  },
+  "dusk_fly": {
+   "file": "dusk_fly.mp3",
+   "cat": "fly",
+   "cls": "dusk",
+   "dur": 2.424,
+   "lufs": -22.4,
+   "tp": -6.6
+  },
+  "dusk_gore_attack": {
+   "file": "dusk_gore_attack.mp3",
+   "cat": "attack",
+   "cls": "dusk",
+   "anim": "gore",
+   "dur": 1.272,
+   "lufs": -18.1,
+   "tp": -3.0
+  },
+  "dusk_projectile_attack": {
+   "file": "dusk_projectile_attack.mp3",
+   "cat": "attack",
+   "cls": "dusk",
+   "anim": "projectile",
+   "dur": 2.4,
+   "lufs": -18.0,
+   "tp": -3.2
+  },
+  "dusk_projectile_hit": {
+   "file": "dusk_projectile_hit.mp3",
+   "cat": "hit",
+   "cls": "dusk",
+   "anim": "projectile",
+   "dur": 1.704,
+   "lufs": -18.1,
+   "tp": -3.8
+  },
+  "dusk_slash_attack": {
+   "file": "dusk_slash_attack.mp3",
+   "cat": "attack",
+   "cls": "dusk",
+   "anim": "slash",
+   "dur": 1.368,
+   "lufs": -18.1,
+   "tp": -3.0
+  },
+  "dusk_smash_attack": {
+   "file": "dusk_smash_attack.mp3",
+   "cat": "attack",
+   "cls": "dusk",
+   "anim": "smash",
+   "dur": 1.68,
+   "lufs": -18.1,
+   "tp": -2.0
+  },
+  "dusk_throw_attack": {
+   "file": "dusk_throw_attack.mp3",
+   "cat": "attack",
+   "cls": "dusk",
+   "anim": "throw",
+   "dur": 1.896,
+   "lufs": -18.0,
+   "tp": -3.0
+  },
+  "dusk_throw_hit": {
+   "file": "dusk_throw_hit.mp3",
+   "cat": "hit",
+   "cls": "dusk",
+   "anim": "throw",
+   "dur": 1.584,
+   "lufs": -18.1,
+   "tp": -1.6
+  },
+  "fear": {
+   "file": "fear.mp3",
+   "cat": "status",
+   "dur": 2.256,
+   "lufs": -20.1,
+   "tp": -6.6
+  },
+  "feather": {
+   "file": "feather.mp3",
+   "cat": "status",
+   "dur": 2.544,
+   "lufs": -20.0,
+   "tp": -7.0
+  },
+  "fuzzy_hit": {
+   "file": "fuzzy_hit.mp3",
+   "cat": "impact",
+   "dur": 0.768,
+   "lufs": -19.1,
+   "tp": -1.2
+  },
+  "heal": {
+   "file": "heal.mp3",
+   "cat": "status",
+   "dur": 1.608,
+   "lufs": -20.0,
+   "tp": -7.7
+  },
+  "heal_alt": {
+   "file": "heal_alt.mp3",
+   "cat": "status",
+   "dur": 1.896,
+   "lufs": -20.0,
+   "tp": -5.3
+  },
+  "heal_block": {
+   "file": "heal_block.mp3",
+   "cat": "status",
+   "dur": 2.28,
+   "lufs": -20.0,
+   "tp": -7.8
+  },
+  "hex": {
+   "file": "hex.mp3",
+   "cat": "status",
+   "dur": 2.376,
+   "lufs": -19.7,
+   "tp": -8.4
+  },
+  "hit_normal": {
+   "file": "hit_normal.mp3",
+   "cat": "impact",
+   "dur": 0.48,
+   "lufs": -19.8,
+   "tp": -1.6
+  },
+  "laser_hit": {
+   "file": "laser_hit.mp3",
+   "cat": "impact",
+   "dur": 1.608,
+   "lufs": -21.6,
+   "tp": -1.7
+  },
+  "leaf": {
+   "file": "leaf.mp3",
+   "cat": "status",
+   "dur": 2.088,
+   "lufs": -20.1,
+   "tp": -9.0
+  },
+  "liquid_hit": {
+   "file": "liquid_hit.mp3",
+   "cat": "impact",
+   "dur": 0.36,
+   "lufs": null,
+   "tp": -2.6
+  },
+  "mech_bite_attack": {
+   "file": "mech_bite_attack.mp3",
+   "cat": "attack",
+   "cls": "mech",
+   "anim": "bite",
+   "dur": 1.584,
+   "lufs": -18.3,
+   "tp": -2.6
+  },
+  "mech_cast_attack": {
+   "file": "mech_cast_attack.mp3",
+   "cat": "attack",
+   "cls": "mech",
+   "anim": "cast",
+   "dur": 1.704,
+   "lufs": -18.0,
+   "tp": -1.4
+  },
+  "mech_cast_hit": {
+   "file": "mech_cast_hit.mp3",
+   "cat": "hit",
+   "cls": "mech",
+   "anim": "cast",
+   "dur": 1.344,
+   "lufs": -18.5,
+   "tp": -1.9
+  },
+  "mech_fly": {
+   "file": "mech_fly.mp3",
+   "cat": "fly",
+   "cls": "mech",
+   "dur": 1.464,
+   "lufs": -22.0,
+   "tp": -8.3
+  },
+  "mech_gore_attack": {
+   "file": "mech_gore_attack.mp3",
+   "cat": "attack",
+   "cls": "mech",
+   "anim": "gore",
+   "dur": 1.296,
+   "lufs": -18.1,
+   "tp": -2.8
+  },
+  "mech_projectile_attack": {
+   "file": "mech_projectile_attack.mp3",
+   "cat": "attack",
+   "cls": "mech",
+   "anim": "projectile",
+   "dur": 1.608,
+   "lufs": -18.2,
+   "tp": -3.8
+  },
+  "mech_projectile_hit": {
+   "file": "mech_projectile_hit.mp3",
+   "cat": "hit",
+   "cls": "mech",
+   "anim": "projectile",
+   "dur": 1.584,
+   "lufs": -18.0,
+   "tp": -2.1
+  },
+  "mech_slash_attack": {
+   "file": "mech_slash_attack.mp3",
+   "cat": "attack",
+   "cls": "mech",
+   "anim": "slash",
+   "dur": 1.56,
+   "lufs": -18.0,
+   "tp": -2.4
+  },
+  "mech_smash_attack": {
+   "file": "mech_smash_attack.mp3",
+   "cat": "attack",
+   "cls": "mech",
+   "anim": "smash",
+   "dur": 1.704,
+   "lufs": -18.0,
+   "tp": -2.9
+  },
+  "mech_throw_attack": {
+   "file": "mech_throw_attack.mp3",
+   "cat": "attack",
+   "cls": "mech",
+   "anim": "throw",
+   "dur": 1.584,
+   "lufs": -18.0,
+   "tp": -3.6
+  },
+  "mech_throw_hit": {
+   "file": "mech_throw_hit.mp3",
+   "cat": "hit",
+   "cls": "mech",
+   "anim": "throw",
+   "dur": 1.416,
+   "lufs": -18.4,
+   "tp": -2.0
+  },
+  "normal_hit": {
+   "file": "normal_hit.mp3",
+   "cat": "impact",
+   "dur": 0.456,
+   "lufs": -20.0,
+   "tp": -1.8
+  },
+  "plant_bite_attack": {
+   "file": "plant_bite_attack.mp3",
+   "cat": "attack",
+   "cls": "plant",
+   "anim": "bite",
+   "dur": 1.512,
+   "lufs": -18.0,
+   "tp": -2.3
+  },
+  "plant_cast_attack": {
+   "file": "plant_cast_attack.mp3",
+   "cat": "attack",
+   "cls": "plant",
+   "anim": "cast",
+   "dur": 1.392,
+   "lufs": -19.5,
+   "tp": -1.4
+  },
+  "plant_cast_hit": {
+   "file": "plant_cast_hit.mp3",
+   "cat": "hit",
+   "cls": "plant",
+   "anim": "cast",
+   "dur": 1.44,
+   "lufs": -18.2,
+   "tp": -1.3
+  },
+  "plant_gore_attack": {
+   "file": "plant_gore_attack.mp3",
+   "cat": "attack",
+   "cls": "plant",
+   "anim": "gore",
+   "dur": 1.44,
+   "lufs": -18.0,
+   "tp": -2.0
+  },
+  "plant_projectile_attack": {
+   "file": "plant_projectile_attack.mp3",
+   "cat": "attack",
+   "cls": "plant",
+   "anim": "projectile",
+   "dur": 1.896,
+   "lufs": -18.0,
+   "tp": -1.5
+  },
+  "plant_projectile_hit": {
+   "file": "plant_projectile_hit.mp3",
+   "cat": "hit",
+   "cls": "plant",
+   "anim": "projectile",
+   "dur": 1.368,
+   "lufs": -18.0,
+   "tp": -3.0
+  },
+  "plant_slash_attack": {
+   "file": "plant_slash_attack.mp3",
+   "cat": "attack",
+   "cls": "plant",
+   "anim": "slash",
+   "dur": 1.368,
+   "lufs": -18.0,
+   "tp": -2.1
+  },
+  "plant_smash_attack": {
+   "file": "plant_smash_attack.mp3",
+   "cat": "attack",
+   "cls": "plant",
+   "anim": "smash",
+   "dur": 1.464,
+   "lufs": -18.7,
+   "tp": -1.7
+  },
+  "plant_throw_attack": {
+   "file": "plant_throw_attack.mp3",
+   "cat": "attack",
+   "cls": "plant",
+   "anim": "throw",
+   "dur": 1.776,
+   "lufs": -18.1,
+   "tp": -3.4
+  },
+  "plant_throw_hit": {
+   "file": "plant_throw_hit.mp3",
+   "cat": "hit",
+   "cls": "plant",
+   "anim": "throw",
+   "dur": 1.584,
+   "lufs": -18.0,
+   "tp": -1.6
+  },
+  "poison": {
+   "file": "poison.mp3",
+   "cat": "status",
+   "dur": 1.728,
+   "lufs": -20.0,
+   "tp": -2.1
+  },
+  "poison_alt": {
+   "file": "poison_alt.mp3",
+   "cat": "status",
+   "dur": 1.68,
+   "lufs": -20.1,
+   "tp": -6.9
+  },
+  "power_awaken": {
+   "file": "power_awaken.mp3",
+   "cat": "status",
+   "dur": 1.776,
+   "lufs": -20.3,
+   "tp": -7.2
+  },
+  "power_gain": {
+   "file": "power_gain.mp3",
+   "cat": "status",
+   "dur": 2.112,
+   "lufs": -20.1,
+   "tp": -5.8
+  },
+  "reflect_damage": {
+   "file": "reflect_damage.mp3",
+   "cat": "status",
+   "dur": 1.44,
+   "lufs": -20.0,
+   "tp": -7.5
+  },
+  "reptile_bite_attack": {
+   "file": "reptile_bite_attack.mp3",
+   "cat": "attack",
+   "cls": "reptile",
+   "anim": "bite",
+   "dur": 1.656,
+   "lufs": -18.1,
+   "tp": -3.1
+  },
+  "reptile_cast_attack": {
+   "file": "reptile_cast_attack.mp3",
+   "cat": "attack",
+   "cls": "reptile",
+   "anim": "cast",
+   "dur": 1.872,
+   "lufs": -20.1,
+   "tp": -1.6
+  },
+  "reptile_cast_hit": {
+   "file": "reptile_cast_hit.mp3",
+   "cat": "hit",
+   "cls": "reptile",
+   "anim": "cast",
+   "dur": 1.776,
+   "lufs": -18.1,
+   "tp": -4.0
+  },
+  "reptile_gore_attack": {
+   "file": "reptile_gore_attack.mp3",
+   "cat": "attack",
+   "cls": "reptile",
+   "anim": "gore",
+   "dur": 1.512,
+   "lufs": -18.0,
+   "tp": -4.1
+  },
+  "reptile_projectile_attack": {
+   "file": "reptile_projectile_attack.mp3",
+   "cat": "attack",
+   "cls": "reptile",
+   "anim": "projectile",
+   "dur": 2.28,
+   "lufs": -22.6,
+   "tp": -1.6
+  },
+  "reptile_projectile_hit": {
+   "file": "reptile_projectile_hit.mp3",
+   "cat": "hit",
+   "cls": "reptile",
+   "anim": "projectile",
+   "dur": 1.392,
+   "lufs": -19.1,
+   "tp": -1.7
+  },
+  "reptile_slash_attack": {
+   "file": "reptile_slash_attack.mp3",
+   "cat": "attack",
+   "cls": "reptile",
+   "anim": "slash",
+   "dur": 1.92,
+   "lufs": -18.0,
+   "tp": -3.0
+  },
+  "reptile_smash_attack": {
+   "file": "reptile_smash_attack.mp3",
+   "cat": "attack",
+   "cls": "reptile",
+   "anim": "smash",
+   "dur": 1.944,
+   "lufs": -18.1,
+   "tp": -2.5
+  },
+  "reptile_throw_attack": {
+   "file": "reptile_throw_attack.mp3",
+   "cat": "attack",
+   "cls": "reptile",
+   "anim": "throw",
+   "dur": 1.656,
+   "lufs": -18.1,
+   "tp": -3.5
+  },
+  "reptile_throw_hit": {
+   "file": "reptile_throw_hit.mp3",
+   "cat": "hit",
+   "cls": "reptile",
+   "anim": "throw",
+   "dur": 1.392,
+   "lufs": -19.5,
+   "tp": -1.7
+  },
+  "secret": {
+   "file": "secret.mp3",
+   "cat": "status",
+   "dur": 2.712,
+   "lufs": -20.0,
+   "tp": -6.8
+  },
+  "sharp_edged_hit": {
+   "file": "sharp_edged_hit.mp3",
+   "cat": "impact",
+   "dur": 0.696,
+   "lufs": -20.0,
+   "tp": -1.4
+  },
+  "shield": {
+   "file": "shield.mp3",
+   "cat": "status",
+   "dur": 1.584,
+   "lufs": -20.2,
+   "tp": -7.3
+  },
+  "shield_break": {
+   "file": "shield_break.mp3",
+   "cat": "status",
+   "dur": 1.104,
+   "lufs": -20.0,
+   "tp": -7.1
+  },
+  "silent": {
+   "file": "silent.mp3",
+   "cat": "status",
+   "dur": 1.728,
+   "lufs": -20.1,
+   "tp": -6.1
+  },
+  "sleep": {
+   "file": "sleep.mp3",
+   "cat": "status",
+   "dur": 3.936,
+   "lufs": -20.0,
+   "tp": -7.9
+  },
+  "stunned": {
+   "file": "stunned.mp3",
+   "cat": "status",
+   "dur": 2.016,
+   "lufs": -20.0,
+   "tp": -6.5
+  },
+  "summon_off": {
+   "file": "summon_off.mp3",
+   "cat": "status",
+   "dur": 1.368,
+   "lufs": -20.1,
+   "tp": -6.8
+  },
+  "summon_on": {
+   "file": "summon_on.mp3",
+   "cat": "status",
+   "dur": 1.296,
+   "lufs": -20.1,
+   "tp": -6.4
+  },
+  "tackle": {
+   "file": "tackle.mp3",
+   "cat": "impact",
+   "dur": 0.264,
+   "lufs": null,
+   "tp": -2.7
+  },
+  "taunt": {
+   "file": "taunt.mp3",
+   "cat": "status",
+   "dur": 2.112,
+   "lufs": -20.2,
+   "tp": -5.6
+  },
+  "vulnerable": {
+   "file": "vulnerable.mp3",
+   "cat": "status",
+   "dur": 2.16,
+   "lufs": -19.6,
+   "tp": -8.6
+  },
+  "weak": {
+   "file": "weak.mp3",
+   "cat": "status",
+   "dur": 2.448,
+   "lufs": -20.3,
+   "tp": -6.5
+  }
+ },
+ "aliases": {
+  "aquatic_throw_fly": "aquatic_projectile_fly",
+  "beast_throw_fly": "beast_projectile_fly",
+  "bird_throw_fly": "bird_projectile_fly",
+  "bug_projectile_fly": "bug_fly",
+  "bug_throw_fly": "bug_fly",
+  "dawn_throw_fly": "dawn_projectile_fly",
+  "dusk_projectile_fly": "aquatic_projectile_fly",
+  "dusk_throw_fly": "aquatic_projectile_fly",
+  "mech_projectile_fly": "mech_fly",
+  "mech_throw_fly": "mech_fly",
+  "plant_fly": "dusk_fly",
+  "plant_projectile_fly": "aquatic_projectile_fly",
+  "plant_throw_fly": "aquatic_projectile_fly",
+  "reptile_fly": "aquatic_fly",
+  "reptile_projectile_fly": "aquatic_projectile_fly",
+  "reptile_throw_fly": "aquatic_projectile_fly"
+ },
+ "renamedFrom": {
+  "fuzzy-hit.wav": "fuzzy_hit.mp3",
+  "heal #5993.wav": "heal_alt.mp3",
+  "hit-normal.wav": "hit_normal.mp3",
+  "laser-hit.wav": "laser_hit.mp3",
+  "liquid-hit.wav": "liquid_hit.mp3",
+  "normal-hit.wav": "normal_hit.mp3",
+  "poison #5930.wav": "poison_alt.mp3",
+  "sharp-edged-hit.wav": "sharp_edged_hit.mp3",
+  "shield-break.wav": "shield_break.mp3",
+  "vunerable.wav": "vulnerable.mp3"
+ }
+}

@@ -34,6 +34,9 @@ export class SpellPresentation {
     this.combatText = combatText;
     this.vfx = vfx;
     this._offs = [];
+    this._cast = null;   // Hito 107: suma del daño del lanzamiento en curso (total de los ataques en área)
+    // Hito 107: el número se queda en su pico mientras dura la pausa de impacto
+    if (combatText) combatText.isFrozen = () => (sceneManager?._hitStop || 0) > 0;
   }
 
   _posOf(unit) { return this.gridManager.gridToWorld(unit.gridX, unit.gridZ); }
@@ -41,10 +44,14 @@ export class SpellPresentation {
   /** Registra los oyentes en el bus de eventos. */
   install(events) {
     const on = (evt, fn) => this._offs.push(events.on(evt, fn));
+    // Hito 81: los avisos de un estado llevan su icono delante (sin el símbolo de texto); sin imagen, el símbolo de siempre
+    const stIco = (def) => (def?.img ? { icon: def.img, alt: def.icon } : null);
+    const stTxt = (def, txt) => (def?.img ? txt : `${def?.icon || ''} ${txt}`.trim());
 
     // --- Lanzamiento: texto de coste, orientación del lanzador y sonido
     on('spell:cast', ({ caster, spell, casterPos, targetPos, spent }) => {
-      this.combatText.spawn(casterPos, i18n.t('combatFx.paMinus', { n: spent ?? spell.paCost }), 'pa'); // lo realmente pagado (descuentos de charms)
+      // Hito 107: sin «-PA» sobre quien lanza (el HUD ya lo muestra); empieza la suma del daño del lanzamiento
+      this._cast = { caster, pos: casterPos, total: 0, targets: new Set() };
       const dirX = targetPos.x - casterPos.x;
       const dirZ = targetPos.z - casterPos.z;
       if (caster.mesh && (dirX !== 0 || dirZ !== 0)) {
@@ -57,13 +64,13 @@ export class SpellPresentation {
     // --- Mecánicas especiales de Sapidae
     on('spell:barricade', ({ pos }) => {
       this.spawnImpactVFX(pos, { id: 'barricade' });
-      this.combatText.spawn(pos, i18n.t('combatFx.barricade'), 'shield');
+      this.combatText.pop({ pos, kind: 'info', text: i18n.t('combatFx.barricade') });
     });
     on('spell:transpose', ({ casterPos, targetPos }) => {
       this.vfx.playHealPillar(casterPos);
       this.vfx.playHealPillar(targetPos);
-      this.combatText.spawn(casterPos, i18n.t('combatFx.transpose'), 'buff');
-      this.combatText.spawn(targetPos, i18n.t('combatFx.transpose'), 'buff');
+      this.combatText.pop({ pos: casterPos, kind: 'buff', text: i18n.t('combatFx.transpose') });
+      this.combatText.pop({ pos: targetPos, kind: 'buff', text: i18n.t('combatFx.transpose') });
     });
     on('spell:aura', ({ casterPos }) => {
       this.vfx.playSonicBellow(casterPos, casterPos);
@@ -96,49 +103,70 @@ export class SpellPresentation {
       this.playSkillVFX(spell, casterPos, targetPos, affectedCells);
     });
 
-    // --- Resultados sobre unidades
+    // --- Resultados sobre unidades (Hito 107: números con el sistema de diseño)
+    const fct = this.combatText;
+    const side = (unit) => (unit?.team === 'player' ? 'taken' : 'hit');   // blanco lo que haces, carmesí lo que recibes
+    const tag = (unit, kind, text, extra = {}) => fct.pop({ pos: this._posOf(unit), key: unit, kind, text, ...extra });
     on('unit:healed', ({ unit, amount }) => {
-      this.combatText.spawn(this._posOf(unit), i18n.t('combatFx.hpPlus', { n: amount }), 'heal');
+      if (amount > 0) fct.pop({ pos: this._posOf(unit), key: unit, kind: 'heal', value: amount, countUp: amount >= 40 });
     });
-    on('unit:shielded', ({ unit, amount, pos, variant }) => {
-      const p = pos || this._posOf(unit);
-      this.combatText.spawn(p, i18n.t('combatFx.shieldPlus', { n: amount }), 'shield');
+    on('unit:shielded', ({ unit, amount, pos }) => {
+      if (amount > 0) fct.pop({ pos: pos || this._posOf(unit), key: unit, kind: 'shield', value: amount });
     });
     on('unit:resourceGained', ({ unit, pa, pm }) => {
-      const p = this._posOf(unit);
-      if (pa && pm) this.combatText.spawn(p, i18n.t('combatFx.pmPaPlus', { pm, pa }), 'buff');
-      else if (pa) this.combatText.spawn(p, i18n.t('combatFx.paPlus', { n: pa }), 'buff');
-      else if (pm) this.combatText.spawn(p, i18n.t('combatFx.pmPlus', { n: pm }), 'buff');
+      if (pa) tag(unit, 'pa', i18n.t('combatFx.paPlus', { n: pa }));
+      if (pm) tag(unit, 'pm', i18n.t('combatFx.pmPlus', { n: pm }));
     });
     on('unit:resourceLost', ({ unit, pa, pm }) => {
-      const p = this._posOf(unit);
-      if (pm) this.combatText.spawn(p, i18n.t('combatFx.pmMinus', { n: pm }), 'pm');
-      if (pa) this.combatText.spawn(p, i18n.t('combatFx.paMinus', { n: pa }), 'pa');
+      if (pm) tag(unit, 'pm', i18n.t('combatFx.pmMinus', { n: pm }));
+      if (pa) tag(unit, 'pa', i18n.t('combatFx.paMinus', { n: pa }));
     });
-    on('unit:damaged', ({ unit, spell, actual, shieldAbsorbed, isCrit, plain }) => {
+    on('unit:damaged', ({ unit, source, spell, actual, shieldAbsorbed, isCrit, plain, elemental, linked }) => {
       const wPos = this._posOf(unit);
       // Hito 89: cuánto pesa el golpe (0–1) según la parte de la vida máxima que quita: decide el tamaño del número,
       // el temblor y la pausa de impacto. Un golpe del 40 % de la vida ya es «máximo».
       const frac = Math.min(1, (actual + (shieldAbsorbed || 0)) / Math.max(1, unit.maxHP || 1) / 0.4);
       const size = 0.85 + 0.45 * frac + (isCrit ? 0.1 : 0);   // 0,85 (rasguño) … 1,3 (golpe enorme) · 1,4 crítico enorme
-      if (plain) { this.combatText.spawn(wPos, '-' + actual, 'damage', { size: 0.85 + 0.4 * frac }); return; }
       const killed = unit.currentHP <= 0;
-      if (shieldAbsorbed > 0 && actual === 0) {
-        this.combatText.spawn(wPos, i18n.t('combatFx.shieldMinus', { n: shieldAbsorbed }), 'shield', { size: 0.9 + 0.3 * frac });
-        this.sceneManager.shake(0.08 + 0.1 * frac);
-      } else if (shieldAbsorbed > 0 && actual > 0) {
-        this.combatText.spawn(wPos, i18n.t('combatFx.shieldMinus', { n: shieldAbsorbed }) + '  -' + actual, 'damage', { size });
-        this.sceneManager.shake(0.1 + 0.2 * frac);
-      } else if (isCrit) {
-        this.combatText.spawn(wPos, i18n.t('combatFx.critical', { n: actual }), 'crit', { size });
-        this.sceneManager.shake(0.24 + 0.2 * frac);
-      } else {
-        this.combatText.spawn(wPos, '-' + actual, 'damage', { size });
-        this.sceneManager.shake(0.08 + 0.22 * frac);
+      const from = source && source !== unit ? this._posOf(source) : null;
+      const adv = elemental > 1 ? 1 : elemental && elemental < 1 ? -1 : 0;
+
+      // Suma del lanzamiento (para el total de los ataques en área)
+      const c = this._cast;
+      if (c && spell && source === c.caster && unit !== c.caster && actual > 0) { c.total += actual; c.targets.add(unit); }
+
+      if (plain) {   // reflejos, salpicaduras, autolesiones: número pequeño, sin sumar
+        if (actual > 0) fct.pop({ pos: wPos, key: unit, kind: side(unit), value: actual, size: 0.8 + 0.3 * frac, from });
+        if (killed) fct.pop({ pos: wPos, key: unit, kind: 'ko', text: i18n.t('combatFx.ko'), delay: 0.22 });
+        return;
       }
+      if (actual > 0) {
+        fct.pop({
+          pos: wPos, key: unit, from, adv, merge: true, size,
+          kind: isCrit ? 'crit' : side(unit), value: actual,
+          label: isCrit ? i18n.t('combatFx.critLabel') : '',
+          countUp: isCrit || frac >= 0.5,
+        });
+      }
+      // El escudo es una etiqueta aparte (nunca pegado al número)
+      if (shieldAbsorbed > 0) tag(unit, 'shieldBreak', i18n.t('combatFx.shieldBroken', { n: shieldAbsorbed }), actual > 0 ? {} : { size });
+      if (linked) tag(unit, 'info', i18n.t('combatFx.link'), stIco(STATUS_DEFS.soulLink) || {});
+      if (killed) fct.pop({ pos: wPos, key: unit, kind: 'ko', text: i18n.t('combatFx.ko'), delay: 0.22 });
+
+      if (shieldAbsorbed > 0 && actual === 0) this.sceneManager.shake(0.08 + 0.1 * frac);
+      else if (shieldAbsorbed > 0) this.sceneManager.shake(0.1 + 0.2 * frac);
+      else if (isCrit) this.sceneManager.shake(0.24 + 0.2 * frac);
+      else this.sceneManager.shake(0.08 + 0.22 * frac);
       // Pausa de impacto: 35–90 ms según el peso de la carta, +30 ms crítico, +50 ms si lo derriba
       const w = spell ? (spell.isUltimate ? 3 : Math.min(3, Math.max(1, Number(spell.paCost) || 1))) : 1;
       if (actual > 0) this.sceneManager.hitStop?.(0.035 + (w - 1) * 0.0275 + (isCrit ? 0.03 : 0) + (killed ? 0.05 : 0));
+    });
+    // Hito 107: total de los ataques que dan a dos o más objetivos, junto a quien lanzó
+    on('spell:resolved', () => {
+      const c = this._cast; this._cast = null;
+      if (c && c.targets.size >= 2 && c.total > 0) {
+        fct.pop({ pos: this._posOf(c.caster), key: c.caster, kind: 'total', text: i18n.t('combatFx.total', { n: c.total }), delay: 0.25 });
+      }
     });
 
     // --- Empuje y colisión
@@ -150,75 +178,70 @@ export class SpellPresentation {
       }
       const p = this._posOf(unit);
       this.spawnImpactVFX(p, { id: 'collision' });
-      this.combatText.spawn(p, damage > 0 ? i18n.t('combatFx.collision', { n: damage }) : i18n.t('combatFx.collisionImmune'), 'collision'); // 0 = inmune (Sturdy Fighter)
+      // Hito 107: el número del choque con su etiqueta encima; 0 = inmune (Sturdy Fighter)
+      if (damage > 0) this.combatText.pop({ pos: p, key: unit, kind: unit.team === 'player' ? 'taken' : 'hit', value: damage, label: i18n.t('combatFx.collisionLabel'), size: 1.05 });
+      else this.combatText.pop({ pos: p, key: unit, kind: 'info', text: i18n.t('combatFx.collisionImmune') });
     });
 
     // --- Fase 1: triángulo elemental, estados y objetos del tablero
-    on('unit:damaged', ({ unit, elemental }) => {
-      if (!elemental || elemental === 1) return;
-      this.combatText.spawn(this._posOf(unit), elemental > 1 ? i18n.t('combatFx.effective') : i18n.t('combatFx.resisted'), elemental > 1 ? 'crit' : 'shield');
-    });
-    // Hito 81: los avisos de un estado llevan su icono delante (sin el símbolo de texto); sin imagen, el símbolo de siempre
-    const stIco = (def) => (def?.img ? { icon: def.img, alt: def.icon } : null);
-    const stTxt = (def, txt) => (def?.img ? txt : `${def?.icon || ''} ${txt}`.trim());
+    // (Hito 107: «Eficaz / Resistido» es ahora una flecha junto al número de daño)
     on('unit:healBlocked', ({ unit }) => {
       const d = STATUS_DEFS.healBlock;
-      this.combatText.spawn(this._posOf(unit), i18n.t('combatFx.healBlocked'), 'pm', stIco(d) || {});
+      this.combatText.pop({ pos: this._posOf(unit), key: unit, kind: 'debuff', text: i18n.t('combatFx.healBlocked'), ...(stIco(d) || {}) });
     });
     on('status:applied', ({ unit, def, duration }) => {
-      this.combatText.spawn(this._posOf(unit), stTxt(def, `${def.label.toUpperCase()} (${duration})`), def.kind === 'buff' ? 'buff' : 'pm', stIco(def) || {});
+      this.combatText.pop({ pos: this._posOf(unit), key: unit, kind: def.kind === 'buff' ? 'buff' : 'debuff', text: stTxt(def, duration ? `${def.label} · ${duration}` : def.label), ...(stIco(def) || {}) });
     });
     on('status:resisted', ({ unit }) => {
-      this.combatText.spawn(this._posOf(unit), i18n.t('combatFx.immune'), 'buff');
+      this.combatText.pop({ pos: this._posOf(unit), key: unit, kind: 'info', text: i18n.t('combatFx.immune') });
     });
     on('status:expired', ({ unit, status, reason }) => {
-      if (reason === 'woke') this.combatText.spawn(this._posOf(unit), i18n.t('combatFx.wokeUp'), 'buff', stIco(STATUS_DEFS.sleep) || {});
-      else if (reason === 'cleansed') this.combatText.spawn(this._posOf(unit), i18n.t('combatFx.cleansed'), 'heal');
+      if (reason === 'woke') this.combatText.pop({ pos: this._posOf(unit), key: unit, kind: 'buff', text: i18n.t('combatFx.wokeUp'), ...(stIco(STATUS_DEFS.sleep) || {}) });
+      else if (reason === 'cleansed') this.combatText.pop({ pos: this._posOf(unit), key: unit, kind: 'buff', text: i18n.t('combatFx.cleansed') });
     });
     on('status:tick', ({ unit, damage, heal, def }) => {
-      if (damage > 0) this.combatText.spawn(this._posOf(unit), stTxt(def, `-${damage}`), 'damage', stIco(def) || {});
-      if (heal > 0) this.combatText.spawn(this._posOf(unit), stTxt(def, i18n.t('combatFx.hpPlus', { n: heal })), 'heal', stIco(def) || {});
-    });
-    on('unit:damaged', ({ unit, linked }) => {
-      if (linked) this.combatText.spawn(this._posOf(unit), i18n.t('combatFx.link'), 'shield', stIco(STATUS_DEFS.soulLink) || {});
+      // Daño o cura por turno: número principal pequeño con el icono del estado
+      const ico = def?.img ? { icon: def.img, alt: def.icon } : {};
+      if (damage > 0) this.combatText.pop({ pos: this._posOf(unit), key: unit, kind: unit.team === 'player' ? 'taken' : 'hit', value: damage, size: 0.85, ...ico });
+      if (heal > 0) this.combatText.pop({ pos: this._posOf(unit), key: unit, kind: 'heal', value: heal, size: 0.85, ...ico });
     });
     on('status:skipTurn', ({ unit, def }) => {
-      this.combatText.spawn(this._posOf(unit), stTxt(def, i18n.t('combatFx.skipTurn')), 'pm', stIco(def) || {});
+      this.combatText.pop({ pos: this._posOf(unit), key: unit, kind: 'debuff', text: stTxt(def, i18n.t('combatFx.skipTurn')), ...(stIco(def) || {}) });
     });
     on('unit:teleported', ({ pos }) => { this.spawnImpactVFX(pos, { id: 'jump_landing' }); });
     on('field:obstaclePlaced', ({ pos, rounds }) => {
       this.spawnImpactVFX(pos, { id: 'barricade' });
     });
     on('field:obstacleExpired', ({ pos }) => {
-      this.combatText.spawn(pos, i18n.t('combatFx.obstacleGone'), 'buff');
+      this.combatText.pop({ pos, kind: 'info', text: i18n.t('combatFx.obstacleGone') });
     });
     on('ultimate:used', ({ caster, spell }) => {
-      this.combatText.spawn(this._posOf(caster), `✦ ${String(spell.name).toUpperCase()} ✦`, 'crit');
+      this.combatText.pop({ pos: this._posOf(caster), key: caster, kind: 'title', text: String(spell.name) });
       this.sceneManager.shake(0.42);
     });
     // --- Runas y charms (RuneCharmEffects)
     on('unit:evaded', ({ unit }) => {
-      this.combatText.spawn(this._posOf(unit), i18n.t('combatFx.evaded'), 'buff');
+      this.combatText.pop({ pos: this._posOf(unit), key: unit, kind: 'miss', text: i18n.t('combatFx.dodge') });
     });
     on('runeCharm:proc', ({ unit, label }) => {
-      if (unit && label) this.combatText.spawn(this._posOf(unit), `✦ ${label}`, 'buff');
+      if (unit && label) this.combatText.pop({ pos: this._posOf(unit), key: unit, kind: 'gilt', text: label });
     });
     on('field:zonePlaced', (zone) => {
       const { positions, kind } = zone;
-      if (positions[0]) this.combatText.spawn(positions[0], kind === 'stable_ground' ? i18n.t('golems.stable') : i18n.t('combatFx.zone'), 'buff');
+      if (positions[0]) this.combatText.pop({ pos: positions[0], kind: 'buff', text: kind === 'stable_ground' ? i18n.t('golems.stable') : i18n.t('combatFx.zone') });
       this._addZoneDecal(zone);
     });
     on('field:zoneExpired', (zone) => this._removeZoneDecal(zone));
     // Hito 95 · gólems del Sapidae
     on('golem:summoned', ({ golem, pos }) => {
-      this.combatText.spawn(pos || this._posOf(golem), i18n.t('golems.summoned', { name: golem.name }), 'buff');
+      this.combatText.pop({ pos: pos || this._posOf(golem), key: golem, kind: 'gilt', text: i18n.t('golems.summoned', { name: golem.name }) });
       this.sceneManager.shake?.(0.12);
     });
     on('golem:broken', ({ golem, pos }) => {
-      this.combatText.spawn(pos || this._posOf(golem), i18n.t('golems.broken'), 'pm');
+      this.combatText.pop({ pos: pos || this._posOf(golem), key: golem, kind: 'debuff', text: i18n.t('golems.broken') });
     });
     on('golem:pulse', ({ golem, kind }) => {
-      if (kind === 'bell') this.combatText.spawn(this._posOf(golem), i18n.t('golems.toll'), 'heal');
+      if (kind === 'bell') this.combatText.pop({ pos: this._posOf(golem), key: golem, kind: 'buff', text: i18n.t('golems.toll') });
     });
 
     // Hito 88: sonidos de golpes por clase y peso, escudos, estados, caídas, Ultimate y latido (CombatSfx)

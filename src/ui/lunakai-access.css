@@ -14,8 +14,6 @@ html[data-lk-text="large"]  { font-size: 112.5%; }
 html[data-lk-text="xlarge"] { font-size: 125%; }
 
 /* ── Reducir movimiento ───────────────────────────────────────────────────────────── */
-html.lk-reduce-motion .float-crit { animation: none; }
-html.lk-reduce-motion .floating-text { will-change: auto; }
 html.lk-reduce-motion .lk-caret { animation: none; }
 
 /* ── Alto contraste ───────────────────────────────────────────────────────────────── */
@@ -45,7 +43,6 @@ html.lk-high-contrast .lk-cb-ut.lk-is-foe .lk-cb-ut-por { border-radius: 6px; }
 html.lk-high-contrast .lk-cb-ut header small::before { content: "● "; color: var(--lk-hp-vital-green); }
 html.lk-high-contrast .lk-cb-ut.lk-is-foe header small::before { content: "◆ "; color: var(--lk-enemy-red); }
 /* Números flotantes con contorno más grueso */
-html.lk-high-contrast .floating-text { -webkit-text-stroke-width: 2.5px; }
 html.lk-high-contrast :where(.lk-ui) :focus-visible { outline-width: 3px; outline-color: #fff; }
 
 /* ── Modo daltonismo ──────────────────────────────────────────────────────────────── */
@@ -56,9 +53,6 @@ html[data-lk-cb="rg"] .lk-pm-hp i { background: linear-gradient(90deg, #2F86C9, 
 html[data-lk-cb="rg"] .lk-bar--enemy > i { background: linear-gradient(90deg, #C77A0A, var(--lk-enemy-red)); }
 html[data-lk-cb="rg"] .lk-bar.lk-bar--low > i,
 html[data-lk-cb="rg"] .lk-pm-hp.lk-is-low i { background: linear-gradient(90deg, #A84800, var(--lk-danger-crimson)); }
-html[data-lk-cb="rg"] .float-damage { color: #FF8C1A; text-shadow: 0 4px 0 #000, 0 0 16px rgba(255, 140, 26, .9), 0 8px 16px rgba(0, 0, 0, .7); }
-html[data-lk-cb="rg"] .float-heal { color: #7FD0FF; -webkit-text-stroke-color: #0B4A75; text-shadow: 0 4px 0 #000, 0 0 18px rgba(127, 208, 255, .9); }
-html[data-lk-cb="rg"] .float-pm { color: #F0E442; -webkit-text-stroke-color: #6B5F00; text-shadow: 0 3px 0 #000, 0 0 14px rgba(240, 228, 66, .9); }
 
 /* Azul-amarillo (tritanopía): turquesa frente a rosa rojizo */
 html[data-lk-cb="tri"] { --lk-hp-vital-green: #22C3B5; --lk-enemy-red: #FF4F79; --lk-danger-crimson: #FF2A55; }
@@ -67,11 +61,17 @@ html[data-lk-cb="tri"] .lk-pm-hp i { background: linear-gradient(90deg, #138F85,
 html[data-lk-cb="tri"] .lk-bar--enemy > i { background: linear-gradient(90deg, #C9254F, var(--lk-enemy-red)); }
 html[data-lk-cb="tri"] .lk-bar.lk-bar--low > i,
 html[data-lk-cb="tri"] .lk-pm-hp.lk-is-low i { background: linear-gradient(90deg, #B5123A, var(--lk-danger-crimson)); }
-html[data-lk-cb="tri"] .float-damage { color: #FF4F79; text-shadow: 0 4px 0 #000, 0 0 16px rgba(255, 79, 121, .9), 0 8px 16px rgba(0, 0, 0, .7); }
-html[data-lk-cb="tri"] .float-heal { color: #22C3B5; -webkit-text-stroke-color: #0B5550; text-shadow: 0 4px 0 #000, 0 0 18px rgba(34, 195, 181, .9); }
 
 /* Con alto contraste y daltonismo a la vez, las rayas del enemigo usan el color del modo */
 html.lk-high-contrast[data-lk-cb="rg"] .lk-bar--enemy > i,
 html.lk-high-contrast[data-lk-cb="tri"] .lk-bar--enemy > i {
   background-image: repeating-linear-gradient(135deg, rgba(0, 0, 0, .38) 0 3px, transparent 3px 7px), linear-gradient(90deg, var(--lk-enemy-red), var(--lk-enemy-red));
 }
+
+/* Hito 107 · números de combate (FloatingCombatText): colores por modo, contraste y movimiento */
+html[data-lk-cb="rg"] .lk-fct { --lk-fct-taken: #FFC266; --lk-fct-heal: #9FD8FF; }
+html[data-lk-cb="tri"] .lk-fct { --lk-fct-taken: #FF9DB5; --lk-fct-heal: #7FE6DA; }
+html.lk-high-contrast .lk-fct-main { text-shadow: 0 0 2px #000, 0 0 4px #000, 0 2px 0 #000, 0 0 14px rgba(0, 0, 0, .6); }
+html.lk-high-contrast .lk-fct-tag { background: rgba(6, 8, 16, .95); box-shadow: inset 0 0 0 2px var(--c, #fff); }
+html.lk-reduce-motion .lk-fct, html.lk-reduce-motion .lk-fct *, html.lk-reduce-motion .lk-fct::before, html.lk-reduce-motion .lk-fct::after { animation: none !important; }
+html.lk-reduce-motion .lk-fct--crit::before, html.lk-reduce-motion .lk-fct--crit::after { display: none; }

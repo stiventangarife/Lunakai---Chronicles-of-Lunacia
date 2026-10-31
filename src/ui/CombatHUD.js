@@ -174,8 +174,8 @@ export function initCombatHUDMarkup() {
           </div>
         </div>
         <div class="points-container lk-res-meters">
-          <div class="lk-meter lk-meter--pa" data-ref="mPA" title="${i18n.t('combatHud.paTitle')}"><span class="lk-orb"><img class="lk-ai" src="${ICON}pa.png" alt=""></span><b id="hud-pa-count">6 / 6</b><span class="lk-pips" data-ref="paPips"></span></div>
-          <div class="lk-meter lk-meter--pm" data-ref="mPM" title="${i18n.t('combatHud.pmTitle')}"><span class="lk-orb">${SVG_PM}</span><b id="hud-pm-count">3 / 3</b><span class="lk-pips" data-ref="pmPips"></span></div>
+          <div class="lk-meter lk-meter--pa" data-ref="mPA" title="${i18n.t('combatHud.paTitle')}"><span class="lk-orb"><img class="lk-ai" src="${ICON}pa.png" alt=""></span><b id="hud-pa-count">6</b><span class="lk-pips" data-ref="paPips"></span></div>
+          <div class="lk-meter lk-meter--pm" data-ref="mPM" title="${i18n.t('combatHud.pmTitle')}"><span class="lk-orb">${SVG_PM}</span><b id="hud-pm-count">3</b><span class="lk-pips" data-ref="pmPips"></span></div>
         </div>
         <div class="spell-hotbar lk-tray">${slots}</div>
         <div class="lk-duo-wrap lk-cb-ult-wrap">
@@ -270,10 +270,29 @@ export function attachCombatHUD(game) {
   };
   const costNum = (unit, s) => { const c = costOf(unit, s); return c === 'X' ? 1 : c; };
 
-  const pips = (el, cur, max) => {
+  /**
+   * Rombos de PA/PM (Hito 108): tantos como el máximo de la unidad o, si ganó puntos por encima, como los que tiene
+   * ahora. Los que superan el máximo salen en dorado («extra»); los recién ganados aparecen con un pequeño salto.
+   * Hasta 9 caben a tamaño normal; de 10 a 12 se compactan en el mismo ancho (sin mover nada del HUD).
+   */
+  const PIP_CAP = 12;
+  const lastRes = { unit: null, pa: 0, pm: 0 };
+  const pips = (el, cur, max, prev) => {
     if (!el) return;
-    const n = Math.max(0, Math.min(12, max | 0));
-    el.innerHTML = Array.from({ length: n }, (_, i) => `<i class="${i < cur ? 'lk-on' : ''}"></i>`).join('');
+    const base = Math.max(0, max | 0);
+    const n = Math.min(PIP_CAP, Math.max(base, cur));
+    el.classList.toggle('lk-dense', n > 9);
+    el.innerHTML = Array.from({ length: n }, (_, i) => {
+      const on = i < cur;
+      const cls = [on ? 'lk-on' : '', on && i >= base ? 'lk-extra' : '', on && prev != null && i >= prev ? 'lk-new' : ''].filter(Boolean).join(' ');
+      return `<i${cls ? ` class="${cls}"` : ''}></i>`;
+    }).join('');
+  };
+  const bump = (el, cur, prev) => {
+    if (!el || prev == null || cur === prev) return;
+    el.classList.remove('lk-gain', 'lk-loss');
+    void el.offsetWidth; // reinicia la animación de un solo uso
+    el.classList.add(cur > prev ? 'lk-gain' : 'lk-loss');
   };
 
   // ── Hoja de la unidad, recursos y cartas
@@ -292,13 +311,22 @@ export function attachCombatHUD(game) {
     }
     q('.lk-portrait')?.style.setProperty('--c', tintOf(unit));
 
-    // Recursos: «6/6» y rombos
+    // Recursos (Hito 108): solo lo que queda («7») y rombos que crecen si se ganan puntos por encima del máximo
     const pa = Math.max(0, unit.currentPA | 0), pm = Math.max(0, unit.currentPM | 0);
+    const same = lastRes.unit === unit;
+    const prevPA = same && pa > lastRes.pa ? lastRes.pa : null, prevPM = same && pm > lastRes.pm ? lastRes.pm : null;
     const paEl = $('hud-pa-count'), pmEl = $('hud-pm-count');
-    if (paEl) paEl.textContent = `${pa}/${unit.maxPA}`;
-    if (pmEl) pmEl.textContent = `${pm}/${unit.maxPM}`;
-    pips(q('[data-ref="paPips"]'), pa, unit.maxPA);
-    pips(q('[data-ref="pmPips"]'), pm, unit.maxPM);
+    if (paEl) paEl.textContent = String(pa);
+    if (pmEl) pmEl.textContent = String(pm);
+    pips(q('[data-ref="paPips"]'), pa, unit.maxPA, prevPA);
+    pips(q('[data-ref="pmPips"]'), pm, unit.maxPM, prevPM);
+    if (same) { bump(paEl, pa, lastRes.pa); bump(pmEl, pm, lastRes.pm); }
+    const extraPA = pa > (unit.maxPA | 0), extraPM = pm > (unit.maxPM | 0);
+    q('[data-ref="mPA"]')?.classList.toggle('lk-has-extra', extraPA);
+    q('[data-ref="mPM"]')?.classList.toggle('lk-has-extra', extraPM);
+    q('[data-ref="mPA"]')?.setAttribute('aria-label', i18n.t('combatHud.paAria', { n: pa }));
+    q('[data-ref="mPM"]')?.setAttribute('aria-label', i18n.t('combatHud.pmAria', { n: pm }));
+    lastRes.unit = unit; lastRes.pa = pa; lastRes.pm = pm;
 
     // Vida enemiga en rojo y escudo
     q('.lk-cb-hp')?.classList.toggle('lk-bar--enemy', unit.team !== 'player');
@@ -624,8 +652,8 @@ export function attachCombatHUD(game) {
         <div><div class="lk-cb-ut-read"><span>${i18n.t('combatHud.hp')}</span><b>${hp}${sh ? ` <i>+${sh}</i>` : ''} / ${max}</b></div>
         <div class="lk-bar ${ally ? '' : 'lk-bar--enemy'}" style="--v:${hpPct}%"><i></i>${sh ? `<em style="left:${hpPct}%;width:${shPct}%"></em>` : ''}</div></div>
         ${u.isGolem ? `<p class="lk-cb-ut-golem">${esc(i18n.t(`golems.${u.golemKind}.passive`))}<br><small>${esc(i18n.t('golems.immune'))}</small></p>` : `<div class="lk-tt-stats">
-          <span class="lk-tt-stat"><i class="lk-tl"><img class="lk-ai" src="${ICON}pa.png" alt="">${i18n.t('combatHud.paShort')}</i><b>${u.currentPA}/${u.maxPA}</b></span>
-          <span class="lk-tt-stat"><i class="lk-tl">${SVG_PM}${i18n.t('combatHud.pmShort')}</i><b>${u.currentPM}/${u.maxPM}</b></span>
+          <span class="lk-tt-stat"><i class="lk-tl"><img class="lk-ai" src="${ICON}pa.png" alt="">${i18n.t('combatHud.paShort')}</i><b>${u.currentPA}</b></span>
+          <span class="lk-tt-stat"><i class="lk-tl">${SVG_PM}${i18n.t('combatHud.pmShort')}</i><b>${u.currentPM}</b></span>
         </div>`}
         ${st ? `<div class="lk-cb-ut-sts">${st}</div>` : ''}
       </div></div>`;

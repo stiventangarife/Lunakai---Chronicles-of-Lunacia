@@ -102,5 +102,7 @@ export default {
   "combatHud.readyInN": "Recharging: ready in {n} turns.",
   "combatHud.spentTip": "No uses of this card left this turn.",
   "combatHud.lockedAt": "Locked: unlocks at level {n}.",
-  "combatHud.lockedAtPart": "Locked: unlocks at level {n} ({part})."
+  "combatHud.lockedAtPart": "Locked: unlocks at level {n} ({part}).",
+  "combatHud.paAria": "{n} AP",
+  "combatHud.pmAria": "{n} MP"
 };

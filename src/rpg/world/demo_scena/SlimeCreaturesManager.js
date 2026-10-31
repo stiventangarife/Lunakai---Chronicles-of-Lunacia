@@ -3,6 +3,9 @@ import { GLTFLoader } from '../../../../vendor/GLTFLoader.js';
 import { applyToonOutline } from '../../stylized/ToonOutline.js';
 import { generatePackForBiome } from '../BiomeEnemyCatalog.js';
 import { createEnemyNameplate, createEnemyAlertSprite } from '../../ui/EnemyNameplate.js';
+import { RESPAWN_CONFIG } from '../islands/MobSpawnPools.js';
+import { spawnPuff } from '../../PuffEffect.js';
+import { access } from '../../../ui/AccessPrefs.js';
 
 /**
  * Tabla de modelos oficiales de Chimera Slimes en el juego.
@@ -25,6 +28,16 @@ const MODEL_MAPPING = {
   'support': 'slime-support'
 };
 
+// Hito 106: plantillas de los slimes del Bosque. Antes eran 3 slimes con posición fija (y sin respawn); ahora la isla
+// mantiene RESPAWN_CONFIG.population slimes que salen de estas plantillas en puntos aleatorios del pool del Bosque.
+const SLIME_TEMPLATES = [
+  { name: 'Aqua Slime', tier: 1, modelType: 'slime', archetypeId: 'slime', scale: 1.75, jumpInterval: 2.2, chaseJumpInterval: 1.15, detectionRadius: 8.5, encounterRadius: 2.6, jumpHeight: 1.6 },
+  { name: 'Support Slime', tier: 1, modelType: 'slime-support', archetypeId: 'slime_support', scale: 1.65, jumpInterval: 2.4, chaseJumpInterval: 1.25, detectionRadius: 8.5, encounterRadius: 2.6, jumpHeight: 1.5 },
+  { name: 'Attack Slime', tier: 2, modelType: 'slime-attack', archetypeId: 'slime_attack', scale: 1.85, jumpInterval: 2.0, chaseJumpInterval: 1.05, detectionRadius: 9.0, encounterRadius: 2.6, jumpHeight: 1.7 }
+];
+// Anclas de siempre: solo si no hubiera pool de puntos
+const SLIME_FALLBACK_SPOTS = [{ x: -35, z: -55 }, { x: -75, z: -20 }, { x: 55, z: -60 }];
+
 /**
  * Gestor de Criaturas Vivas del Mundo: Slimes Auténticos del Juego con Lógica de Combate.
  * - Cantidad reducida y estratégica (3 slimes distribuidos en río, pradera y sendero del dojo).
@@ -46,6 +59,8 @@ export class SlimeCreaturesManager {
 
     this.slimes = [];
     this.defeatedIds = new Set();
+    this._seq = 0;      // Hito 106: ids únicos de los slimes
+    this._pending = 0;  // Hito 106: slimes que se están creando (para no pasarse de la población)
     this.time = 0;
     this.isLoaded = false;
     this.isEncounterTriggered = false;
@@ -63,127 +78,156 @@ export class SlimeCreaturesManager {
     if (this._isInitializing) return this._initPromise;
     this._isInitializing = true;
 
-    // Reducción estratégica a 3 slimes con identidades, niveles y roles tácticos únicos (alejados del río)
-    const slimeConfigs = [
-      // 1. Aqua Chimera Slime (En la pradera suroeste, lejos del río)
-      {
-        id: 'slime_ds_aqua',
-        name: 'Aqua Slime',
-        tier: 1,
-        modelType: 'slime',
-        archetypeId: 'slime',
-        x: -35.0,
-        z: -55.0,
-        scale: 1.75,
-        jumpInterval: 2.2,
-        chaseJumpInterval: 1.15,
-        detectionRadius: 8.5,
-        encounterRadius: 2.6,
-        jumpHeight: 1.6
-      },
+    // Hito 106: respawn. Los slimes caídos reaparecen en puntos aleatorios del Bosque (MobRespawnDirector).
+    this.om?.monsters?.respawn?.registerHandler('slime', () => this._respawnOne());
 
-      // 2. Support Chimera Slime (En la meseta noroeste de flores)
-      {
-        id: 'slime_ds_support',
-        name: 'Support Slime',
-        tier: 1,
-        modelType: 'slime-support',
-        archetypeId: 'slime_support',
-        x: -75.0,
-        z: -20.0,
-        scale: 1.65,
-        jumpInterval: 2.4,
-        chaseJumpInterval: 1.25,
-        detectionRadius: 8.5,
-        encounterRadius: 2.6,
-        jumpHeight: 1.5
-      },
-
-      // 3. Attack Chimera Slime (al otro lado del Bosque, en el sendero del este; antes en -60, 45, junto al
-      //    camino del Dojō, donde atacaba al jugador recién salido del tutorial)
-      {
-        id: 'slime_ds_attack',
-        name: 'Attack Slime',
-        tier: 2,
-        modelType: 'slime-attack',
-        archetypeId: 'slime_attack',
-        x: 55.0,
-        z: -60.0,
-        scale: 1.85,
-        jumpInterval: 2.0,
-        chaseJumpInterval: 1.05,
-        detectionRadius: 9.0,
-        encounterRadius: 2.6,
-        jumpHeight: 1.7
-      }
-    ];
-
-    for (const cfg of slimeConfigs) {
-      if (this.defeatedIds.has(cfg.id)) continue;
-
-      try {
-        const gltf = await this._getOrLoadGLTF(cfg.modelType);
-        if (!gltf) continue;
-
-        // Generar paquete de combate procedural equilibrado
-        let packData = null;
-        try {
-          packData = generatePackForBiome('forest', [2, 2], cfg.archetypeId);
-        } catch (e) {
-          console.warn('[SlimeCreaturesManager] Usando pack fallback para combate:', e);
-        }
-
-        const { root, model, mixer, actions, alertSprite, nameSprite, nameplate } = this._createSlimeInstance(gltf, cfg, packData);
-        const groundH = this.terrain ? this.terrain.getHeight(cfg.x, cfg.z) : 0;
-        root.position.set(cfg.x, groundH, cfg.z);
-
-        this.group.add(root);
-
-        this.slimes.push({
-          id: cfg.id,
-          name: cfg.name,
-          tier: cfg.tier,
-          archetypeId: cfg.archetypeId,
-          group: root,
-          model: model,
-          mixer: mixer,
-          actions: actions,
-          alertSprite: alertSprite,
-          nameSprite: nameSprite,
-          nameplate: nameplate,
-          alertPopped: false,
-          packData: packData,
-          baseX: cfg.x,
-          baseZ: cfg.z,
-          currentX: cfg.x,
-          currentZ: cfg.z,
-          targetX: cfg.x + (Math.random() - 0.5) * 8.0,
-          targetZ: cfg.z + (Math.random() - 0.5) * 8.0,
-          baseScale: cfg.scale,
-          modelType: cfg.modelType,
-          jumpInterval: cfg.jumpInterval,
-          normalJumpInterval: cfg.jumpInterval,
-          chaseJumpInterval: cfg.chaseJumpInterval,
-          jumpTimer: Math.random() * cfg.jumpInterval,
-          isJumping: false,
-          jumpProgress: 0,
-          jumpDuration: 0.85,
-          startX: cfg.x,
-          startZ: cfg.z,
-          jumpHeight: cfg.jumpHeight,
-          detectionRadius: cfg.detectionRadius,
-          encounterRadius: cfg.encounterRadius,
-          state: 'PATROL', // 'PATROL', 'ALERT_PAUSE', 'CHASE', 'ENCOUNTER'
-          alertTimer: 0
-        });
-      } catch (err) {
-        console.warn(`[SlimeCreaturesManager] Error al instanciar slime ${cfg.modelType}:`, err);
-      }
+    // Los 3 modelos se cargan ya (como antes): así un respawn nunca descarga ni decodifica un modelo en pleno juego
+    for (const tpl of SLIME_TEMPLATES) {
+      try { await this._getOrLoadGLTF(tpl.modelType); } catch (e) { /* _getOrLoadGLTF ya avisa */ }
+    }
+    for (let k = 0; k < RESPAWN_CONFIG.population; k++) {
+      const spot = this._pickSpot() || SLIME_FALLBACK_SPOTS[k % SLIME_FALLBACK_SPOTS.length];
+      await this._spawnSlime(this._randomTemplate(), spot);
     }
 
     this.isLoaded = true;
     this._isInitializing = false;
     console.log(`[SlimeCreaturesManager] ✨ ${this.slimes.length} Slimes tácticos con lógica de combate instanciados en el mapa.`);
+  }
+
+  // ───────────────────────── Hito 106 · respawn de slimes ─────────────────────────
+
+  _playerXZ() {
+    const p = this.om?.player?.position;
+    return p ? { x: p.x, z: p.z } : null;
+  }
+
+  _randomTemplate() {
+    return SLIME_TEMPLATES[Math.floor(Math.random() * SLIME_TEMPLATES.length)];
+  }
+
+  /** Punto aleatorio del pool del Bosque, lejos del jugador y de los demás slimes (null si no hay). */
+  _pickSpot() {
+    const dir = this.om?.monsters?.respawn;
+    if (!dir) return null;
+    return dir.pick('2_2', {
+      player: this._playerXZ(),
+      mobs: this.slimes.map((s) => ({ x: s.group.position.x, z: s.group.position.z }))
+    });
+  }
+
+  /** Crea un slime de la plantilla en el punto dado. popIn: aparición con humo (respawn a la vista del juego). */
+  async _spawnSlime(tpl, spot, { popIn = false } = {}) {
+    const cfg = { ...tpl, id: `slime_ds_${++this._seq}`, x: spot.x, z: spot.z };
+    this._pending++;
+    try {
+      const gltf = await this._getOrLoadGLTF(cfg.modelType);
+      if (!gltf) return null;
+
+      // Generar paquete de combate procedural equilibrado
+      let packData = null;
+      try {
+        packData = generatePackForBiome('forest', [2, 2], cfg.archetypeId);
+      } catch (e) {
+        console.warn('[SlimeCreaturesManager] Usando pack fallback para combate:', e);
+      }
+
+      const { root, model, mixer, actions, alertSprite, nameSprite, nameplate } = this._createSlimeInstance(gltf, cfg, packData);
+      const groundH = this.terrain ? this.terrain.getHeight(cfg.x, cfg.z) : 0;
+      root.position.set(cfg.x, groundH, cfg.z);
+
+      this.group.add(root);
+
+      const s = {
+        id: cfg.id,
+        name: cfg.name,
+        tier: cfg.tier,
+        archetypeId: cfg.archetypeId,
+        group: root,
+        model: model,
+        mixer: mixer,
+        actions: actions,
+        alertSprite: alertSprite,
+        nameSprite: nameSprite,
+        nameplate: nameplate,
+        alertPopped: false,
+        packData: packData,
+        baseX: cfg.x,
+        baseZ: cfg.z,
+        currentX: cfg.x,
+        currentZ: cfg.z,
+        targetX: cfg.x + (Math.random() - 0.5) * 8.0,
+        targetZ: cfg.z + (Math.random() - 0.5) * 8.0,
+        baseScale: cfg.scale,
+        modelType: cfg.modelType,
+        jumpInterval: cfg.jumpInterval,
+        normalJumpInterval: cfg.jumpInterval,
+        chaseJumpInterval: cfg.chaseJumpInterval,
+        jumpTimer: Math.random() * cfg.jumpInterval,
+        isJumping: false,
+        jumpProgress: 0,
+        jumpDuration: 0.85,
+        startX: cfg.x,
+        startZ: cfg.z,
+        jumpHeight: cfg.jumpHeight,
+        detectionRadius: cfg.detectionRadius,
+        encounterRadius: cfg.encounterRadius,
+        state: 'PATROL', // 'PATROL', 'ALERT_PAUSE', 'CHASE', 'ENCOUNTER'
+        alertTimer: 0
+      };
+      if (this._hiddenForTutorial) root.visible = false;
+      this.slimes.push(s);
+      this.om?.environmentSystem?.markShadowCastersDirty?.();
+
+      if (popIn && !access.reduceMotion) {
+        s._pop = 0;
+        model.scale.setScalar(0.01); // el grupo raíz ya hace el «squash» de los saltos: la aparición escala el modelo
+        spawnPuff(this.group, root.position.clone(), { count: 10, radius: 1.3, duration: 0.6, color: 0xe6e1f5 });
+      }
+      return s;
+    } catch (err) {
+      console.warn(`[SlimeCreaturesManager] Error al instanciar slime ${cfg.modelType}:`, err);
+      return null;
+    } finally {
+      this._pending--;
+    }
+  }
+
+  /** Repone los slimes que faltan hasta la población objetivo (al volver a la isla; detrás del telón). */
+  async refillToPopulation() {
+    if (!this.isLoaded) return;
+    for (let guard = 0; this.slimes.length + this._pending < RESPAWN_CONFIG.population && guard < RESPAWN_CONFIG.population; guard++) {
+      const spot = this._pickSpot();
+      if (!spot) break;
+      if (!(await this._spawnSlime(this._randomTemplate(), spot))) break;
+    }
+  }
+
+  /** Handler 'slime' del director: un slime nuevo en un punto aleatorio. */
+  async _respawnOne() {
+    if (!this.isLoaded || this._tutorialRunning() || this.om?.state !== 'EXPLORING') return 'retry';
+    if (this.slimes.length + this._pending >= RESPAWN_CONFIG.population) return 'drop'; // ya está completo
+    const spot = this._pickSpot();
+    if (!spot) return 'retry';
+    const s = await this._spawnSlime(this._randomTemplate(), spot, { popIn: true });
+    return s ? 'ok' : 'retry';
+  }
+
+  /** Libera lo propio de un slime retirado: materiales clonados, contorno y sprites. Texturas y geometrías son del GLB. */
+  _disposeSlime(s) {
+    try { s.model?.userData?.toonOutline?.dispose?.(); } catch (e) { /* ya liberado */ }
+    if (s.mixer) {
+      s.mixer.stopAllAction();
+      if (s.model) s.mixer.uncacheRoot(s.model);
+    }
+    s.group.traverse((child) => {
+      if (child.isSprite) {
+        child.material?.map?.dispose();
+        child.material?.dispose();
+      } else if (child.isMesh && child.material) {
+        for (const m of [].concat(child.material)) m?.dispose?.();
+      }
+    });
   }
 
   async _getOrLoadGLTF(modelKey) {
@@ -345,8 +389,13 @@ export class SlimeCreaturesManager {
       const s = this.slimes[i];
       const g = s.group;
 
-      if (s.mixer) {
-        s.mixer.update(delta);
+      // Hito 106: aparición (el modelo crece de 0 a 1 con ligero rebote)
+      if (s._pop !== undefined) {
+        s._pop += delta / 0.45;
+        const k = Math.min(1, s._pop);
+        const e = 1 + 2.70158 * Math.pow(k - 1, 3) + 1.70158 * Math.pow(k - 1, 2);
+        s.model.scale.setScalar(k >= 1 ? 1 : Math.max(0.01, e));
+        if (k >= 1) s._pop = undefined;
       }
 
       // Calcular distancia en 2D al jugador
@@ -357,6 +406,13 @@ export class SlimeCreaturesManager {
         dx = pPos.x - g.position.x;
         dz = pPos.z - g.position.z;
         distToPlayer = Math.hypot(dx, dz);
+      }
+
+      // Hito 106 (rendimiento): lejos del jugador y en reposo, el slime se queda quieto (sin animación ni saltos)
+      if (s.state === 'PATROL' && !s.isJumping && distToPlayer > RESPAWN_CONFIG.farFreezeDist) continue;
+
+      if (s.mixer) {
+        s.mixer.update(delta);
       }
 
       // Comprobar colisión de combate (Encounter)
@@ -539,8 +595,11 @@ export class SlimeCreaturesManager {
       const s = this.slimes[idx];
       this.defeatedIds.add(s.id);
       this.group.remove(s.group);
+      this._disposeSlime(s);
       this.slimes.splice(idx, 1);
-      console.log(`[SlimeCreaturesManager] Slime derrotado '${monsterId}' eliminado permanentemente del mapa.`);
+      // Hito 106: reaparece más tarde en otro punto del Bosque (retardo de la isla)
+      this.om?.monsters?.respawn?.schedule('slime', null, null, '2_2');
+      console.log(`[SlimeCreaturesManager] Slime derrotado '${monsterId}' retirado del mapa; reaparecerá más tarde.`);
     }
     this.isEncounterTriggered = false;
   }

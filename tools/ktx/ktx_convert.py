@@ -14,16 +14,24 @@ Uso:
   # .gltf con imágenes externas: apunta las imágenes indicadas a su .ktx2 (que ya debe existir)
   python ktx_convert.py gltf entrada.gltf salida.gltf --map Rocks_Diffuse.png=Rocks_Diffuse.ktx2
 
+  # Atlas horneados (muchas islas UV pequeñas): --uvpad máscara.png rellena los huecos entre islas y calcula cada
+  # nivel de mipmap solo con texeles de las islas (push-pull). Sin esto, de lejos los mipmaps mezclan el negro de los
+  # huecos y salen líneas oscuras en las costuras. La máscara (blanco = isla) la genera tools/ktx/uvmask.html
+  # (http://localhost:8082/tools/ktx/uvmask.html?f=assets/models/kappa.glb). Necesita numpy y scipy.
+  python ktx_convert.py glb entrada.glb salida.glb --slot color=etc1s --uvpad mascara.png
+
 Tipos de textura (--slot): color, normal, mr (metallicRoughness), occl, emis.
 Una textura solo se convierte si TODOS sus usos están en los --slot pedidos (una imagen usada como color y como
 otra cosa a la vez se deja igual). Las texturas convertidas usan KHR_texture_basisu sin imagen de respaldo
 (extensionsRequired): el juego necesita el KTX2Loader conectado al GLTFLoader.
 """
 import argparse, io, json, os, struct, subprocess, sys, tempfile
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from PIL import Image
 
 KTX = os.environ.get('KTX_BIN', 'ktx')
-UASTC_RDO = None  # --rdo λ: post-proceso RDO de UASTC (archivos 25–35 % menores con zstd; 1–4, más alto = más pequeño)
+UASTC_RDO = None
+UV_MASK = None    # --uvpad: máscara de islas UV (PIL L), se escala al tamaño de cada textura  # --rdo λ: post-proceso RDO de UASTC (archivos 25–35 % menores con zstd; 1–4, más alto = más pequeño)
 SLOT_PATHS = {
     'color': lambda m: (m.get('pbrMetallicRoughness') or {}).get('baseColorTexture'),
     'mr': lambda m: (m.get('pbrMetallicRoughness') or {}).get('metallicRoughnessTexture'),
@@ -51,8 +59,20 @@ def encode_ktx2(img: Image.Image, mode: str, tf: str, max_size: int | None, rgb:
     fmt = f'{chans}_SRGB' if tf == 'srgb' else f'{chans}_UNORM'
     with tempfile.TemporaryDirectory() as d:
         src, dst = os.path.join(d, 'in.png'), os.path.join(d, 'out.ktx2')
-        img.save(src)
-        cmd = [KTX, 'create', '--format', fmt, '--assign-tf', 'srgb' if tf == 'srgb' else 'linear', '--generate-mipmap']
+        if UV_MASK is not None:
+            # Niveles propios con relleno de huecos (padmip.py): se pasan a ktx create uno por archivo
+            import numpy as np
+            from padmip import pad_levels
+            mask = np.asarray(UV_MASK.resize((w, h), Image.BILINEAR)) > 40
+            levels = pad_levels(img, mask, srgb=(tf == 'srgb'))
+            srcs = []
+            for i, lv in enumerate(levels):
+                f = os.path.join(d, f'l{i}.png'); lv.save(f); srcs.append(f)
+            cmd = [KTX, 'create', '--format', fmt, '--assign-tf', 'srgb' if tf == 'srgb' else 'linear', '--levels', str(len(srcs))]
+        else:
+            img.save(src)
+            srcs = [src]
+            cmd = [KTX, 'create', '--format', fmt, '--assign-tf', 'srgb' if tf == 'srgb' else 'linear', '--generate-mipmap']
         if mode == 'etc1s':
             cmd += ['--encode', 'basis-lz', '--clevel', '2', '--qlevel', '255']
         elif mode == 'uastc':
@@ -61,7 +81,7 @@ def encode_ktx2(img: Image.Image, mode: str, tf: str, max_size: int | None, rgb:
             cmd += ['--zstd', '18']
         else:
             raise ValueError(mode)
-        cmd += [src, dst]
+        cmd += srcs + [dst]
         r = subprocess.run(cmd, capture_output=True, text=True)
         if r.returncode != 0:
             raise RuntimeError(f'ktx create falló: {r.stderr or r.stdout}')
@@ -212,9 +232,12 @@ def main():
     ap.add_argument('--max', type=int); ap.add_argument('--map', action='append', default=[])
     ap.add_argument('--rgb', action='store_true', help='descarta el canal alfa (imágenes sin transparencia real)')
     ap.add_argument('--rdo', type=float, help='UASTC con RDO (λ 1–4): archivos más pequeños')
+    ap.add_argument('--uvpad', help='máscara de islas UV (PNG, blanco = isla): rellena huecos y mipmaps sin sangrado')
     a = ap.parse_args()
-    global UASTC_RDO
+    global UASTC_RDO, UV_MASK
     UASTC_RDO = a.rdo
+    if a.uvpad:
+        UV_MASK = Image.open(a.uvpad).convert('L')
     rep = [f'{a.src}:']
     if a.kind == 'glb':
         convert_glb(a.src, a.dst, dict(s.split('=') for s in a.slot), a.max, rep)

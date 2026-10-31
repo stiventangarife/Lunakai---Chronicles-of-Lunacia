@@ -66,6 +66,15 @@ const CLAW=(edge)=>`uniform float uEr;uniform float uW;void main(){vec2 p=vUv;fl
  float a=max(m,e*.9);if(a<.02)discard;float er=styErode(a*.4+styNoise(p*vec2(1.2,.5)+uW).r*.6,uEr,.1);
  vec3 c=mix(${edge}*1.3,vec3(.16,.02,.03),m*.85);gl_FragColor=vec4(c+${edge}*e*.5,a*er*uA);}`;
 const defs=[];
+// Hito 104: une varias piezas en UNA malla (el puente mueve entera una malla compacta; piezas sueltas se separaban al
+// cruzar el pasillo estirado). Cada pieza lleva su número en la U de la textura (u + 2·pieza) para colorearla en el shader.
+const mergeParts=(list)=>{const P=[],N=[],T=[];
+  for(const [g0,part] of list){const g=g0.index?g0.toNonIndexed():g0;const pa=g.attributes.position.array,na=g.attributes.normal.array,ua=g.attributes.uv.array;
+    for(let i=0;i<pa.length;i++){P.push(pa[i]);N.push(na[i]);}
+    for(let i=0;i<ua.length;i+=2){T.push(ua[i]+2*part,ua[i+1]);}}
+  const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.Float32BufferAttribute(P,3));
+  g.setAttribute('normal',new THREE.Float32BufferAttribute(N,3));g.setAttribute('uv',new THREE.Float32BufferAttribute(T,2));
+  g.computeBoundingSphere();return g;};
 
 // =====================================================================
 // 1 · FURBALL — un ovillo de pelo ámbar se enrolla en la espalda, sale despedido y bota por el tablero envuelto en
@@ -140,16 +149,21 @@ defs.push({key:"sty_hero",name:"Hero (estilizado)",dur:2.25,ti:0.6,pal:P_HERO,ti
   phases:[["Llamada",0],["Descenso",0.3],["Bendición",0.6],["Heroico",0.8625],["Fin",1.875]],
 build(a){
   const L=a.L,TD=0.3,TI=0.6,TH=0.8625,TF=1.875,TE=2.25;
-  const goldM=S.mat(SOLID(`base=${GOLD};`,{hot:'vec3(1.,.75,.3)',rim:.4}),{uQ:{value:-1},uK:{value:0}},{mode:'solid'});
-  const bladeM=S.mat(SOLID(`float e=abs(vUv.x-.5)*2.;base=mix(${STEEL},${lin('#fff3c8')},smoothstep(.55,.9,e));lb=.06;`,
-    {hot:'vec3(1.,.82,.4)',rim:.5,nzs:'vec2(1.,3.)'}),{uQ:{value:-1},uK:{value:0}},{mode:'solid'});
-  const sword=new THREE.Group(); L.mesh.add(sword);
-  const blade=new THREE.Mesh(new THREE.BoxGeometry(0.2,1.5,0.06),bladeM); blade.position.y=0.95; sword.add(blade);
-  const tip=new THREE.Mesh(new THREE.ConeGeometry(0.142,0.32,4).rotateY(Math.PI/4),bladeM); tip.scale.z=0.3; tip.position.y=1.86; sword.add(tip);
-  const guard=new THREE.Mesh(new THREE.BoxGeometry(0.72,0.12,0.12),goldM); guard.position.y=0.17; sword.add(guard);
-  const grip=new THREE.Mesh(new THREE.CylinderGeometry(0.055,0.055,0.36,10),S.mat(SOLID(`base=${lin('#7a2416')};`),{uQ:{value:-1},uK:{value:0}},{mode:'solid'}));
-  grip.position.y=-0.06; sword.add(grip);
-  const pommel=new THREE.Mesh(new THREE.SphereGeometry(0.09,14,10),goldM); pommel.position.y=-0.26; sword.add(pommel);
+  // espada en UNA sola malla compacta (a media escala; el grupo la duplica): hoja + punta (0), guarda y pomo (1), puño (2),
+  // todo centrado en el eje de la hoja. Así el puente la mueve entera y el mango no se descuadra en el vuelo.
+  const HS=0.5, mk=(geo,part,y)=>[geo.translate(0,y,0).scale(HS,HS,HS),part];
+  const swordG=mergeParts([
+    mk(new THREE.BoxGeometry(0.2,1.5,0.06),0,0.95),
+    mk(new THREE.ConeGeometry(0.142,0.32,4).rotateY(Math.PI/4).scale(1,1,0.3),0,1.86),
+    mk(new THREE.BoxGeometry(0.72,0.12,0.12),1,0.14),
+    mk(new THREE.SphereGeometry(0.06,10,8).scale(1,1,1),1,0.14+0.0),
+    mk(new THREE.CylinderGeometry(0.055,0.06,0.36,10),2,-0.1),
+    mk(new THREE.SphereGeometry(0.09,14,10),1,-0.32)]);
+  const swordM=S.mat(SOLID(`float part=floor(vUv.x*.5+.001);float ux=vUv.x-part*2.;
+    if(part<.5){float e=abs(ux-.5)*2.;base=mix(${STEEL},${lin('#fff3c8')},smoothstep(.55,.9,e));lb=.06;}
+    else if(part<1.5){base=${GOLD};}else{base=${lin('#7a2416')};float wr=step(.5,fract(vUv.y*6.));lb=-.08*wr;}`,
+    {hot:'vec3(1.,.82,.4)',rim:.45,nzs:'vec2(.5,3.)'}),{uQ:{value:-1},uK:{value:0}},{mode:'solid'});
+  const sword=new THREE.Group(); L.mesh.add(sword); sword.add(new THREE.Mesh(swordG,swordM));
   // capa: plano que ondea en la espalda (materia roja con ribete dorado)
   const capeG=new THREE.PlaneGeometry(1.0,1.15,10,10).translate(0,-0.575,0);
   const capeM=S.mat(`uniform float uQ;void main(){vec3 n=normalize(vN);if(!gl_FrontFacing)n=-n;float l=styLight(n,stySunV());
@@ -199,9 +213,9 @@ build(a){
     if(te<TD){sword.position.set(CX,2.25+0.2*e3(te/TD),0.1);sword.rotation.z=0;sc=0.2+0.8*e3(te/TD);}
     else if(te<TI){const u=ss(TD,TI,te);sword.position.set(CX+(2.65-CX)*e3(u),2.45+0.6*Math.sin(u*Math.PI)-0.4*u,0.1);sword.rotation.z=2.6*u*u;}
     else{const k=e3(cl(ia/0.08));sword.position.set(2.65,2.05-0.7*k,0.1);sword.rotation.z=2.6-0.25*k;}
-    sword.scale.setScalar(Math.max(sc*1.4,0.001));
-    const dis=ss(TF-0.5,TF,te); bladeM.uniforms.uQ.value=goldM.uniforms.uQ.value=-0.1+1.2*dis;
-    bladeM.uniforms.uK.value=goldM.uniforms.uK.value=0.5*(1-cl(te/TD))+0.9*hitE(ia,9);
+    sword.scale.setScalar(Math.max(sc*1.4/HS,0.001));
+    const dis=ss(TF-0.5,TF,te); swordM.uniforms.uQ.value=-0.1+1.2*dis;
+    swordM.uniforms.uK.value=0.5*(1-cl(te/TD))+0.9*hitE(ia,9);
     sword.visible=te<TF+0.02;
     // tajo, chispa, grietas, remolino
     towardCam(arc.position,tmp.set(TX-0.25,1.25,0),0.4); billboard(arc,-0.9); arc.visible=ia>=0&&ia<0.4;
@@ -228,28 +242,32 @@ defs.push({key:"sty_jaguar",name:"Jaguar (estilizado)",dur:2.21,ti:1.02,pal:P_JA
 build(a){
   const L=a.L,TS=0.2125,TP=0.595,TZ=0.782,TI=1.02,TR=1.4025,TE=2.21;
   const HITS=[TZ,0.9,TI];
-  // silueta de jaguar (SDF) con rosetas, contorno oscuro y ojo encendido; uQ erosión, uPose 0 = salto, 1 = zarpa
-  const jagM=S.mat(`uniform float uQ;uniform float uPose;uniform float uK;
-   float sdSeg(vec2 p,vec2 a,vec2 b){vec2 pa=p-a,ba=b-a;float h=clamp(dot(pa,ba)/dot(ba,ba),0.,1.);return length(pa-ba*h);}
-   float smin(float a,float b,float k){float h=clamp(.5+.5*(b-a)/k,0.,1.);return mix(b,a,h)-k*h*(1.-h);}
-   void main(){vec2 p=(vUv-.5)*vec2(2.,1.);
-    float d=sdSeg(p,vec2(-.4,0.),vec2(.3,.04))-.21;
-    d=smin(d,length(p-vec2(.55,.13))-.165,.08);
-    d=min(d,length(p-vec2(.5,.27))-.045);d=min(d,length(p-vec2(.63,.26))-.04);
-    d=smin(d,sdSeg(p,vec2(-.48,.02),vec2(-.82,.22+.08*sin(uT*9.)))-.035,.04);
-    vec2 fl=mix(vec2(.62,-.08),vec2(.72,.05),uPose), bl=mix(vec2(-.66,-.2),vec2(-.6,-.28),uPose);
-    d=smin(d,sdSeg(p,vec2(.28,-.02),fl)-.055,.05);d=smin(d,sdSeg(p,vec2(-.34,-.04),bl)-.06,.05);
-    if(d>.03)discard;
-    float nz=styNoise(vUv*vec2(2.,1.)+.33).r;if(styErode(nz*.7+.3*(1.-vUv.x),uQ,.06)<.5)discard;
-    vec4 cel=styNoise(p*1.3+.2);float ros=smoothstep(.12,.06,abs(cel.g-.55))*step(d,-.03)*step(p.x,.45);
-    float belly=smoothstep(-.02,-.14,p.y)*step(p.x,.4);
-    vec3 n=normalize(vec3(-p.x*.4,clamp(-d*6.,0.,1.)*.8+p.y,1.));float l=styLight(n,stySunV());
-    vec3 base=mix(${AMBER},${CREAM},belly*.6);base=mix(base,${lin('#26140a')},ros*.85);
-    vec3 c=styRampOf(base,clamp(.25+.55*l,0.,1.))*styTint(l);
-    c=mix(c,${lin('#1c0e08')},smoothstep(-.025,.0,d));
-    float eye=smoothstep(.035,.015,length(p-vec2(.62,.16)));c=mix(c,vec3(1.,.8,.2)*1.6,eye);
-    c+=uC1*uK*.6;gl_FragColor=vec4(c,1.);}`,{uQ:{value:-1},uPose:{value:0},uK:{value:0}},{mode:'matter',depthTest:true});
-  const jag=new THREE.Mesh(new THREE.PlaneGeometry(1.6,0.8),jagM); L.mesh.add(jag);
+  // Hito 104: jaguar espiritual en 3D (antes una silueta plana estirada): torso, pecho, cadera, cabeza con hocico y orejas,
+  // cuatro patas y cola en curva, sin rasgos de cara. Dos poses (salto con las patas estiradas / zarpazo con las delanteras
+  // en alto), cada una en UNA malla compacta a media escala para que el puente la mueva entera.
+  const JS=0.5;
+  const sph=(r,x,y,z,sx=1,sy=1,sz=1)=>new THREE.SphereGeometry(r,14,10).scale(sx,sy,sz).translate(x,y,z);
+  const leg=(x,y,z,ang,len,r)=>{const g=new THREE.CapsuleGeometry(r,len,4,8).translate(0,-len/2,0).rotateZ(ang).translate(x,y,z);
+    return [g,[x+Math.sin(ang)*len,y-Math.cos(ang)*len,z]];};
+  const jagGeo=(strike)=>{const parts=[];
+    parts.push([new THREE.CapsuleGeometry(0.25,0.8,6,14).rotateZ(Math.PI/2).scale(1,0.92,0.9),0]);
+    parts.push([sph(0.3,0.36,0.04,0,1,1.05,0.92),0]);parts.push([sph(0.29,-0.38,0.0,0,1,1,0.92),0]);
+    parts.push([sph(0.21,0.7,0.2,0,1.15,0.95,0.9),0]);parts.push([sph(0.11,0.88,0.13,0,1.2,0.85,0.9),1]);
+    for(const zz of [-0.1,0.1])parts.push([new THREE.ConeGeometry(0.06,0.13,8).translate(0.63,0.4,zz),2]);
+    const fa=strike?2.0:1.15, ha=strike?-0.35:-1.15;
+    for(const zz of [-0.13,0.13]){
+      const [gf,pf]=leg(0.42,-0.1,zz,fa+(zz>0?0.15:-0.1),0.42,0.075);parts.push([gf,0]);parts.push([sph(0.085,...pf),1]);
+      if(strike)for(let c=-1;c<=1;c++)parts.push([new THREE.ConeGeometry(0.022,0.11,5).rotateZ(-Math.PI/2+0.3).translate(pf[0]+0.07,pf[1]+0.02*c,pf[2]+0.035*c),3]);
+      const [gh,ph]=leg(-0.42,-0.1,zz,ha+(zz>0?0.12:-0.08),0.44,0.085);parts.push([gh,0]);parts.push([sph(0.09,...ph),1]);}
+    for(let k=0;k<7;k++){const u=k/6;parts.push([sph(0.075*(1-0.45*u),-0.62-0.15*k,0.04+0.42*u*u+0.06*Math.sin(u*3.1),0),k===6?2:0]);}
+    return mergeParts(parts.map(([g,pt])=>[g.scale(JS,JS,JS),pt]));};
+  const jagM=S.mat(SOLID(`float part=floor(vUv.x*.5+.001);
+    if(part<.5){vec3 q=vP/${f(JS)};vec4 cel=styNoise(q.xy*vec2(1.9,2.3)+q.z*.7+.31);
+      float ros=smoothstep(.13,.07,abs(cel.g-.52))*smoothstep(-.12,.05,q.y);float spot=smoothstep(.08,.03,cel.g)*.8;
+      float belly=smoothstep(-.06,-.22,q.y);base=mix(${AMBER},${CREAM},belly*.75);base=mix(base,${lin('#2a160c')},max(ros,spot)*(1.-belly));lb=-.04*ros;}
+    else if(part<1.5){base=${CREAM};}else if(part<2.5){base=${lin('#2a160c')};lb=-.05;}else{base=${lin('#fff2d8')};lb=.15;}`,
+    {hot:'uC1',rim:.5,nzs:'vec2(2.,2.)'}),{uQ:{value:-1},uK:{value:0}},{mode:'solid'});
+  const jagA=new THREE.Mesh(jagGeo(false),jagM), jagB=new THREE.Mesh(jagGeo(true),jagM); L.mesh.add(jagA,jagB);
   const shade=S.contactShadow(L.decal,1.6);
   const claws=HITS.map((t,i)=>{const m=new THREE.Mesh(new THREE.PlaneGeometry(1.7,1.3),S.mat(CLAW('uC1'),{uEr:{value:0},uW:{value:i*.37}},{mode:'matter',depthTest:false}));L.trail.add(m);return m;});
   const sparks=HITS.map((t,i)=>S.hitSpark(L.mesh,i===2?1.7:1.1,{seed:0.2+i*0.23}));
@@ -282,10 +300,10 @@ build(a){
     if(te<TP){const u=ss(TS,TP,te);JP.set(CX+0.2+(1.6-CX-0.2)*u,1.2+2.3*Math.sin(u*Math.PI*0.85),0.2);rz=0.35-0.5*u;}
     else if(te<TZ){const u=ss(TP,TZ,te);JP.set(1.6+(2.25-1.6)*u,3.2-2.0*e3(u),0.2);rz=-0.15-0.45*u;}
     else{const k=cl((te-TZ)/0.1);JP.set(2.25,1.2+0.1*Math.sin(te*30),0.2);rz=-0.6+0.6*k;pose=1;}
-    towardCam(jag.position,JP,0.5); billboard(jag,rz);
-    const appear=ss(TS-0.05,TS+0.12,te);
-    jag.scale.setScalar(Math.max(appear*1.9,0.001)); jag.visible=te>TS-0.05&&te<TR+0.4;
-    jagM.uniforms.uPose.value=pose; jagM.uniforms.uQ.value=-0.1+1.2*ss(TR,TR+0.4,te); jagM.uniforms.uK.value=0.2+0.6*hitE(ia,10);
+    const appear=ss(TS-0.05,TS+0.12,te), on=te>TS-0.05&&te<TR+0.4;
+    for(const m of [jagA,jagB]){m.position.copy(JP);m.rotation.set(0,0,rz);m.scale.setScalar(Math.max(appear*1.15/JS,0.001));}
+    jagA.visible=on&&pose<0.5; jagB.visible=on&&pose>=0.5;
+    jagM.uniforms.uQ.value=-0.1+1.2*ss(TR,TR+0.4,te); jagM.uniforms.uK.value=0.25+0.7*hitE(ia,10)+0.3*ss(TS,TS+0.15,te)*(1-ss(TS+0.2,TP,te));
     shade.pose(JP.x,0,1.3*appear,te>TS&&te<TR?0.45*(1-cl((JP.y-1)/3)):0);
     claws.forEach((m,i)=>{const d=te-HITS[i];towardCam(m.position,tmp.set(TX-0.2,1.1+0.1*i,0),0.5);billboard(m,[-0.6,0.5,-0.9][i]);
       m.visible=d>=0&&d<0.5;m.scale.setScalar((i===2?1.5:1.15)*(0.6+0.4*e3(cl(d/0.07))));

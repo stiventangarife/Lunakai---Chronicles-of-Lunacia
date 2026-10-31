@@ -34,6 +34,11 @@ export function loadGLTFCached(path) {
   return p;
 }
 
+/** Rutas que hay ahora en la caché (para que cada sistema saque las suyas cuando ya no se usan). */
+export function cachedModelPaths() {
+  return [...CACHE.keys()];
+}
+
 /**
  * Devuelve { scene, animations, ownedGeometries } con una copia del modelo.
  * @param {string} path

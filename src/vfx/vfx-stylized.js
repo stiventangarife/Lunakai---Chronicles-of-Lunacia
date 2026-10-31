@@ -276,6 +276,13 @@ S.status=function(a,kind,who,T0,TE,opts){
 S.statusGlow=function(o,list){let best=0,c=null;for(const s of list)if(s&&s.env>best){best=s.env;c=S.ST_RGB[s.kind];}
   if(c){o.em=Math.max(o.em||0,0.3*best);o.emc.setRGB(c[0],c[1],c[2]);}};
 
+/** Hito 104: alinea un objeto de área (cruz, cuadrado, línea de casillas) con la cuadrícula del tablero: lo gira
+ *  VFX.gridSnap alrededor del punto (px, pz) del laboratorio (el objetivo). Llamar en pose(); en línea recta no hace nada. */
+S.gridAlign=function(o,px,pz){const a=-(VFX.gridSnap||0),c=Math.cos(a),s=Math.sin(a);
+  const b=o.userData._gbase||(o.userData._gbase=o.position.clone());   // posición propia (sin girar), la primera vez
+  const dx=b.x-px,dz=b.z-pz;
+  o.rotation.y=a;o.position.set(px+c*dx+s*dz,b.y,pz-s*dx+c*dz);};
+
 /** Fábricas estilizadas de los efectos básicos (mod-estilizado-cuerpo/distancia/apoyo.js). */
 S.basic=S.basic||{};
 

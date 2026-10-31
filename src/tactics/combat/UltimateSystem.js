@@ -38,7 +38,10 @@ export const ULTIMATES = {
     paCost: ULTIMATE_PA_COST, minRange: 0, maxRange: 0, requiresLoS: false, isLinear: false,
     targetType: 'self', areaType: 'circle3', sound: 'heal',
     baseMinHeal: 60, baseMaxHeal: 60, shieldAmount: 80,
+    baseMinDamage: 60, baseMaxDamage: 80, // Hito 104: también golpea a los enemigos del círculo
+    selective: true, // el daño solo alcanza a enemigos (sin fuego amigo sobre el escuadrón que protege)
     effects: [
+      { type: 'damage', min: 60, max: 80, target: 'enemiesInArea' },
       { type: 'cleanse', target: 'alliesInArea' },
       { type: 'shield', amount: 80, target: 'alliesInArea' },
       { type: 'heal', amount: 60, target: 'alliesInArea' },

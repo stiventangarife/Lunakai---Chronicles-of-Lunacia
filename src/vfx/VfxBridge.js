@@ -195,6 +195,20 @@ const SCALE_KEY = 'lunakai_vfx_scale';
 // La zona del lanzador (boca, aura de lanzamiento) y la del objetivo (impacto, anillos) conservan su forma.
 const ZONE_CASTER = 1.3;            // unidades del laboratorio alrededor del lanzador que no se deforman
 const ZONE_TARGET = 1.6;            // ídem alrededor del objetivo
+const ZONE_TARGET_RADIUS = 2.6;     // Hito 104: radio del círculo rígido alrededor del objetivo (≈ 1,3 casillas del laboratorio)
+const ZONE_CASTER_RADIUS = 1.8;     // ídem alrededor del lanzador
+const RADIUS_BLEND = 1.4;           // ancho de la transición entre el círculo rígido y el pasillo
+// Hito 105: una casilla del tablero en unidades del laboratorio (GridManager.TILE_SIZE = 1,6 con el tamaño de VFX por defecto)
+const LAB_TILE = 1.6 / ((GAME_UNIT_HEIGHT / LAB_DUMMY_HEIGHT) * VFX_SCALE_DEFAULT);
+/** Radio (laboratorio) del área de una habilidad alrededor del objetivo; 0 si no es de área. */
+function areaLabRadius(spell) {
+  const a = spell?.areaType; if (!a || a === 'single') return 0;
+  const m = /^(cross|circle)(\d)$/.exec(a);
+  if (m) return (Number(m[2]) + 0.6) * LAB_TILE;
+  const bx = /^box(\d)x\d$/.exec(a);                 // cuadrado N×N: hasta la esquina
+  if (bx) return ((Number(bx[1]) - 1) * 0.71 + 0.9) * LAB_TILE;
+  return 0;
+}
 const MIN_CORRIDOR = 0.15;          // fracción mínima de la distancia que queda para el pasillo (para que se vea el viaje)
 const RIGID_MAX = 0.95;             // radio máximo (unidades del laboratorio) de una malla que se mueve entera
 const MAX_RECOIL = 0.25;            // Hito 82b: retroceso máximo del objetivo, siempre alejándose del lanzador
@@ -208,17 +222,33 @@ const norm = (s) => String(s || '').toLowerCase().replace(/[^a-z0-9]/g, '');
 // Deformación del pasillo, en el espacio del laboratorio (dentro del grupo raíz). Se añade al final de cada vertex shader:
 // se recupera la posición en el mundo desde gl_Position, se pasa al espacio del laboratorio, se deforma a lo largo del eje
 // lanzador → objetivo y se vuelve a proyectar. Así funciona con cualquier shader de los módulos sin tocarlos.
-const WARP_DECL = `uniform mat4 uVfxRoot;uniform mat4 uVfxRootInv;uniform vec3 uVfxC;uniform vec3 uVfxU;uniform vec4 uVfxK;uniform vec3 uVfxS;uniform float uVfxRigid;
+// Hito 104: además de las franjas rígidas a lo largo del eje, un CÍRCULO rígido a ras de suelo alrededor del objetivo y
+// del lanzador (uVfxR: radios interior/exterior; uVfxD: distancia lanzador → objetivo en el laboratorio). Las auras, el
+// humo y las marcas del suelo que asoman hacia el otro extremo se mueven con su extremo sin estirarse; cada punto va con
+// el extremo más cercano y la transición es suave, así los surcos que cruzan el camino no se cortan. Lo que está por
+// encima del suelo (proyectiles, estelas en el aire) sigue el pasillo como siempre.
+const WARP_DECL = `uniform mat4 uVfxRoot;uniform mat4 uVfxRootInv;uniform vec3 uVfxC;uniform vec3 uVfxU;uniform vec4 uVfxK;uniform vec3 uVfxS;uniform float uVfxRigid;uniform vec4 uVfxR;uniform float uVfxD;uniform vec2 uVfxA;float vfxSc;
 vec3 vfxWarp(vec3 p){float t=dot(p-uVfxC,uVfxU);float n;
  if(t<=uVfxK.x)n=uVfxK.z+(t-uVfxK.x)*uVfxS.x;else if(t>=uVfxK.y)n=uVfxK.w+(t-uVfxK.y)*uVfxS.z;else n=uVfxK.z+(t-uVfxK.x)*uVfxS.y;
- vec3 lat=p-uVfxC-uVfxU*t;return uVfxC+uVfxU*n+lat*uVfxS.x;}
+ vec3 lat=p-uVfxC-uVfxU*t;
+ vec2 lt=vec2(lat.x,lat.z);
+ float rC=length(vec2(t,length(lt))),rT=length(vec2(t-uVfxD,length(lt)));
+ float g=1.-smoothstep(.5,1.4,p.y);
+ float ar=step(.5,uVfxA.y);float gt=mix(g,1.-smoothstep(1.4,3.,p.y),ar);float G=mix(uVfxS.z,uVfxA.x,ar);
+ float wc=(1.-smoothstep(uVfxR.z,uVfxR.w,rC))*smoothstep(-.8,.8,rT-rC)*g;
+ float wt=(1.-smoothstep(uVfxR.x,uVfxR.y,rT))*smoothstep(-.8,.8,rC-rT)*gt;
+ float Dt=uVfxK.w+(uVfxD-uVfxK.y)*uVfxS.z;
+ n=mix(n,uVfxK.z+(t-uVfxK.x)*uVfxS.x,wc);
+ n=mix(n,Dt+(t-uVfxD)*G,wt);
+ vfxSc=mix(uVfxS.x,G,wt);
+ return uVfxC+uVfxU*n+lat*vfxSc;}
 `;
 // Objetos rígidos (sandía, hojas, garras…): se desplazan enteros según dónde cae su centro y solo se escalan de forma
 // uniforme, así que nunca se aplastan. Rayos, estelas, planos de suelo y partículas se deforman vértice a vértice.
 const WARP_MAIN = `
  {mat4 vfxVP=projectionMatrix*viewMatrix;vec4 vfxW=inverse(vfxVP)*gl_Position;vfxW/=vfxW.w;
   vec3 vfxL=(uVfxRootInv*vec4(vfxW.xyz,1.)).xyz;vec3 vfxP;
-  if(uVfxRigid>.5){vec3 vfxO=(uVfxRootInv*modelMatrix*vec4(0.,0.,0.,1.)).xyz;vfxP=vfxWarp(vfxO)+(vfxL-vfxO)*uVfxS.x;}
+  if(uVfxRigid>.5){vec3 vfxO=(uVfxRootInv*modelMatrix*vec4(0.,0.,0.,1.)).xyz;vfxP=vfxWarp(vfxO)+(vfxL-vfxO)*vfxSc;}
   else vfxP=vfxWarp(vfxL);
   gl_Position=vfxVP*uVfxRoot*vec4(vfxP,1.);}
 `;
@@ -243,6 +273,9 @@ export class VfxBridge {
       uVfxRoot: { value: new THREE.Matrix4() }, uVfxRootInv: { value: new THREE.Matrix4() },
       uVfxC: { value: LAB_CASTER.clone() }, uVfxU: { value: new THREE.Vector3(1, 0, 0) },
       uVfxK: { value: new THREE.Vector4(-1e6, 1e6, -1e6, 1e6) }, uVfxS: { value: new THREE.Vector3(1, 1, 1) },
+      uVfxR: { value: new THREE.Vector4(0, 0, 0, 0) }, uVfxD: { value: 0 },
+      // Hito 105: áreas (cruz, círculo) a tamaño de casilla real alrededor del objetivo: x = escala, y = 1 si es un área
+      uVfxA: { value: new THREE.Vector2(1, 0) },
     };
   }
 
@@ -261,6 +294,15 @@ export class VfxBridge {
         if (!g.boundingSphere) g.computeBoundingSphere();
         const bs = g.boundingSphere, k = Math.max(Math.abs(o.scale.x), Math.abs(o.scale.y), Math.abs(o.scale.z));
         r = bs && bs.radius * k < RIGID_MAX && bs.center.length() <= bs.radius;
+        // Hito 104: marcas planas del suelo (manchas, anillos, flores, charcos) de forma más o menos redonda o cuadrada:
+        // se mueven enteras desde su centro aunque sean grandes, así no se estiran hacia el lanzador. Las franjas largas
+        // (surcos, raíces, estelas en el suelo) siguen deformándose para llegar de un extremo al otro.
+        if (!r && bs && !o.isPoints) {
+          if (!g.boundingBox) g.computeBoundingBox();
+          const sz = g.boundingBox.getSize(new THREE.Vector3()).multiply(o.scale).applyQuaternion(o.quaternion);
+          const ax = Math.abs(sz.x), ay = Math.abs(sz.y), az = Math.abs(sz.z), big = Math.max(ax, az), small = Math.min(ax, az);
+          r = ay < 0.12 * big && small > 0.55 * big && big * k < 9 && bs.center.length() <= bs.radius;
+        }
       }
       for (const m of mats) if (m) rigid.set(m, (rigid.has(m) ? rigid.get(m) : true) && r);
     });
@@ -281,9 +323,20 @@ export class VfxBridge {
   _warpPoint(p) {
     const U = this.warpU, u = U.uVfxU.value, C = U.uVfxC.value, K = U.uVfxK.value, S = U.uVfxS.value;
     const t = (p.x - C.x) * u.x + (p.y - C.y) * u.y + (p.z - C.z) * u.z;
-    const n = t <= K.x ? K.z + (t - K.x) * S.x : t >= K.y ? K.w + (t - K.y) * S.z : K.z + (t - K.x) * S.y;
-    // eje: n; resto (lateral y altura): escala uniforme de las zonas
-    return p.addScaledVector(u, -t).sub(C).multiplyScalar(S.x).add(C).addScaledVector(u, n);
+    let n = t <= K.x ? K.z + (t - K.x) * S.x : t >= K.y ? K.w + (t - K.y) * S.z : K.z + (t - K.x) * S.y;
+    // círculos rígidos (igual que en el shader)
+    const R = U.uVfxR.value, D = U.uVfxD.value;
+    const lx = p.x - C.x - u.x * t, lz = p.z - C.z - u.z * t, l = Math.hypot(lx, lz);
+    const sm = (a, b, x) => { const k = Math.min(1, Math.max(0, (x - a) / Math.max(1e-6, b - a))); return k * k * (3 - 2 * k); };
+    const A = U.uVfxA.value, ar = A.y > 0.5;
+    const rC = Math.hypot(t, l), rT = Math.hypot(t - D, l), g = 1 - sm(0.5, 1.4, p.y), gt = ar ? 1 - sm(1.4, 3, p.y) : g, G = ar ? A.x : S.z;
+    const wc = (1 - sm(R.z, R.w, rC)) * sm(-0.8, 0.8, rT - rC) * g, wt = (1 - sm(R.x, R.y, rT)) * sm(-0.8, 0.8, rC - rT) * gt;
+    const Dt = K.w + (D - K.y) * S.z;
+    n += (K.z + (t - K.x) * S.x - n) * wc;
+    n += (Dt + (t - D) * G - n) * wt;
+    // eje: n; resto (lateral y altura): la escala de la zona (en las áreas, la del objetivo)
+    const sc = S.x + (G - S.x) * wt;
+    return p.addScaledVector(u, -t).sub(C).multiplyScalar(sc).add(C).addScaledVector(u, n);
   }
 
   // ------------------------------------------------------------ instalación
@@ -677,7 +730,10 @@ export class VfxBridge {
         .sort((a, b) => a.group.position.distanceToSquared(A) - b.group.position.distanceToSquared(A))[0];
       if (foe) dirHint = foe.group.position.clone().sub(A);
     }
+    // áreas que dibuja el propio efecto aunque la carta sea de un solo objetivo (Ráfaga de la Espesura): def.areaCells = radio en casillas
+    this._areaLabRadius = areaLabRadius(spell) || (ab.areaCells > 0 ? (ab.areaCells + 0.6) * LAB_TILE : 0);
     this._placeRoot(A, B, labB, self, dirHint, labC, ab);
+    try { this._syncUnitsForFx(caster, B); } catch (e) { this.core.foes = []; this.core.friends = []; }
 
     // variante: Esporas cura si apunta a un aliado y daña si apunta a un enemigo; los dúos usan el efecto completo
     if (ab.variants && ab.setVariant) {
@@ -718,7 +774,54 @@ export class VfxBridge {
     };
     this.current = pb;
     this.update(0);
-    return { untilImpact, done, stop: () => this.stop() };
+    // Fase 3 de audio: ti (s hasta el impacto) para que el sonido cuerpo a cuerpo caiga en el golpe del efecto
+    return { untilImpact, done, stop: () => this.stop(), ti: ab.ti || 0.8 };
+  }
+
+  /**
+   * Hito 104: posición en el laboratorio (antes de la deformación del pasillo) de un punto del tablero. Sirve para que un
+   * efecto dibuje algo exactamente sobre otra unidad real (VFX.foes / VFX.friends). Se invierte el grupo raíz y luego la
+   * deformación a lo largo del eje, buscando por bisección la posición que cae en ese punto.
+   */
+  _labOfWorld(world) {
+    // Hito 105: la escala lateral ya no es la misma en todo el pasillo (áreas), así que se invierte con Newton en 3D
+    const q = world.clone().applyMatrix4(this._mi.copy(this.root.matrixWorld).invert());
+    const U = this.warpU, u = U.uVfxU.value, C = U.uVfxC.value, S = U.uVfxS.value;
+    const h = 1e-3, J = new THREE.Matrix3(), e = [new THREE.Vector3(1, 0, 0), new THREE.Vector3(0, 1, 0), new THREE.Vector3(0, 0, 1)];
+    const newton = (p) => {
+      for (let i = 0; i < 40; i++) {
+        const w = this._warpPoint(p.clone()), r = q.clone().sub(w);
+        if (r.lengthSq() < 1e-10) break;
+        const c = e.map((d) => this._warpPoint(p.clone().addScaledVector(d, h)).sub(w).multiplyScalar(1 / h));
+        J.set(c[0].x, c[1].x, c[2].x, c[0].y, c[1].y, c[2].y, c[0].z, c[1].z, c[2].z);
+        if (Math.abs(J.determinant()) < 1e-9) break;
+        const step = r.applyMatrix3(J.clone().invert());
+        if (step.length() > 1) step.setLength(1);
+        p.add(step);
+      }
+      return p;
+    };
+    const err = (p) => this._warpPoint(p.clone()).distanceToSquared(q);
+    // salidas: el punto tal cual, el extremo del objetivo (escala de la zona) y la bisección a lo largo del eje
+    const tq = (q.x - C.x) * u.x + (q.y - C.y) * u.y + (q.z - C.z) * u.z;
+    const lat = q.clone().sub(C).addScaledVector(u, -tq).multiplyScalar(1 / Math.max(1e-4, S.x));
+    const at = (t) => { const p = C.clone().addScaledVector(u, t).add(lat); const w = this._warpPoint(p.clone()); return [(w.x - C.x) * u.x + (w.y - C.y) * u.y + (w.z - C.z) * u.z, p]; };
+    let lo = -60, hi = 60;
+    for (let i = 0; i < 50; i++) { const mid = (lo + hi) / 2; if (at(mid)[0] < tq) lo = mid; else hi = mid; }
+    let best = null, be = Infinity;
+    for (const s0 of [at((lo + hi) / 2)[1], q.clone()]) { const p = newton(s0); const ev = err(p); if (ev < be) { be = ev; best = p; } if (be < 1e-8) break; }
+    return best;
+  }
+
+  /** VFX.foes / VFX.friends: posiciones (laboratorio) de los rivales y aliados vivos del lanzador, el más cercano al objetivo primero. */
+  _syncUnitsForFx(caster, B) {
+    const core = this.core; if (!core) return;
+    const units = (this.game.units || []).filter((u) => !u.isDead && u.group && u !== caster);
+    const near = (a, b) => a.group.position.distanceToSquared(B) - b.group.position.distanceToSquared(B);
+    // shield: si la unidad tiene escudo ahora mismo (Village Hero α suma daño por aliado con escudo)
+    const lab = (u) => { const p = this._labOfWorld(u.group.position.clone()); return { x: p.x, z: p.z, shield: (u.shield || 0) > 0 }; };
+    core.foes = units.filter((u) => u.team !== caster.team && !u._testDummyHidden).sort(near).slice(0, 8).map(lab);
+    core.friends = units.filter((u) => u.team === caster.team).sort(near).slice(0, 8).map(lab);
   }
 
   /** Coloca el grupo raíz: espacio del laboratorio → línea lanzador (A) → objetivo (B) del tablero. */
@@ -767,6 +870,27 @@ export class VfxBridge {
     this.root.matrixWorldNeedsUpdate = true;
     this.root.updateMatrixWorld(true);
     this._scale = s;
+
+    // Hito 104: áreas alineadas con la cuadrícula. El efecto gira para mirar del lanzador al objetivo; en diagonal, una
+    // cruz o un cuadrado girarían con él y saldrían de las casillas. VFX.gridSnap = ángulo (en el laboratorio) que hay que
+    // girar las piezas de área alrededor del objetivo para que vuelvan a la cuadrícula del tablero (0 si el lanzamiento va
+    // en línea recta). Los efectos con gridArea:'root' (todo ocurre en el objetivo) giran enteros; los demás alinean solo
+    // sus piezas de área con VFX.sty.gridAlign(objeto, x, z).
+    const thW = Math.atan2(dW.z, dW.x), thG = Math.round(thW / (Math.PI / 2)) * (Math.PI / 2);
+    const gL = new THREE.Vector3(Math.cos(thG), 0, Math.sin(thG)).transformDirection(new THREE.Matrix4().copy(M).invert());
+    let psi = Math.atan2(gL.z, gL.x) - Math.atan2(uL.z, uL.x);
+    psi = Math.atan2(Math.sin(psi), Math.cos(psi));
+    if (Math.abs(psi) < 1e-3) psi = 0;
+    this.gridSnap = psi;
+    if (this.core) this.core.gridSnap = psi;
+    if (ab?.root) {
+      const ga = ab.gridArea === 'root' ? psi : 0, P = labB;
+      const c = Math.cos(-ga), sn = Math.sin(-ga);
+      ab.root.rotation.set(0, -ga, 0);
+      // giro alrededor del objetivo del laboratorio: posición = P − R·P
+      ab.root.position.set(P.x - (c * P.x + sn * P.z), 0, P.z - (-sn * P.x + c * P.z));
+      ab.root.updateMatrixWorld(true);
+    }
   }
 
   /**
@@ -781,6 +905,23 @@ export class VfxBridge {
     const zc = ab?.zoneCaster || ZONE_CASTER, zt = ab?.zoneTarget || ZONE_TARGET;
     const rc = Math.min(zc, D * 0.4), rt = Math.min(zt, D * 0.45);
     const t0 = rc, t1 = D - rt;
+    // círculos rígidos (Hito 104): alrededor del objetivo, el aura de una casilla y media; alrededor del lanzador, algo menos.
+    // No pueden pasar de la mitad del camino del laboratorio (si no, se pisarían).
+    // Cada punto se asigna al extremo que tenga más cerca, así que el círculo del objetivo puede ser grande aunque el
+    // aliado del laboratorio esté cerca del lanzador (efectos sobre aliados: ALLY_POS a ~2,9 del lanzador).
+    // Solo a ras de suelo (auras, marcas, polvo; lo que vuela sigue el pasillo) y cada punto con el extremo más cercano.
+    // El del lanzador no pasa de un tercio del camino (con aliados, ALLY_POS está a ~2,9 y lo invadiría).
+    const tR0 = Math.max(zt, ZONE_TARGET_RADIUS), cR0 = Math.min(Math.max(zc, ZONE_CASTER_RADIUS), D * 0.3);
+    U.uVfxR.value.set(tR0, tR0 + RADIUS_BLEND, cR0, Math.min(cR0 + RADIUS_BLEND, D * 0.45));
+    U.uVfxD.value = D;
+    // Hito 105: habilidad de área (cruz, círculo): alrededor del objetivo, escala exacta de la casilla del tablero (aunque
+    // el resto del efecto se encoja a 1–2 casillas o el jugador cambie el tamaño de los VFX) y radio que cubre el área.
+    const aR = this._areaLabRadius;
+    if (aR > 0) {
+      const tA = Math.max(tR0, aR);
+      U.uVfxR.value.x = tA; U.uVfxR.value.y = tA + RADIUS_BLEND;
+      U.uVfxA.value.set(VFX_SCALE_DEFAULT / this.scale, 1);
+    } else U.uVfxA.value.set(1, 0);
     if (Math.abs(D2 - D) < 1e-3) { U.uVfxK.value.set(t0, t1, t0, t1); U.uVfxS.value.set(1, 1, 1); return; }
     // Las zonas conservan su tamaño mientras quede pasillo suficiente. Si no (1–2 casillas), las zonas y todo el efecto
     // se encogen por igual en las tres direcciones (sin óvalos) y el pasillo guarda al menos MIN_CORRIDOR de la distancia,

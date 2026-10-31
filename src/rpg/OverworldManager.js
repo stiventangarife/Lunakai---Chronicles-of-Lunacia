@@ -1456,6 +1456,17 @@ export class OverworldManager {
     const curMap = this.worldMapManager ? this.worldMapManager.currentMapDef : null;
     const battlingZoneKey = this.currentBattlingZoneKey || (curMap ? `${curMap.gx}_${curMap.gy}` : '3_3');
 
+    // Hito 106: los mobs de misión reaparecen. Solo dan su recompensa y su aviso de misión mientras la misión está
+    // activa y su paso pendiente (se calcula ANTES de avanzar la misión, porque el aviso se muestra después).
+    const questStepPending = (qid, sid) => {
+      const q = this.questManager?.getQuest(qid);
+      if (!q || (q.status !== 'active' && q.status !== 'ready_to_turn_in')) return false;
+      const st = q.objective?.steps?.find((x) => x.id === sid);
+      return Boolean(st && !st.done);
+    };
+    const nomadPending = questStepPending('quest_nomad_steel', 'gather_ores');
+    const blizzardPending = this.questManager?.getQuest('quest_blizzard_core')?.status !== 'completed';
+
     // 1. Return fade transition back to Overworld
     await this.transition.playReturn(
       () => {
@@ -1515,7 +1526,7 @@ export class OverworldManager {
           }
           if (monsterId === 'mob_armored_chimera') {
             this.questManager.advanceStep('quest_nomad_steel', 'gather_ores', true);
-            if (this.equipmentManager && typeof this.equipmentManager.addItemToInventory === 'function') {
+            if (nomadPending && this.equipmentManager && typeof this.equipmentManager.addItemToInventory === 'function') {
               this.equipmentManager.addItemToInventory('hardened_ore');
             }
           }
@@ -1607,13 +1618,13 @@ export class OverworldManager {
           this._showBannerMessage(i18n.t('story.mailbagRecovered'), i18n.t('story.mailbagRecoveredDesc'));
         } else if (battlingMonsterId === 'mob_rosalba_plant_guardian') {
           this._showBannerMessage(i18n.t('story.mossObtained'), i18n.t('story.mossObtainedDesc'));
-        } else if (battlingMonsterId === 'mob_armored_chimera') {
+        } else if (battlingMonsterId === 'mob_armored_chimera' && nomadPending) {
           this._showBannerMessage(i18n.t('story.carapaceObtained'), i18n.t('story.carapaceObtainedDesc'));
         } else if (battlingMonsterId === 'mob_shadow_mirror') {
           this._showBannerMessage(i18n.t('story.shadowDispelled'), i18n.t('story.shadowDispelledDesc'));
         } else if (battlingMonsterId === 'mob_pomodoro_battle' || (battlingZoneKey === '2_1' && qPomo?.status === 'active' && defendPomoDone && !recruitPomoDone)) {
           this._showBannerMessage(i18n.t('story.victoryPomodoro'), i18n.t('story.victoryPomodoroDesc'));
-        } else if (battlingMonsterId === 'mob_polar_golem' || battlingZoneKey === '1_1') {
+        } else if ((battlingMonsterId === 'mob_polar_golem' || battlingZoneKey === '1_1') && blizzardPending) {
           this._showBannerMessage(i18n.t('story.blizzardDispelled'), i18n.t('story.blizzardDispelledDesc'));
         } else if (battlingMonsterId === 'mob_oracle_chimera') {
           this._showBannerMessage(i18n.t('story.resonanceNeutralized'), i18n.t('story.resonanceNeutralizedDesc'));

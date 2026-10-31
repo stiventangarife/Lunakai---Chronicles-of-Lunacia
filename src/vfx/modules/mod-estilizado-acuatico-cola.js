@@ -54,10 +54,10 @@ void main(){vec2 p=(vUv-.5)*vec2(${f(W)},${f(H)});float d=sd(p);if(d>0.)discard;
  float bul=smoothstep(0.,-.2,d);vec3 n=normalize(vec3(g*(1.-bul)*1.4,.42+bul));
  float l=styLight(n,stySunV());float nz=styNoise(vUv*vec2(1.6,.8)+.37).r;
  if(styErode(nz,uQ,.06)<.5)discard;
- vec3 base=vec3(.5);float lb=0.;${body}
+ vec3 base=vec3(.5);float lb=0.;float al=1.;${body}
  vec3 c=styRampOf(base,clamp(.2+.6*l+lb,0.,1.))*styTint(l);
  c=mix(c,${outline},smoothstep(-${f(ow)},-${f(ow*0.35)},d));
- gl_FragColor=vec4(c+uC1*uK,uA);}`,{uQ:{value:-1},uK:{value:0},uWig:{value:0},uRot:{value:0}},{mode:'matter',side});
+ gl_FragColor=vec4(c+uC1*uK,uA*al);}`,{uQ:{value:-1},uK:{value:0},uWig:{value:0},uRot:{value:0}},{mode:'matter',side});
 const silSet=(m,{q=-1,k=0,wig=0,rot=0,a=1}={})=>{const u=m.material.uniforms;u.uQ.value=q;u.uK.value=k;u.uWig.value=wig;u.uRot.value=rot;u.uA.value=a;};
 // sólido con luz en 3 bandas (espinas, agujas, caparazones): body fija base / lb
 const SOLID=(body,{hot='uC1',er=.05}={})=>`uniform float uQ;uniform float uK;
@@ -92,23 +92,30 @@ const defs=[];
 //     naranjas), sube en un arco alto dejando una estela de agua, se lanza en picado y cae sobre el rival: corona de
 //     salpicaduras, anillo, charco. Después flotan escamas naranjas como pétalos. ti 1,7 s
 // =====================================================================
-const KOI_SD=`float sd(vec2 p){
- float body=sdE(p,vec2(.12,0.),vec2(.6,.22),0.);
- vec2 tp=p-vec2(-.42,0.);tp.y-=sin(uWig)*.25*max(-tp.x,0.);
- float t1=sdE(tp,vec2(-.26,.11),vec2(.27,.085),.6),t2=sdE(tp,vec2(-.26,-.11),vec2(.27,.085),-.6);
- float fin=sdE(p,vec2(.18,-.19),vec2(.15,.055),-.75),fin2=sdE(p,vec2(-.18,-.17),vec2(.1,.04),-.5);
- float dors=sdE(p,vec2(-.02,.19),vec2(.3,.07),.1);
- float d=smin(body,min(t1,t2),.07);d=smin(d,min(fin,fin2),.035);d=smin(d,dors,.05);return d;}`;
-const KOI_BODY=`float pt=styNoise(p*.6+vec2(.31,.77)).r*.7+styNoise(p*1.3+.2).g*.3;
- base=mix(${CREAM},${KOIOR},smoothstep(.46,.52,pt));float fins=step(.0,-p.x-.55)+step(.15,-p.y)*step(-.35,p.x);
- base=mix(base,${KOIOR}*1.05,.45*clamp(fins,0.,1.));float sc=smoothstep(.75,.95,sin(p.x*38.+sin(p.y*30.)*1.2));lb=-.08*sc*step(-.5,p.x);`;
+// la parte trasera se curva en ola con el nado (q); cola de velo de dos lóbulos unida por un pedúnculo con unión suave
+const KOI_SD=`vec2 koiQ(vec2 p){float k=clamp((.12-p.x)/1.05,0.,1.);p.y-=sin(uWig-k*3.6)*.13*k*k+.05*sin(uWig*.5)*k;return p;}
+float sd(vec2 p){vec2 q=koiQ(p);
+ float body=sdE(q,vec2(.3,0.),vec2(.5,.2),0.);float head=sdE(q,vec2(.6,-.01),vec2(.22,.16),0.);
+ float ped=sdSeg(q,vec2(-.05,0.),vec2(-.4,0.),.06);
+ float u=-.36-q.x;float w=min(.06+.8*u,.44);float tip=.6+.05*sin(q.y*22.+uWig*1.3)-.17*exp(-q.y*q.y*45.);
+ float tail=max(max(abs(q.y)-w,u-tip),-u)*.8;
+ float fin=sdE(q,vec2(.3,-.2),vec2(.17,.06),-.8),fin2=sdE(q,vec2(-.08,-.15),vec2(.11,.04),-.6);
+ float dors=sdE(q,vec2(.12,.18),vec2(.3,.07),.12);
+ float d=smin(body,head,.08);d=smin(d,ped,.1);d=smin(d,tail,.09);d=smin(d,min(fin,fin2),.04);d=smin(d,dors,.05);return d;}`;
+const KOI_BODY=`vec2 q=koiQ(p);float pt=styNoise(q*.6+vec2(.31,.77)).r*.7+styNoise(q*1.3+.2).g*.3;
+ base=mix(${CREAM},${KOIOR},smoothstep(.46,.52,pt));
+ float tl=smoothstep(-.38,-.5,q.x);float fins=max(tl,step(.15,-q.y)*step(-.2,q.x)*step(q.x,.45));
+ float ry=smoothstep(.55,.9,abs(fract(atan(q.y,-q.x-.25)*5.)-.5)*2.);
+ base=mix(base,mix(${KOIOR}*1.05,${CREAM},.35+.3*ry),.55*clamp(fins,0.,1.));
+ float sc=smoothstep(.75,.95,sin(q.x*38.+sin(q.y*30.)*1.2));lb=-.08*sc*step(-.3,q.x)+.12*tl*ry;
+ al=1.-.38*tl*(1.-.5*ry)*smoothstep(-.42,-.85,q.x);`;
 defs.push({key:"sty_qtKoi",name:"Koi (estilizado)",dur:3.3,ti:1.7,pal:P_KOI,tier:3,stylized:true,...ZONES,
   phases:[["Borboteo",0],["Géiser",0.45],["Ascenso",0.5],["Picado",1.25],["Impacto",1.7],["Pétalos",2.05]],
 build(a){
   const L=a.L,TG=0.45,TA=0.5,TD=1.25,TI=1.7;
   const P0=V3(-3.95,0.5,0.1), AP=V3(-1.0,4.3,0.25), HP=V3(3.1,1.2,0.15);
   const C1=V3(-3.4,3.6,0.2), C2=V3(1.4,4.6,0.2);
-  const fish=new THREE.Mesh(new THREE.PlaneGeometry(1.4,0.7),SIL(KOI_SD,KOI_BODY,{W:2,H:1,ow:.022,outline:lin('#7a2a10')})); L.mesh.add(fish);
+  const fish=new THREE.Mesh(new THREE.PlaneGeometry(1.4,0.84),SIL(KOI_SD,KOI_BODY,{W:2,H:1.2,ow:.022,outline:lin('#7a2a10')})); L.mesh.add(fish);
   // géiser: columna de agua que sube con vetas (cilindro abierto, energía + materia)
   const GEY_FS=`uniform float uH;void main(){
    float v=vUv.y;if(v>uH)discard;float an=vUv.x;float st=styNoise(vec2(an*3.,v*1.2-uT*2.2)).r;
@@ -162,7 +169,7 @@ build(a){
     const dx=tmp2.x-pos.x,dy=tmp2.y-pos.y; const ang=(dx*dx+dy*dy>1e-8)?Math.atan2(dy,dx):-0.6;
     fish.position.copy(pos); billboard(fish,ang); fish.visible=te>=TA&&ia<0.05;
     const sc=2.5*(0.4+0.6*ss(TA,TA+0.25,te)); fish.scale.set(sc,sc*(dx<0?-1:1),sc);
-    silSet(fish,{wig:te*14,rot:ang,k:0.15*ss(TD,TI,te)});
+    silSet(fish,{wig:te*10,rot:ang,k:0.15*ss(TD,TI,te)});
     // géiser
     const gh=ss(TG-0.05,TA+0.1,te)*(1-ss(TA+0.35,TA+0.8,te)); gy.visible=gh>0.001||te<TA+0.8&&te>TG;
     gy.scale.set(1+0.3*gh,2.8*ss(TG-0.05,TA+0.15,te)+0.001,1+0.3*gh); gy.material.uniforms.uH.value=0.98;
@@ -371,10 +378,10 @@ build(a){
 }});
 
 // =====================================================================
-// 5 · RANCHU (sobre sí: daño y Débil a todos los enemigos) — un ranchu (pez de cabeza abultada, silueta roja y crema)
-//     se forma sobre el lanzador, infla los carrillos y escupe una gran burbuja que crece sobre él. En ti revienta y
-//     una ola de burbujas recorre todo el campo; en el frente quedan burbujas que atrapan (con chevrones violetas del
-//     Débil) y estallan al final en gotas. ti 1,05 s
+// 5 · RANCHU (sobre sí: daño y Débil a todos los enemigos) — Hito 104: un ranchu (pez de cabeza abultada, silueta roja y
+//     crema) se forma sobre el lanzador, hincha los carrillos y suelta un chorro pesado al suelo; de él sale una ola de
+//     agua que rueda por el suelo hasta CADA rival real (VFX.foes) con estela de espuma, sube y se desploma encima
+//     (empapado); quedan gotas violetas goteando y un charco violeta (Débil). Sin rivales: ola radial. ti 1,05 s
 // =====================================================================
 const RANCHU_SD=`float sd(vec2 p){vec2 tp=p-vec2(-.4,0.);tp.y-=sin(uWig)*.2*max(-tp.x,0.);
  float body=sdE(p,vec2(0.,-.02),vec2(.46,.4),0.);
@@ -385,62 +392,110 @@ const RANCHU_SD=`float sd(vec2 p){vec2 tp=p-vec2(-.4,0.);tp.y-=sin(uWig)*.2*max(
 const RANCHU_BODY=`float wen=step(.18,length(p-vec2(.28,.2))<.25?1.:0.);float hd=smoothstep(.32,.2,length(p-vec2(.28,.24)));
  base=mix(${RED},${CREAM},smoothstep(-.12,-.3,p.y)*step(-.3,p.x));base=mix(base,${lin('#ff8a3a')},hd*.7);
  base=mix(base,${RED}*.9,step(p.x,-.42)*.6);float bump=styNoise(p*2.6+.4).g;lb=-.08*hd*step(.55,bump);`;
+// ola rodante: perfil de ola con labio que se riza hacia delante (+x), extruido a lo ancho (z); vP = posición local
+const CREST_FS=`uniform float uQ;uniform float uK;void main(){vec3 n=normalize(vN);if(!gl_FrontFacing)n=-n;float l=styLight(n,stySunV());
+ vec3 q=vP;float h=clamp(q.y/.8,0.,1.);float ns=styNoise(vec2(q.x*.35-uT*.3,q.z*.3+uK*.1)).r;
+ float wz=abs(q.z)/.85;float lim=1.-.55*h*h-.12*ns;if(wz>lim)discard;
+ float foam=smoothstep(.6,.8,h+(ns-.5)*.25)+.8*smoothstep(.3,.5,q.x)*smoothstep(.45,.7,h);
+ float er=styErode(styNoise(vec2(q.x*.5,q.z*.5)+.3).a*.6+.4*(1.-wz),uQ,.1);if(er<.5)discard;
+ vec3 c=styRampOf(mix(${WDEEP},${WATER},.25+.75*h),.22+.6*l)*styTint(l);c=mix(c,styRampOf(${WLIGHT},.8+.15*l),clamp(foam,0.,1.)*.85);
+ float edge=smoothstep(lim,lim-.12,wz);
+ gl_FragColor=vec4(c,uA*(.8+.2*foam)*edge);}`;
 defs.push({key:"sty_qtRanchu",name:"Ranchu (estilizado)",dur:3.2,ti:1.05,pal:P_RANCHU,tier:3,stylized:true,...ZONES,
-  phases:[["Carga",0],["Lanzamiento",0.35],["Impacto",1.05],["Atrapados",1.4],["Estallido",2.6]],
+  phases:[["Carrillos",0],["Ola",0.5],["Impacto",1.05],["Débil",1.4],["Calma",2.6]],
 build(a){
-  const L=a.L,TL=0.35,TI=1.05,TT=1.4,TB=2.6;
-  const RP=V3(CX+0.3,2.3,0.3), BP=V3(CX,3.5,0.2);
+  const L=a.L,TW=0.5,TI=1.05,TT=1.4,END=3.2,NF=6;
+  const RP=V3(CX+0.25,1.95,0.3), MO=V3(CX+0.75,1.75,0.3), FAR=V3(999,-50,999);
+  const FS=[...Array(NF)].map(()=>V3(0,0,0)), FE=[...Array(NF)].map(()=>V3(0,0,0)), FT=new Array(NF).fill(TI);
+  const uN={value:0};
   const fish=new THREE.Mesh(new THREE.PlaneGeometry(1.2,1.05),SIL(RANCHU_SD,RANCHU_BODY,{W:1.6,H:1.4,ow:.04})); L.mesh.add(fish);
-  // gran burbuja
-  const bub=new THREE.Mesh(new THREE.SphereGeometry(0.5,28,20),S.mat(`void main(){vec3 n=normalize(vN);float fr=1.-abs(dot(n,normalize(vV)));
-   float sw=styNoise(vUv*vec2(3.,1.5)+uT*.15).r;float hl=smoothstep(.93,.97,dot(n,normalize(vec3(-.4,.6,.7))));
-   float m=pow(fr,2.2)*.95+.08+hl*.9;float er=styErode(sw*.6+fr*.4,uP,.1);
-   gl_FragColor=vec4(mix(styRampOf(${WATER},.45+.45*fr+.15*sw),vec3(.85,1.,1.),hl*.7),min(m,1.)*er*uA);}`,{},{mode:'matter'}));
-  L.mesh.add(bub);
+  // olas (media caña de agua que rueda) y charcos violetas, uno por rival
+  const wsh=new THREE.Shape(); wsh.moveTo(-0.95,0); wsh.quadraticCurveTo(-0.45,0.12,-0.1,0.5); wsh.quadraticCurveTo(0.15,0.82,0.42,0.78);
+  wsh.quadraticCurveTo(0.68,0.72,0.62,0.5); wsh.quadraticCurveTo(0.5,0.6,0.38,0.45); wsh.quadraticCurveTo(0.3,0.2,0.45,0); wsh.lineTo(-0.95,0);
+  const crestG=new THREE.ExtrudeGeometry(wsh,{depth:1.7,bevelEnabled:false,curveSegments:10,steps:6}).translate(0,0,-0.85);
+  const crests=[...Array(NF)].map(()=>{const m=new THREE.Mesh(crestG,S.mat(CREST_FS,{uQ:{value:-1},uK:{value:0}},{mode:'matter',side:THREE.DoubleSide}));L.mesh.add(m);return m;});
+  const stains=[...Array(NF)].map(()=>{const m=groundPlane(1.9,0,0.022,S.mat(STAIN(lin('#5b47b8'),.6),{},{mode:'matter'}));L.decal.add(m);return m;});
+  // sin rivales: ola radial
   const wave=groundPlane(15,CX,0.03,S.mat(WAVE_FS,waveU(),{mode:'matter'})); L.decal.add(wave);
-  const spark=S.hitSpark(L.mesh,1.8,{seed:0.55}), ring=S.groundRing(L.decal,3.2);
-  const K=`const float TI=${f(TI)};const float TT=${f(TT)};const float TB=${f(TB)};const float CX=${f(CX)};const vec3 BP=${v3(BP)};
-  float RW(float t){float u=clamp((t-TI)/.4,0.,1.);return .6+4.6*(1.-(1.-u)*(1.-u));}`;
-  // burbujas de la ola: corren por el anillo y quedan flotando (atrapan) hasta el estallido
-  S.pts(L.part,44,VV+K+`void main(){float an=aSeed.x*6.2832;float R=RW(uT)+(aSeed.y-.5)*.5;
-   float bob=sin(uT*3.+aSeed.z*6.)*.12;vec3 p=vec3(CX,0.,0.)+vec3(cos(an)*R,.35+.7*aSeed.w+bob,sin(an)*R*.85);
-   float pop=TB+aSeed.z*.4;vA=(uT>TI&&uT<pop)?1.:0.;vK=0.;vR=0.;put(p,(.48+.3*aSeed.y)*(uT<TT?.8+.2*smoothstep(TI,TT,uT):1.));}`,BUBBLE_P());
-  // gotas del estallido de cada burbuja
-  S.pts(L.part,40,VV+K+`void main(){float an=aSeed.x*6.2832;float R=RW(TB)+(aSeed.y-.5)*.5;float s=TB+aSeed.z*.4;float life=.4;float age=(uT-s)/life;float t=max(uT-s,0.);
-   vec3 b=vec3(CX,0.,0.)+vec3(cos(an)*R,.35+.7*aSeed.w,sin(an)*R*.85);vec3 p=b+normalize(rnd())*t*1.6+vec3(0.,-4.*t*t,0.);
-   vA=(age>0.&&age<1.&&p.y>0.)?1.:0.;vK=smoothstep(.4,1.,age);vR=3.14159;put(p,.13);}`,DROP());
-  // Débil: chevrones violetas que bajan dentro del anillo de burbujas
-  S.pts(L.part,24,VV+K+`void main(){float an=aSeed.x*6.2832+uT*.3;float R=RW(TT)+(aSeed.y-.5)*.4;float k=fract((uT-TT)/.7+aSeed.z);
-   vec3 p=vec3(CX,0.,0.)+vec3(cos(an)*R,1.6-k*1.2,sin(an)*R*.85);vA=(uT>TT&&uT<TB+.2)?sin(k*3.14159):0.;vK=0.;vR=0.;put(p,.4);}`,
-   S.PV+`void main(){vec2 q=gl_PointCoord-.5;float y=-q.y;float d=abs(y+.12-abs(q.x)*.9);float a=smoothstep(.1,.06,d)*step(abs(q.x),.36)*vA;if(a<.01)discard;
-   gl_FragColor=vec4(styRampOf(${VIOLET},.8),a);}`,{mode:'energy'});
-  // gotas del estallido de la gran burbuja
-  S.pts(L.part,30,VV+K+`void main(){float s=TI+aSeed.x*.04;float life=.6+aSeed.y*.3;float age=(uT-s)/life;float t=max(uT-s,0.);
-   vec3 v=normalize(rnd()+vec3(0.,.3,0.))*(2.+2.*aSeed.z);vec3 p=BP+v*t+vec3(0.,-7.*t*t,0.);
-   vA=(age>0.&&age<1.&&p.y>0.)?1.:0.;vK=smoothstep(.5,1.,age);vR=3.14159;put(p,.2+.1*aSeed.w);}`,DROP());
+  const ring=S.groundRing(L.decal,2.6), spark=S.hitSpark(L.mesh,1.4,{seed:0.55});
+  const K=`const float TW=${f(TW)};const float TI=${f(TI)};const float TT=${f(TT)};const float END=${f(END)};const vec3 MO=${v3(MO)};
+  uniform vec3 uFS[6];uniform vec3 uFE[6];uniform float uFT[6];uniform float uN;
+  int fi(float z){return int(floor(z*5.999));}
+  vec3 gS(int i){vec3 r=vec3(0.);for(int k=0;k<6;k++)if(k==i)r=uFS[k];return r;}
+  vec3 gE(int i){vec3 r=vec3(0.);for(int k=0;k<6;k++)if(k==i)r=uFE[k];return r;}
+  float gT(int i){float r=99.;for(int k=0;k<6;k++)if(k==i)r=uFT[k];return r;}
+  float on(int i){return float(i)<uN?1.:0.;}`;
+  const PU={uFS:{value:FS},uFE:{value:FE},uFT:{value:FT},uN};
+  const P=(n,vs,fs,o={})=>S.pts(L.part,n,VV+K+vs,fs,Object.assign({},o,{uniforms:Object.assign({},PU,o.uniforms||{})}));
+  // chorro pesado de la boca al suelo
+  P(26,`void main(){float s=.32+aSeed.x*.22;float life=.22;float age=(uT-s)/life;vec3 e=vec3(MO.x+.35,0.05,MO.z);
+   vec3 p=mix(MO,e,clamp(age,0.,1.))+rnd()*.12*vec3(1.,.3,1.);vA=(age>0.&&age<1.)?1.:0.;vK=0.;vR=0.;put(p,.34+.12*aSeed.w);}`,DROP());
+  // espuma y salpicones detrás de cada ola
+  P(90,`void main(){int i=fi(aSeed.z);float T=gT(i);float k=aSeed.x;float s=TW+k*(T-TW);float life=.45+aSeed.y*.25;float age=(uT-s)/life;float t=max(uT-s,0.);
+   vec3 b=mix(gS(i),gE(i),k*(.6+.4*k));vec3 v=vec3(rnd().x*.9,1.6+aSeed.w*1.4,rnd().y*.9);vec3 p=b+v*t+vec3(0.,.3-5.5*t*t,0.);
+   vA=(age>0.&&age<1.&&p.y>0.)?on(i):0.;vK=smoothstep(.5,1.,age);vR=atan(v.x,v.y-11.*t);put(p,.2+.12*aSeed.w);}`,DROP());
+  P(40,`void main(){int i=fi(aSeed.z);float T=gT(i);float k=aSeed.x;float s=TW+k*(T-TW);float life=.55;float age=(uT-s)/life;
+   vec3 p=mix(gS(i),gE(i),k*(.6+.4*k))+vec3(rnd().x*.35,.05+.15*age,rnd().y*.45);vA=(age>0.&&age<1.)?on(i)*(1.-age)*.7:0.;vK=age;vR=aSeed.w*6.28;put(p,.32+.28*age);}`,
+   S.MATTER_FS(C.puff,{relief:4,bias:.15,col:WLIGHT}));
+  // empapado: la ola se desploma sobre el rival (gotas que caen y corona)
+  P(80,`void main(){int i=fi(aSeed.z);float T=gT(i)+.05+aSeed.x*.12;float life=.55+aSeed.y*.2;float age=(uT-T)/life;float t=max(uT-T,0.);vec3 e=gE(i);
+   vec3 v=normalize(rnd()*vec3(1.,.3,1.)+vec3(0.,.9,0.))*(1.4+1.6*aSeed.w);vec3 p=e+vec3(0.,1.7,0.)+vec3(v.x*.5,0.,v.z*.5)*t+vec3(0.,v.y*t*.4-8.*t*t,0.);
+   p.xz+=normalize(rnd().xz+.001)*.25;vA=(age>0.&&age<1.&&p.y>.02)?on(i):0.;vK=smoothstep(.6,1.,age);vR=3.14159;put(p,.22+.12*aSeed.w);}`,DROP());
+  P(60,`void main(){int i=fi(aSeed.z);float T=gT(i)+.25+aSeed.x*.06;float life=.45+aSeed.y*.2;float age=(uT-T)/life;float t=max(uT-T,0.);vec3 e=gE(i);
+   float an=aSeed.w*6.2832;vec3 v=vec3(cos(an),0.,sin(an))*(1.8+1.2*aSeed.y)+vec3(0.,2.2,0.);vec3 p=e+v*t+vec3(0.,-9.*t*t,0.);
+   vA=(age>0.&&age<1.&&p.y>0.)?on(i):0.;vK=smoothstep(.5,1.,age);vR=atan(v.x,v.y-18.*t);put(p,.17+.08*aSeed.y);}`,DROP());
+  // Débil: gotas violetas que siguen goteando del rival
+  P(72,`void main(){int i=fi(aSeed.z);float T=gT(i)+.35;float per=.55+.3*aSeed.y;float k=fract((uT-T)/per+aSeed.x);vec3 e=gE(i);
+   float an=aSeed.w*6.2832;vec3 p=e+vec3(cos(an)*.42,1.55-1.5*k*k,sin(an)*.32);
+   vA=(uT>T&&uT<END-.15)?on(i)*smoothstep(0.,.1,k)*smoothstep(1.,.85,k):0.;vK=0.;vR=3.14159;put(p,.2+.06*aSeed.y);}`,DROP(VIOLET));
+  P(30,`void main(){int i=fi(aSeed.z);float T=gT(i)+.35;float k=fract((uT-T)/.9+aSeed.x);vec3 e=gE(i);float an=aSeed.w*6.2832+uT;
+   vec3 p=e+vec3(cos(an)*.55,1.1+.6*k,sin(an)*.4);vA=(uT>T&&uT<END-.2)?on(i)*sin(k*3.14159)*.8:0.;vK=0.;vR=0.;put(p,.14);}`,
+   S.ENERGY_FS(C.spark,{gain:1.2}),{mode:'energy'});
+  let n=0;
+  function syncFoes(){
+    const foes=(VFX.foes&&VFX.foes.length)?VFX.foes:null;
+    n=foes?Math.min(NF,foes.length):0; uN.value=n;
+    const ox=caster.position.x, oz=caster.position.z; let d0=1e9;
+    for(let i=0;i<n;i++)d0=Math.min(d0,Math.hypot(foes[i].x-ox,foes[i].z-oz));
+    for(let i=0;i<NF;i++){
+      if(i<n){const fx=foes[i].x,fz=foes[i].z,d=Math.hypot(fx-ox,fz-oz)||1;FE[i].set(fx,0,fz);FS[i].set(ox+(fx-ox)/d*0.7,0,oz+(fz-oz)/d*0.7);
+        FT[i]=TI+Math.min(0.45,Math.max(0,(d-d0)/14));}
+      else{FE[i].copy(FAR);FS[i].copy(FAR);FT[i]=99;}}
+  }
   a.pose=function(te,o){
+    syncFoes();
     const ia=te-TI;
-    const fk=ss(0,0.25,te)*(1-ss(TI,TI+0.35,te)), puff=ss(0.1,TL,te)*(1-ss(TL,TL+0.12,te));
-    fish.position.copy(RP); fish.position.y+=0.08*Math.sin(te*4); billboard(fish,0.08*Math.sin(te*3));
-    fish.scale.set(2.0*fk+0.001,2.0*fk*(1+0.08*puff)+0.001,1); fish.visible=fk>0.001;
-    silSet(fish,{wig:te*9,q:-0.1+1.1*ss(TI,TI+0.35,te),k:0.2*puff});
-    const bk=ss(TL,TL+0.15,te), bs=0.3+1.5*ss(TL,TI,te);
-    bub.position.lerpVectors(RP,BP,ss(TL,TL+0.4,te)); bub.position.y+=0.05*Math.sin(te*7);
-    bub.scale.set(bs*(1+0.04*Math.sin(te*13)),bs*(1-0.04*Math.sin(te*13)),bs); bub.visible=bk>0.001&&ia<0; set(bub,0,bk);
-    const u=cl(ia/0.4),R=0.6+4.6*(1-(1-u)*(1-u));
-    wave.visible=ia>=0&&ia<1.0; wave.material.uniforms.uR.value=R/7.5; wave.material.uniforms.uW.value=0.05; set(wave,0.1+0.9*ss(0.3,1.0,ia),1);
-    spark.pose(ia,BP,1.3); ring.pose(ia,CX,0,0.5,1);
-    caster.scale.set(1,1-0.06*puff,1);
-    o.g.copy(ia<0?BP:tmp.set(CX,1,0));o.gs=ia<0?0.8+0.8*ss(TL,TI,te):1.5+3*ia;o.ga=ia<0?0.15:Math.exp(-ia*5)*0.45;o.li=ia<0?2:6*Math.exp(-ia*3);
-    o.ia=ia;o.c.set(CX,1,0);o.shake=1;o.dist=1;o.flash=0.5;
+    const fk=ss(0,0.25,te)*(1-ss(TW+0.1,TW+0.5,te)), puff=ss(0.08,0.32,te)*(1-ss(0.32,0.42,te));
+    fish.position.copy(RP).add(tmp.set(caster.position.x-CX,0,caster.position.z)); fish.position.y+=0.08*Math.sin(te*4)-0.15*ss(0.32,0.45,te); billboard(fish,0.08*Math.sin(te*3)-0.25*ss(0.3,0.42,te));
+    fish.scale.set(2.0*fk*(1+0.16*puff)+0.001,2.0*fk*(1+0.1*puff)+0.001,1); fish.visible=fk>0.001;
+    silSet(fish,{wig:te*9,q:-0.1+1.1*ss(TW+0.1,TW+0.5,te),k:0.25*puff});
+    crests.forEach((m,i)=>{const T=FT[i];const on=i<n&&te>=TW-0.05&&te<T+0.55;m.visible=on;if(!on)return;
+      const k=cl((te-TW)/(T-TW)), ic=te-T;const S0=FS[i],E0=FE[i];
+      const dl=Math.max(Math.hypot(E0.x-S0.x,E0.z-S0.z),0.01), stop=Math.max(0,1-0.55/dl);
+      const kk=k*(0.6+0.4*k)*stop+(ic>=0?(1-stop)*ss(0,0.3,ic):0); m.position.set(S0.x+(E0.x-S0.x)*kk,0,S0.z+(E0.z-S0.z)*kk);
+      m.rotation.set(0,-Math.atan2(E0.z-S0.z,E0.x-S0.x),0);
+      const grow=ss(TW-0.05,TW+0.15,te), rise=ic>=0?Math.sin(Math.min(ic/0.22,1)*Math.PI*0.5):0, fall=ic>=0?ss(0.22,0.5,ic):0;
+      m.scale.set(0.55+0.35*grow+0.3*rise,(0.5+0.9*grow+0.8*rise)*(1-0.85*fall)+0.001,0.75+0.35*grow+0.15*rise);
+      const u=m.material.uniforms;u.uQ.value=ic>=0?-0.1+1.1*ss(0.18,0.55,ic):-1;u.uK.value=te;u.uA.value=1;});
+    stains.forEach((m,i)=>{const ic=te-FT[i];m.visible=i<n&&ic>=0;if(!m.visible)return;m.position.set(FE[i].x,m.position.y,FE[i].z);
+      m.scale.setScalar(0.4+0.6*e3(ic/0.35));set(m,-0.1+1.1*ss(END-0.8,END,te),1);});
+    wave.visible=n===0&&te>=TW&&ia<1.0; if(wave.visible){const u=cl((te-TW)/0.9),R=0.6+4.6*(1-(1-u)*(1-u));
+      wave.material.uniforms.uR.value=R/7.5; wave.material.uniforms.uW.value=0.07; set(wave,0.1+0.9*ss(0.3,1.0,ia),1);}
+    ring.pose(te-TW+0.05,CX+0.6,0,0.45,1);
+    const fp=n?FE[0]:tmp.set(CX+2.5,0,0);
+    spark.pose(ia,tmp2.set(fp.x,1.1,fp.z),1.2);
+    caster.scale.set(1,1-0.05*puff,1);
+    const hitL=(te>=TW&&ia<0)?ss(TW,TI,te):0;
+    if(ia<0){o.g.copy(te<TW?MO:tmp.set(CX+(fp.x-CX)*hitL,0.6,fp.z*hitL));o.gs=0.8+0.6*hitL;o.ga=0.12;o.li=1.6+1.5*hitL;}
+    else{o.g.set(fp.x,0.9,fp.z);o.gs=1.4+2*Math.min(ia,0.6);o.ga=Math.exp(-ia*6)*0.4;o.li=5*Math.exp(-ia*3);}
+    o.ia=ia;o.c.set(fp.x,1,fp.z);o.shake=0.9;o.dist=1;o.flash=0.4;
   };
 }});
 
 // =====================================================================
-// 6 · SHRIMP — un camarón pistola (silueta coral segmentada, con antenas y pinza grande) se encoge ante el lanzador y
-//     chasquea la pinza: anillo de choque y una burbuja de cavitación sale disparada recta con anillos de estela. En ti
-//     la burbuja colapsa en el rival: destello turquesa, onda de choque, gotas y burbujitas; el camarón retrocede.
-//     ti 1,0 s
+// 6 · SHRIMP — Hito 104: un camarón pistola (silueta coral segmentada, antenas y pinza grande) se encoge y chasquea la
+//     pinza: anillo de choque y un chorro recto de agua a alta presión cruza hasta el rival. Allí el chorro se hincha en
+//     una burbuja de cavitación que crece temblando y en ti implota: destello breve, anillo de agua y gotas. ti 1,0 s
 // =====================================================================
 const SHRIMP_SD=`float sd(vec2 p){float d=1e3;float cu=uWig;
  for(int i=0;i<6;i++){float fi=float(i);float t=fi*(.24+.3*cu);vec2 c=vec2(.25-.5*sin(t),.5*(cos(t)-1.));d=smin(d,length(p-c)-(.15-.014*fi),.06);}
@@ -452,34 +507,50 @@ const SHRIMP_SD=`float sd(vec2 p){float d=1e3;float cu=uWig;
  d=min(d,sdSeg(p,vec2(.2,-.12),vec2(.18,-.28),.012));d=min(d,sdSeg(p,vec2(.05,-.15),vec2(.02,-.3),.012));return d;}`;
 const SHRIMP_BODY=`float seg=smoothstep(.7,.95,sin(atan(p.y+.5,p.x-.25)*20.));base=mix(${CORAL},${lin('#ffb08a')},smoothstep(-.1,.2,p.y));
  base=mix(base,${lin('#c0402e')},smoothstep(.5,.62,p.x)*smoothstep(-.02,-.2,p.y));lb=-.1*seg;`;
+const JET_FS=`uniform float uH;uniform float uTl;uniform float uW;void main(){float x=vUv.y;if(x>uH||x<uTl)discard;
+ vec3 n=normalize(vN);float fr=1.-abs(dot(n,normalize(vV)));float u=vUv.x;
+ float st=styNoise(vec2(x*6.-uT*7.,u*2.)).r;float core=1.-fr;
+ float tipF=smoothstep(uH,uH-.04,x)*smoothstep(uTl,uTl+.05,x);
+ vec3 c=styRampOf(mix(${WATER},${WLIGHT},.3+.5*core),.45+.45*core+.2*st)*(1.+.35*core);
+ gl_FragColor=vec4(c,uA*(.55+.45*core)*tipF*(.8+.2*st));}`;
 defs.push({key:"sty_qtShrimp",name:"Shrimp (estilizado)",dur:2.1,ti:1.0,pal:P_SHRIMP,tier:2,stylized:true,...ZONES,
-  phases:[["Encogerse",0],["Impulso",0.24],["Disparo",0.3],["Impacto",1],["Regreso",1.35]],
+  phases:[["Encogerse",0],["Chasquido",0.24],["Chorro",0.3],["Cavitación",0.45],["Implosión",1],["Regreso",1.35]],
 build(a){
-  const L=a.L,TP=0.24,TF=0.3,TI=1.0,TR=1.35;
-  const SP=V3(-2.75,1.15,0.25), CL=V3(-1.75,0.95,0.25), HP=V3(TX-0.25,1.05,0);
+  const L=a.L,TP=0.24,TF=0.3,TJ=0.45,TI=1.0,TR=1.35;
+  const SP=V3(-2.75,1.15,0.25), CL=V3(-1.75,0.95,0.25), HP=V3(TX-0.25,1.1,0);
   const sh=new THREE.Mesh(new THREE.PlaneGeometry(1.4,0.84),SIL(SHRIMP_SD,SHRIMP_BODY,{W:2,H:1.2,ow:.035})); L.mesh.add(sh);
-  const bub=new THREE.Mesh(new THREE.SphereGeometry(0.28,24,16),S.mat(`void main(){vec3 n=normalize(vN);float fr=1.-abs(dot(n,normalize(vV)));
-   float hl=smoothstep(.9,.96,dot(n,normalize(vec3(-.4,.6,.7))));float m=pow(fr,1.6)+.12+hl;
-   gl_FragColor=vec4(mix(styRampOf(${WATER},.5+.5*fr),vec3(.85,1.,1.),hl*.7)*(1.+.4*fr),min(m,1.)*uA);}`,{},{mode:'matter'}));
-  L.mesh.add(bub);
-  // anillos de choque en billboard (chasquido e impacto)
+  // chorro: cilindro de su longitud real (CL→HP); uTl/uH recortan cola y frente
+  const JL=HP.distanceTo(CL);
+  const jetM=S.mat(JET_FS,{uH:{value:0},uTl:{value:0},uW:{value:1}},{mode:'matter',side:THREE.DoubleSide});
+  const jet=new THREE.Mesh(new THREE.CylinderGeometry(0.15,0.15,JL,14,24,true).rotateZ(-Math.PI/2),jetM);
+  jet.position.lerpVectors(CL,HP,0.5); jet.quaternion.setFromUnitVectors(XA,tmp.copy(HP).sub(CL).normalize()); L.mesh.add(jet);
+  // burbuja de cavitación en el rival
+  const bubM=S.mat(`uniform float uWob;void main(){vec3 n=normalize(vN);float fr=1.-abs(dot(n,normalize(vV)));
+   float sw=styNoise(vUv*vec2(3.,1.5)+uT*.4).r;float hl=smoothstep(.9,.96,dot(n,normalize(vec3(-.4,.6,.7))));
+   float m=pow(fr,1.8)*.95+.07+hl*.9+uWob*.3*fr;
+   gl_FragColor=vec4(mix(styRampOf(${WATER},.45+.5*fr+.15*sw),vec3(.85,1.,1.),hl*.7)*(1.+.5*fr+uWob),min(m,1.)*uA);}`,{uWob:{value:0}},{mode:'matter'});
+  const bub=new THREE.Mesh(new THREE.SphereGeometry(0.5,28,20),bubM); bub.position.copy(HP); L.mesh.add(bub);
+  // anillos de choque en billboard (chasquido e implosión) y destello
   const RING_BB=`uniform float uE;void main(){vec2 p=vUv-.5;float r=length(p)*2.;float w=.12*(1.-uE)+.03;float m=smoothstep(w,0.,abs(r-.25-.7*uE));
-   float n=styNoise(vec2(atan(p.y,p.x),r)*1.2).r;if(m*(1.-uE)<.02)discard;gl_FragColor=vec4(styRamp(.5+.5*m)*(1.+.2*n),m*(1.-uE)*uA);}`;
+   float n=styNoise(vec2(atan(p.y,p.x),r)*1.2).r;if(m*(1.-uE)<.02)discard;gl_FragColor=vec4(styRampOf(${WLIGHT},.5+.5*m)*(1.+.2*n),m*(1.-uE)*uA);}`;
   const snap=new THREE.Mesh(new THREE.PlaneGeometry(1.4,1.4),S.mat(RING_BB,{uE:{value:0}},{mode:'energy'})); L.mesh.add(snap);
-  const shock=new THREE.Mesh(new THREE.PlaneGeometry(2.6,2.6),S.mat(RING_BB,{uE:{value:0}},{mode:'energy'})); L.mesh.add(shock);
-  const spark=S.hitSpark(L.mesh,1.0,{seed:0.71}), ring=S.groundRing(L.decal,3.2);
-  const K=`const float TF=${f(TF)};const float TI=${f(TI)};const vec3 CL=${v3(CL)};const vec3 HP=${v3(HP)};
-  float fu(float t){float u=clamp((t-TF)/(TI-TF),0.,1.);return u*(.35+.65*u);}`;
-  // estela: anillos pequeños y burbujitas detrás de la burbuja
-  S.pts(L.part,30,VV+K+`void main(){float s=TF+aSeed.x*(TI-TF);float life=.35;float age=(uT-s)/life;
-   vec3 p=mix(CL,HP,fu(s))+rnd()*.16;vA=(age>0.&&age<1.)?1.-age:0.;vK=0.;vR=0.;put(p,(.2+.12*aSeed.w)*(1.+age));}`,BUBBLE_P());
-  S.pts(L.part,14,VV+K+`void main(){float s=TF+aSeed.x*(TI-TF);float life=.28;float age=(uT-s)/life;
-   vec3 p=mix(CL,HP,fu(s));vA=(age>0.&&age<1.)?(1.-age)*.8:0.;vK=age;vR=1.5708;put(p,.8+.8*age);}`,S.ENERGY_FS(C.ring,{gain:.9}),{mode:'energy'});
-  // gotas y burbujitas del colapso
-  S.pts(L.part,34,VV+K+`void main(){float s=TI+aSeed.x*.04;float life=.5+aSeed.y*.3;float age=(uT-s)/life;float t=max(uT-s,0.);
-   vec3 v=normalize(rnd()+vec3(-.3,.4,0.))*(1.8+2.*aSeed.z);vec3 p=HP+v*t+vec3(0.,-6.*t*t,0.);
-   vA=(age>0.&&age<1.&&p.y>0.)?1.:0.;vK=smoothstep(.5,1.,age);vR=3.14159;put(p,.16+.08*aSeed.w);}`,DROP());
-  S.pts(L.part,16,VV+K+`void main(){float s=TI+.03+aSeed.x*.1;float life=.6;float age=(uT-s)/life;vec3 p=HP+rnd()*.5+vec3(0.,age*1.,0.);
+  const shock=new THREE.Mesh(new THREE.PlaneGeometry(3,3),S.mat(RING_BB,{uE:{value:0}},{mode:'energy'})); L.mesh.add(shock);
+  const flash=new THREE.Mesh(new THREE.PlaneGeometry(1.6,1.6),S.mat(`void main(){vec2 p=vUv-.5;float r=length(p)*2.;float an=atan(p.y,p.x);
+   float st=pow(abs(cos(an*4.)),18.)*smoothstep(1.,.2,r);float m=smoothstep(.55,0.,r)+st*.8;if(m<.02)discard;
+   gl_FragColor=vec4(mix(${WLIGHT},vec3(1.,.97,.9),smoothstep(.3,0.,r))*1.4*m*uA,1.);}`,{},{mode:'energy'})); L.mesh.add(flash);
+  const spark=S.hitSpark(L.mesh,1.0,{seed:0.71}), ring=S.groundRing(L.decal,3.4), ring2=S.groundRing(L.decal,2.4);
+  const K=`const float TF=${f(TF)};const float TJ=${f(TJ)};const float TI=${f(TI)};const vec3 CL=${v3(CL)};const vec3 HP=${v3(HP)};`;
+  // niebla de presión a lo largo del chorro
+  S.pts(L.part,36,VV+K+`void main(){float s=TF+aSeed.x*(TI-.1-TF);float u=clamp((s-TF)/(TJ-TF),0.,1.)*aSeed.y;float life=.3;float age=(uT-s)/life;
+   vec3 p=mix(CL,HP,u)+rnd()*vec3(.05,.14,.14)*(1.+3.*age);vA=(age>0.&&age<1.)?(1.-age)*.9:0.;vK=age;vR=0.;put(p,.12+.1*aSeed.w);}`,BUBBLE_P(WLIGHT));
+  // microburbujas que la cavitación absorbe antes de implotar
+  S.pts(L.part,24,VV+K+`void main(){float s=TJ+aSeed.x*.45;float life=.3;float age=(uT-s)/life;vec3 d=normalize(rnd()+.001);
+   vec3 p=HP+d*(1.4-1.1*age);vA=(age>0.&&age<1.&&uT<TI)?age:0.;vK=0.;vR=0.;put(p,.1+.06*aSeed.w);}`,BUBBLE_P());
+  // gotas y burbujitas tras la implosión (anillo de agua)
+  S.pts(L.part,40,VV+K+`void main(){float s=TI+.02+aSeed.x*.04;float life=.5+aSeed.y*.3;float age=(uT-s)/life;float t=max(uT-s,0.);
+   float an=aSeed.w*6.2832;vec3 v=vec3(cos(an)*.4,sin(an),.6*cos(an+1.))*(2.+1.5*aSeed.z)+vec3(-.6,.8,0.);vec3 p=HP+v*t+vec3(0.,-6.*t*t,0.);
+   vA=(age>0.&&age<1.&&p.y>0.)?1.:0.;vK=smoothstep(.5,1.,age);vR=atan(v.x,v.y-12.*t);put(p,.16+.08*aSeed.w);}`,DROP());
+  S.pts(L.part,16,VV+K+`void main(){float s=TI+.05+aSeed.x*.1;float life=.6;float age=(uT-s)/life;vec3 p=HP+rnd()*.5+vec3(0.,age*1.,0.);
    vA=(age>0.&&age<1.)?1.-age*.6:0.;vK=0.;vR=0.;put(p,.12+.08*aSeed.w);}`,BUBBLE_P());
   a.pose=function(te,o){
     const ia=te-TI, ip=te-TP;
@@ -489,19 +560,27 @@ build(a){
     sh.scale.set(2.1*k+0.001,2.1*k+0.001,1); sh.visible=k>0.001;
     const curl=ss(0,TP,te)*(1-ss(TP,TP+0.12,te))+0.3*back;
     silSet(sh,{wig:curl,k:0.25*hitE(ip,10)*(ip>=0?1:0)});
-    // burbuja de cavitación
-    const u=cl((te-TF)/(TI-TF)),fu=u*(0.35+0.65*u);
-    bub.position.lerpVectors(CL,HP,fu); bub.visible=te>=TF&&ia<0; bub.scale.setScalar(1.3+0.8*u); set(bub,0,1);
+    // chorro: el frente cruza en TF→TJ; la cola lo sigue y se adelgaza hasta la burbuja
+    const hd=ss(TF,TJ,te), tl=ss(TJ+0.12,TI-0.12,te);
+    jet.visible=te>=TF&&tl<0.995; jetM.uniforms.uH.value=hd; jetM.uniforms.uTl.value=tl; jetM.uniforms.uA.value=1;
+    const th=1+0.35*hitE(te-TF,10)-0.45*ss(TJ,TI-0.1,te); jet.scale.set(1,th,th);
+    // cavitación: crece temblando y en ti implota (se encoge de golpe)
+    const gr=ss(TJ-0.05,TI-0.08,te), col=ss(TI-0.08,TI,te), wob=Math.sin(te*55)*0.05*gr;
+    const bs=(0.25+1.35*gr)*(1-col);
+    bub.visible=te>=TJ-0.05&&ia<0; bub.scale.set(bs*(1+wob),bs*(1-wob),bs*(1+wob*0.5)+0.001);
+    bubM.uniforms.uA.value=1; bubM.uniforms.uWob.value=0.6*col+0.25*gr*(0.5+0.5*Math.sin(te*40));
     const e1=cl(ip/0.3); snap.position.copy(CL); billboard(snap); snap.visible=ip>=0&&e1<1; snap.material.uniforms.uE.value=e1; snap.material.uniforms.uA.value=1;
-    const e2=cl(ia/0.4); towardCam(shock.position,HP,0.3); billboard(shock); shock.visible=ia>=0&&e2<1; shock.material.uniforms.uE.value=e2; shock.material.uniforms.uA.value=1;
-    spark.pose(ia,HP,1.0); ring.pose(ia,TX-0.1,0,0.45,1);
+    const e2=cl((ia-0.02)/0.45); towardCam(shock.position,HP,0.3); billboard(shock); shock.visible=ia>=0.02&&e2<1; shock.material.uniforms.uE.value=e2; shock.material.uniforms.uA.value=1;
+    towardCam(flash.position,HP,0.4); billboard(flash); flash.visible=ia>=-0.02&&ia<0.16;
+    { const fk=ia<0?ss(-0.02,0,ia):Math.exp(-ia*22); flash.scale.setScalar(0.6+0.9*fk+0.4*cl(ia/0.16)); flash.material.uniforms.uA.value=fk; }
+    spark.pose(ia,HP,1.0); ring.pose(ia,TX-0.1,0,0.45,1); ring2.pose(ia-0.1,TX-0.1,0,0.5,0.8);
     const h=hitE(ia,7);
     target.position.x=TX+0.25*h*(1-Math.exp(-Math.max(ia,0)*20)); target.rotation.z=-0.18*h*Math.cos(ia*16);
     target.scale.set(1+0.06*h,1-0.08*h,1+0.06*h);
     o.em=0.4*h; o.emc.copy(U.uC1.value);
-    if(ia<0){o.g.copy(te<TF?CL:bub.position);o.gs=0.6;o.ga=0.15;o.li=1.8;}
-    else{o.g.copy(HP);o.gs=1.2+3*ia;o.ga=Math.exp(-ia*9)*0.45;o.li=6*Math.exp(-ia*5);}
-    o.ia=ia;o.c.copy(HP);o.shake=0.6;o.dist=0.8;o.flash=0.6;
+    if(ia<0){o.g.copy(te<TJ?tmp.lerpVectors(CL,HP,hd):HP);o.gs=0.6+0.5*gr;o.ga=0.12+0.1*gr;o.li=1.8+1.5*gr;}
+    else{o.g.copy(HP);o.gs=1.2+3*ia;o.ga=Math.exp(-ia*9)*0.5;o.li=7*Math.exp(-ia*5);}
+    o.ia=ia;o.c.copy(HP);o.shake=0.7;o.dist=0.8;o.flash=0.7;
   };
 }});
 

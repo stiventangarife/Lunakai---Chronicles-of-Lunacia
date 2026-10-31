@@ -85,11 +85,14 @@ const defs=[];
 const GILA_BODY=`vec3 q=normalize(vP);vec4 cz=styNoise(vec2(atan(q.z,q.x)*.55,q.y*.85)+.2);
  float bead=smoothstep(.42,.62,cz.g);base=mix(vec3(.13,.06,.12),vec3(1.,.52,.34),bead);lb=-.08+.1*bead;glow=(1.-bead)*.6*uK;`;
 defs.push(Object.assign({key:"sty_rtGila",name:"Gila (estilizado)",dur:3.2,ti:1.667,pal:P_GILA,tier:3,stylized:true,enemies:2,
-  phases:[["Hinchazón",0],["Azote",0.72],["Onda en cruz",0.98],["Erupción",1.48],["Veneno",2.15],["Disipación",2.7]],
+  phases:[["Hinchazón",0],["Azote",0.72],["Onda",0.98],["Erupción",1.48],["Veneno",2.15],["Disipación",2.7]],
 build(a){
-  const L=a.L,TW=0.72,TS=0.98,V=12,SP=V3(-4.85,0,0),END=3.2;
-  const EP=[V3(TX,0,0),ENEMY_POS[0].clone(),ENEMY_POS[1].clone()];
-  const tx=x=>TS+(x-SP.x)/V, TE=EP.map(e=>tx(e.x)+Math.abs(e.z)/V), TI=TE[0];
+  // Hito 104: los géiseres, cruces y ramales caen sobre los rivales REALES del tablero (VFX.foes, en el laboratorio),
+  // hasta NF; el más cercano recibe el impacto en ti y los demás un poco después según su distancia. Sin rivales, la
+  // onda se abre en anillo desde el azote.
+  const L=a.L,TW=0.72,TS=0.98,TI=1.667,SP=V3(-4.85,0,0),END=3.2,NF=5,SL=12;
+  const EP=[...Array(NF)].map((_,i)=>V3(TX,0,0)), TE=new Array(NF).fill(TI);
+  const uEP={value:EP}, uET={value:TE.slice()}, uNF={value:1};
   const whip=new THREE.CatmullRomCurve3([V3(-4.15,0.7,0),V3(-4.5,1.6,0.1),V3(-5.05,1.9,0.12),V3(-5.3,1.05,0.06),V3(SP.x,0.1,0)]);
   // saco de veneno: cuentas de la piel del Gila con brillo violeta entre ellas
   const sac=new THREE.Mesh(new THREE.SphereGeometry(1,32,22),S.mat(SOLID(GILA_BODY,{hot:'uC2*1.6',rim:.3}),{uQ:{value:-1},uK:{value:0}},{mode:'solid'}));
@@ -98,79 +101,99 @@ build(a){
   const lash=new THREE.Mesh(new THREE.TubeGeometry(whip,64,0.13,8,false),S.mat(`void main(){float u=vUv.x;float d=uP-u;if(d<0.||d>.5)discard;
    float n=styNoise(vec2(u*3.-uT*2.,vUv.y)).r;float al=exp(-d*5.)*(.5+.5*n);gl_FragColor=vec4(styRamp(.4+.55*exp(-d*8.))*1.3,al*uA);}`,{},{mode:'energy'}));
   L.mesh.add(lash);
-  // onda de veneno por el suelo: brazo principal hacia el objetivo y ramales hasta los otros rivales
-  const STRIP=`uniform float uD;void main(){float u=vUv.x;float d=uP-u;if(d<0.)discard;float z=abs(vUv.y-.5)*2.;
-   vec4 s=styNoise(vec2(u*LEN*.22,vUv.y*.7)+.3);float w=.62+.3*s.r;float m=smoothstep(w,w*.35,z);
-   float fade=exp(-d*LEN*.18);float er=styErode(s.r*.6+s.g*.4,uD,.1);
-   float bub=smoothstep(.7,.78,styNoise(vec2(u*LEN*.5-uT*.25,vUv.y*1.3)).a);
-   vec3 c=styRamp(.3+.45*exp(-d*LEN*.9)+bub*.35+.15*s.g);
+  // onda de veneno por el suelo: un ramal desde el azote hasta cada rival (geometría a lo largo completo, se escala en x)
+  const STRIP=`uniform float uD;uniform float uLen;void main(){float u=vUv.x;float d=uP-u;if(d<0.)discard;float z=abs(vUv.y-.5)*2.;
+   vec4 s=styNoise(vec2(u*uLen*.22,vUv.y*.7)+.3);float w=.62+.3*s.r;float m=smoothstep(w,w*.35,z);
+   float fade=exp(-d*uLen*.18);float er=styErode(s.r*.6+s.g*.4,uD,.1);
+   float bub=smoothstep(.7,.78,styNoise(vec2(u*uLen*.5-uT*.25,vUv.y*1.3)).a);
+   vec3 c=styRamp(.3+.45*exp(-d*uLen*.9)+bub*.35+.15*s.g);
    float a=m*(.45+.55*fade)*er*uA;if(a<.01)discard;gl_FragColor=vec4(c*1.1,a);}`;
-  const LEN0=TX+0.6-SP.x;
-  const main=groundStrip(LEN0,1.3,SP.x+LEN0/2,0.022,S.mat(STRIP.replace(/LEN/g,f(LEN0)),{uD:{value:-1}},{mode:'matter'}),56); L.decal.add(main);
-  const branches=EP.slice(1).map(e=>{const len=Math.abs(e.z)+0.1,sg=Math.sign(e.z);
-    const m=new THREE.Mesh(new THREE.PlaneGeometry(len,0.9,8,1).rotateX(-Math.PI/2).rotateY(sg>0?-Math.PI/2:Math.PI/2),S.mat(STRIP.replace(/LEN/g,f(len)),{uD:{value:-1}},{mode:'matter'}));
-    m.position.set(e.x,0.023,e.z/2); L.decal.add(m); return m;});
+  const strips=[...Array(NF)].map((_,i)=>{const m=new THREE.Mesh(new THREE.PlaneGeometry(SL,1,64,1).rotateX(-Math.PI/2),
+    S.mat(STRIP,{uD:{value:-1},uLen:{value:SL}},{mode:'matter'}));m.position.y=0.022+0.0007*i;L.decal.add(m);return m;});
+  // anillo de onda (sin rivales)
+  const wave=groundPlane(1,SP.x,0.021,S.mat(`uniform float uD;void main(){vec2 p=vUv-.5;float r=length(p)*2.;vec4 s=styNoise(vUv*2.+.3);
+   float m=smoothstep(.12,0.,abs(r-.86-(s.r-.5)*.08))*step(r,1.);if(m<.02)discard;float er=styErode(s.r,uD,.1);
+   gl_FragColor=vec4(styRamp(.35+.4*s.g),m*er*uA*.9);}`,{uD:{value:-1}},{mode:'matter'}));L.decal.add(wave);
   // cruces de veneno bajo cada rival y grietas bajo el principal
   const CROSS=`uniform float uD;void main(){vec2 p=(vUv-.5)*2.;vec4 s=styNoise(vUv*.9+.17);
    float arm=min(abs(p.x),abs(p.y));float len=max(abs(p.x),abs(p.y));
    float m=smoothstep(.3+.1*s.r,.1,arm)*smoothstep(1.,.75,len+(s.g-.5)*.3)*step(len,uP*1.05);if(m<.02)discard;
    float er=styErode(s.r*.6+s.b*.4,uD,.1);gl_FragColor=vec4(styRamp(.3+.4*s.g+.25*(1.-len)),m*er*uA*.85);}`;
-  const crosses=EP.map((e,i)=>{const m=groundPlane(i?2.2:3.0,e.x,0.024+0.001*i,S.mat(CROSS,{uD:{value:-1}},{mode:'matter'}));m.position.z=e.z;L.decal.add(m);return m;});
-  const crack=groundPlane(3.6,TX,0.027,S.mat(CRACK_FS,{uK:{value:0}},{mode:'matter'})); L.decal.add(crack);
+  const crosses=EP.map((e,i)=>{const m=groundPlane(i?2.2:3.0,e.x,0.024+0.001*i,S.mat(CROSS,{uD:{value:-1}},{mode:'matter'}));L.decal.add(m);return m;});
+  const crack=groundPlane(3.6,TX,0.03,S.mat(CRACK_FS,{uK:{value:0}},{mode:'matter'})); L.decal.add(crack);
   // géiseres: lenguas de veneno iluminadas que suben y se consumen
   const GEY=`uniform float uH;uniform float uD;void main(){float h=vP.y/uH;vec2 uv=vec2(atan(vP.z,vP.x)*.32,h*1.1-uT*1.5);
    vec4 s=styNoise(uv);float fl=s.r*.7+s.g*.3-h*.95+.3+.15*uP;if(fl<.12)discard;
    float er=styErode(s.r,uD,.1);if(er<.02)discard;vec3 n=normalize(vN);if(!gl_FrontFacing)n=-n;float l=styLight(n,stySunV());
    float hot=smoothstep(.45,.75,fl);vec3 c=styRampOf(mix(${VIOLET},uC2*1.25,smoothstep(.12,.5,fl)),clamp(.25+.5*l,0.,1.))*styTint(l);
    c=mix(c,styRampOf(uC1,.6+.3*l),hot*.55*(1.-h));
-   gl_FragColor=vec4(c,smoothstep(.12,.26,fl)*er*uA);}`;
+   float see=gl_FrontFacing?1.-.8*smoothstep(.62,.25,h):1.;
+   gl_FragColor=vec4(c,smoothstep(.12,.26,fl)*er*uA*see);}`;
   const geysers=EP.map((e,i)=>{const H=i?2.3:3.3,r=i?0.42:0.62;
     const m=new THREE.Mesh(new THREE.CylinderGeometry(r*0.55,r,H,24,6,true).translate(0,H/2,0),S.mat(GEY,{uH:{value:H},uD:{value:-1}},{mode:'matter'}));
-    m.position.copy(e); L.mesh.add(m); return m;});
+    L.mesh.add(m); return m;});
   const sparks=EP.map((e,i)=>S.hitSpark(L.mesh,i?1.2:1.8,{seed:0.2+i*0.23}));
   const rings=EP.map((e,i)=>S.groundRing(L.decal,i?2.2:3.0));
   const slamSpark=S.hitSpark(L.mesh,1.3,{seed:0.55}), slamRing=S.groundRing(L.decal,2.6);
-  const poisonA=S.status(a,'poison',[target,enemies[0]],TE[1],END), poisonB=S.status(a,'poison',[enemies[1]],TE[2],END);
+  // veneno sobre cada rival: marcadores propios (sin rival, lejos de la vista)
+  const marks=EP.map(()=>new THREE.Object3D());
+  const poison=S.status(a,'poison',marks,TI,END);
   const K=`const float TW=${f(TW)};const float TS=${f(TS)};const vec3 SP=${v3(SP)};const float END=${f(END)};
-   vec3 ep(float i){return i<.5?${v3(EP[0])}:(i<1.5?${v3(EP[1])}:${v3(EP[2])});}
-   float et(float i){return i<.5?${f(TE[0])}:(i<1.5?${f(TE[1])}:${f(TE[2])});}`;
+   uniform vec3 uEP[${NF}];uniform float uET[${NF}];uniform float uNF;
+   int fi(float x){return int(min(floor(x*uNF),uNF-1.));}
+   vec3 ep(int i){return uEP[i];} float et(int i){return uET[i];}`;
+  const U2={uniforms:{uEP,uET,uNF}};
+  const P=(n,vs,fs,o)=>S.pts(L.part,n,VV+K+vs,fs,Object.assign({},U2,o||{},{uniforms:Object.assign({},U2.uniforms,(o&&o.uniforms)||{})}));
   // hinchazón: gotas de veneno que caen del saco
-  S.pts(L.part,14,VV+K+`void main(){float s=aSeed.x*TW;float life=.45+aSeed.y*.2;float age=(uT-s)/life;float t=max(uT-s,0.);
+  P(14,`void main(){float s=aSeed.x*TW;float life=.45+aSeed.y*.2;float age=(uT-s)/life;float t=max(uT-s,0.);
    vec3 p=vec3(-4.15,.6,0.)+rnd()*.15+vec3(0.,-3.*t*t,0.);vA=(age>0.&&age<1.&&p.y>0.)?1.:0.;vK=smoothstep(.5,1.,age);vR=3.14159;
    put(p,.13+.05*aSeed.w);}`,S.MATTER_FS(C.drop,{relief:4,col:VIOLET}));
   // azote: salpicadura violeta y polvo detrás del lanzador
-  S.pts(L.part,22,VV+K+`void main(){float s=TS+aSeed.x*.05;float life=.55+aSeed.y*.3;float age=(uT-s)/life;float t=max(uT-s,0.);
+  P(22,`void main(){float s=TS+aSeed.x*.05;float life=.55+aSeed.y*.3;float age=(uT-s)/life;float t=max(uT-s,0.);
    float an=aSeed.z*6.2832;vec3 v=vec3(cos(an)*(1.+2.*aSeed.w),2.6+2.4*aSeed.y,sin(an)*(1.+2.*aSeed.w));
    vec3 p=SP+vec3(0.,.1,0.)+v*t+vec3(0.,-8.*t*t,0.);vA=(age>0.&&age<1.&&p.y>0.)?1.:0.;vK=smoothstep(.5,1.,age);vR=atan(v.x,v.y-16.*t);
    put(p,.17+.07*aSeed.w);}`,S.MATTER_FS(C.drop,{relief:4,col:'uC2'}));
-  S.pts(L.part,10,VV+K+`void main(){float s=TS+aSeed.x*.08;float life=.8+aSeed.y*.3;float age=(uT-s)/life;float t=max(uT-s,0.);
+  P(10,`void main(){float s=TS+aSeed.x*.08;float life=.8+aSeed.y*.3;float age=(uT-s)/life;float t=max(uT-s,0.);
    float an=aSeed.z*6.2832;vec3 p=SP+vec3(cos(an),0.,sin(an))*(.3+1.1*(1.-exp(-t*4.)))+vec3(0.,.15+.4*(1.-exp(-t*2.)),0.);
    vA=(age>0.&&age<1.)?smoothstep(0.,.08,age):0.;vK=smoothstep(.2,1.,age);vR=aSeed.w*6.28;put(p,(.45+.2*aSeed.y)*(.7+.6*age));}`,
    S.MATTER_FS(C.puff,{relief:4,col:EARTH,bias:-.05}));
-  // erupciones: humo de veneno que sube en columna, gotas que llueven y motas
-  S.pts(L.part,42,VV+K+`void main(){float i=aSeed.x<.5?0.:(aSeed.x<.75?1.:2.);float big=i<.5?1.:.7;float s=et(i)+aSeed.y*.35;
+  // erupciones: humo de veneno que sube en columna, gotas que llueven (cada partícula en uno de los rivales)
+  P(48,`void main(){int i=fi(aSeed.x);float big=i==0?1.:.75;float s=et(i)+aSeed.y*.35;
    float life=.7+aSeed.y*.35;float age=(uT-s)/life;float t=max(uT-s,0.);float an=aSeed.z*6.2832;
    vec3 p=ep(i)+vec3(cos(an)*.35*big,.3+t*(2.6+1.2*aSeed.w)*big,sin(an)*.35*big);
    vA=(age>0.&&age<1.)?smoothstep(0.,.1,age):0.;vK=smoothstep(.25,1.,age);vR=aSeed.w*6.28+t;put(p,(.5+.25*aSeed.w)*big*(.7+.6*age));}`,
    S.MATTER_FS(C.puff,{relief:4,col:'uC2',bias:.04}));
-  S.pts(L.part,40,VV+K+`void main(){float i=aSeed.x<.5?0.:(aSeed.x<.75?1.:2.);float big=i<.5?1.:.7;float s=et(i)+aSeed.y*.06;
+  P(46,`void main(){int i=fi(aSeed.x);float big=i==0?1.:.75;float s=et(i)+aSeed.y*.06;
    float life=.7+aSeed.y*.35;float age=(uT-s)/life;float t=max(uT-s,0.);float an=aSeed.z*6.2832;
    vec3 v=vec3(cos(an)*(.6+1.5*aSeed.w),(3.2+3.*aSeed.y)*big,sin(an)*(.6+1.5*aSeed.w))*big;
    vec3 p=ep(i)+vec3(cos(an)*.3,.3,sin(an)*.3)+v*t+vec3(0.,-7.*t*t,0.);
    vA=(age>0.&&age<1.&&p.y>0.)?1.:0.;vK=smoothstep(.55,1.,age);vR=atan(v.x,v.y-14.*t);put(p,(.17+.07*aSeed.w)*big);}`,
    S.MATTER_FS(C.drop,{relief:4,col:VIOLET}));
   // esquirlas de baldosa en el impacto principal
-  S.pts(L.part,14,VV+K+`void main(){float s=${f(TI)};float life=.75+aSeed.y*.3;float age=(uT-s)/life;float t=max(uT-s,0.);
+  P(14,`void main(){float s=et(0);float life=.75+aSeed.y*.3;float age=(uT-s)/life;float t=max(uT-s,0.);
    float an=aSeed.z*6.2832;vec3 v=vec3(cos(an)*(1.+2.2*aSeed.w),2.5+2.5*aSeed.y,sin(an)*(1.+2.2*aSeed.w));
-   vec3 p=vec3(${f(TX)},.05,0.)+vec3(cos(an),0.,sin(an))*.6+v*t+vec3(0.,-9.*t*t,0.);p.y=max(p.y,.03);
+   vec3 p=ep(0)+vec3(0.,.05,0.)+vec3(cos(an),0.,sin(an))*.6+v*t+vec3(0.,-9.*t*t,0.);p.y=max(p.y,.03);
    vA=(age>0.&&age<1.)?1.:0.;vK=smoothstep(.6,1.,age);vR=aSeed.y*6.28+t*9.;put(p,.22+.1*aSeed.w);}`,S.MATTER_FS(C.shard,{relief:3,col:EARTH}));
-  // brillo violeta a lo largo del frente de la onda
-  S.pts(L.part,26,VV+K+`void main(){float x=SP.x+aSeed.x*${f(TX-SP.x)};float s=TS+(x-SP.x)/${f(V)};float life=.45+aSeed.y*.3;float age=(uT-s)/life;float t=max(uT-s,0.);
-   vec3 p=vec3(x+rnd().x*.2,.08+t*.9,rnd().z*.4);vA=(age>0.&&age<1.)?1.-age:0.;vK=0.;vR=0.;put(p,.16+.08*aSeed.w);}`,
+  // brillo violeta a lo largo del frente de cada ramal
+  P(36,`void main(){int i=fi(aSeed.z);vec3 e=ep(i);float u=aSeed.x;vec3 q=mix(SP,e,u);float s=TS+u*(et(i)-TS);
+   float life=.45+aSeed.y*.3;float age=(uT-s)/life;float t=max(uT-s,0.);
+   vec3 p=q+vec3(rnd().x*.2,.08+t*.9,rnd().z*.3);vA=(age>0.&&age<1.)?1.-age:0.;vK=0.;vR=0.;put(p,.16+.08*aSeed.w);}`,
    S.ENERGY_FS(C.spark,{gain:1.1}),{mode:'energy'});
-  const sp=V3(0,0,0), sm=sac.material.uniforms;
+  const sp=V3(0,0,0), sm=sac.material.uniforms, FAR=V3(999,-50,999);
+  let n=1;
+  function syncFoes(){
+    const foes=(VFX.foes&&VFX.foes.length)?VFX.foes:null;
+    n=foes?Math.min(NF,foes.length):0;
+    const V=12, d0=foes?Math.hypot(foes[0].x-SP.x,foes[0].z-SP.z):0;
+    for(let i=0;i<NF;i++){
+      if(i<n){EP[i].set(foes[i].x,0,foes[i].z);const di=Math.hypot(EP[i].x-SP.x,EP[i].z-SP.z);TE[i]=TI+Math.min(0.5,Math.max(0,(di-d0)/V));}
+      else{EP[i].copy(FAR);TE[i]=99;}
+      uET.value[i]=TE[i];}
+    uNF.value=Math.max(n,1);
+  }
   a.pose=function(te,o){
-    const ia=te-TI, sw=ss(0,TW,te), wk=cl((te-TW)/(TS-TW)), is=te-TS, fade=1-ss(END-0.7,END,te);
+    syncFoes();
+    const ia=te-TI, sw=ss(0,TW,te), wk=cl((te-TW)/(TS-TW)), is=te-TS, fade=1-ss(END-0.7,END,te), gs=-(VFX.gridSnap||0);
     caster.rotation.z=-0.12*sw+0.32*ss(TW,TW+0.1,te)-0.24*ss(TS-0.05,TS+0.15,te)+0.04*ss(TS+0.15,TS+0.6,te);
     caster.scale.set(1+0.04*sw*(1-ss(TW,TS,te)),1-0.06*sw*(1-ss(TW,TS,te)),1);
     const throb=0.06*Math.sin(te*(9+22*te))*sw;
@@ -180,29 +203,32 @@ build(a){
     sac.scale.set(sz*(1+0.25*wk),sz*(1-0.15*wk),sz); sm.uK.value=0.3+0.7*sw*(0.5+0.5*Math.sin(te*20));
     lash.visible=te>TW&&te<TS+0.3; set(lash,wk*wk*1.25,1-ss(TS,TS+0.3,te));
     slamSpark.pose(is,tmp.set(SP.x,0.35,0),1); slamRing.pose(is,SP.x,0,0.5,1);
-    // onda: frente que corre a V u/s; ramales y cruces al llegar a cada rival
-    const front=is>=0?(is*V)/LEN0:0; set(main,front,is>=0?fade:0); main.material.uniforms.uD.value=-0.1+1.1*ss(END-1.1,END-0.1,te);
-    branches.forEach((b,i)=>{const e=EP[i+1],t0=tx(e.x);set(b,te>=t0?(te-t0)*V/(Math.abs(e.z)+0.1):0,te>=t0?fade:0);b.material.uniforms.uD.value=main.material.uniforms.uD.value;});
-    crosses.forEach((c,i)=>{const ie=te-TE[i];set(c,e3(ie/0.35),ie>=0?fade:0);c.material.uniforms.uD.value=-0.1+1.1*ss(END-0.9,END,te);});
-    set(crack,e3(ia/0.35),ia>=0?1-ss(END-0.5,END,te):0); crack.material.uniforms.uK.value=0.8*hitE(ia,3);
+    const uD=-0.1+1.1*ss(END-1.1,END-0.1,te);
+    // ramales: del azote a cada rival; el frente llega en TE[i]
+    strips.forEach((m,i)=>{const on=i<n&&is>=0;m.visible=on;if(!on)return;const e=EP[i],dx=e.x-SP.x,dz=e.z-SP.z,len=Math.hypot(dx,dz)+0.6;
+      m.position.set(SP.x+dx/2*(len/(len-0.6)),m.position.y,SP.z+dz/2*(len/(len-0.6)));m.rotation.y=-Math.atan2(dz,dx);m.scale.x=len/SL;
+      m.material.uniforms.uLen.value=len;set(m,cl(is/(TE[i]-TS)),fade);m.material.uniforms.uD.value=uD;});
+    // sin rivales: anillo que se abre desde el azote
+    wave.visible=n===0&&is>=0; if(wave.visible){const r=1+9*e3(is/0.9);wave.scale.set(r,1,r);set(wave,1,fade);wave.material.uniforms.uD.value=uD;}
+    crosses.forEach((c,i)=>{const ie=te-TE[i];c.visible=i<n&&ie>=0;c.position.set(EP[i].x,c.position.y,EP[i].z);c.rotation.y=gs;
+      set(c,e3(ie/0.35),fade);c.material.uniforms.uD.value=-0.1+1.1*ss(END-0.9,END,te);});
+    crack.visible=n>0&&ia>=0; crack.position.set(EP[0].x,crack.position.y,EP[0].z); crack.rotation.y=gs;
+    set(crack,e3(ia/0.35),1-ss(END-0.5,END,te)); crack.material.uniforms.uK.value=0.8*hitE(ia,3);
     geysers.forEach((g,i)=>{const ie=te-TE[i],d=i?0.75:1.0,k=ie<0?0:Math.sin(Math.PI*0.5*cl(ie/0.18));
-      g.visible=ie>=0&&ie<d+0.3; g.scale.set(0.85+0.3*k,Math.max(k,0.001),0.85+0.3*k); set(g,k,1);
+      g.position.copy(EP[i]);g.visible=i<n&&ie>=0&&ie<d+0.3; g.scale.set(0.85+0.3*k,Math.max(k,0.001),0.85+0.3*k); set(g,k,1);
       g.material.uniforms.uD.value=-0.1+1.15*ss(d*0.45,d+0.25,ie);});
-    sparks.forEach((s,i)=>s.pose(te-TE[i],tmp.set(EP[i].x,i?0.8:1.0,EP[i].z),i?0.9:1.2));
-    rings.forEach((r,i)=>r.pose(te-TE[i],EP[i].x,EP[i].z,0.45,1));
-    // reacción de cada rival
+    sparks.forEach((s,i)=>s.pose(i<n?te-TE[i]:-1,tmp.set(EP[i].x,i?0.8:1.0,EP[i].z),i?0.9:1.2));
+    rings.forEach((r,i)=>r.pose(i<n?te-TE[i]:-1,EP[i].x,EP[i].z,0.45,1));
+    marks.forEach((m,i)=>m.position.copy(EP[i]));
     const hit=hitE(ia,4);
-    target.position.x=TX+0.25*hit*(1-Math.exp(-Math.max(ia,0)*20)); target.position.y=0.25*Math.sin(Math.PI*cl(ia/0.35))*(ia>=0?1:0);
-    target.rotation.z=-hit*0.3*Math.cos(ia*14); target.scale.set(1+0.08*hit,1-0.1*hit,1+0.08*hit);
-    for(let i=0;i<2;i++){const e=enemies[i],ie=te-TE[i+1],h=hitE(ie,5);e.position.y=0.18*Math.sin(Math.PI*cl(ie/0.3))*(ie>=0?1:0);
-      e.rotation.z=0.2*h*Math.cos(ie*15)*(i?1:-1);glowOf(e,COL.setRGB(0.32,0.85,0.28),0.1+0.5*h);}
-    const pA=poisonA.pose(te); poisonB.pose(te); S.statusGlow(o,[{kind:'poison',env:pA}]);
+    const pA=poison.pose(te); S.statusGlow(o,[{kind:'poison',env:pA}]);
     o.em=Math.max(o.em||0,0.4*hit);
+    const E0=n?EP[0]:tmp2.set(SP.x+6,0,0);
     if(te<TW){tailW(o.g);o.gs=0.5+0.8*sw;o.ga=0.1+0.15*sw;o.li=1+2*sw;}
     else if(te<TS){o.g.copy(sac.position);o.gs=1.2;o.ga=0.25;o.li=3;}
-    else if(ia<0){o.g.set(Math.min(SP.x+is*V,TX),0.4,0);o.gs=1.2+1.2*hitE(is,6);o.ga=0.2+0.3*hitE(is,8);o.li=2+5*hitE(is,5);}
-    else{o.g.set(TX,1.2,0);o.gs=1.6+3*Math.min(ia,0.6);o.ga=Math.exp(-ia*7)*0.5+0.05*fade;o.li=8*Math.exp(-ia*4)+1*fade;}
-    o.ia=ia; o.c.set(TX,0.9,0); o.shake=1.6; o.dist=1.3; o.flash=0.6;
+    else if(ia<0){o.g.copy(SP).lerp(E0,cl(is/(TI-TS)));o.g.y=0.4;o.gs=1.2+1.2*hitE(is,6);o.ga=0.2+0.3*hitE(is,8);o.li=2+5*hitE(is,5);}
+    else{o.g.set(E0.x,1.2,E0.z);o.gs=1.6+3*Math.min(ia,0.6);o.ga=Math.exp(-ia*7)*0.5+0.05*fade;o.li=8*Math.exp(-ia*4)+1*fade;}
+    o.ia=ia; o.c.set(E0.x,0.9,E0.z); o.shake=1.6; o.dist=1.3; o.flash=0.6;
   };
 }},ZONES));
 

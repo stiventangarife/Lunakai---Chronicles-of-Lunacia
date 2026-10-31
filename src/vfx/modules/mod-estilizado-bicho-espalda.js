@@ -87,7 +87,7 @@ defs.push(Object.assign({key:"sty_ieBuzzBuzz",name:"Buzz Buzz (estilizado)",pa:2
   zoneCaster:0.5,zoneTarget:TILE*1.1,
 build(a){
   const L=a.L,TI=0.7,TS=0.32,END=2.0;
-  const TILES=[V3(TX,0,0),V3(TX-TILE,0,0),V3(TX+TILE,0,0),V3(TX,0,TILE),V3(TX,0,-TILE)];
+  const TILES0=[V3(TX,0,0),V3(TX-TILE,0,0),V3(TX+TILE,0,0),V3(TX,0,TILE),V3(TX,0,-TILE)], TILES=TILES0.map(v=>v.clone());
   // alas zumbando: dos óvalos de energía con nervios
   const WING=`void main(){vec2 p=(vUv-.5)*2.;float d=length(p*vec2(1.,1.9));if(d>1.)discard;
    float vein=smoothstep(.06,0.,abs(fract(atan(p.y,p.x+1.1)*3.)-.5)*d)*.6;float rim=smoothstep(.75,.98,d);
@@ -95,9 +95,11 @@ build(a){
   const wings=[0,1].map(i=>{const m=new THREE.Mesh(new THREE.PlaneGeometry(1.1,0.62),S.mat(WING,{},{mode:'energy',side:THREE.DoubleSide}));
     L.mesh.add(m);return m;});
   // cruz zumbante en el suelo
+  // Hito 105: cinco casillas enteras (antes, brazos de 0,6 casillas de ancho): relleno zumbante y borde marcado
   const CROSS=`uniform float uD;void main(){vec2 p=(vUv-.5)*2.;vec4 s=styNoise(vUv*.9+.17);
-   float arm=min(abs(p.x),abs(p.y));float len=max(abs(p.x),abs(p.y));
-   float m=smoothstep(.2+.04*s.r,.15,arm)*smoothstep(1.,.86,len+(s.g-.5)*.1)*step(len,uP*1.05);if(m<.02)discard;
+   vec2 q=(vUv-.5)*3.;vec2 c=floor(q+.5);if(abs(c.x)+abs(c.y)>1.)discard;float e=max(abs(q.x-c.x),abs(q.y-c.y))*2.;
+   float len=max(abs(p.x),abs(p.y));
+   float m=(smoothstep(.98,.9,e)*(.55+.45*smoothstep(.72,.9,e)))*step(len,uP*1.05);if(m<.02)discard;
    float wave=.5+.5*sin(len*26.-uT*30.);float er=styErode(s.r*.6+s.b*.4,uD,.1);
    gl_FragColor=vec4(mix(styRampOf(${CRIMSON},.2+.2*s.g),styRampOf(${AMBER},.55+.3*wave),.35+.4*wave),m*er*uA*.7);}`;
   const cross=groundPlane(TILE*3,TX,0.024,S.mat(CROSS,{uD:{value:-1}},{mode:'matter'})); L.decal.add(cross);
@@ -145,6 +147,10 @@ build(a){
    put(p,.15+.06*aSeed.w);}`,S.MATTER_FS(C.shard,{relief:3,col:GOLD}));
   a.pose=function(te,o){
     const ia=te-TI, buzz=win(te,0,0.15,TI+0.1,TI+0.35), fade=1-ss(END-0.45,END,te);
+    // Hito 104: la cruz y las casillas de aterrizaje siguen la cuadrícula en los lanzamientos en diagonal
+    {const ga=-(VFX.gridSnap||0),gc=Math.cos(ga),gs=Math.sin(ga);
+     TILES0.forEach((v,i)=>{const dx=v.x-TX,dz=v.z;TILES[i].set(TX+gc*dx+gs*dz,0,-gs*dx+gc*dz);});
+     S.gridAlign(cross,TX,0);}
     wings.forEach((w,i)=>{const sg=i?1:-1, fl=Math.sin(te*95+i)*0.5+0.5;
       w.position.set(CB.x-0.25,CB.y+0.25,sg*0.32); w.rotation.set(sg*(0.5+0.5*fl),0,0.35);
       w.scale.setScalar(Math.max(0.001,0.75+0.35*buzz)); set(w,0,buzz*(0.55+0.45*fl)); w.visible=buzz>0.001;});
@@ -327,7 +333,7 @@ build(a){
 // =====================================================================
 // 4 · SCARAB (2 PA) — arena dorada cae de la espalda y se hunde; un lomo de arena avanza bajo tierra hasta el rival y un
 //     escarabajo sagrado (caparazón carmesí con costura y bordes de oro) revienta del suelo y lo golpea desde abajo.
-//     El lanzador queda bajo un caparazón dorado (escudo) y sobre el rival se cierra un sello de cura tachada. ti 0,95 s
+//     El lanzador queda bajo un caparazón dorado (escudo) y sobre el rival una gota de savia se seca y se agrieta (bloqueo de curación). ti 0,95 s
 // =====================================================================
 defs.push(Object.assign({key:"sty_ieScarab",name:"Scarab (estilizado)",pa:2,dur:2.2,ti:0.95,pal:P_SCARAB,tier:2,stylized:true,
   phases:[["Arena",0],["Túnel",0.22],["Emerge",0.55],["Estallido",0.95],["Polvo",1.15],["Sello",1.5]],
@@ -344,25 +350,53 @@ build(a){
   const pile=groundPlane(1.8,-3.5,0.024,S.mat(STAIN(SAND,.75))); L.decal.add(pile);
   const bulge=groundPlane(2.6,TX,0.026,S.mat(CRACK_FS,{uK:{value:0}})); L.decal.add(bulge);
   const sandStain=groundPlane(2.8,TX,0.025,S.mat(STAIN(SAND,.65))); L.decal.add(sandStain);
-  // el escarabajo: caparazón (élitros) con costura dorada, pronoto y cuerno; geometría pequeña, se escala en la pose
+  // el escarabajo (Hito 104, dibujo nuevo): dos élitros separados con estrías y borde de oro, pronoto con reborde, cabeza
+  // con clípeo dentado y cuerno curvo de oro, patas en tres segmentos con espinas; contorno oscuro y brillo de quitina.
   const scarab=new THREE.Group(); L.mesh.add(scarab);
-  const SHELL=`float seam=smoothstep(.03,0.,abs(vP.z))*step(-.05,vP.x);float rim=smoothstep(.12,.0,vP.y+.02);
-   base=mix(${CRIMSON},${CRIMD},.45+.4*styNoise(vUv*vec2(3.,2.)).g);base=mix(base,${GOLD},max(seam,rim)*.9);lb=-.1+.14*max(seam,rim);glow=max(seam,rim)*.25;`;
-  const shellMat=S.mat(SOLID(SHELL,{hot:'uC2*.6',rim:.22}),{uQ:{value:-1},uK:{value:0}},{mode:'solid'});
-  const elytra=new THREE.Mesh(new THREE.SphereGeometry(0.42,32,16,0,Math.PI*2,0,Math.PI/2).scale(1.2,0.75,0.95),shellMat); scarab.add(elytra);
-  const pron=new THREE.Mesh(new THREE.SphereGeometry(0.24,20,12).scale(0.9,0.7,1.1),shellMat); pron.position.set(0.52,0.06,0); scarab.add(pron);
-  const horn=new THREE.Mesh(new THREE.ConeGeometry(0.07,0.38,10).rotateZ(-1.2),S.mat(SOLID(`base=${GOLD};lb=.1;`,{rim:.3}),{uQ:{value:-1},uK:{value:0}},{mode:'solid'}));
-  horn.position.set(0.78,0.16,0); scarab.add(horn);
-  const legMat=S.mat(SOLID(`base=${CRIMD};`,{rim:.2}),{uQ:{value:-1},uK:{value:0}},{mode:'solid'});
-  for(let i=0;i<6;i++){const s=i<3?1:-1,k=i%3;const m=new THREE.Mesh(new THREE.CylinderGeometry(0.025,0.02,0.34,6),legMat);
-    m.position.set(-0.25+0.28*k,-0.02,s*0.36);m.rotation.set(s*1.0,0,0.5-0.5*k);scarab.add(m);}
+  const OUTLINE=`float frO=1.-abs(dot(normalize(vN),normalize(vV)));base*=1.-.65*smoothstep(.72,.97,frO);`;
+  const ELY=`float sd=sign(vP.z+1e-4);float zz=abs(vP.z);
+   float groove=smoothstep(.07,0.,.5-abs(fract(zz*11.+.5)-.5))*smoothstep(.0,.06,zz);
+   float edge=smoothstep(.035,.0,zz-.0)+smoothstep(.06,.0,vP.y+.01);
+   float sheen=pow(max(0.,dot(normalize(vN),normalize(vec3(-.3,1.,.2)))),18.);
+   base=mix(${CRIMSON},${CRIMD},.35+.35*styNoise(vUv*vec2(4.,2.)).g+.25*groove);base=mix(base,${GOLD},clamp(edge,0.,1.)*.85);
+   ${''}lb=-.08+.12*clamp(edge,0.,1.);glow=clamp(edge,0.,1.)*.22+sheen*.9;`;
+  const shellMat=S.mat(SOLID(ELY+OUTLINE,{hot:'uC2*.6',rim:.3}),{uQ:{value:-1},uK:{value:0}},{mode:'solid'});
+  const PRO=`float rimP=smoothstep(.05,.0,abs(length(vP.xz*vec2(1.,.8))-.2));base=mix(mix(${CRIMD},${CRIMSON},.45+.3*styNoise(vUv*3.).g),${GOLD},rimP*.9);
+   lb=-.06;glow=rimP*.2;`;
+  const proMat=S.mat(SOLID(PRO+OUTLINE,{hot:'uC2*.6',rim:.3}),{uQ:{value:-1},uK:{value:0}},{mode:'solid'});
+  const goldMat=S.mat(SOLID(`base=${GOLD};lb=.08;`+OUTLINE,{rim:.35}),{uQ:{value:-1},uK:{value:0}},{mode:'solid'});
+  const legMat=S.mat(SOLID(`base=mix(${CRIMD},${SOOT},.4);`+OUTLINE,{rim:.25}),{uQ:{value:-1},uK:{value:0}},{mode:'solid'});
+  const shellMatU=shellMat;
+  // élitros: medias cúpulas alargadas, una a cada lado, un poco abiertas
+  const elys=[1,-1].map(sd=>{const g=new THREE.SphereGeometry(0.44,36,18,sd>0?0:Math.PI,Math.PI,0,Math.PI/2).scale(1.2,1.0,0.9);
+    const m=new THREE.Mesh(g,shellMat);m.position.set(-0.08,0,sd*0.02);scarab.add(m);return m;});
+  // pronoto (escudo del tórax) con reborde de oro
+  const pron=new THREE.Mesh(new THREE.SphereGeometry(0.27,24,14,0,Math.PI*2,0,Math.PI/2).scale(0.85,0.95,1.12),proMat); pron.position.set(0.52,0.02,0); scarab.add(pron);
+  // cabeza: clípeo plano dentado (seis dientes de oro) y cuerno curvo
+  const head=new THREE.Mesh(new THREE.SphereGeometry(0.15,18,10,0,Math.PI*2,0,Math.PI/2).scale(1.1,0.55,1.25),proMat); head.position.set(0.78,0.0,0); scarab.add(head);
+  for(let i=0;i<6;i++){const an=-0.9+i*0.36;const t=new THREE.Mesh(new THREE.ConeGeometry(0.035,0.12,6).rotateZ(-Math.PI/2),goldMat);
+    t.position.set(0.9+Math.cos(an)*0.08,0.02,Math.sin(an)*0.17);t.rotation.y=-an*0.6;scarab.add(t);}
+  const hornC=new THREE.CatmullRomCurve3([V3(0,0,0),V3(0.08,0.14,0),V3(0.06,0.3,0),V3(-0.04,0.42,0)]);
+  const horn=new THREE.Mesh(taperTube(hornC,18,8,0.055,0.012),goldMat); horn.position.set(0.8,0.06,0); scarab.add(horn);
+  // patas: fémur, tibia con espinas y tarso, en zigzag hacia fuera
+  for(let i=0;i<6;i++){const sd=i<3?1:-1,k=i%3;const g=new THREE.Group();g.position.set(-0.22+0.3*k,0.02,sd*0.3);g.rotation.y=sd*(0.25-0.35*k);scarab.add(g);
+    const fem=new THREE.Mesh(new THREE.CylinderGeometry(0.03,0.025,0.22,6).translate(0,0.11,0),legMat);fem.rotation.x=sd*1.25;g.add(fem);
+    const tib=new THREE.Group();tib.position.set(0,0.21*Math.cos(1.25),sd*0.21*Math.sin(1.25));g.add(tib);
+    const tb=new THREE.Mesh(new THREE.CylinderGeometry(0.024,0.018,0.24,6).translate(0,-0.12,0),legMat);tb.rotation.x=-sd*0.5;tib.add(tb);
+    for(let b=0;b<2;b++){const sp=new THREE.Mesh(new THREE.ConeGeometry(0.014,0.06,4),goldMat);sp.position.set(0,-0.08-0.08*b,sd*0.03);sp.rotation.x=sd*1.2;tib.add(sp);}}
+  const sm0=[shellMat,proMat,goldMat,legMat];
   // escudo del lanzador: cúpula dorada con placas de caparazón
   const shield=dome(L.mesh,1.05,GOLD,`smoothstep(.06,0.,.5-abs(fract(atan(vP.z,vP.x)/6.2832*10.)-.5))*.6+smoothstep(.05,0.,abs(fract(h*3.)-.5)-.44)*.4`);
   shield.position.set(-3.7,0,0);
-  // sello: cruz de cura tachada sobre el rival (bloqueo de curación)
-  const seal=new THREE.Mesh(new THREE.PlaneGeometry(0.9,0.9),S.mat(SEAL(`float cr=step(min(abs(p.x),abs(p.y)),.16)*step(max(abs(p.x),abs(p.y)),.55);
-   float ring=smoothstep(.1,.04,abs(r-.78));float slash=smoothstep(.1,.05,abs(p.x+p.y)*.7071)*step(r,.84);
-   m=max(max(cr*(1.-slash),ring),slash);c=mix(styRampOf(${HEALG},.55),styRampOf(${CRIMSON},.45),max(ring,slash));`),{},{mode:'matter',depthTest:false}));
+  // bloqueo de curación (Hito 104, sin cruz de cura): una gota de savia verde dentro de un anillo; la gota se seca a
+  // gris ceniza y se agrieta (uK = cuánto se ha secado), sin ningún signo + ni cruz.
+  const seal=new THREE.Mesh(new THREE.PlaneGeometry(0.95,0.95),S.mat(`uniform float uK;`+SEAL(`
+   vec2 q=p*vec2(1.,-1.)+vec2(0.,.08);float drop=length(q*vec2(1.,.8)+vec2(0.,max(q.y,0.)*.55))-.36;
+   float dm=smoothstep(.04,-.02,drop);float ring=smoothstep(.09,.03,abs(r-.8));
+   float crack=smoothstep(.05,0.,abs(s.b-.5)*1.2+abs(p.x*.6))*dm*smoothstep(.2,.6,uK);
+   float hl=smoothstep(.06,0.,length(q-vec2(-.12,.12))-.07)*dm*(1.-uK);
+   m=max(dm,ring);vec3 g=mix(styRampOf(${HEALG},.5+.25*(1.-r)),styRampOf(vec3(.42,.4,.38),.35+.2*s.g),uK);
+   c=mix(g,styRampOf(${SOOT},.12),max(crack,ring*.7));c+=vec3(.8)*hl;`),{uK:{value:0}},{mode:'matter',depthTest:false}));
   L.mesh.add(seal);
   const spark=S.hitSpark(L.mesh,1.2,{seed:0.27}), ring=S.groundRing(L.decal,2.8), sring=S.groundRing(L.decal,2.4);
   const K=VV+`const float TI=${f(TI)};const float TT=${f(TT)};const vec3 CB=${v3(CB)};`;
@@ -381,7 +415,7 @@ build(a){
   S.pts(L.part,14,K+`void main(){float s=TI+aSeed.x*.12;float life=.9+aSeed.y*.4;float age=(uT-s)/life;float t=max(uT-s,0.);float an=aSeed.z*6.2832;
    vec3 p=vec3(${f(TX)},.3,0.)+vec3(cos(an),0.,sin(an))*(.3+1.2*(1.-exp(-t*4.)))+vec3(0.,.2+.7*(1.-exp(-t*2.)),0.);
    vA=(age>0.&&age<1.)?smoothstep(0.,.08,age):0.;vK=smoothstep(.2,1.,age);vR=aSeed.w*6.28;put(p,(.6+.3*aSeed.y)*(.7+.6*age));}`,S.MATTER_FS(C.puff,{relief:4,col:SAND,bias:.04}));
-  const sm=[shellMat.uniforms,legMat.uniforms,horn.material.uniforms], shu=shield.material.uniforms;
+  const sm=sm0.map(m=>m.uniforms), shu=shield.material.uniforms;
   a.pose=function(te,o){
     const ia=te-TI, fade=1-ss(END-0.45,END,te);
     set(pile,e3(te/0.3),te<1.2?1-ss(0.7,1.2,te):0);
@@ -393,7 +427,7 @@ build(a){
     scarab.visible=ia>=-0.04&&ia<0.8;
     scarab.position.set(TX+0.3,-0.6+2.4*up-2.8*dive,0.65);
     scarab.rotation.set(-0.25,0.3,0.9-0.55*up+0.6*flip);
-    scarab.scale.setScalar(2.2); sm.forEach(u=>{u.uQ.value=-1+1.3*ss(0.55,0.8,ia);u.uK.value=0.15*hitE(ia,6);});
+    scarab.scale.setScalar(1.75); sm.forEach(u=>{u.uQ.value=-1+1.3*ss(0.55,0.8,ia);u.uK.value=0.15*hitE(ia,6);});
     spark.pose(ia,tmp.set(TX,0.9,0.3),1.05); ring.pose(ia,TX,0,0.45,1);
     // escudo dorado del lanzador
     const is=te-TI; shield.visible=is>=0&&te<END; shu.uP.value=e3(is/0.3); shu.uA.value=0.85*fade;
@@ -401,6 +435,7 @@ build(a){
     // sello de cura tachada
     const isl=te-1.15; seal.visible=isl>=0; towardCam(seal.position,tmp.set(TX,2.35,0),0.3); billboard(seal);
     seal.scale.setScalar(Math.max(0.001,0.7+0.5*e3(isl/0.2)-0.1*e3((isl-0.2)/0.2))); set(seal,-0.1+1.1*ss(END-0.45,END,te),isl>=0?1:0);
+    seal.material.uniforms.uK.value=ss(0.12,0.5,isl);
     const hit=hitE(ia,4);
     target.position.y=0.45*Math.sin(Math.PI*cl(ia/0.4))*(ia>=0?1:0); target.rotation.z=-0.25*hit*Math.cos(ia*12);
     target.scale.set(1-0.06*hit,1+0.1*hit,1-0.06*hit); glowOf(target,COL.set("#ffcf5c"),0.4*hit);

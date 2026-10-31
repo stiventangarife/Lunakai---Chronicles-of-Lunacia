@@ -23,6 +23,12 @@ import { cloneGLTF } from '../render/ModelCache.js';
 import { sapidaeModularController } from '../rpg/SapidaeModularController.js';
 import { sapidaeModelUrl, SAPIDAE_BASES } from '../rpg/SapidaeModels.js';
 
+// 30-oct (memoria de GPU): el contexto de los retratos guardaba para siempre todo lo que subía (cuerpo del Sapidae en
+// 2048, sus texturas teñidas, Axies…: ~70 MB) aunque solo se usa unos segundos en cada autoguardado. Tras este tiempo sin
+// retratos se liberan sus texturas SOLO en este contexto (el mundo las sigue usando); los shaders compilados se conservan,
+// así el próximo retrato solo vuelve a subir texturas (en segundo plano, una por tarea).
+const PORTRAIT_GPU_IDLE_MS = 20000;
+
 export const PRE_RENDERED_PORTRAITS = [
   'bear-dad',
   'bear-mom',
@@ -249,6 +255,61 @@ export class CharacterPortraitService {
     this.scene.add(this.wrapper);
 
     this._initialized = true;
+  }
+
+  /** Apunta las texturas de un modelo que van a vivir en este contexto (para liberarlas luego). */
+  _trackModelTextures(model) {
+    const set = (this._gpuTextures ||= new Set());
+    model.traverse((o) => {
+      for (const m of [].concat(o.material || [])) {
+        if (!m) continue;
+        for (const k in m) { const v = m[k]; if (v && v.isTexture) set.add(v); }
+        if (m.uniforms) for (const k in m.uniforms) { const v = m.uniforms[k] && m.uniforms[k].value; if (v && v.isTexture) set.add(v); }
+      }
+      if (o.isSkinnedMesh && o.skeleton && o.skeleton.boneTexture) set.add(o.skeleton.boneTexture);
+    });
+  }
+
+  _scheduleGpuRelease() {
+    clearTimeout(this._gpuReleaseTimer);
+    this._gpuReleaseTimer = setTimeout(() => this.releaseGpuMemory(), PORTRAIT_GPU_IDLE_MS);
+  }
+
+  /**
+   * La función con la que ESTE renderer escucha el 'dispose' de sus texturas (una por renderer). Llamarla con una textura
+   * la libera solo aquí: texture.dispose() la quitaría también del contexto del mundo.
+   */
+  _textureDisposeListener() {
+    if (this._texDisposeFn !== undefined) return this._texDisposeFn;
+    let fn = null;
+    try {
+      const probe = new THREE.DataTexture(new Uint8Array(4), 1, 1);
+      probe.needsUpdate = true;
+      const before = new Set((probe._listeners && probe._listeners.dispose) || []);
+      this.renderer.initTexture(probe);
+      fn = ((probe._listeners && probe._listeners.dispose) || []).find((f) => !before.has(f)) || null;
+      probe.dispose();
+    } catch (_) { fn = null; }
+    this._texDisposeFn = fn;
+    return fn;
+  }
+
+  /** Libera de este contexto las texturas de los retratos ya hechos. Devuelve cuántas. lkDebug: portraitService.releaseGpuMemory() */
+  releaseGpuMemory() {
+    if (!this.renderer || !this._gpuTextures || this._gpuTextures.size === 0) return 0;
+    if (this._busy > 0 || (this._axieJobs && this._axieJobs.size > 0)) { this._scheduleGpuRelease(); return 0; }
+    const fn = this._textureDisposeListener();
+    if (!fn) return 0;
+    let n = 0;
+    for (const t of this._gpuTextures) {
+      const ls = t._listeners && t._listeners.dispose;
+      if (ls && ls.includes(fn)) {
+        try { fn.call(t, { type: 'dispose', target: t }); n++; } catch (_) { /* nada */ }
+      }
+    }
+    this._gpuTextures.clear();
+    try { this.renderer.renderLists.dispose(); } catch (_) { /* nada */ }
+    return n;
   }
 
   addListener(callback) {
@@ -480,7 +541,9 @@ export class CharacterPortraitService {
     this.camera.position.set(0, yTarget, cameraDist);
     this.camera.lookAt(0, yTarget, 0);
 
+    this._trackModelTextures(model);
     this.renderer.render(this.scene, this.camera);
+    this._scheduleGpuRelease();
     const dataUrl = this.canvas.toDataURL('image/png');
 
     this.cache.set(id, dataUrl);
@@ -540,7 +603,9 @@ export class CharacterPortraitService {
     copy.rotation.set(0, 0, 0);
     copy.updateMatrixWorld(true);
     const r = this.renderer;
+    this._busy = (this._busy || 0) + 1;
     try {
+      this._trackModelTextures(copy);
       // Solo lo que se ve en el retrato (las variantes ocultas del Sapidae no se compilan ni se suben)
       const visible = [];
       const walk = (o) => { if (!o.visible) return; if (o.material) visible.push(o); o.children.forEach(walk); };
@@ -566,7 +631,9 @@ export class CharacterPortraitService {
       console.warn('[CharacterPortraitService] Retrato en segundo plano omitido:', e);
       return null;
     } finally {
+      this._busy--;
       if (copy.parent) copy.parent.remove(copy);
+      this._scheduleGpuRelease();
     }
   }
 

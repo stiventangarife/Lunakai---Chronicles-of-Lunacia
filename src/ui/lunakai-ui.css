@@ -1575,3 +1575,93 @@ img.lk-coin { width: 15px; height: 15px; object-fit: contain; background: none; 
 #ui-overlay .lk-cb-st .lk-st-ico { width: 15px; height: 15px; }
 .lk-cb-ut .lk-cb-ut-st .lk-st-ico { width: 16px; height: 16px; margin-left: -4px; }
 .lk-fc-chip .lk-st-ico { width: 14px; height: 14px; vertical-align: -3px; }
+
+
+/* ============================================================================================================
+   Hito 107 · Números de combate (FloatingCombatText) — sistema de diseño «Números de combate»:
+   Nunito Sans 900 cursiva, sin contornos gruesos. Blanco = daño que haces · carmesí suave = daño que recibes.
+   ============================================================================================================ */
+.lk-fct {
+  position: absolute; left: 0; top: 0; display: none;
+  pointer-events: none; white-space: nowrap; text-align: center;
+  will-change: transform, opacity; transform-origin: 50% 60%;
+  font-family: var(--lk-font-ui); font-weight: 900; font-style: italic; line-height: 1;
+  font-variant-numeric: tabular-nums; letter-spacing: -.01em;
+  --lk-fct-taken: #FFB4AE; --lk-fct-heal: #9FF0B0;
+}
+.lk-fct .lk-fct__row { display: inline-flex; align-items: center; gap: .16em; }
+.lk-fct .lk-fct__k {
+  display: block; margin: 0 auto .2rem; font: 900 .7rem/1 var(--lk-font-ui); font-style: normal;
+  letter-spacing: .16em; text-transform: uppercase; color: var(--lk-ivory-200);
+  text-shadow: 0 1px 0 rgba(0, 0, 0, .55), 0 0 8px rgba(0, 0, 0, .5);
+}
+/* Principal */
+.lk-fct-main { font-size: 2rem; color: #FFFFFF; text-shadow: 0 1px 0 rgba(8, 10, 20, .6), 0 2px 0 rgba(0, 0, 0, .35), 0 0 14px rgba(0, 0, 0, .45); }
+.lk-fct--taken { color: var(--lk-fct-taken); }
+.lk-fct--heal { color: var(--lk-fct-heal); }
+.lk-fct--shield { color: #B7F2EC; }
+.lk-fct--miss { font-size: 1.3rem; font-style: normal; letter-spacing: .1em; text-transform: uppercase; color: #C8CFDF; }
+.lk-fct-main .lk-fct__ico { width: .72em; height: .72em; object-fit: contain; filter: drop-shadow(0 1px 1px rgba(0, 0, 0, .7)); }
+.lk-fct .lk-fct__adv { font-style: normal; font-size: .42em; align-self: flex-start; margin-top: .1em; color: var(--lk-gilt-300); text-shadow: 0 1px 0 rgba(0, 0, 0, .6), 0 0 8px rgba(238, 211, 154, .6); }
+.lk-fct-dis .lk-fct__adv { color: #AEB6CB; text-shadow: 0 1px 0 rgba(0, 0, 0, .6); }
+/* Crítico: dorado, etiqueta encima, destello de un fotograma y chispas (una sola vez) */
+.lk-fct--crit { font-size: 2.6rem; color: #FFD88A; text-shadow: 0 1px 0 rgba(8, 10, 20, .6), 0 2px 0 rgba(0, 0, 0, .35), 0 0 18px rgba(255, 190, 90, .55); }
+.lk-fct--crit .lk-fct__k { color: var(--lk-gilt-100); letter-spacing: .2em; }
+.lk-fct--crit .lk-fct__v { animation: lkFctFlash .2s ease-out 1; }
+.lk-fct--crit::before, .lk-fct--crit::after { content: ""; position: absolute; left: 50%; top: 62%; pointer-events: none; }
+.lk-fct--crit::before { width: 1.9em; height: 1.9em; border-radius: 50%; border: 2px solid rgba(255, 216, 138, .85); animation: lkFctRing .42s cubic-bezier(.22, 1, .36, 1) forwards; }
+.lk-fct--crit::after {
+  width: 5px; height: 5px; border-radius: 50%;
+  box-shadow: 0 -30px 0 #FFE7B0, 21px -21px 0 #FFD88A, 30px 0 0 #FFE7B0, 21px 21px 0 #FFD88A, 0 30px 0 #FFE7B0, -21px 21px 0 #FFD88A, -30px 0 0 #FFE7B0, -21px -21px 0 #FFD88A;
+  animation: lkFctSpark .5s cubic-bezier(.22, 1, .36, 1) forwards;
+}
+@keyframes lkFctFlash { from { color: #FFFFFF; text-shadow: 0 0 6px #FFFFFF, 0 0 24px rgba(255, 230, 170, .95); } }
+@keyframes lkFctRing { from { transform: translate(-50%, -50%) scale(.35); opacity: 1; } to { transform: translate(-50%, -50%) scale(1.7); opacity: 0; } }
+@keyframes lkFctSpark { from { transform: translate(-50%, -50%) scale(.3); opacity: 1; } to { transform: translate(-50%, -50%) scale(1.55); opacity: 0; } }
+/* Etiquetas: píldora de vidrio con el color del recurso o estado */
+.lk-fct-tag {
+  --c: var(--lk-ivory-100);
+  font: 800 .78rem/1 var(--lk-font-ui); font-style: normal; letter-spacing: .06em; text-transform: uppercase; text-align: left;
+  color: var(--c); padding: .32rem .62rem .32rem .55rem; border-radius: 999px;
+  background: rgba(14, 19, 34, .82); box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .1), inset 3px 0 0 var(--c), 0 4px 12px rgba(0, 0, 0, .35);
+}
+.lk-fct-tag .lk-fct__ico { width: 1.1rem; height: 1.1rem; margin: -.15rem 0; object-fit: contain; }
+.lk-fct--pa { --c: var(--lk-pa-mana-blue); }
+.lk-fct--pm { --c: var(--lk-pm-wind-teal); }
+.lk-fct--buff { --c: #A8F0B6; }
+.lk-fct--debuff { --c: #FFB4AE; }
+.lk-fct--gilt { --c: var(--lk-gilt-300); }
+.lk-fct--shieldBreak { --c: var(--lk-shield-cyan); }
+/* Derribo */
+.lk-fct-stamp { font: 900 1rem/1 var(--lk-font-ui); font-style: normal; letter-spacing: .24em; }
+.lk-fct-stamp .lk-fct__row {
+  padding: .3rem .5rem .3rem .74rem; border-radius: 6px; transform: rotate(-7deg);
+  color: #FFE6E2; background: linear-gradient(180deg, rgba(150, 32, 40, .92), rgba(96, 18, 26, .92));
+  box-shadow: inset 0 0 0 1px rgba(255, 180, 174, .55), 0 6px 14px rgba(0, 0, 0, .45);
+}
+/* Total de un ataque en área */
+.lk-fct-total {
+  font: 900 1rem/1 var(--lk-font-ui); font-style: italic; color: var(--lk-gilt-100);
+  padding: .38rem .85rem; border-radius: 999px;
+  background: linear-gradient(180deg, rgba(211, 174, 108, .24), rgba(14, 19, 34, .88));
+  box-shadow: inset 0 0 0 1px var(--lk-gilt-line), 0 6px 16px rgba(0, 0, 0, .4);
+}
+/* Título de Ultimate */
+.lk-fct-title { font-family: var(--lk-font-display); font-weight: 400; font-style: normal; font-size: 1.7rem; letter-spacing: .04em; color: var(--lk-gilt-100); text-shadow: 0 2px 0 rgba(0, 0, 0, .45), 0 0 18px rgba(238, 211, 154, .55); }
+.lk-fct-title .lk-fct__row::before, .lk-fct-title .lk-fct__row::after { content: "✦"; font-size: .55em; color: var(--lk-gilt-300); }
+.lk-fct-tag.lk-fct-left { box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .1), inset -3px 0 0 var(--c), 0 4px 12px rgba(0, 0, 0, .35); padding: .32rem .55rem .32rem .62rem; }
+
+/* Hito 108 · PA y PM: solo el valor actual; rombos dinámicos (los que pasan del máximo, en dorado) */
+#ui-overlay .lk-meter b { min-width: 1.6em; text-align: center; display: inline-block; }
+#ui-overlay .lk-meter .lk-pips { width: 84px; align-items: center; }
+#ui-overlay .lk-meter .lk-pips.lk-dense { gap: 2px; }
+#ui-overlay .lk-meter .lk-pips.lk-dense i { width: 5px; height: 5px; }
+#ui-overlay .lk-meter .lk-pips i.lk-on.lk-extra { background: var(--lk-gilt-300); box-shadow: 0 0 6px rgba(238, 211, 154, .9); }
+#ui-overlay .lk-meter .lk-pips i.lk-new { animation: lkPipIn .38s cubic-bezier(.22, 1, .36, 1); }
+@keyframes lkPipIn { from { transform: rotate(45deg) scale(2.2); opacity: 0; } 60% { opacity: 1; } to { transform: rotate(45deg) scale(1); } }
+#ui-overlay .lk-meter b.lk-gain { animation: lkResGain .45s cubic-bezier(.22, 1, .36, 1); }
+#ui-overlay .lk-meter b.lk-loss { animation: lkResLoss .3s ease-out; }
+@keyframes lkResGain { from { transform: scale(1.45); color: var(--lk-gilt-100); text-shadow: 0 0 10px rgba(238, 211, 154, .9); } }
+@keyframes lkResLoss { from { transform: scale(.82); opacity: .7; } }
+#ui-overlay .lk-meter.lk-has-extra b { color: var(--lk-gilt-100); }
+html.lk-reduce-motion #ui-overlay .lk-meter .lk-pips i.lk-new, html.lk-reduce-motion #ui-overlay .lk-meter b.lk-gain, html.lk-reduce-motion #ui-overlay .lk-meter b.lk-loss { animation: none; }

@@ -102,5 +102,7 @@ export default {
   "combatHud.readyInN": "En recarga: lista en {n} turnos.",
   "combatHud.spentTip": "Ya no quedan usos de esta carta en este turno.",
   "combatHud.lockedAt": "Bloqueada: se desbloquea a nivel {n}.",
-  "combatHud.lockedAtPart": "Bloqueada: se desbloquea a nivel {n} ({part})."
+  "combatHud.lockedAtPart": "Bloqueada: se desbloquea a nivel {n} ({part}).",
+  "combatHud.paAria": "{n} PA",
+  "combatHud.pmAria": "{n} PM"
 };

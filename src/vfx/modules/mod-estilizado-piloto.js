@@ -137,7 +137,7 @@ const STAIN_FS=`uniform float uT1;void main(){vec2 p=(vUv-.5)*${f(TILE*3.4)};
  if(m<.01)discard;float er=styErode(n*.6+m*.4,uP,.15);
  gl_FragColor=vec4(styRamp(.2+.25*n),m*er*uA*.42);}`;
 
-const spores={key:"sty_esporas",name:"Esporas (estilizado)",dur:2.3,ti:0.62,tier:2,stylized:true,vlabel:"Efecto",
+const spores={key:"sty_esporas",name:"Esporas (estilizado)",dur:2.3,ti:0.62,tier:2,stylized:true,areaCells:1,zoneTarget:TILE*1.6,vlabel:"Efecto",
   variants:[["dano","Daño"],["cura","Curación"]],v:"dano",
   pal:()=>spores.v==="cura"?"Esmeralda":"Esporas",
   phases:[["Lanzamiento",0],["Vuelo",0.1],["Estallido",0.62],["Nube",0.8],["Disipación",1.7]],
@@ -156,23 +156,29 @@ build(a){
    float gr=1.-pow(1.-clamp(t/.2,0.,1.),3.);
    vA=(uT>s&&age<1.)?1.:0.;vK=smoothstep(.35,1.,age);vR=aSeed.w*6.28+t*(.4+.3*aSeed.y);
    put(p,(.6+.35*fract(aSeed.w*3.7))*(.35+.75*gr));}`,S.MATTER_FS(C.puff,{relief:4.5,bias:-.1,erodeSoft:.12}));
+  // Hito 104: piezas de la cruz que giran con la cuadrícula en diagonal (S.pts devuelve el número, no el objeto)
+  const AREA=[stain,L.part.children[L.part.children.length-1]];
   // motas: las esporas que brillan dentro de la nube
   S.pts(L.part,24,VV+K+`void main(){float ci=floor(aSeed.x*5.);float s=TI+.05+aSeed.y*.3;float t=max(uT-s,0.);float life=.9+aSeed.z*.5;float age=t/life;
    vec3 p=CEN+cl5(ci)+vec3((aSeed.w-.5)*1.1,.3+t*.6+aSeed.z*.5,(fract(aSeed.w*9.1)-.5)*1.1);
    float tw=.5+.5*sin(uT*14.+aSeed.x*40.);
    vA=(uT>s&&age<1.)?tw*(1.-age):0.;vK=0.;vR=aSeed.y*6.28;put(p,.07+.05*aSeed.w);}`,S.ENERGY_FS(C.spark,{gain:1.5}),{mode:'energy'});
+  AREA.push(L.part.children[L.part.children.length-1]);
   // daño: gotas que caen de la nube
   S.pts(VG.dano.part,16,VV+K+`void main(){float ci=floor(aSeed.x*5.);float per=.55;float k=(uT-TI-.15)/per+aSeed.y;float c=floor(k);float tt=fract(k)*per;
    vec3 r=rr(c);vec3 p=CEN+cl5(ci)+vec3((r.x-.5)*.9,.85-4.2*tt*tt,(r.z-.5)*.9);
    vA=(k>=0.&&uT<TI+1.4&&p.y>.03)?1.:0.;vK=0.;vR=3.14159;put(p,.12+.05*r.y);}`,S.MATTER_FS(C.drop,{relief:4,bias:-.15}));
+  AREA.push(VG.dano.part.children[VG.dano.part.children.length-1]);
   // cura: hojas que suben en espiral desde el centro
   S.pts(VG.cura.part,14,VV+K+`void main(){float s=TI+.1+aSeed.x*.35;float t=max(uT-s,0.);float life=.9+aSeed.y*.3;float age=t/life;
    float an=aSeed.z*6.2832+t*3.;float rad=.35+.5*aSeed.w;
    vec3 p=CEN+cl5(floor(aSeed.y*5.))+vec3(cos(an)*rad,.2+t*1.2,sin(an)*rad);
    vA=(uT>s&&age<1.)?1.:0.;vK=smoothstep(.55,1.,age);vR=an+1.57;put(p,.22+.08*aSeed.w);}`,S.MATTER_FS(C.leaf,{relief:3,bias:.12}));
+  AREA.push(VG.cura.part.children[VG.cura.part.children.length-1]);
   a.setVariant=v=>{if(v!=="cura")v="dano";a.v=v;for(const k of VFX.LK){VG.dano[k].visible=v==="dano";VG.cura[k].visible=v==="cura";}};
   a.pose=function(te,o){
     const ia=te-TI, k=cl((te-TL)/(TI-TL));
+    for(const ob of AREA)S.gridAlign(ob,CEN.x,0);
     caster.rotation.z=0.12*ss(0,TL,te)-0.25*ss(TL,TL+0.08,te)+0.13*ss(TL+0.15,TI,te);
     pod.visible=te>=TL&&ia<0;
     pod.position.set(HAND.x+(CEN.x-HAND.x)*k,HAND.y+(0.3-HAND.y)*k+3.2*k*(1-k),HAND.z*(1-k));

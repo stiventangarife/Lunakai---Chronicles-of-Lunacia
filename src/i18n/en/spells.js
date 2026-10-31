@@ -217,7 +217,7 @@ export default {
   "spells.ult.duo_destructiva.name": "Destructive Onslaught",
   "spells.ult.duo_destructiva.description": "Sapidae and Axie charge together in a straight line: 150-170 damage and a 3-tile push. If the target hits an obstacle or a unit, both take 60 impact damage.",
   "spells.ult.duo_gaia.name": "Aegis of Gaia",
-  "spells.ult.duo_gaia.description": "A runic tree shields the squad: every ally within 3 tiles gains +80 Shield, heals 60 HP and loses their negative statuses.",
+  "spells.ult.duo_gaia.description": "An aegis of spirit clay rises around the duo: enemies within 3 tiles take 60–80 damage, and every ally in that radius gains +80 Shield, heals 60 HP and loses their negative statuses.",
   "spells.ult.duo_maelstrom.name": "Celestial Maelstrom",
   "spells.ult.duo_maelstrom.description": "Mana storm in a 2-tile cross: 100-120 damage to enemies, −2 MP on their next turn and −1 AP on the one after.",
   "spells.ultReason.ok": "Ready",

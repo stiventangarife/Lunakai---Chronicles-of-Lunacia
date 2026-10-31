@@ -30,7 +30,7 @@ const PREF_DEFAULTS = {
   ...accessDefaults()
 };
 const ACCESS_SWITCHES = ['contrast', 'reduceMotion', 'shake'];
-const ACCESS_SEGS = ['textSize', 'textSpeed', 'autoAdvance', 'colorblind'];
+const ACCESS_SEGS = ['textSize', 'textSpeed', 'autoAdvance', 'colorblind', 'combatNumbers'];
 
 const read = (k, fallback) => { try { const v = localStorage.getItem(k); return v === null ? fallback : v; } catch { return fallback; } };
 const readJSON = (k, fallback) => { try { return { ...fallback, ...JSON.parse(localStorage.getItem(k) || '{}') }; } catch { return { ...fallback }; } };
@@ -159,6 +159,7 @@ export class SettingsModal {
                 ${seg('colorblind', i18n.t('settings.colorblind'), i18n.t('settings.colorblindDesc'), [['off', i18n.t('settings.off')], ['rg', i18n.t('settings.cbRG')], ['tri', i18n.t('settings.cbTri')]])}
                 ${sw('reduceMotion', i18n.t('settings.reduceMotion'), i18n.t('settings.reduceMotionDesc'), false)}
                 ${sw('shake', i18n.t('settings.shake'), i18n.t('settings.shakeDesc'), true)}
+                ${seg('combatNumbers', i18n.t('settings.combatNumbers'), i18n.t('settings.combatNumbersDesc'), [['full', i18n.t('settings.cnFull')], ['damage', i18n.t('settings.cnDamage')], ['off', i18n.t('settings.cnOff')]])}
               </div>
             </div>
             <div class="lk-pause__foot"><span class="lk-hint"><i></i>${i18n.t('settings.applyHint')}</span><button class="lk-text-btn" data-act="reset">${i18n.t('settings.resetTab')}</button></div>

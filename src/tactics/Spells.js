@@ -1254,7 +1254,7 @@ export const SPELLS_DB = {
     icon: './assets/skills/mobs/dryad-fighter/dryad-fighter-02-00.png',
     paCost: 3,
     minRange: 1,
-    maxRange: 2,
+    maxRange: 1, // Hito 104: cuerpo a cuerpo (antes 1–2: el giro de espinas se deformaba a distancia)
     requiresLoS: true,
     isLinear: true,
     targetType: 'enemy',

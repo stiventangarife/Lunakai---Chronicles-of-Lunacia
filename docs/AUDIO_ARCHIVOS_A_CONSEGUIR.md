@@ -77,6 +77,8 @@ Un paso es un solo contacto, no una secuencia. Lo dispara la animación del Sapi
 
 ## 3. Combate: golpes e impactos (`sfx/combat/`)
 
+> **Ya no hace falta (Hito 108, 31-oct-2026):** las habilidades suenan con el pack de combate (`assets/sounds/sfx/skills/`, 145 sonidos por clase, animación y estado; WAV originales en `backups/2026-10-30_sounds/combat/`). La tabla de abajo queda como referencia de lo que se pedía en el Hito 88; los archivos `combat/*.mp3` con estos nombres solo se usarían como respaldo de lo que el pack no cubre (latido, reloj del turno, caídas).
+
 Cada carta suena por **clase** (lo que golpea) y **peso** (coste en PA: 1 ligero, 2 medio, 3+ pesado). El peso cambia volumen y grave; los archivos son por clase.
 
 | Archivo | Variantes | Duración | Qué es | Buscar |

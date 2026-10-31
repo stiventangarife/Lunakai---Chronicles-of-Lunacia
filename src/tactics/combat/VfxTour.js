@@ -7,6 +7,7 @@
 //   lkDebug.vfxRecorrido({ solo: 'aliado' })    solo las cartas que se lanzan sobre un aliado (también lanzadas sobre sí mismo)
 //   lkDebug.vfxRecorrido({ desde: 120 })        empieza en el número 120 de la lista
 //   lkDebug.vfxRecorrido({ d: 3, pausa: 1.5, manual: true })   distancia, pausa entre efectos (s), avance manual
+//   lkDebug.vfxRecorrido({ marcadas: true })    solo los marcados con M (en su orden del recorrido)
 //   lkDebug.vfxRecorridoParar()                 lo detiene
 //   lkDebug.vfxMarcadas()                       tabla de los marcados con M (y los copia al portapapeles)
 //   lkDebug.vfxMarcadasBorrar()                 vacía la lista
@@ -15,6 +16,9 @@
 //   M marcar «necesita arreglo» (escribe una nota y Enter; Esc la cierra sin nota) · Esc terminar.
 // Las cartas se lanzan con lkDebug.probar (camino normal del combate: daño, estados, VFX). Los ataques de enemigos, las
 // Ultimates y los gólems solo reproducen su efecto (lkDebug.vfxPlay), sin daño.
+// Sonido (fase 5 del audio de skills): antes de cada efecto se cargan sus sonidos (tope 1,5 s) y el panel dice qué suena
+// («🔊 bestia · bite + firma growl…»); enemigos, Ultimates y gólems suenan sincronizados con su efecto
+// (CombatSfx.previewWhenPlaying). Atajo: lkDebug.sfx('recorrido', opciones) = este recorrido.
 
 import { CARD_VFX } from '../../vfx/vfx-cards.js';
 import { PART_CARDS } from '../data/PartCards.js';
@@ -104,7 +108,7 @@ export function installVfxTour(game) {
     const fx = tour.fx;
     q('n').textContent = `${tour.i + 1} / ${tour.list.length} · ${it.where}${marked ? ' · ⚑ marcada' : ''}`;
     q('name').textContent = it.name;
-    q('info').textContent = `${it.id} · objetivo: ${it.self ? 'aliado, lanzada sobre sí mismo' : TT_LABEL[it.tt] || it.tt}${it.kind === 'card' && !it.self && it.tt !== 'self' ? ` · ${tour.d} casillas` : ''}${fx ? ` · ${fx.module}${fx.module?.startsWith('estilizado-') ? '' : ' (estilo anterior)'}` : ' · sin efecto propio'}`;
+    q('info').textContent = `${it.id} · objetivo: ${it.self ? 'aliado, lanzada sobre sí mismo' : TT_LABEL[it.tt] || it.tt}${it.kind === 'card' && !it.self && it.tt !== 'self' ? ` · ${tour.d} casillas` : ''}${fx ? ` · ${fx.module}${fx.module?.startsWith('estilizado-') ? '' : ' (estilo anterior)'}` : ' · sin efecto propio'}${tour.sfx ? ` · 🔊 ${tour.sfx}` : ''}`;
     q('state').textContent = tour.paused ? '⏸ en pausa' : tour.manual ? 'avance manual (→)' : '';
   }
 
@@ -123,6 +127,18 @@ export function installVfxTour(game) {
     const dummy = units().find((u) => u._testDummy) || units().find((u) => u.team !== 'player');
     const spell = it.kind === 'ultimate' ? it.spell : game.spellManager.getSpell(it.id);
     tour.fx = br && spell && spell.id === it.id ? br.effectFor(spell) : null;
+    // Sonido: qué suena y carga previa (para que suene ya con su archivo y no con la síntesis de respaldo)
+    const sfx = game.audio?.combat;
+    const sndCaster = it.kind === 'enemy' ? dummy : (it.group === 'sapidae' || it.kind === 'ultimate' || it.kind === 'golem')
+      ? sapidae : (team().find((u) => (u.spellIds || []).includes(it.id)) || axie);
+    tour.sfx = null;
+    if (sfx?.loadFor) {
+      if (it.kind === 'ultimate') sfx._ultAxie = game.spellManager?.ultimates?.axie || axie || null;
+      const sp = it.kind === 'golem' ? { id: it.id } : spell;
+      tour.sfx = sfx.describe?.(sp, sndCaster) || null;
+      render();
+      await Promise.race([sfx.loadFor(sp, sndCaster).catch(() => {}), sleep(1500)]);
+    }
     render();
     if (it.kind === 'card') {
       if (it.self) {
@@ -138,11 +154,17 @@ export function installVfxTour(game) {
         await d.probar(it.id, it.tt === 'self' ? null : tour.d);
       }
     } else if (it.kind === 'enemy') {
-      await d.vfxPlay(it.id, dummy, axie);
+      const p = d.vfxPlay(it.id, dummy, axie);
+      sfx?.previewWhenPlaying?.('enemy', it.id, br, dummy);
+      await p;
     } else if (it.kind === 'ultimate') {
-      await d.vfxPlay(it.id, sapidae, it.id === 'duo_gaia' ? sapidae : dummy, it.spell);
+      const p = d.vfxPlay(it.id, sapidae, it.id === 'duo_gaia' ? sapidae : dummy, it.spell);
+      sfx?.previewWhenPlaying?.('ultimate', it.id, br, sapidae);
+      await p;
     } else if (it.kind === 'golem') {
-      await d.vfxPlay(it.id, sapidae, sapidae);
+      const p = d.vfxPlay(it.id, sapidae, sapidae);
+      sfx?.previewWhenPlaying?.('golem', it.id, br, sapidae);
+      await p;
     }
     await waitVfx();
   }
@@ -211,6 +233,7 @@ export function installVfxTour(game) {
     if (opts.clase) list = list.filter((it) => it.cls === opts.clase);
     if (opts.solo === 'aliado') list = list.filter((it) => it.tt === 'ally' || it.tt === 'any');
     if (opts.ids) list = list.filter((it) => opts.ids.includes(it.id));
+    if (opts.marcadas) { const mk = readMarks(); list = list.filter((it) => mk.some((m) => m.id === it.id && !!m.self === !!it.self)); } // Hito 104: repasar solo los marcados
     if (!list.length) { console.warn('[recorrido] La lista está vacía con esos filtros'); return 0; }
     tour = { list, i: Math.max(0, Math.min(list.length - 1, (opts.desde || 1) - 1)), d: opts.d || 2, pausa: opts.pausa ?? 0.8, manual: !!opts.manual, paused: false, jump: null, fx: null, panel: makePanel() };
     window.addEventListener('keydown', onKey, true);

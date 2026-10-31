@@ -130,4 +130,9 @@ export default {
   "settings.volumeOf": "{name} volume",
   "settings.xlarge": "Extra large",
   "settings.zoneCoords": "Zone [{c}]",
+  "settings.combatNumbers": "Combat numbers",
+  "settings.combatNumbersDesc": "Damage, healing and alerts floating over units",
+  "settings.cnFull": "All",
+  "settings.cnDamage": "Damage only",
+  "settings.cnOff": "Hidden"
 };

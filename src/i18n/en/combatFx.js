@@ -37,5 +37,11 @@ export default {
   "combatFx.classAdvantage": "Class advantage +{n}%",
   "combatFx.classDisadvantage": "Class disadvantage −{n}%",
   "combatFx.shieldMinus": "-{n} SHIELD",
-  "combatFx.obstacleGone": "CRUMBLES"
+  "combatFx.obstacleGone": "CRUMBLES",
+  "combatFx.critLabel": "Critical",
+  "combatFx.collisionLabel": "Collision",
+  "combatFx.ko": "KO",
+  "combatFx.total": "Total {n}",
+  "combatFx.dodge": "Dodge",
+  "combatFx.shieldBroken": "−{n} shield"
 };

@@ -306,16 +306,36 @@ defs.push({key:"sty_icParasite",name:"Parasite (estilizado)",dur:2.3,ti:0.75,pal
 build(a){
   const L=a.L,TJ=0.25,TI=0.75,TR=0.9,TD=1.25,TE=1.85;
   const P0=V3(-3.35,2.15,0.15), P1=V3(-0.2,3.6,0.5), P2=V3(3.05,1.75,0.45);
-  const para=silMesh(L.mesh,2.1,`
-   float SH(vec2 p){vec2 q=vec2(abs(p.x),p.y);float d=sdEl(p-vec2(0.,-.12),vec2(.3*(1.+.06*uB),.36*(1.+.06*uB)));
-    d=smin(d,sdEl(p-vec2(0.,.3),vec2(.15,.12)),.05);
-    d=min(d,sdTap(q,vec2(.05,.4),vec2(.09+.03*uL,.55),.035,.01));
-    for(int i=0;i<3;i++){float fi=float(i);float y=.1-fi*.2;float sw=.08*sin(uL*3.+fi*2.1);
-     vec2 k=vec2(.38,y+.06+sw);d=min(d,min(sdTap(q,vec2(.2,y),k,.035,.025),sdTap(q,k,k+vec2(.16,-.2-.05*fi),.025,.01)));}
+  // garrapata (Hito 104, dibujo nuevo): idiosoma con festones en el borde trasero y placas, escudo dorsal (escutum) con la
+  // marca dorada, capítulo con quelíceros y palpos, y ocho patas articuladas en tres segmentos que se mueven al andar.
+  const para=silMesh(L.mesh,2.3,`
+   float leg(vec2 q,vec2 a,float an,float l1,float l2,float l3,float bend,float sw){
+    vec2 d1=vec2(cos(an),sin(an));vec2 k1=a+d1*l1;
+    vec2 d2=vec2(cos(an+bend+sw),sin(an+bend+sw));vec2 k2=k1+d2*l2;
+    vec2 d3=vec2(cos(an+bend*1.9+sw*1.4),sin(an+bend*1.9+sw*1.4));vec2 k3=k2+d3*l3;
+    float d=sdTap(q,a,k1,.045,.035);d=min(d,sdTap(q,k1,k2,.034,.026));d=min(d,sdTap(q,k2,k3,.024,.008));
+    d=min(d,length(q-k1)-.044);d=min(d,length(q-k2)-.032);return d;}
+   float SH(vec2 p){vec2 q=vec2(abs(p.x),p.y);float pu=1.+.07*uB;
+    vec2 bp=p-vec2(0.,-.1);float an=atan(bp.x,-bp.y);
+    float body=sdEl(bp,vec2(.31,.37)*pu)-.018*cos(an*11.)*smoothstep(.1,-.25,bp.y);
+    float scut=sdEl(p-vec2(0.,.15),vec2(.21,.17));
+    float d=smin(body,scut,.05);
+    d=smin(d,sdEl(p-vec2(0.,.33),vec2(.085,.075)),.03);
+    d=min(d,sdTap(q,vec2(.03,.38),vec2(.045,.52),.03,.012));
+    d=min(d,sdTap(q,vec2(.08,.37),vec2(.12,.5),.028,.014));
+    for(int i=0;i<4;i++){float fi=float(i);float an0=1.15-fi*.62;float sw=.18*sin(uL*3.+fi*1.9);
+     vec2 a=vec2(.2+.06*(1.-abs(fi-1.5)/1.5),.22-fi*.15);
+     d=min(d,leg(q,a,an0-1.57+1.57,.18,.2,.15,fi<2.?.55:-.55,sw));}
     return d;}`,
-   `float plate=smoothstep(.03,0.,abs(fract((p.y+.12)*4.)-.5)-.42)*step(sdEl(p-vec2(0.,-.12),vec2(.28,.34)),0.);
-    float mark=step(abs(p.x)*1.5+abs(p.y+.12-.0)*.9,.14)*step(sdEl(p-vec2(0.,-.12),vec2(.3,.36)),0.);
-    base=mix(${CRIM},${CRIM_L},smoothstep(-.4,.3,p.y)*.35);base=mix(base,${CHIT_D}*1.3,plate*.7);base=mix(base,${GOLD},mark);hot=${GOLD};hk=mark;`,
+   `vec2 bp=p-vec2(0.,-.1);float inBody=step(sdEl(bp,vec2(.3,.36)),0.);
+    float seg=smoothstep(.06,0.,.5-abs(fract((p.y+.1)*5.5)-.5))*inBody*step(p.y,.0);
+    float groove=smoothstep(.025,0.,abs(abs(p.x)-.11))*inBody*step(p.y,.02)*.7;
+    float scut=step(sdEl(p-vec2(0.,.15),vec2(.19,.15)),0.);
+    float mark=scut*smoothstep(.1,.06,length((p-vec2(0.,.16))*vec2(1.,1.4)));
+    float sheen=pow(max(0.,1.-length((p-vec2(-.1,.02))*vec2(1.6,1.))*2.4),3.);
+    base=mix(${CRIM},${CRIM_L},smoothstep(-.45,.3,p.y)*.35);base=mix(base,${CHIT_D}*1.2,max(seg,groove)*.75);
+    base=mix(base,mix(${CHIT_D}*1.5,${CRIM_L},.4),scut*.6);base=mix(base,${GOLD},mark);base+=vec3(.25)*sheen*inBody;
+    hot=${GOLD};hk=mark;`,
    {uL:0,uB:0});
   const shellC=new THREE.Mesh(new THREE.SphereGeometry(0.95,30,20,0,Math.PI*2,0,Math.PI*0.6),S.mat(`void main(){vec3 n=normalize(vN);
    float fr=pow(1.-abs(dot(n,normalize(vV))),2.);vec2 g=vec2(atan(vP.z,vP.x)*2.,vP.y*4.);vec2 fp=fract(g)-.5;

@@ -9,8 +9,8 @@
 //   Lost Dream (sobre sí, 0–0): +50 de escudo y −20 % de daño recibido al lanzador; +20 de escudo a todos los aliados →
 //          orbe de sueño añil con luna dorada sobre la cabeza que cae y se abre en un caparazón de placas hexagonales;
 //          después 6 escuditos salen en abanico por el campo (llegan a los aliados estén donde estén).
-//   Village Hero (cuerpo a cuerpo): 45–55 de daño, +10 por aliado con escudo → embestida corta, chispas doradas que llegan
-//          desde los flancos (el bonus), tajo dorado de pincel con capa carmesí y estallido de hojas de otoño.
+//   Village Hero (cuerpo a cuerpo): 45–55 de daño, +10 por aliado con escudo → (Hito 104) estandarte de la aldea que carga
+//          en lanza; blasones dorados bajan desde los aliados (VFX.friends, hasta 4) y entran con la estocada y el latigazo del paño.
 // =====================================================================
 (function(){
 if(!window.VFX||!VFX.lib||!VFX.sty)return;
@@ -122,70 +122,147 @@ build(a){
 }});
 
 // =====================================================================
-// 2 · VILLAGE HERO — Pomodoro embiste medio paso con un surco de polvo; dos chispas doradas llegan en arco desde los
-//     flancos (los aliados con escudo: el bonus); el tajo dorado de pincel barre al rival con una capa carmesí detrás, y al
-//     golpe (0,28 s) estallan esquirlas doradas y hojas de otoño que luego caen. ti 0,28 s
+// 2 · VILLAGE HERO (Hito 104) — Pomodoro alza el estandarte de la aldea (asta de madera oscura con moharra dorada y paño
+//     carmesí con orla y hoja de oro, cola de golondrina) y carga con él: el estandarte se inclina en lanza y avanza
+//     levantando un surco de polvo. Por cada aliado con escudo (VFX.friends con shield===true, hasta 4 · el bonus) baja desde
+//     su lado un pequeño blasón dorado que se une al paño y entra con el golpe. Impacto (0,28 s): estocada con la moharra
+//     del asta y latigazo del paño, que gira alrededor del asta y deja un arco carmesí; esquirlas doradas y hojas. ti 0,28 s
 // =====================================================================
-defs.push({key:"sty_starter_pomodoro_back",name:"Village Hero (estilizado)",dur:0.7,ti:0.28,pal:P_HERO,tier:2,stylized:true,
+defs.push({key:"sty_starter_pomodoro_back",name:"Village Hero (estilizado)",dur:0.75,ti:0.28,pal:P_HERO,tier:2,stylized:true,
   zoneCaster:0.5,zoneTarget:1.6,
-  phases:[["Carrera",0],["Tajo",0.2],["Impacto",0.28],["Disipación",0.4]],
+  phases:[["Estandarte",0],["Carga",0.1],["Estocada",0.28],["Disipación",0.42]],
 build(a){
-  const L=a.L,TS=0.2,TI=0.28,TD=0.4;
-  const grp=new THREE.Group(); grp.position.set(2.8,1.2,0.35); grp.rotation.set(-0.15,0.25,0.6); grp.scale.setScalar(1.35); L.mesh.add(grp);
-  const arcGeo=new THREE.RingGeometry(0.55,1.35,64,1,-2.2,4.4);
-  // tajo dorado: trazo de pincel que se revela con uP (ángulo) y se erosiona con uEr; borde óxido
-  const SL=(body,r0=.55,rw=.8)=>`uniform float uEr;void main(){vec2 p=vP.xy;float ang=atan(p.y,p.x);float rr=(length(p)-${f(r0)})/${f(rw)};
-   float rev=smoothstep(uP-.25,uP,-ang+2.2-(4.4));float sw=clamp((2.2-ang)/4.4,0.,1.);float head=smoothstep(uP-.12,uP,sw)*step(sw,uP);
-   float vis=step(sw,uP);float nz=styNoise(vec2(sw*6.,rr*2.)).g;float w=1.-abs(rr-.5)*2.;w*=mix(.35,1.,smoothstep(0.,.35,sw))*smoothstep(1.,.75,sw);
-   float m=smoothstep(.05,.25,w+(nz-.5)*.35)*vis;if(m<.05)discard;if(styErode(nz*.6+(1.-sw)*.4,uEr,.1)<.5)discard;${body}}`;
-  const slash=new THREE.Mesh(arcGeo,S.mat(SL(`float edge=smoothstep(.42,.18,w);
-   vec3 c=mix(styRampOf(${GOLD},.4+.4*nz)*1.05,styRampOf(${RUST},.25),edge*.95);c+=vec3(1.,.75,.35)*head*.35;gl_FragColor=vec4(c,m);`),
+  const L=a.L,TC0=0.1,TI=0.28,TD=0.42;
+  const PL=2.3, CW=1.3, CH=0.85, NE=4;
+  const WOOD=lin(0x4a2a16), WOODD=lin(0x1f120a);
+  // asta: grupo con el pie en el agarre; rotation.z=-th la inclina hacia el rival
+  const pole=new THREE.Group(); L.mesh.add(pole);
+  const shaft=new THREE.Mesh(new THREE.CylinderGeometry(0.04,0.052,PL,10,1).translate(0,PL/2,0),S.mat(`uniform float uQ;void main(){vec3 n=normalize(vN);
+   float l=styLight(n,stySunV());float g=styNoise(vec2(vUv.x*2.,vUv.y*9.)).r;if(styErode(g,uQ,.06)<.5)discard;
+   vec3 c=styRampOf(mix(${WOODD},${WOOD},.55+.45*g),.2+.5*l)*styTint(l);c=mix(c,${GOLDD},step(.9,vUv.y)*step(vUv.y,.93)*.9);gl_FragColor=vec4(c,1.);}`,
+   {uQ:{value:-1}},{mode:'solid'}));
+  pole.add(shaft);
+  const METAL=`uniform float uQ;void main(){vec3 n=normalize(vN);if(!gl_FrontFacing)n=-n;float l=styLight(n,stySunV());
+   float g=styNoise(vUv*3.).g;if(styErode(g,uQ,.06)<.5)discard;float fr=1.-abs(dot(n,normalize(vV)));
+   vec3 c=styRampOf(${GOLD},.35+.55*l)*styTint(l);c=mix(c,${GOLDD},smoothstep(.75,.95,fr)*.8);gl_FragColor=vec4(c,1.);}`;
+  const tip=new THREE.Mesh(new THREE.ConeGeometry(0.1,0.42,4,1).translate(0,PL+0.21,0),S.mat(METAL,{uQ:{value:-1}},{mode:'solid'}));
+  const bar=new THREE.Mesh(new THREE.CylinderGeometry(0.03,0.03,0.28,6).rotateZ(Math.PI/2).translate(-0.02,PL-0.1,0),S.mat(METAL,{uQ:{value:-1}},{mode:'solid'}));
+  pole.add(tip,bar);
+  // paño: plano subdividido que ondea en CPU (lado -x del asta); sombra de pliegues con la misma onda en el shader
+  const cg=new THREE.PlaneGeometry(CW,CH,20,6).translate(-CW/2,PL-0.1-CH/2,0);
+  const cBase=Float32Array.from(cg.attributes.position.array);
+  const cloth=new THREE.Mesh(cg,S.mat(`uniform float uQ;uniform float uAmp;uniform float uPh;void main(){
+   float u=1.-vUv.x;float v=vUv.y-.5;
+   float sw=u>.78?step(abs(v),(u-.78)*2.3):0.;if(sw>.5)discard;
+   float nz=styNoise(vUv*vec2(2.,1.3)+.21).r;if(styErode(nz*.7+u*.3,uQ,.08)<.5)discard;
+   float slope=uAmp*(cos(6.*u-uPh)*6.*u+sin(6.*u-uPh));float l=clamp(.55-slope*1.6,0.,1.);
+   float hem=max(step(.86,abs(v)*2.),step(u,.06));float tailE=u>.7?smoothstep(.06,0.,abs(abs(v)-(u-.78)*2.3)-.0):0.;
+   vec2 lp=vec2((u-.42)*2.4,v*2.6);float leaf=length(vec2(lp.x,lp.y*1.9))-.5+.12*lp.y;float lm=smoothstep(.04,-.02,leaf);
+   float rib=smoothstep(.04,0.,abs(lp.x))*step(leaf,0.);
+   vec3 c=styRampOf(mix(${CRIMSOND},${CRIMSON},.55+.3*nz),.22+.5*l)*styTint(l);
+   c=mix(c,styRampOf(${GOLD},.35+.45*l),max(hem*(1.-step(.92,abs(v)*2.)),lm));c=mix(c,${GOLDD},rib*.9);
+   c=mix(c,${DARK},max(step(.93,abs(v)*2.),tailE)*.75);gl_FragColor=vec4(c,1.);}`,
+   {uQ:{value:-1},uAmp:{value:0},uPh:{value:0}},{mode:'solid',side:THREE.DoubleSide}));
+  pole.add(cloth); const clU=cloth.material.uniforms;
+  const qMats=[shaft,tip,bar,cloth].map(m=>m.material.uniforms.uQ);
+  // blasones dorados de los aliados (escudo de punta con hoja), en billboard
+  const EMB_FS=`uniform float uG;void main(){vec2 p=(vUv-.5)*2.;p.y-=.05;float hw=p.y>0.?.74:.74*sqrt(max(0.,1.-p.y*p.y));
+   float d=max(abs(p.x)-hw,max(p.y-.78,-p.y-1.));float m=smoothstep(.05,-.02,d);if(m<.05)discard;
+   float rim=smoothstep(-.2,-.11,d);float oe=smoothstep(-.07,-.02,d);
+   vec2 lp=vec2(p.x*1.9,(p.y-.02)*1.15);float leaf=length(lp)-.5+.15*lp.y;float lm=smoothstep(.05,-.02,leaf);
+   vec3 c=styRampOf(${CRIMSON},.35+.25*(1.-p.y));c=mix(c,styRampOf(${GOLD},.65+.25*p.y),max(rim,lm));c=mix(c,${GOLDD},smoothstep(.05,0.,abs(p.x))*lm*.8);
+   c=mix(c,${DARK},oe*.85);c+=vec3(1.,.7,.3)*uG;gl_FragColor=vec4(c,m*uA);}`;
+  const embs=[]; for(let i=0;i<NE;i++){const e=new THREE.Mesh(new THREE.PlaneGeometry(0.46,0.52),S.mat(EMB_FS,{uG:{value:0}},{mode:'matter',depthWrite:false}));e.renderOrder=3;L.mesh.add(e);embs.push(e);}
+  // latigazo del paño: arco carmesí con orla dorada que barre delante del rival y se deshilacha
+  const grp=new THREE.Group(); grp.position.set(2.95,1.25,0.3); grp.rotation.set(-0.2,0.3,-0.35); L.mesh.add(grp);
+  const whip=new THREE.Mesh(new THREE.RingGeometry(0.75,1.05,64,1,-1.6,3.6),S.mat(`uniform float uEr;void main(){vec2 p=vP.xy;float ang=atan(p.y,p.x);
+   float sw=clamp((2.-ang)/3.6,0.,1.);float rr=(length(p)-.75)/.3;float vis=step(sw,uP);
+   float nz=styNoise(vec2(sw*7.,rr*2.)).g;float w=(1.-abs(rr-.5)*2.)*smoothstep(0.,.3,sw)*smoothstep(1.,.7,sw);
+   float m=smoothstep(.05,.25,w+(nz-.5)*.3)*vis;if(m<.05)discard;if(styErode(nz*.6+(1.-sw)*.4,uEr,.1)<.5)discard;
+   float fold=.5+.5*sin(sw*26.+rr*3.);vec3 c=styRampOf(mix(${CRIMSOND},${CRIMSON},.5+.4*fold),.3+.4*fold);
+   c=mix(c,styRampOf(${GOLD},.7),smoothstep(.3,.15,w)*step(.5,rr));c=mix(c,${DARK},smoothstep(.22,.08,w)*step(rr,.5)*.8);
+   float head=smoothstep(uP-.1,uP,sw);c+=vec3(1.,.6,.3)*head*.25;gl_FragColor=vec4(c,m);}`,
    {uEr:{value:-1}},{mode:'matter',side:THREE.DoubleSide,depthWrite:false}));
-  grp.add(slash);
-  const cape=new THREE.Mesh(new THREE.RingGeometry(1.3,1.52,64,1,-2.2,4.4),S.mat(SL(`float fold=.5+.5*sin(sw*30.+rr*4.);
-   vec3 c=styRampOf(mix(${CRIMSOND},${CRIMSON},.5+.4*fold),.3+.4*fold);c=mix(c,${DARK},smoothstep(.25,.1,w)*.7);gl_FragColor=vec4(c,m*.95);`,1.3,.22),
-   {uEr:{value:-1}},{mode:'matter',side:THREE.DoubleSide,depthWrite:false}));
-  cape.position.set(0,0,-0.05); cape.rotation.z=0.18; grp.add(cape);
-  const sU=slash.material.uniforms, cU=cape.material.uniforms;
+  grp.add(whip); const wU=whip.material.uniforms;
   const spark=S.hitSpark(L.mesh,1.4,{seed:0.29});
   const ring=S.groundRing(L.decal,2.8);
-  const furrow=groundPlane(1,0,0.026,S.mat(STAIN(EARTH,.4),{},{mode:'matter'})); furrow.scale.set(3.2,1,0.9); furrow.position.x=-2.2; L.decal.add(furrow);
-  const K=`const float TS=${f(TS)};const float TI=${f(TI)};const vec3 HC=${v3(TC)};`;
-  // dos chispas doradas desde los flancos (aliados con escudo) que llegan antes del golpe
-  S.pts(L.part,2,VV+K+`void main(){float i=mod(float(gl_VertexID),2.);float sd=i<.5?1.:-1.;float u=clamp((uT-.03)/(TI-.05),0.,1.);
-   vec3 a0=vec3(-1.2,1.,sd*2.4),m=vec3(1.2,2.6,sd*1.4);vec3 p=mix(mix(a0,m,u),mix(m,HC,u),u);
-   vA=(uT>.03&&u<1.)?1.:0.;vK=0.;vR=uT*8.;put(p,.5);}`,S.ENERGY_FS(C.spark,{gain:1.4}),{mode:'energy'});
-  S.pts(L.part,16,VV+K+`void main(){float i=mod(float(gl_VertexID),2.);float sd=i<.5?1.:-1.;float lag=.03+aSeed.y*.06;float u=clamp((uT-.03-lag)/(TI-.05),0.,1.);
-   vec3 a0=vec3(-1.2,1.,sd*2.4),m=vec3(1.2,2.6,sd*1.4);vec3 p=mix(mix(a0,m,u),mix(m,HC,u),u);
-   vA=(uT>.03+lag&&u<1.)?.7:0.;vK=0.;vR=0.;put(p,.22);}`,S.ENERGY_FS(C.spark,{gain:.9}),{mode:'energy'});
+  // surco de polvo a lo largo de la carga, construido a lo largo completo; uF = frente (x) del agarre
+  const FL=6.6, F0=-3.5;
+  const furrow=new THREE.Mesh(new THREE.PlaneGeometry(FL,0.8,60,1).rotateX(-Math.PI/2),S.mat(`uniform float uF;void main(){float x=${f(F0)}+vUv.x*${f(FL)};
+   float v=abs(vUv.y-.5)*2.;float n=styNoise(vec2(vUv.x*4.,vUv.y*.7)).r;float m=smoothstep(1.,.55,v+(n-.5)*.5)*smoothstep(uF+.1,uF-.5,x)*smoothstep(${f(F0)},${f(F0+.6)},x);
+   if(m<.02)discard;float er=styErode(n*.7+(1.-v)*.3,uP,.14);gl_FragColor=vec4(styRampOf(${EARTH},.15+.3*n),m*er*uA*.45);}`,{uF:{value:-9}},{mode:'matter'}));
+  furrow.position.set(F0+FL/2,0.026,0); L.decal.add(furrow); const fU=furrow.material.uniforms;
+  const K=`const float TI=${f(TI)};const vec3 HC=${v3(TC)};`;
   // esquirlas doradas y hojas de otoño en el golpe; las hojas caen después
   S.pts(L.part,12,VV+K+`void main(){float t=uT-TI;vec3 r=rnd();vec3 dir=normalize(vec3(abs(r.x)*.7+.2,r.y*.8+.4,r.z));
    vec3 p=HC+dir*t*(4.+1.5*aSeed.z)+vec3(0.,-t*t*8.,0.);vA=(t>0.&&t<.26)?1.:0.;vK=smoothstep(.1,.26,t);vR=aSeed.w*6.28;put(p,.18+.08*aSeed.z);}`,
    S.MATTER_FS(C.shard,{relief:5,col:GOLD,bias:.05}));
-  S.pts(L.part,30,VV+K+`void main(){float t=uT-TI;vec3 r=rnd();vec3 dir=normalize(vec3(r.x*.8+.3,abs(r.y)*.7+.5,r.z));
-   float out=1.-exp(-t*6.);vec3 p=HC+dir*out*(1.4+.8*aSeed.z)+vec3(sin(t*7.+aSeed.x*6.)*.2,-t*t*1.6,0.);
-   vA=(t>0.)?1.-smoothstep(.3,.42,t):0.;vK=smoothstep(.25,.42,t);vR=aSeed.w*6.28+t*5.*(r.x);put(p,.46+.2*aSeed.z);}`.replace(/\bout\b/g,'ou'),
-   S.MATTER_FS(C.leaf,{relief:5,col:aSeedCol(),bias:0}));
-  function aSeedCol(){return `mix(${LEAFO},${LEAFR},step(.5,vMix))`;}
+  S.pts(L.part,14,VV+K+`void main(){float t=uT-TI;vec3 r=rnd();vec3 dir=normalize(vec3(r.x*.8+.3,abs(r.y)*.7+.5,r.z));
+   float ou=1.-exp(-t*6.);vec3 p=HC+dir*ou*(1.3+.8*aSeed.z)+vec3(sin(t*7.+aSeed.x*6.)*.2,-t*t*1.6,0.);
+   vA=(t>0.)?1.-smoothstep(.32,.45,t):0.;vK=smoothstep(.28,.45,t);vR=aSeed.w*6.28+t*5.*(r.x);put(p,.42+.18*aSeed.z);}`,
+   S.MATTER_FS(C.leaf,{relief:5,col:`mix(${LEAFO},${LEAFR},step(.5,vMix))`,bias:0}));
+  const ease=(x)=>x*x*(3-2*x);
+  // punto del marco del asta (px,py) → espacio del efecto
+  const poleAt=(out,px,py,th,G)=>out.set(G.x+px*Math.cos(th)+py*Math.sin(th),G.y-px*Math.sin(th)+py*Math.cos(th),G.z);
+  const G0=V3(CX+0.32,0.72,0.18), G=V3(0,0,0), GI=V3(0,0,0), cc=V3(0,0,0), src=V3(0,0,0), mid=V3(0,0,0), ep=V3(0,0,0);
+  const TH0=-0.18, THI=1.7;
+  GI.set(TC.x-Math.sin(THI)*(PL+0.12)+0.0,TC.y-Math.cos(THI)*(PL+0.12),TC.z);
+  const pos=cg.attributes.position;
   a.pose=function(te,o){
     const ia=te-TI;
-    const lunge=ss(0,0.15,te)*(1-ss(TD,0.62,te));
-    caster.position.x=CX+0.6*lunge; caster.rotation.z=-0.12*ss(0,0.1,te)*(1-ss(TS,TI+0.05,te));
-    furrow.visible=te>0.04; furrow.material.uniforms.uA.value=ss(0.04,0.15,te); furrow.material.uniforms.uP.value=0.05+0.9*ss(0.3,0.7,te);
-    const sw=ss(TS-0.02,TI+0.02,te);
-    sU.uP.value=sw; cU.uP.value=ss(TS,TI+0.04,te);
-    sU.uEr.value=-0.1+1.1*ss(TI+0.08,0.62,te); cU.uEr.value=-0.1+1.1*ss(TI+0.04,0.55,te);
-    slash.visible=te>TS-0.03&&te<0.66; cape.visible=slash.visible;
-    spark.pose(ia,tmp.copy(TC),1.05); ring.pose(ia,TX,0,0.4,1);
+    // inclinación y agarre: alzado → carga acelerada → estocada (tip en el rival) → retroceso y erosión
+    const lev=ss(0.08,0.25,te);
+    const th=TH0+(THI-TH0)*lev - 0.12*hitE(ia,9)*(ia>0?1:0);
+    const ch=Math.pow(ss(TC0,TI,te),1.6);
+    const rec=ia>0?0.35*(1-Math.exp(-ia*10)):0;
+    G.lerpVectors(G0,GI,ch); G.x-=rec*Math.sin(THI); G.y+=0.25*Math.sin(Math.PI*ss(TC0,TI,te))*0.4;
+    G.y+=0.08*ss(0,0.08,te)*(1-lev);
+    pole.position.copy(G); pole.rotation.set(0,0,-th);
+    const fade=-0.1+1.1*ss(TD,0.72,te);
+    for(const q of qMats)q.value=fade;
+    pole.visible=te<0.74;
+    // ondeo del paño + latigazo (gira alrededor del asta)
+    const sp=ss(TC0,TI,te)*(1-ss(TI,0.5,te));
+    const amp=0.06+0.1*sp+0.16*hitE(ia,5)*(ia>0?1:0), ph=te*(18+14*sp);
+    clU.uAmp.value=amp; clU.uPh.value=ph;
+    const p=pos.array;
+    for(let i=0;i<pos.count;i++){const x=cBase[i*3],y=cBase[i*3+1];const u=-x/CW;
+      p[i*3]=x; p[i*3+1]=y-0.06*u*u*(1-lev*0.5); p[i*3+2]=amp*u*Math.sin(6*u-ph);}
+    pos.needsUpdate=true;
+    cloth.rotation.y=ia>0?2.4*Math.sin(ia*13)*Math.exp(-ia*5):0;
+    // blasones: bajan desde cada aliado hasta el paño, viajan con él y entran con la estocada
+    const fr=(VFX.friends||[]).filter(u=>u&&u.shield===true); const n=Math.min(NE,fr.length);
+    for(let i=0;i<NE;i++){const e=embs[i];const eU=e.material.uniforms;
+      if(i>=n){e.visible=false;continue;}
+      const t0=0.02+0.025*i, t1=0.2+0.012*i;
+      const off=(i-(n-1)/2)*0.24;
+      poleAt(cc,-CW*0.45+0.12*Math.abs(off),PL-0.1-CH*0.5+off*0.9,th,G); cc.z+=0.12;
+      src.set(fr[i].x,3.3,fr[i].z);
+      let sc=1, gl=0;
+      if(te<t1){const u=ease(cl((te-t0)/(t1-t0),0,1)); mid.set((src.x+cc.x)/2,Math.max(src.y,cc.y)+0.4,(src.z+cc.z)/2);
+        ep.copy(src).lerp(mid,u).lerp(tmp.copy(mid).lerp(cc,u),u); sc=0.7+0.3*u; gl=0.15*(1-u);}
+      else if(te<TI){ep.copy(cc);}
+      else{const u=cl(ia/0.05,0,1); ep.copy(cc).lerp(TC,ease(u)); gl=0.4*u; sc=1+0.6*cl((ia-0.05)/0.08,0,1);}
+      e.position.copy(ep); billboard(e,0.15*Math.sin(te*9+i)); e.scale.setScalar(sc);
+      eU.uG.value=gl; eU.uA.value=te<t0?0:(ia>0.05?1-cl((ia-0.05)/0.08,0,1):ss(t0,t0+0.04,te));
+      e.visible=eU.uA.value>0.01;
+    }
+    // surco de polvo detrás del agarre
+    furrow.visible=te>0.1; fU.uF.value=G.x+0.3; fU.uA.value=ss(0.1,0.16,te); fU.uP.value=0.05+0.9*ss(0.35,0.74,te);
+    // arco del latigazo
+    wU.uP.value=ss(TI-0.01,TI+0.08,te); wU.uEr.value=-0.1+1.1*ss(TI+0.08,0.6,te); whip.visible=te>TI-0.01&&te<0.62;
+    // Pomodoro da medio paso al alzar y cargar
+    const lunge=ss(0.02,0.16,te)*(1-ss(TD,0.66,te));
+    caster.position.x=CX+0.5*lunge; caster.rotation.z=-0.1*ss(0.05,0.15,te)*(1-ss(TI,TI+0.1,te));
+    spark.pose(ia,tmp2.copy(TC),1.05); ring.pose(ia,TX,0,0.4,1);
     const hit=hitE(ia,13);
-    target.position.x=TX+0.2*hit; target.rotation.z=-0.1*hit; target.scale.set(1+0.07*hit,1-0.09*hit,1+0.07*hit);
-    glowOf(caster,GOLDC,0.3*ss(0.05,TS,te)*(1-ss(TI,0.5,te)));
+    target.position.x=TX+0.22*hit; target.rotation.z=-0.1*hit; target.scale.set(1+0.07*hit,1-0.09*hit,1+0.07*hit);
+    glowOf(caster,GOLDC,0.3*ss(0.0,0.1,te)*(1-ss(TI,0.5,te)));
     o.em=0.55*hit; o.emc.setRGB(1,0.7,0.3);
     o.g.copy(TC); o.gs=1; o.ga=0.15*hit; o.li=1.5+3*hit;
     o.ia=ia; o.c.copy(TC); o.shake=0.2*hit; o.dist=0; o.flash=0.25;
   };
 }});
-
 
 // =====================================================================
 // Hito 102 · cartas α que antes usaban el efecto de su carta base (con otro objetivo) y caían en el lanzador

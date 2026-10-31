@@ -568,34 +568,41 @@ defs.push({key:"sty_beTriFeather",name:"Tri Feather (estilizado)",dur:2.0,ti:1.0
 build(a){
   const L=a.L,TD=0.45,TL=0.5,TI=1.0,TC=1.1;
   const COLS=[['vec3(.98,.45,.7)','vec3(.72,.06,.38)'],['vec3(.7,.45,.98)','vec3(.34,.1,.7)'],['vec3(.42,.62,1.)','vec3(.08,.18,.72)']];
-  const LAND=[V3(TX,0,0),V3(TX,0,TILE),V3(TX,0,-TILE)];
+  const LAND0=[V3(TX,0,0),V3(TX,0,TILE),V3(TX,0,-TILE)],LAND=LAND0.map(v=>v.clone());
+  // Hito 104: las casillas de la cruz giran con la cuadrícula en los lanzamientos en diagonal (VFX.gridSnap)
+  const uL1={value:LAND[1]},uL2={value:LAND[2]};
   const fe=[]; const mats=[];
   for(let i=0;i<3;i++){const m=S.mat(FEATHER_M(COLS[i][0],COLS[i][1]),{uQ:{value:-1},uK:{value:0}},{mode:'solid',side:THREE.DoubleSide});mats.push(m);
-    const g=new THREE.Group();g.add(new THREE.Mesh(new THREE.PlaneGeometry(1.25,3.7).translate(0,1.85,0),m));L.mesh.add(g);fe.push(g);}  // punta en el origen, hacia −y
+    const g=new THREE.Group();g.add(new THREE.Mesh(new THREE.PlaneGeometry(0.75,2.22).translate(0,1.11,0),m));L.mesh.add(g);fe.push(g);}  // punta en el origen, hacia −y
   const FAN=[-0.75,0,0.75].map(an=>V3(-3.85+0.95*Math.sin(an)*0.3-0.3,1.1+0.5*Math.cos(an),Math.sin(an)*0.6));
-  const K=`const float TL=${f(TL)};const float TI=${f(TI)};const float TC=${f(TC)};const float TX=${f(TX)};const float TILE=${f(TILE)};`;
+  const K=`const float TL=${f(TL)};const float TI=${f(TI)};const float TC=${f(TC)};const float TX=${f(TX)};const float TILE=${f(TILE)};uniform vec3 uL1;uniform vec3 uL2;`;
   // ráfaga a lo largo de los cuatro brazos (materia rosa pálido)
   S.pts(L.part,40,VV+K+`void main(){float arm=floor(aSeed.x*4.);vec2 d=arm<1.?vec2(1.,0.):(arm<2.?vec2(-1.,0.):(arm<3.?vec2(0.,1.):vec2(0.,-1.)));
    float s=TC+aSeed.y*.05;float life=.5+aSeed.z*.25;float age=(uT-s)/life;float t=max(uT-s,0.);
    float dd=(.2+2.1*(1.-exp(-t*5.)))*(.6+.5*aSeed.w);vec3 p=vec3(TX+d.x*dd,.15+.25*aSeed.w+.4*t,d.y*dd)+vec3(d.y,0.,d.x)*(aSeed.w-.5)*.5;
    vA=(age>0.&&age<1.)?1.:0.;vK=smoothstep(.2,1.,age);vR=atan(d.y,d.x)+aSeed.w;put(p,(.45+.2*aSeed.w)*(.6+.6*age));}`,
-   S.MATTER_FS(C.puff,{relief:3,col:'vec3(1.,.85,.95)',bias:.05}));
+   S.MATTER_FS(C.puff,{relief:3,col:'vec3(1.,.85,.95)',bias:.05}),{uniforms:{uL1,uL2}});
+  const gust=L.part.children[L.part.children.length-1];   // S.pts devuelve el número de partículas, no el objeto
   // estela de viento rosa y azul durante el vuelo
   S.pts(L.part,36,VV+K+`void main(){float i=floor(aSeed.x*3.);float s=TL+aSeed.y*(TI-TL);float life=.3;float age=(uT-s)/life;
-   float u=(s-TL)/(TI-TL);vec3 a0=vec3(-2.5,2.6,(i-1.)*1.),a1=vec3(TX-.4,1.2,(i<.5?0.:(i<1.5?TILE:-TILE)));
+   float u=(s-TL)/(TI-TL);vec3 a0=vec3(-2.5,2.6,(i-1.)*1.),a1=(i<.5?vec3(TX,0.,0.):(i<1.5?uL1:uL2))+vec3(-.4,1.2,0.);
    vec3 p=mix(a0,a1,u)+vec3(0.,sin(u*3.14)*1.6,0.)+rnd()*.1;vA=(age>0.&&age<1.)?1.-age:0.;vK=smoothstep(.3,1.,age);vR=0.6;
-   put(p,.32*(1.-.4*age));}`,S.ENERGY_FS(C.slash,{gain:1.1}),{mode:'energy'});
+   put(p,.32*(1.-.4*age));}`,S.ENERGY_FS(C.slash,{gain:1.1}),{mode:'energy',uniforms:{uL1,uL2}});
   // pelusa en cada clavada
   S.pts(L.part,30,VV+K+`void main(){float i=floor(aSeed.x*3.);float s=TI+i*.025;float life=.6+aSeed.y*.3;float age=(uT-s)/life;float t=max(uT-s,0.);
    vec3 b=vec3(TX,.2,i<.5?0.:(i<1.5?TILE:-TILE));vec3 v=normalize(rnd()+vec3(0.,.8,0.))*(1.+1.2*aSeed.z);
    vec3 p=b+v*t*(1.-.5*min(t,1.))+vec3(0.,-.3*t*t,0.);vA=(age>0.&&age<1.)?1.:0.;vK=smoothstep(.4,1.,age);vR=aSeed.w*6.28+t*3.;put(p,.3+.12*aSeed.w);}`,
-   FEATHER_P('vec3(1.,.8,.92)','vec3(.6,.45,1.)'));
-  const cross=groundPlane(TILE*3.2,TX,0.03,S.mat(GLYPH(`vec2 a2=abs(p)*3.2;float cr=step(min(a2.x,a2.y),.5)*step(max(a2.x,a2.y),1.55);
-    m=cr*(s.r*.6+.4)*smoothstep(1.6,1.2,max(a2.x,a2.y));`,.32),{},{mode:'energy'})); L.decal.add(cross);
+   FEATHER_P('vec3(1.,.8,.92)','vec3(.6,.45,1.)'),{uniforms:{uL1,uL2}});
+  const fluff=L.part.children[L.part.children.length-1];
+  const cross=groundPlane(TILE*3.2,TX,0.03,S.mat(GLYPH(`vec2 g2=p*3.2;vec2 c2=floor(g2+.5);float cr=step(abs(c2.x)+abs(c2.y),1.)*step(max(abs(g2.x),abs(g2.y)),1.5);
+    float e2=max(abs(g2.x-c2.x),abs(g2.y-c2.y))*2.;
+    m=cr*((s.r*.5+.3)*.55+smoothstep(.8,.94,e2)*smoothstep(1.,.97,e2)*1.5);`,.5),{},{mode:'energy'})); L.decal.add(cross);
   const rings=LAND.map(()=>S.groundRing(L.decal,2.2)), sparks=LAND.map((p,i)=>S.hitSpark(L.mesh,1.3,{seed:0.3+i*0.2}));
   const P0=V3(0,0,0),P1=V3(0,0,0),P2=V3(0,0,0);
   a.pose=function(te,o){
     const ia=te-TI, op=e3(ss(0,TD,te)), er=ss(1.6,1.95,te);
+    {const ga=-(VFX.gridSnap||0),c=Math.cos(ga),sn=Math.sin(ga);LAND0.forEach((v,k)=>{const dx=v.x-TX,dz=v.z;LAND[k].set(TX+c*dx+sn*dz,0,-sn*dx+c*dz);});}
+    S.gridAlign(cross,TX,0); if(gust)S.gridAlign(gust,TX,0); if(fluff)S.gridAlign(fluff,TX,0);
     fe.forEach((g,i)=>{const ti=TI+i*0.025, land=LAND[i];
       if(te<TL){g.position.lerpVectors(tmp.set(-3.85,1.4,0),FAN[i],op);
         faceAlong(g,tmp.copy(FAN[i]).sub(tmp2.set(-3.85,0.6,0)));g.scale.setScalar(Math.max(op,0.001));}
@@ -604,7 +611,7 @@ build(a){
       else{const q=Math.exp(-(te-ti)*8)*Math.sin((te-ti)*60)*0.08;g.position.set(land.x-0.3,0.05,land.z);faceAlong(g,tmp.set(-0.65+q,1,0.4));g.scale.setScalar(1);}
       mats[i].uniforms.uQ.value=-0.1+1.1*er; mats[i].uniforms.uK.value=0.4*hitE(te-ti,6)*(te>ti?1:0)+0.15*ss(TD-0.1,TL,te)*(1-ss(TL,TL+0.2,te));
       rings[i].pose(te-ti,land.x,land.z,0.45,0.9); sparks[i].pose(te-ti,tmp.set(land.x-0.2,0.5,land.z),0.9);});
-    cross.visible=te>TC; set(cross,-0.1+1.1*ss(1.55,1.95,te),ss(TC,TC+0.12,te)); cross.scale.setScalar(0.7+0.3*e3((te-TC)/0.25));
+    cross.visible=te>TC; set(cross,-0.1+1.1*ss(1.55,1.95,te),ss(TC,TC+0.12,te)); cross.scale.setScalar(1); // Hito 105: siempre del tamaño de las casillas
     recoil(ia,0.18);
     if(ia<0){o.g.copy(fe[0].position);o.gs=0.8;o.ga=0.14;o.li=1.5;o.ia=ia;o.c.copy(fe[0].position);o.shake=0;o.dist=0.3;o.flash=0.4;}
     else{o.g.set(TX,0.6,0);o.gs=2.4+2*ia;o.ga=0.35*Math.exp(-ia*6);o.li=5*Math.exp(-ia*4);o.ia=ia;o.c.set(TX,0.4,0);o.shake=0.9;o.dist=1;o.flash=0.6;}

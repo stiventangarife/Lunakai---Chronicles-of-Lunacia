@@ -1349,6 +1349,8 @@ class AxieTacticsGame {
   async _prewarmBattle() {
     const t0 = performance.now();
     const cap = (p, ms) => Promise.race([Promise.resolve(p).catch(() => {}), new Promise((r) => setTimeout(r, ms))]);
+    // Fase 3 de audio: sonidos de las cartas de las unidades (MP3 pequeños, en paralelo con los VFX; no se espera por ellos)
+    try { this.audio?.combat?.prepareSkills?.(this.units, this.spellManager)?.catch?.(() => {}); } catch (e) { console.warn('[sfx] prepare', e); }
     try {
       if (this.vfxBridge && this.vfxBridge.enabled) {
         this.vfxBridge._prewarm = this.vfxBridge.prepare(this.units).catch((e) => console.warn('[vfx] prepare', e));

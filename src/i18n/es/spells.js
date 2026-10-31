@@ -217,7 +217,7 @@ export default {
   "spells.ult.duo_destructiva.name": "Embestida Destructiva",
   "spells.ult.duo_destructiva.description": "Sapidae y Axie cargan juntos en línea recta: 150-170 de daño y empujan 3 casillas. Si choca contra un obstáculo o una unidad, 60 de daño de impacto a los dos.",
   "spells.ult.duo_gaia.name": "Égida de Gaia",
-  "spells.ult.duo_gaia.description": "Un árbol rúnico protege al escuadrón: todos los aliados a 3 casillas o menos ganan +80 de escudo, se curan 60 HP y pierden sus estados negativos.",
+  "spells.ult.duo_gaia.description": "Una égida de arcilla espiritual brota alrededor del dúo: los enemigos a 3 casillas o menos reciben 60–80 de daño, y todos los aliados en ese radio ganan +80 de escudo, se curan 60 HP y pierden sus estados negativos.",
   "spells.ult.duo_maelstrom.name": "Maelstrom Celeste",
   "spells.ult.duo_maelstrom.description": "Tormenta de maná en cruz de 2 casillas: 100-120 de daño a los enemigos, −2 PM en su próximo turno y −1 PA en el siguiente.",
   "spells.ultReason.ok": "Lista",

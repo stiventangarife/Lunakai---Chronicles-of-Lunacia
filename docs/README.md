@@ -454,6 +454,27 @@ Bienvenido al repositorio de documentación técnica, arquitectura y especificac
     - Al abrir el telón: de un fotograma de 18 s a ninguno por encima de 70 ms. Causas: la transparencia de la cámara cambiaba los shaders de árboles y edificios tras el precalentado, y el retrato del autoguardado compilaba el Sapidae en un segundo contexto WebGL en cada sesión. Ahora la transparencia se aplica antes de precalentar y el retrato solo se rehace si cambia el aspecto, en segundo plano (`captureModelAsync`).
     - Viajes en barca: de ~17 s con congelamientos a 2–5 s detrás del telón. El mundo no se dibuja mientras se cambia de isla, el jugador y la cámara llegan al muelle antes del precalentado, y el pueblo, los edificios GLB, las texturas de caminos y las máscaras se esperan detrás del telón (`src/render/LoadGate.js`). El precalentado dibuja un fotograma completo con sombras.
     - `lkDebug.perf` dice qué código ocupó cada fotograma largo, qué llamadas a WebGL bloquearon y quién las pidió (con su pila), y la evolución del heap.
+104. [**Hito 104: Arreglos de los VFX marcados en el recorrido y Ultimates de arcilla espiritual**](HITO_104_ARREGLOS_VFX_RECORRIDO_Y_ULTIMATES_ARCILLA.md)
+    - Motor: el suelo cerca del lanzador y del objetivo ya no se estira (auras, charcos, sellos); las áreas en cruz quedan en la cuadrícula en diagonal; los efectos de «todos los enemigos» usan la posición real de cada unidad.
+    - 20 efectos rehechos o mejorados (Hero, Jaguar, Garra colosal, Scarab, Parasite, Neo, Pincer, Cute Bunny, Mosquito, Gila, Village Hero α, Oranda, Piranha, Koi, Ranchu, Shrimp, Tri Feather…).
+    - Ultimates de arcilla espiritual: Asalto es una ola de arcilla, Torrente un tornado de arcilla, agua y plumas, y Bastión hace 60–80 de daño a los enemigos del círculo. Danza de Espinas de la Dríada pasa a alcance 1.
+    - `lkDebug.vfxRecorrido({ marcadas: true })` repasa solo los efectos marcados.
+105. [**Hito 105: Las áreas en cruz del tamaño exacto de una casilla**](HITO_105_CRUCES_A_TAMANO_DE_CASILLA.md)
+    - El puente encogía el efecto a 1–2 casillas del objetivo y la cruz salía al 37–75 %. Ahora las habilidades de área se dibujan alrededor del objetivo a la escala real de la casilla, a cualquier distancia y con cualquier tamaño de VFX.
+    - Buzz Buzz, Maelstrom, Tri Feather, Shiitake y Death Shroom marcan casillas enteras con borde.
+    - Ráfaga de la Espesura, Cataclismo y Esporas declaran su propia área (`areaCells`); el Cataclismo ya no sale en X en diagonal.
+
+106. [**Hito 106: Respawn de mobs en puntos aleatorios de cada isla**](HITO_106_RESPAWN_DE_MOBS.md)
+    - Los mobs caídos reaparecen: manadas normales en un punto aleatorio del pool de la isla (≥ 50 m del jugador y ≥ 30 m de otros mobs), con retardos por bioma; jefes y mobs de misión con retardo largo, en su puesto. Cinco manadas por isla (slimes en el Bosque, lejos del pueblo), con humo al aparecer.
+    - Los mobs de misión solo dan su recompensa y su aviso la primera vez. Los mobs lejanos se quedan quietos y los de media distancia se actualizan a medio ritmo: con 5 manadas, 59,5 FPS y +0,4 ms de CPU frente a las 2 de antes.
+    - Consola: `lkDebug.respawn({ fast, kill })` y `lkDebug.spawnPool()` (generador de los puntos de aparición de cada isla).
+107. [**Hito 107: Números de combate con el sistema de diseño**](HITO_107_NUMEROS_DE_COMBATE.md)
+    - Números flotantes del sistema de diseño: blanco el daño que haces, carmesí suave el que recibes, crítico dorado con etiqueta, estados y recursos en píldoras apiladas, golpes seguidos sumados y total de área.
+    - Opción «Números de combate» (Todos / Solo daño / Ocultos).
+108. [**Hito 108: Sonido de las habilidades (pack de combate, Sapidae, enemigos, estados y Ultimates)**](HITO_108_SONIDO_DE_HABILIDADES.md)
+    - El pack de combate (161 WAV, 35,6 MB) pasa a 145 MP3 mono (2,8 MB) con nivel igualado y manifiesto (`tools/audio/build_skill_sfx.py`); los WAV quedan en `backups/2026-10-30_sounds/combat/`.
+    - Las 235 cartas suenan con la clase del Axie que lanza y su tipo de ataque (mordisco, cornada, tajo, golpe, magia, disparo, lanzamiento), sincronizadas con el impacto de su VFX (±10 ms). El Sapidae, los gólems, los enemigos (86 habilidades) y las 3 Ultimates usan el pack más firmas sintetizadas; los 31 estados, curas y escudos tienen sonido del pack.
+    - Mezcla frente a la música (cartas +3 dB sobre ella, Ultimates con la música atenuada 6 dB), carga solo de lo que hay en cada combate (tope 32 MB) y `lkDebug.sfx('skills' | 'sapidae' | 'enemigos' | 'estados' | 'ultimates' | 'recorrido' | 'skill' | 'memoria')`.
 
 ---
 
