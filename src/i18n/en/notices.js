@@ -1,7 +1,9 @@
 // Game notices (Phase 4, block 2): Shop, Forge and Gathering reasons.
 export default {
   "notices.shop.questNoSell": "Quest items can't be sold.",
-  "notices.shop.tierOnly": "This merchant only buys Tier {max} gear.",
+  "notices.shop.rcMarketOnly": "Ochi doesn't buy runes or charms: sell them on the Market for AXS.",
+  "notices.shop.bagMarketOnly": "Ochi doesn't buy rune or charm bags: sell them on the Market for AXS.",
+  "notices.shop.tierOnly": "This merchant only buys Tier {max} gear. Tier 1–3 gear is an NFT: sell it on the Market for AXS.",
   "notices.shop.inForge": "It's in the forge: collect it before selling.",
   "notices.shop.equippedAxie": "An Axie has it equipped: remove it before selling.",
   "notices.shop.notForSale": "Not for sale",
@@ -42,6 +44,7 @@ export default {
   "notices.economy.needGold": "You need more gold ({n}).",
   "notices.economy.needSlp": "You need more SLP ({n}).",
   "notices.economy.needBaxs": "You need more bAXS ({n}).",
+  "notices.economy.needAxs": "You need more AXS ({n}).",
   "notices.economy.dailyCap": "You've reached the daily limit. Come back tomorrow.",
   "notices.economy.tooFast": "Wait a few seconds before trying again.",
   "notices.economy.notOwned": "The server doesn't have that item in your saved game. Wait for it to save and try again.",

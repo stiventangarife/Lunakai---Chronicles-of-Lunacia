@@ -7,8 +7,8 @@
 //     la respuesta de save_slot como `applied` y se aplica aquí si aún no estaba (CloudSave → onServerApplied).
 // Así un objeto nunca está a la vez en la partida y en un anuncio, ni se suma dos veces.
 //
-// Hito 78 (fase 3): cada objeto tiene su moneda (oro: materiales, comida y pociones · bAXS: equipo T1–3, runas y
-// charms). En bAXS solo hay precio mínimo. Mientras tienes anuncios abiertos se consulta market_inbox cada minuto:
+// Hito 78 (fase 3): cada objeto tiene su moneda (oro: materiales, comida y pociones · equipo T1–3, runas y charms en
+// la otra moneda, con solo precio mínimo). Hito 110: esa moneda es el AXS (antes bAXS, que no se intercambia). Mientras tienes anuncios abiertos se consulta market_inbox cada minuto:
 // las ventas suben tu saldo y avisan al momento, y lo que vuelve (caducado) entra en la partida sin recargar.
 //
 // Invitados: pueden mirar los anuncios (solo lectura). Publicar y comprar piden cuenta.
@@ -28,7 +28,9 @@ const ACK_KEEP = 80;     // ids de deltas ya aplicados que se recuerdan en la pa
 export const MARKET_FEE = 0.05;
 export const MARKET_MAX_LISTINGS = 20;
 export const MARKET_DAYS = 3;
-export const BAXS_CEIL = 1000000;  // tope técnico por unidad en bAXS (contra errores al escribir)
+export const AXS_CEIL = 1000000;   // tope técnico por unidad en AXS (contra errores al escribir)
+/** Monedas del Mercado con 2 decimales (el bAXS solo aparece en el historial anterior al Hito 110). */
+export const isDecimalCurrency = (cur) => cur === 'axs' || cur === 'baxs';
 const POLL_MS = 60000;             // revisión del Mercado mientras tienes anuncios abiertos
 const RC_BAG = { rune: 'runes', charm: 'charms' };
 const rcOf = (id) => { const m = /^(rune|charm):(.+)$/.exec(String(id)); return m ? { kind: RC_BAG[m[1]], id: m[2] } : null; };
@@ -232,14 +234,14 @@ class MarketServiceImpl {
   // ------------------------------------------------------------------ ayudas para la interfaz
   /** Cuántos puedes anunciar: sin lo equipado, lo que está en la Forja ni las copias Ronin (como al vender a Ochi). */
   have(id) { return ShopService.sellable(id); }
-  /** Comisión del 5 %: en oro redondeada hacia arriba; en bAXS, hacia arriba al céntimo. */
-  fee(gross, currency = 'gold') { return currency === 'baxs' ? Math.ceil(+(gross * MARKET_FEE * 100).toFixed(6)) / 100 : Math.ceil(gross * MARKET_FEE); }
+  /** Comisión del 5 %: en oro redondeada hacia arriba; en AXS, hacia arriba al céntimo. */
+  fee(gross, currency = 'gold') { return isDecimalCurrency(currency) ? Math.ceil(+(gross * MARKET_FEE * 100).toFixed(6)) / 100 : Math.ceil(gross * MARKET_FEE); }
 
   why(res) {
     const code = res?.error || 'error';
     const KEYS = {
       guest: 'market.err.guest', offline: 'notices.economy.offline', unavailable: 'market.err.unavailable',
-      need_gold: 'notices.economy.needGold', need_baxs: 'notices.economy.needBaxs', not_owned: 'market.err.notOwned',
+      need_gold: 'notices.economy.needGold', need_baxs: 'notices.economy.needBaxs', need_axs: 'notices.economy.needAxs', not_owned: 'market.err.notOwned',
       bad_price: res?.max == null ? 'market.err.badPriceMin' : 'market.err.badPrice',
       not_tradeable: 'market.err.notTradeable', too_many_listings: 'market.err.tooMany', listing_gone: 'market.err.gone',
       own_listing: 'market.err.own', invalid_qty: 'market.err.qty', market_blocked: 'market.err.blocked', other_slot: 'market.err.otherSlot',

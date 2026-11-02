@@ -83,6 +83,7 @@ export default {
   "runesPanel.wouldNeed": "You'd be short {pp}",
   "runesPanel.roninLoaded": "Ronin runes and charms in your account: {n}",
   "runesPanel.roninTitle": "Ronin: NFT in your Sky Mavis account. Usable while it stays in your wallet; it can't be sold.",
+  "runesPanel.boundTitle": "Tutorial gift: it can be equipped, but not sold or traded.",
   "runesPanel.lockedPart": "Lv. {n}",
   "runesPanel.lockedSkill": "Locked: unlocks at level {n}.",
   "runesPanel.lockedCharm": "This skill unlocks at level {n}: until then it can't hold charms.",

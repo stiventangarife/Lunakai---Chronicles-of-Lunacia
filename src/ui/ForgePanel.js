@@ -8,7 +8,7 @@
 
 import { ForgeService, EQ_SLOTS, MATERIALS, FORGE_ANVILS } from '../rpg/ForgeService.js';
 import { ITEMS_DB } from '../tactics/ItemDatabase.js';
-import { asset, esc, toast, sprite, curIcon } from './lk.js';
+import { asset, esc, toast, sprite, curIcon, isNftGear, nftSeal } from './lk.js';
 import { ForgeStation } from '../rpg/world/ForgeStation.js';
 import { matSvg, matIcon } from './MaterialIcons.js';
 import { MATERIAL_RARITY_NAME, CRAFT_RECIPES, EVOLUTION_COST } from '../tactics/data/EconomyCatalog.js';
@@ -17,7 +17,7 @@ import * as i18n from '../i18n/i18n.js';
 export { matSvg };
 
 const I = (n) => asset(`assets/ui/icons/${n}.png`);
-const CUR = { gold: [i18n.t('forge.gold'), curIcon('gold'), '#B8892E'], slp: ['SLP', curIcon('slp'), '#E58BB8'], baxs: ['bAXS', curIcon('baxs'), '#C24FD0'] };
+const CUR = { gold: [i18n.t('forge.gold'), curIcon('gold'), '#B8892E'], slp: ['SLP', curIcon('slp'), '#E58BB8'], axs: ['AXS', curIcon('axs'), '#2F6FE4'], baxs: ['bAXS', curIcon('baxs'), '#C24FD0'] };
 const STAT_ES = { hp: i18n.t('forge.statHp'), damage: i18n.t('forge.statDamage'), pa: i18n.t('forge.statPa'), pm: i18n.t('forge.statPm'), initiative: i18n.t('forge.statInitiative'), shield: i18n.t('forge.statShield') };
 const SLOT1 = { weapon: i18n.t('forge.slotWeapon'), hat: i18n.t('forge.slotHat'), shield: i18n.t('forge.slotShield'), body: i18n.t('forge.slotBody'), boots: i18n.t('forge.slotBoots'), consumable: i18n.t('forge.slotBag') };
 const RAR_NAME = { legendary: i18n.t('forge.rarLegendary'), epic: i18n.t('forge.rarEpic'), rare: i18n.t('forge.rarRare'), uncommon: i18n.t('forge.rarUncommon'), common: i18n.t('forge.rarCommon'), mystic: i18n.t('forge.rarMystic') };
@@ -50,7 +50,7 @@ const statRows = (it, cmp = null) => {
     return `<div class="lk-sp-stat"><span>${STAT_ES[k]}</span><b>${v ? `+${v}` : '—'}${d ? `<span class="${d > 0 ? 'lk-up' : 'lk-down'}">${d > 0 ? '▲' : '▼'}${Math.abs(d)}</span>` : ''}</b></div>`;
   }).join('');
 };
-const fcard = (it, cls, extra = '', cmp = null, who = '') => `<div class="lk-fcard ${cls}"><div class="lk-fcard__art" style="--r:${bg(it)}">${art(it)}<span class="lk-t">T${it.tier ?? 0}</span>${who ? `<span class="lk-who">${esc(who)}</span>` : ''}</div><div class="lk-fcard__body"><small>${SLOT1[it.slot] || ''} · ${RAR_NAME[it.rarity] || i18n.t('forge.rarCommon')}</small><b>${esc(it.name)}</b><div class="lk-sp-stats">${statRows(it, cmp)}</div>${extra}</div></div>`;
+const fcard = (it, cls, extra = '', cmp = null, who = '') => `<div class="lk-fcard ${cls}"><div class="lk-fcard__art" style="--r:${bg(it)}">${art(it)}<span class="lk-t">T${it.tier ?? 0}</span>${isNftGear(it) ? nftSeal(i18n.t('market.nftHint')) : ''}${who ? `<span class="lk-who">${esc(who)}</span>` : ''}</div><div class="lk-fcard__body"><small>${SLOT1[it.slot] || ''} · ${RAR_NAME[it.rarity] || i18n.t('forge.rarCommon')}</small><b>${esc(it.name)}</b><div class="lk-sp-stats">${statRows(it, cmp)}</div>${extra}</div></div>`;
 
 export function attachForge(game) {
   const ow = game.overworldManager;
@@ -72,6 +72,7 @@ export function attachForge(game) {
         <div class="lk-forge-wallet">
           <span class="lk-res-pill" title="${i18n.t('forge.gold')}"><img class="lk-cur-ico" src="${CUR.gold[1]}" alt="${i18n.t('forge.gold')}"><span data-ref="gold">0</span></span>
           <span class="lk-res-pill lk-cur" title="${i18n.t('forge.slpTitle')}"><img class="lk-cur-ico" src="${CUR.slp[1]}" alt="SLP"><span data-ref="slp">0</span></span>
+          <span class="lk-res-pill lk-cur" title="${i18n.t('forge.axsTitle')}"><img class="lk-cur-ico" src="${CUR.axs[1]}" alt="AXS"><span data-ref="axs">0</span></span>
           <span class="lk-res-pill lk-cur" title="${i18n.t('forge.baxsTitle')}"><img class="lk-cur-ico" src="${CUR.baxs[1]}" alt="bAXS"><span data-ref="baxs">0</span></span>
         </div>
         <button type="button" class="lk-btn-close-x" data-act="close" aria-label="${i18n.t('forge.close')}">${sprite('i-close')}</button>
@@ -109,7 +110,7 @@ export function attachForge(game) {
   function render() {
     if (!api.isOpen) return;
     const w = ForgeService.wallet();
-    $('gold').textContent = fmt(w.gold); $('slp').textContent = fmt(w.slp); $('baxs').textContent = fmtB(w.baxs);
+    $('gold').textContent = fmt(w.gold); $('slp').textContent = fmt(w.slp); $('axs').textContent = fmtB(w.axs || 0); $('baxs').textContent = fmtB(w.baxs);
     $('mode').querySelectorAll('button').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.m === FG.mode)));
     const all = entries();
     $('tabs').innerHTML = FTABS.map(([k, n]) => { const c = k === 'all' ? all.length : all.filter((e) => e.it.slot === k).length; return c || k === 'all' ? `<button type="button" class="lk-fchip lk-no-ico" data-k="${k}" aria-pressed="${FG.tab === k}">${n} <span style="opacity:.55">${c}</span></button>` : ''; }).join('');

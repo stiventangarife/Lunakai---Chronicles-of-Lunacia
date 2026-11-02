@@ -5,6 +5,7 @@ export default {
   "forge.bagCharm": "Bolsa · charm de clase al azar",
   "forge.bagRune": "Bolsa · runa de clase al azar",
   "forge.baxsTitle": "bAXS (comisión y rapidez)",
+  "forge.axsTitle": "AXS (Mercado entre jugadores: equipo, runas y charms)",
   "forge.biomeAny": "Todas las islas",
   "forge.biomeArctic": "Ártico",
   "forge.biomeDungeon": "Génesis",

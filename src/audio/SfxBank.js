@@ -8,6 +8,7 @@
 //
 // play(familia, opts) devuelve true si sonó una grabación; false para que el que llama use su versión sintetizada.
 
+import { v as withVersion } from '../render/AssetVersion.js'; // Hito 109: versión en la ruta
 const SFX_DIR = './assets/sounds/sfx/';
 const PROBE = 'CREDITOS.txt';
 
@@ -54,7 +55,7 @@ export class SfxBank {
     const entry = { state: 'loading', bufs: [] };
     this.families.set(family, entry);
     const urls = n === 1 ? [`${SFX_DIR}${family}.mp3`] : Array.from({ length: n }, (_, i) => `${SFX_DIR}${family}_${i + 1}.mp3`);
-    Promise.all(urls.map((u) => fetch(u)
+    Promise.all(urls.map((u) => fetch(withVersion(u)) // Hito 109: versión en la ruta
       .then((r) => (r.ok ? r.arrayBuffer() : null))
       .then((ab) => (ab ? this.ctx.decodeAudioData(ab) : null))
       .catch(() => null)))

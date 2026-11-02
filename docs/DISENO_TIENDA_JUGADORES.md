@@ -1,16 +1,16 @@
 # Diseño técnico: Tienda entre jugadores (Mercado de Lunacia)
 
-> Estado: **diseño v3, programado en los Hitos 76, 77 y 78** (fase 3: en bAXS solo hay precio mínimo; el máximo lo pone el mercado). Es una demo para Sky Mavis: el bAXS del juego es ficticio y funciona como una moneda del juego más, igual que el oro.
-> **Sin firma de billetera** por ahora. El pago pasa por un único punto del código (`marketPay`) para poder cambiarlo por bAXS real más adelante sin tocar el resto.
+> Estado: **diseño v4, programado en los Hitos 76, 77, 78 y 110**. Desde el Hito 110 el equipo, las runas y los charms se comercian en **AXS** (antes bAXS). El bAXS es una recompensa por jugar que no se intercambia: queda para las tasas de la Forja y, más adelante, para los premios de la arena y del reto semanal. Es una demo para Sky Mavis: el AXS del juego es ficticio y funciona como una moneda del juego más, igual que el oro.
+> **Sin firma de billetera** por ahora. El pago pasa por un único punto del código (`marketPay`, `_mkt_pay` en el servidor) para poder cambiarlo por AXS real más adelante sin tocar el resto.
 
 ## Decisiones tomadas (25-oct)
 
 | Tema | Decisión |
 |---|---|
-| Monedas de la tienda | solo **oro** y **bAXS**; el SLP no se comercia ni se convierte |
+| Monedas de la tienda | solo **oro** y **AXS** (Hito 110; antes bAXS); ni el SLP ni el bAXS se comercian ni se convierten |
 | Firma o billetera | se omite; ventana de confirmación normal (precio, comisión, total) |
 | Saldo | **el mismo de la partida** (sin monedero aparte) |
-| Comisión | **5 % en todas las ventas**: en bAXS las de bAXS y en oro las de oro |
+| Comisión | **5 % en todas las ventas**, descontada al vendedor: en AXS las de AXS y en oro las de oro |
 | Anuncios | duran **3 días**, máximo **20 por jugador** |
 | Objetos de antes del mercado | **se venden con normalidad** |
 | Invitados | juegan como hoy; ven el mercado sin comerciar; al vincular la cuenta, sus monedas se ajustan a un máximo (§6) |
@@ -20,8 +20,9 @@
 | Categoría | Moneda |
 |---|---|
 | Recursos (materiales de recolección y botín) | **Oro** |
-| Equipamiento **Tier 1, 2 y 3** | **bAXS** |
-| Runas y charms de la bolsa | **bAXS** |
+| Equipamiento **Tier 1, 2 y 3** | **AXS** (sello NFT) |
+| Runas y charms de la bolsa | **AXS** (sello NFT). Ochi ya no las compra (Hito 110) |
+| Bolsas de runa y de charm | **AXS** (sin sello NFT). Ochi ya no las compra (Hito 110) |
 
 No se comercia:
 - el equipo de Tier 0;
@@ -29,15 +30,16 @@ No se comercia:
 - lo que está equipado o en la Forja;
 - Axies;
 - **SLP**;
-- las copias Ronin (NFT).
+- las copias Ronin (NFT);
+- la runa y el charm que regala el tutorial (ligados a la partida, Hito 110).
 
 ## 2. Seguridad: oro, bAXS y SLP pasan a mandar desde el servidor
 
 Hoy la partida se sube entera desde el navegador. Con un mercado compartido, inventarse monedas u objetos perjudicaría a otros jugadores.
 
-**El SLP también cuenta**, aunque la tienda no lo acepte: con SLP se forjan bolsas de runas y charms y se evoluciona equipo, y todo eso se vende por bAXS. SLP inventado acabaría convertido en bAXS.
+**El SLP también cuenta**, aunque la tienda no lo acepte: con SLP se forjan bolsas de runas y charms y se evoluciona equipo, y todo eso se vende por AXS. SLP inventado acabaría convertido en AXS.
 
-Como el saldo es el mismo que el de la partida, **el servidor guarda los saldos de oro, bAXS y SLP** de cada ranura. El navegador ya no puede cambiarlos al guardar: `save_slot` ignora esos campos y conserva los del servidor.
+Como el saldo es el mismo que el de la partida, **el servidor guarda los saldos de oro, SLP, AXS y bAXS** de cada ranura. El navegador ya no puede cambiarlos al guardar: `save_slot` ignora esos campos y conserva los del servidor.
 
 Todo lo que mueve monedas pasa por funciones del servidor, con límites razonables:
 
@@ -76,7 +78,7 @@ Todo lo que mueve monedas pasa por funciones del servidor, con límites razonabl
 Si el vendedor no está conectado, el pago y el objeto devuelto le esperan en su partida del servidor. Los recibe al volver a cargarla.
 
 ### `marketPay` (punto único de pago)
-Hoy descuenta del saldo de la partida en el servidor. El día que haya bAXS real, solo cambia esta parte (pedir la firma en Ronin Wallet o Waypoint), sin tocar anuncios, interfaz ni reglas.
+Hoy descuenta del saldo de la partida en el servidor. El día que haya AXS real, solo cambia esta parte (pedir la firma en Ronin Wallet o Waypoint), sin tocar anuncios, interfaz ni reglas.
 
 ## 4. Interfaz (tienda de Ochi, pestaña «Mercado»)
 - **Comprar:** filtros por categoría, clase, tier y moneda; orden por precio o fecha.
@@ -92,6 +94,7 @@ Hoy descuenta del saldo de la partida en el servidor. El día que haya bAXS real
 | 1 · Monedas en el servidor | saldos de oro, bAXS y SLP en el servidor; `save_slot` deja de aceptarlos; `claim_battle_gold`, `shop_*`, `forge_pay`, `grant_reward` |
 | 2 · Recursos por oro | tablas y funciones del mercado; pestaña Mercado; comisión del 5 % en oro |
 | 3 · Equipo, runas y charms por bAXS | reglas por tier y clase; comisión del 5 %; precios sugeridos |
+| 4 · Moneda AXS (Hito 110) | el equipo, las runas y los charms pasan de bAXS a AXS; Ochi deja de comprar runas y charms; bono de 5 AXS (+5 AXS +15 bAXS una vez a las partidas existentes) |
 
 ## 6. Invitados (confirmado)
 - **Juegan como hoy:** la Forja, la tienda de Ochi y las monedas funcionan en su partida local, sin servidor.

@@ -8,6 +8,7 @@
   AddType application/javascript .js .mjs
   AddType application/json .json
   AddType image/webp .webp
+  AddType image/ktx2 .ktx2
   AddType audio/mpeg .mp3
   AddType audio/ogg .ogg
   AddType audio/wav .wav
@@ -19,9 +20,18 @@
   Header set Access-Control-Allow-Methods "GET, OPTIONS"
   Header set Access-Control-Allow-Headers "*"
 
-  # Browser Cache Optimization
-  <FilesMatch "\.(glb|gltf|png|jpg|jpeg|webp|svg|mp3|wav|ogg|wasm|woff2)$">
+  # Browser Cache Optimization (Hito 109)
+  # Modelos, audio, texturas KTX2 y binarios: un año sin volver a preguntar. El juego pide estos archivos con
+  # ?v=ASSET_VERSION (src/render/AssetVersion.js), así que al subir la versión la URL cambia y se descargan de nuevo.
+  # REGLA: si cambias algo en assets/, sube ASSET_VERSION antes de subir el juego.
+  <FilesMatch "\.(glb|gltf|bin|ktx2|mp3|wav|ogg|wasm|woff2)$">
     Header set Cache-Control "max-age=31536000, public, immutable"
+  </FilesMatch>
+
+  # Imágenes: se guardan, pero el navegador pregunta si cambiaron (respuesta 304 sin descarga si siguen igual).
+  # Los iconos y retratos de la interfaz se piden sin ?v=, así que así se actualizan solos al subir el juego.
+  <FilesMatch "\.(png|jpg|jpeg|webp|svg|gif)$">
+    Header set Cache-Control "no-cache"
   </FilesMatch>
 
   <FilesMatch "\.(html)$">

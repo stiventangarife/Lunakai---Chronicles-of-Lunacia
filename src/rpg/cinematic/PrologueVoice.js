@@ -7,6 +7,7 @@
 //   sin tocar los archivos.
 // · Mientras habla el narrador la música baja ≈ −10 dB (con rampas suaves) y vuelve al callar.
 import * as i18n from '../../i18n/i18n.js';
+import { v as withVersion } from '../../render/AssetVersion.js'; // Hito 109: versión en la ruta
 
 /** Segundo de la cinemática (desde 0:00) en que empieza cada línea; coincide con la entrada de su subtítulo. */
 export const VOICE_CUES = [
@@ -51,7 +52,7 @@ export class PrologueVoice {
     this.out.connect(this.ctx.destination);
     await Promise.all(VOICE_CUES.map(async ({ file }) => {
       try {
-        const res = await fetch(`./assets/voice/${this.lang}/${file}.mp3`);
+        const res = await fetch(withVersion(`./assets/voice/${this.lang}/${file}.mp3`));
         if (!res.ok) return;
         const buffer = await this.ctx.decodeAudioData(await res.arrayBuffer());
         this.buffers.set(file, { buffer, gain: PrologueVoice.levelGain(buffer) });

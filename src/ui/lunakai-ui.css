@@ -1280,7 +1280,8 @@ select.lk-select option:checked { background: #22304F; color: var(--lk-lumen-300
 .lk-forge-layer .lk-emoji { font-size: 30px; line-height: 1; }
 .lk-mat-tip { z-index: 2050; }
 /* Sin saltos en la cabecera cuando cambian las cantidades */
-.lk-forge-layer .lk-forge-wallet .lk-res-pill { min-width: 82px; }
+.lk-forge-layer .lk-forge-wallet .lk-res-pill { min-width: 76px; } /* oro · SLP · AXS · bAXS (Hito 110) */
+@media (max-width: 1180px) { .lk-forge-layer .lk-forge-wallet .lk-res-pill { min-width: 0; } }
 .lk-forge-layer .lk-forge-wallet { flex-wrap: nowrap; }
 @media (max-width: 980px) { .lk-forge-layer > .lk-forge { height: auto; } .lk-forge-layer .lk-forge-body { overflow-y: auto; } }
 /* Hito 50: la zona del yunque nunca se monta sobre el panel del botón y el temporizador. Con la ventana
@@ -1318,9 +1319,18 @@ select.lk-select option:checked { background: #22304F; color: var(--lk-lumen-300
 @media (max-width: 980px) { .lk-shop-layer > .lk-shop { height: auto; } .lk-shop-layer .lk-shop-body { overflow-y: auto; } }
 #ui-overlay .lk-btn-end-turn .lk-et-sep { display: none; }
 #ui-overlay .lk-btn-end-turn.lk-has-timer .lk-et-sep { display: inline; }
-/* Monedas en la cabecera de la Mochila y la Tienda (oro · SLP · bAXS), igual que en la Forja; ancho fijo: sin saltos */
+/* Monedas en la cabecera de la Mochila y la Tienda (oro · SLP · AXS · bAXS), igual que en la Forja; ancho fijo: sin saltos */
 .lk-wallet { display: flex; gap: 6px; flex-wrap: nowrap; }
-.lk-wallet .lk-res-pill { min-width: 82px; }
+.lk-wallet .lk-res-pill { min-width: 76px; }
+.lk-shop-layer .lk-wallet .lk-res-pill { min-width: 76px; }
+@media (max-width: 1180px) { .lk-wallet .lk-res-pill, .lk-shop-layer .lk-wallet .lk-res-pill { min-width: 0; } }
+/* Hito 110: sello «NFT» de lo que se comercia en AXS (equipo T1–3, runas y charms) en el Mercado */
+/* Sello NFT (logo de Ronin) del equipo T1–3, runas y charms del Mercado: abajo a la izquierda del dibujo, como en Runas */
+/* (img.lk-nft-seal y !important: las reglas de las imágenes de casilla, p. ej. `.lk-it .lk-art img` a 46 px, no deben agrandarlo) */
+.lk-it img.lk-nft-seal, .lk-fcard__art img.lk-nft-seal { position: absolute !important; left: 4px; bottom: 4px; z-index: 3; width: 18px !important; height: 18px !important; object-fit: contain; filter: drop-shadow(0 1px 2px rgba(0, 0, 0, .55)); pointer-events: auto; }
+.lk-eq-slot img.lk-nft-seal--slot { position: absolute !important; right: 2px; bottom: 2px; z-index: 3; width: 15px !important; height: 15px !important; object-fit: contain; filter: drop-shadow(0 1px 2px rgba(0, 0, 0, .55)); pointer-events: none; }
+.lk-nft-chip img.lk-nft-seal--chip { position: static !important; width: 13px !important; height: 13px !important; margin-right: 4px; filter: none; }
+.lk-nft-chip { display: inline-flex; align-items: center; margin-left: 6px; padding: 2px 8px 2px 6px; border-radius: var(--lk-r-pill); font-size: .66rem; font-weight: 900; letter-spacing: .08em; color: var(--lk-gilt-300); background: #121829; box-shadow: inset 0 0 0 1px rgba(238, 211, 154, .6); vertical-align: middle; }
 @media (max-width: 900px) { .lk-wallet .lk-res-pill.lk-cur { display: none; } }
 
 /* ── Recolección (GatheringHUD): barra de progreso donde sale «E · …» y tarjeta con el botín ── */

@@ -4,6 +4,7 @@
 //  · Comprar: oro → objeto. Equipo y consumibles van a la Mochila (EquipmentManager.inventory); los materiales,
 //    a la bolsa de la Forja (ForgeService). Cada tienda repone existencias cada `restockHours`.
 //  · Vender: el equipo y los consumibles al 30 %, los materiales al 50 % (EconomyCatalog.sellPrice).
+//    Las runas, los charms y sus bolsas no se venden a Ochi (Hito 110): solo en el Mercado entre jugadores, por AXS.
 //    Lo equipado no aparece y los objetos de misión no se venden. Lo último vendido se recompra al mismo precio.
 
 import { saveSlotManager } from './SaveSlotManager.js';
@@ -87,6 +88,8 @@ class ShopServiceImpl {
   /** Por qué esta tienda no te compra un objeto ('' = sí lo compra). */
   sellBlock(shopId, it) {
     if (isQuest(it)) return i18n.t('notices.shop.questNoSell');
+    if (it.runeCharm) return i18n.t('notices.shop.rcMarketOnly'); // Hito 110
+    if (it.category === 'bag') return i18n.t('notices.shop.bagMarketOnly');
     const max = this.def(shopId)?.maxGearTier;
     if (max != null && EQ_SLOTS.includes(it.slot) && (it.tier ?? 0) > max) return i18n.t('notices.shop.tierOnly', { max });
     return '';
@@ -109,12 +112,7 @@ class ShopServiceImpl {
       const free = n - (reserved[id] || 0);
       out.push({ key: id, id, it: ITEMS_DB[id], qty: free > 0 ? free : n, lockWhy: free > 0 ? this.sellBlock(shopId, ITEMS_DB[id]) : i18n.t('notices.shop.inForge') });
     });
-    // Runas y charms de la bolsa: solo las que no lleva ningún Axie
-    [['runes', 'rune'], ['charms', 'charm']].forEach(([kind, tag]) => RuneCharmService.list(kind).forEach((r) => {
-      const key = `${tag}:${r.id}`, it = rcItem(key); if (!it) return;
-      const sell = r.sellable ?? r.free;
-      out.push({ key, id: key, it, qty: sell || r.owned, lockWhy: sell > 0 ? '' : (r.free > 0 ? i18n.t('notices.shop.roninNoSell') : i18n.t('notices.shop.equippedAxie')) });
-    }));
+    // Runas y charms: desde el Hito 110 Ochi no las compra (solo se intercambian en el Mercado, en AXS).
     return out.map((e) => ({ ...e, locked: !!e.lockWhy, price: e.lockWhy ? 0 : sellPrice(e.it) }));
   }
 

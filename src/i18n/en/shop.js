@@ -2,6 +2,7 @@
 export default {
   "shop.bag": "Bag",
   "shop.baxsTitle": "bAXS (forge fees and speed-ups)",
+  "shop.axsTitle": "AXS (player Market: gear, runes and charms)",
   "shop.bought": "Bought {qty}{item}{extra}",
   "shop.buy": "Buy",
   "shop.buyBtn": "Buy ×{q} · {n}",

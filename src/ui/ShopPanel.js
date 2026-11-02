@@ -8,16 +8,18 @@
 // Las reglas y el guardado están en rpg/ShopService.js.
 //  · Hito 77 · Mercado (tercer modo): anuncios de otros jugadores (materiales, comida y pociones por oro), vender lo tuyo
 //    con precio propio, tus anuncios e historial. Invitados: solo mirar. Servidor en net/MarketService.js.
+//  · Hito 110 · El equipo T1–3, las runas y los charms se compran y venden en AXS (antes bAXS, que ya no se intercambia);
+//    llevan el sello «NFT». La cabecera muestra oro · SLP · AXS · bAXS.
 
 import { ShopService, itemOf, kindOf, EQ_SLOTS } from '../rpg/ShopService.js';
 import { ForgeService } from '../rpg/ForgeService.js';
 import { ITEMS_DB } from '../tactics/ItemDatabase.js';
 import { CRAFT_RECIPES, EVOLUTION_COST, nextEvolution, MATERIAL_RARITY_NAME } from '../tactics/data/EconomyCatalog.js';
-import { asset, esc, toast, sprite, curIcon } from './lk.js';
+import { asset, esc, toast, sprite, curIcon, isNftGear, nftSeal } from './lk.js';
 import { BIOME, matSvg } from './ForgePanel.js';
 import { loadRuneCharmArt, runeCharmArtReady } from './RuneCharmArt.js';
 import * as i18n from '../i18n/i18n.js';
-import { MarketService, MARKET_MAX_LISTINGS, BAXS_CEIL as MARKET_CEIL } from '../net/MarketService.js';
+import { MarketService, MARKET_MAX_LISTINGS, AXS_CEIL as MARKET_CEIL, isDecimalCurrency as isDec } from '../net/MarketService.js';
 import { buyPrice } from '../tactics/data/EconomyCatalog.js';
 
 const I = (n) => asset(`assets/ui/icons/${n}.png`);
@@ -76,7 +78,7 @@ export function attachShop(game) {
         <span class="lk-emblem"><img class="lk-ai" src="${I('resource')}" alt=""></span>
         <h3><small data-ref="place">${i18n.t('shop.shop')}</small><span data-ref="name">${i18n.t('shop.merchant')}</span></h3>
         <div class="lk-segmented" data-ref="mode" role="tablist" aria-label="${i18n.t('shop.modeLabel')}"><button type="button" aria-pressed="true" data-m="buy">${i18n.t('shop.buy')}</button><button type="button" aria-pressed="false" data-m="sell">${i18n.t('shop.sell')}</button><button type="button" aria-pressed="false" data-m="market">${i18n.t('market.mode')}</button></div>
-        <div class="lk-wallet" aria-label="${i18n.t('shop.coins')}"><span class="lk-res-pill" title="${i18n.t('shop.gold')}"><img class="lk-cur-ico" src="${curIcon('gold')}" alt="${i18n.t('shop.gold')}"><span data-ref="gold">0</span></span><span class="lk-res-pill lk-cur" title="${i18n.t('shop.slpTitle')}"><img class="lk-cur-ico" src="${curIcon('slp')}" alt="SLP"><span data-ref="slp">0</span></span><span class="lk-res-pill lk-cur" title="${i18n.t('shop.baxsTitle')}"><img class="lk-cur-ico" src="${curIcon('baxs')}" alt="bAXS"><span data-ref="baxs">0</span></span></div>
+        <div class="lk-wallet" aria-label="${i18n.t('shop.coins')}"><span class="lk-res-pill" title="${i18n.t('shop.gold')}"><img class="lk-cur-ico" src="${curIcon('gold')}" alt="${i18n.t('shop.gold')}"><span data-ref="gold">0</span></span><span class="lk-res-pill lk-cur" title="${i18n.t('shop.slpTitle')}"><img class="lk-cur-ico" src="${curIcon('slp')}" alt="SLP"><span data-ref="slp">0</span></span><span class="lk-res-pill lk-cur" title="${i18n.t('shop.axsTitle')}"><img class="lk-cur-ico" src="${curIcon('axs')}" alt="AXS"><span data-ref="axs">0</span></span><span class="lk-res-pill lk-cur" title="${i18n.t('shop.baxsTitle')}"><img class="lk-cur-ico" src="${curIcon('baxs')}" alt="bAXS"><span data-ref="baxs">0</span></span></div>
         <button type="button" class="lk-btn-close-x" data-act="close" aria-label="${i18n.t('shop.close')}">${sprite('i-close')}</button>
       </div>
       <div class="lk-shop-body">
@@ -114,7 +116,8 @@ export function attachShop(game) {
     $('place').textContent = i18n.t('shop.placeKicker', { place: d.place }); $('name').textContent = d.name;
     $('gold').textContent = fmt(ShopService.gold());
     const w = ForgeService.wallet();
-    $('slp').textContent = fmt(w.slp); $('baxs').textContent = (Math.round(w.baxs * 100) / 100).toLocaleString(i18n.lang() === 'es' ? 'es' : 'en', { maximumFractionDigits: 2 });
+    const dec = (v) => (Math.round((Number(v) || 0) * 100) / 100).toLocaleString(i18n.lang() === 'es' ? 'es' : 'en', { maximumFractionDigits: 2 });
+    $('slp').textContent = fmt(w.slp); $('axs').textContent = dec(w.axs); $('baxs').textContent = dec(w.baxs);
     $('mode').querySelectorAll('button').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.m === SH.mode)));
     if (SH.mode === 'market') { renderMarket(); return; }
     const all = entries();
@@ -130,7 +133,7 @@ export function attachShop(game) {
       const out = buy && e.left === 0, poor = buy && !out && e.price > gold, locked = !buy && e.locked;
       const qty = buy ? ShopService.have(e.id) : e.qty;
       const cap = locked ? (EQ_SLOTS.includes(it.slot) ? i18n.t('shop.wontBuy') : i18n.t('shop.notForSale')) : `${COIN}${fmt(e.price)}`;
-      return `<button type="button" class="lk-it ${e.key === SH.sel ? 'lk-is-sel' : ''} ${out ? 'lk-is-out' : ''} ${poor ? 'lk-is-poor' : ''} ${locked ? 'lk-is-locked' : ''}" data-k="${esc(e.key)}" style="--r:${bg(it)}" aria-label="${esc(it.name)}${qty > 1 ? ` ×${qty}` : ''}"><span class="lk-art">${art(it)}${EQ_SLOTS.includes(it.slot) && it.tier != null ? `<span class="lk-tier">T${it.tier}</span>` : ''}${qty > 1 ? `<span class="lk-qty">×${qty}</span>` : ''}</span><span class="lk-cap ${locked ? '' : 'lk-price'}">${cap}</span></button>`;
+      return `<button type="button" class="lk-it ${e.key === SH.sel ? 'lk-is-sel' : ''} ${out ? 'lk-is-out' : ''} ${poor ? 'lk-is-poor' : ''} ${locked ? 'lk-is-locked' : ''}" data-k="${esc(e.key)}" style="--r:${bg(it)}" aria-label="${esc(it.name)}${qty > 1 ? ` ×${qty}` : ''}"><span class="lk-art">${art(it)}${EQ_SLOTS.includes(it.slot) && it.tier != null ? `<span class="lk-tier">T${it.tier}</span>` : ''}${qty > 1 ? `<span class="lk-qty">×${qty}</span>` : ''}${isNftGear(it) ? nftSeal(i18n.t('market.nftHint')) : ''}</span><span class="lk-cap ${locked ? '' : 'lk-price'}">${cap}</span></button>`;
     }).join('') || `<p class="lk-sp-empty" style="color:#8D97AF">${SH.mode === 'sell' ? i18n.t('shop.nothingToSell') : i18n.t('shop.nothingHere')}</p>`;
     renderBuyback();
     renderPage(list.find((e) => e.key === SH.sel));
@@ -164,7 +167,7 @@ export function attachShop(game) {
     const nx = isGear && nextEvolution(it.id) && ITEMS_DB[nextEvolution(it.id)];
     const evo = nx ? `<div class="lk-sp-note"><img class="lk-ai" src="${I('upgrade')}" alt=""><span>${i18n.t('shop.evolvesTo', { item: esc(nx.name), tier: nx.tier })}</span></div>` : '';
     pg.innerHTML = `
-      <div class="lk-sp-head"><span class="lk-sp-art" style="--r:${bg(it)}">${art(it)}</span><div><small>${esc(slotName(it))}${tierLabel(it) ? ` · ${esc(tierLabel(it))}` : ''}</small><b>${esc(it.name)}</b>${((r) => `<span class="lk-rar-chip" data-r="${r === 'legendary' ? 'mystic' : r}">${RAR_NAME[r] || i18n.t('shop.rarCommon')}</span>`)((it.mat ? it.matRarity : it.rarity) || 'common')}</div></div>
+      <div class="lk-sp-head"><span class="lk-sp-art" style="--r:${bg(it)}">${art(it)}</span><div><small>${esc(slotName(it))}${tierLabel(it) ? ` · ${esc(tierLabel(it))}` : ''}</small><b>${esc(it.name)}</b>${((r) => `<span class="lk-rar-chip" data-r="${r === 'legendary' ? 'mystic' : r}">${RAR_NAME[r] || i18n.t('shop.rarCommon')}</span>`)((it.mat ? it.matRarity : it.rarity) || 'common')}${isNftGear(it) ? `<span class="lk-nft-chip" title="${esc(i18n.t('market.nftHint'))}">${nftSeal('', 'lk-nft-seal--chip')}${i18n.t('market.nft')}</span>` : ''}</div></div>
       <p class="lk-sp-desc">${esc(it.description || '')}</p>
       ${compare}${uses}${eff}${evo}
       ${!buy && e.locked ? '' : `<div class="lk-sp-qty"><span class="lk-step"><button type="button" data-q="-1" aria-label="${i18n.t('shop.less')}" ${SH.qty <= 1 ? 'disabled' : ''}>−</button><output>${SH.qty}</output><button type="button" data-q="1" aria-label="${i18n.t('shop.more')}" ${SH.qty >= max ? 'disabled' : ''}>+</button></span>${max > 1 ? `<button type="button" class="lk-max" data-q="max">${i18n.t('shop.max')}</button>` : ''}<span class="lk-have">${buy ? `${i18n.t('shop.have', { n: ShopService.have(it.id) })}${e.left != null ? ` · ${i18n.t('shop.left', { n: e.left })}` : ''}` : i18n.t('shop.have', { n: e.qty })}</span></div>`}
@@ -210,22 +213,26 @@ export function attachShop(game) {
 
 
   // ------------------------------------------------------------------ Hito 77 · Mercado entre jugadores
-  // Hito 78: cada objeto tiene su moneda (oro: recursos · bAXS: equipo T1–3, runas y charms) y hay filtros por tipo y tier.
+  // Hito 78: cada objeto tiene su moneda y hay filtros por tipo y tier. Hito 110: oro (recursos) · AXS (equipo T1–3,
+  // runas y charms). El bAXS solo aparece en el historial de antes del cambio.
   const MK_TABS = [['browse', 'market.tabBrowse'], ['sell', 'market.tabSell'], ['mine', 'market.tabMine'], ['history', 'market.tabHistory']];
   const MK_CATS = [['all', 'market.catAll'], ['res', 'market.catRes'], ['gear', 'market.catGear'], ['rc', 'market.catRc']];
   const qtyTxt = (q) => (q > 1 ? `${q} × ` : '');
   const hoursLeft = (iso) => Math.max(0, (new Date(iso).getTime() - Date.now()) / 3600e3);
-  const BAXS_ICO = `<img class="lk-coin" src="${curIcon('baxs')}" alt="" aria-hidden="true">`;
-  const curIco = (cur) => (cur === 'baxs' ? BAXS_ICO : COIN);
-  const money = (v, cur) => (cur === 'baxs'
+  const CUR_ICO = Object.fromEntries(['axs', 'baxs'].map((k) => [k, `<img class="lk-coin" src="${curIcon(k)}" alt="" aria-hidden="true">`]));
+  const CUR_NAME = { axs: 'AXS', baxs: 'bAXS' };
+  const curIco = (cur) => CUR_ICO[cur] || COIN;
+  const curWord = (cur) => CUR_NAME[cur] || i18n.t('market.goldWord');
+  const money = (v, cur) => (isDec(cur)
     ? Number(v || 0).toLocaleString(i18n.lang() === 'es' ? 'es' : 'en', { minimumFractionDigits: Number(v) % 1 ? 2 : 0, maximumFractionDigits: 2 })
     : fmt(v));
   const priced = (v, cur) => `${curIco(cur)}${money(v, cur)}`;
-  const mul = (price, q, cur) => (cur === 'baxs' ? Math.round(Math.round(price * 100) * q) / 100 : price * q); // sin errores de coma flotante
-  const walletOf = (cur) => (cur === 'baxs' ? Number(ForgeService.wallet().baxs) || 0 : ShopService.gold());
+  const mul = (price, q, cur) => (isDec(cur) ? Math.round(Math.round(price * 100) * q) / 100 : price * q); // sin errores de coma flotante
+  const walletOf = (cur) => (cur === 'axs' || cur === 'baxs' ? Number(ForgeService.wallet()[cur]) || 0 : ShopService.gold());
   const curOf = (e) => e.l?.currency || e.h?.currency || e.rule?.currency || MarketService.rule(e.id)?.currency || 'gold';
-  const catOf = (e) => (curOf(e) === 'gold' ? 'res' : (e.l?.kind || e.rule?.kind || MarketService.rule(e.id)?.kind) === 'rc' ? 'rc' : 'gear');
-  const needTxt = (cur, n) => (cur === 'baxs' ? i18n.t('market.needBaxs', { n: money(n, 'baxs') }) : i18n.t('shop.needGold', { n: fmt(n) }));
+  const catOf = (e) => (curOf(e) === 'gold' ? 'res' : (e.l?.kind || e.rule?.kind || MarketService.rule(e.id)?.kind) === 'rc' || e.it?.category === 'bag' ? 'rc' : 'gear');
+  const needTxt = (cur, n) => (cur === 'axs' ? i18n.t('market.needAxs', { n: money(n, cur) }) : cur === 'baxs' ? i18n.t('market.needBaxs', { n: money(n, cur) }) : i18n.t('shop.needGold', { n: fmt(n) }));
+  const isNft = (cur, it = null) => cur === 'axs' && it?.category !== 'bag'; // Hito 110: equipo, runas y charms se perciben como NFT (las bolsas no)
 
   async function loadMarket(force = false) {
     if (MK.loading || (MK.loaded && !force)) return;
@@ -247,11 +254,11 @@ export function attachShop(game) {
     const rules = MarketService._rules || {};
     return withIt(Object.keys(rules).map((id) => ({ key: id, id, it: itemOf(id), rule: rules[id], qty: MarketService.have(id) })).filter((e) => e.qty > 0));
   }
-  /** Precio de partida al vender: mediana de las ventas, o el de Ochi (oro), o el doble del mínimo (bAXS). */
+  /** Precio de partida al vender: mediana de las ventas, o el de Ochi (oro), o el doble del mínimo (AXS). */
   function defaultPrice(e) {
     const r = e.rule, hint = MK.hints[e.id];
-    const base = Number(hint?.median) || (r.currency === 'baxs' ? r.min * 2 : buyPrice(e.it) || r.min);
-    return Math.min(r.max ?? MARKET_CEIL, Math.max(r.min, r.currency === 'baxs' ? Math.round(base * 100) / 100 : Math.round(base)));
+    const base = Number(hint?.median) || (isDec(r.currency) ? r.min * 2 : buyPrice(e.it) || r.min);
+    return Math.min(r.max ?? MARKET_CEIL, Math.max(r.min, isDec(r.currency) ? Math.round(base * 100) / 100 : Math.round(base)));
   }
 
   function renderMarket() {
@@ -293,12 +300,13 @@ export function attachShop(game) {
       if (closed) cap = i18n.t(STATUS_CAP[l.status]);
       if (e.h) cap = `${e.h.side === 'sell' ? '+' : '−'}${priced(e.h.side === 'sell' ? e.h.gross - e.h.fee : e.h.gross, cur)}`;
       const tier = EQ_SLOTS.includes(it.slot) && it.tier != null ? `<span class="lk-tier">T${it.tier}</span>` : '';
-      return `<button type="button" class="lk-it ${e.key === SH.sel ? 'lk-is-sel' : ''} ${closed ? 'lk-is-out' : ''} ${poor ? 'lk-is-poor' : ''}" data-k="${esc(e.key)}" style="--r:${bg(it)}" aria-label="${esc(it.name)}${e.qty > 1 ? ` ×${e.qty}` : ''}"><span class="lk-art">${art(it)}${tier}${e.qty > 1 ? `<span class="lk-qty">×${e.qty}</span>` : ''}</span><span class="lk-cap ${closed ? '' : 'lk-price'}">${cap}</span></button>`;
+      const nft = isNft(cur, it) ? nftSeal(i18n.t('market.nftHint')) : '';
+      return `<button type="button" class="lk-it ${e.key === SH.sel ? 'lk-is-sel' : ''} ${closed ? 'lk-is-out' : ''} ${poor ? 'lk-is-poor' : ''}" data-k="${esc(e.key)}" style="--r:${bg(it)}" aria-label="${esc(it.name)}${e.qty > 1 ? ` ×${e.qty}` : ''}"><span class="lk-art">${art(it)}${tier}${nft}${e.qty > 1 ? `<span class="lk-qty">×${e.qty}</span>` : ''}</span><span class="lk-cap ${closed ? '' : 'lk-price'}">${cap}</span></button>`;
     }).join('') || `<p class="lk-sp-empty" style="color:#8D97AF;grid-column:1/-1">${esc(empty)}</p>`;
     renderMarketPage(shown.find((e) => e.key === SH.sel));
   }
 
-  const head = (it, small = '') => `<div class="lk-sp-head"><span class="lk-sp-art" style="--r:${bg(it)}">${art(it)}</span><div><small>${esc(slotName(it))}${tierLabel(it) ? ` · ${esc(tierLabel(it))}` : ''}${small ? ` · ${esc(small)}` : ''}</small><b>${esc(it.name)}</b>${((r) => `<span class="lk-rar-chip" data-r="${r === 'legendary' ? 'mystic' : r}">${RAR_NAME[r] || i18n.t('shop.rarCommon')}</span>`)((it.mat ? it.matRarity : it.rarity) || 'common')}</div></div>`;
+  const head = (it, small = '', cur = 'gold') => `<div class="lk-sp-head"><span class="lk-sp-art" style="--r:${bg(it)}">${art(it)}</span><div><small>${esc(slotName(it))}${tierLabel(it) ? ` · ${esc(tierLabel(it))}` : ''}${small ? ` · ${esc(small)}` : ''}</small><b>${esc(it.name)}</b>${((r) => `<span class="lk-rar-chip" data-r="${r === 'legendary' ? 'mystic' : r}">${RAR_NAME[r] || i18n.t('shop.rarCommon')}</span>`)((it.mat ? it.matRarity : it.rarity) || 'common')}${isNft(cur, it) || isNftGear(it) ? `<span class="lk-nft-chip" title="${esc(i18n.t('market.nftHint'))}">${nftSeal('', 'lk-nft-seal--chip')}${i18n.t('market.nft')}</span>` : ''}</div></div>`;
   const note = (icon, html) => `<div class="lk-sp-note"><img class="lk-ai" src="${I(icon)}" alt=""><span>${html}</span></div>`;
   const stepper = (val, max, ref) => `<span class="lk-step"><button type="button" data-${ref}="-1" aria-label="${i18n.t('shop.less')}" ${val <= 1 ? 'disabled' : ''}>−</button><output>${val}</output><button type="button" data-${ref}="1" aria-label="${i18n.t('shop.more')}" ${val >= max ? 'disabled' : ''}>+</button></span>${max > 1 ? `<button type="button" class="lk-max" data-${ref}="max">${i18n.t('shop.max')}</button>` : ''}`;
   const sumRow = (label, v, cls = '') => `<div class="${cls}"><span>${label}</span><b>${v}</b></div>`;
@@ -324,14 +332,14 @@ export function attachShop(game) {
       const total = mul(price, SH.qty, cur);
       const why = !MarketService.canTrade ? i18n.t('market.err.guest') : l.mine ? i18n.t('market.err.own') : price > wallet ? needTxt(cur, mul(price, 1, cur) - wallet) : '';
       const confirming = MK.confirm === e.key && !why;
-      html = `${head(it)}<p class="lk-sp-desc">${esc(it.description || '')}</p>${details(it)}
+      html = `${head(it, '', cur)}<p class="lk-sp-desc">${esc(it.description || '')}</p>${details(it)}
         ${note('resource', `<b>${i18n.t('market.seller')}</b> ${esc(l.mine ? i18n.t('market.you') : l.seller)}`)}${note('hourglass', i18n.t('market.expiresIn', { t: fmtH(hoursLeft(l.expiresAt)) }))}
         <div class="lk-sp-qty">${stepper(SH.qty, max, 'q')}<span class="lk-have">${i18n.t('shop.have', { n: MarketService.have(it.id) })} · ${i18n.t('market.inStock', { n: l.qtyLeft })}</span></div>
         <div class="lk-sp-sum">${sumRow(i18n.t('shop.unitPrice'), priced(price, cur))}${sumRow(i18n.t('shop.total'), priced(total, cur), 'lk-total')}${sumRow(i18n.t('shop.leftAfter'), `<span class="${total > wallet ? 'lk-neg' : ''}">${priced(Math.max(0, mul(wallet, 1, cur) - total), cur)}</span>`)}</div>
-        ${confirming ? note('upgrade', esc(i18n.t('market.confirmHint', { q: SH.qty, item: it.name, n: money(total, cur), cur: cur === 'baxs' ? 'bAXS' : i18n.t('market.goldWord') }))) : ''}
-        ${actBtn('lk-btn-primary-gold', confirming ? curIco(cur).replace('lk-coin', 'lk-cur-ico') : `<img class="lk-ai" src="${I('add')}" alt="">`, confirming ? i18n.t('market.confirmBtn', { n: money(total, cur), cur: cur === 'baxs' ? 'bAXS' : '' }).trim() : i18n.t('market.buyBtn', { q: SH.qty, n: money(total, cur) }), why)}`;
-      // En bAXS se confirma con un segundo clic (objeto, cantidad y total a la vista)
-      act = () => { if (cur === 'baxs' && MK.confirm !== e.key) { MK.confirm = e.key; renderMarketPage(e); return; } MK.confirm = null; doMarket('buy', e, SH.qty); };
+        ${confirming ? note('upgrade', esc(i18n.t('market.confirmHint', { q: SH.qty, item: it.name, n: money(total, cur), cur: curWord(cur) }))) : ''}
+        ${actBtn('lk-btn-primary-gold', confirming ? curIco(cur).replace('lk-coin', 'lk-cur-ico') : `<img class="lk-ai" src="${I('add')}" alt="">`, confirming ? i18n.t('market.confirmBtn', { n: money(total, cur), cur: isDec(cur) ? curWord(cur) : '' }).trim() : i18n.t('market.buyBtn', { q: SH.qty, n: money(total, cur) }), why)}`;
+      // En AXS se confirma con un segundo clic (objeto, cantidad y total a la vista)
+      act = () => { if (isDec(cur) && MK.confirm !== e.key) { MK.confirm = e.key; renderMarketPage(e); return; } MK.confirm = null; doMarket('buy', e, SH.qty); };
     } else if (MK.tab === 'sell') {
       const r = e.rule, max = Math.min(99, e.qty);
       SH.qty = Math.max(1, Math.min(SH.qty, max));
@@ -343,17 +351,17 @@ export function attachShop(game) {
       const why = !MarketService.canTrade ? i18n.t('market.err.guest') : MK.blocked ? i18n.t('market.err.blocked') : openN >= MARKET_MAX_LISTINGS ? i18n.t('market.err.tooMany') : '';
       const hintTxt = hint?.median ? i18n.t('market.hint', { n: money(hint.median, cur), s: Math.min(20, hint.sales) }) : cur === 'gold' && buyPrice(it) ? i18n.t('market.hintShop', { n: fmt(buyPrice(it)) }) : '';
       const top = r.max ?? MARKET_CEIL;
-      html = `${head(it)}<p class="lk-sp-desc">${esc(it.description || '')}</p>${details(it)}
+      html = `${head(it, '', cur)}<p class="lk-sp-desc">${esc(it.description || '')}</p>${details(it)}
         ${hintTxt ? note('map', esc(hintTxt)) : ''}
         <div class="lk-sp-qty">${stepper(SH.qty, max, 'q')}<span class="lk-have">${i18n.t('shop.have', { n: e.qty })}</span></div>
-        <span class="lk-label">${i18n.t('market.priceEach')} · ${cur === 'baxs' ? 'bAXS' : i18n.t('market.goldWord')}</span>
-        <div class="lk-sp-qty"><span class="lk-step"><button type="button" data-p="-1" aria-label="${i18n.t('shop.less')}" ${price <= r.min ? 'disabled' : ''}>−</button><input class="lk-mk-price" type="text" inputmode="decimal" autocomplete="off" value="${cur === 'baxs' ? money(price, cur) : price}" aria-label="${i18n.t('market.priceEach')}"><button type="button" data-p="1" aria-label="${i18n.t('shop.more')}" ${price >= top ? 'disabled' : ''}>+</button></span><span class="lk-have">${r.max != null ? i18n.t('market.range', { min: money(r.min, cur), max: money(r.max, cur) }) : i18n.t('market.rangeMin', { min: money(r.min, cur) })}</span></div>
+        <span class="lk-label">${i18n.t('market.priceEach')} · ${isDec(cur) ? curWord(cur) : i18n.t('market.goldWord')}</span>
+        <div class="lk-sp-qty"><span class="lk-step"><button type="button" data-p="-1" aria-label="${i18n.t('shop.less')}" ${price <= r.min ? 'disabled' : ''}>−</button><input class="lk-mk-price" type="text" inputmode="decimal" autocomplete="off" value="${isDec(cur) ? money(price, cur) : price}" aria-label="${i18n.t('market.priceEach')}"><button type="button" data-p="1" aria-label="${i18n.t('shop.more')}" ${price >= top ? 'disabled' : ''}>+</button></span><span class="lk-have">${r.max != null ? i18n.t('market.range', { min: money(r.min, cur), max: money(r.max, cur) }) : i18n.t('market.rangeMin', { min: money(r.min, cur) })}</span></div>
         <div class="lk-sp-sum">${sumRow(i18n.t('market.gross'), priced(gross, cur))}${sumRow(i18n.t('market.fee'), `−${priced(fee, cur)}`)}${sumRow(i18n.t('market.net'), priced(mul(gross - fee, 1, cur), cur), 'lk-total')}</div>
-        ${actBtn('lk-btn-secondary-wood', `<img class="lk-cur-ico" src="${curIcon(cur === 'baxs' ? 'baxs' : 'gold')}" alt="">`, i18n.t('market.publish', { q: SH.qty, n: money(gross, cur) }), why)}`;
+        ${actBtn('lk-btn-secondary-wood', `<img class="lk-cur-ico" src="${curIcon(isDec(cur) ? cur : 'gold')}" alt="">`, i18n.t('market.publish', { q: SH.qty, n: money(gross, cur) }), why)}`;
       act = () => doMarket('list', e, SH.qty, price);
     } else if (MK.tab === 'mine') {
       const l = e.l, open = l.status === 'open', sold = mul(Number(l.price), l.qty - l.qtyLeft, cur);
-      html = `${head(it, i18n.t(`market.status.${l.status}`))}
+      html = `${head(it, i18n.t(`market.status.${l.status}`), cur)}
         ${open ? note('hourglass', i18n.t('market.expiresIn', { t: fmtH(hoursLeft(l.expiresAt)) })) : ''}
         <div class="lk-sp-sum">${sumRow(i18n.t('shop.unitPrice'), priced(l.price, cur))}${sumRow(i18n.t('market.soldOf'), `${l.qty - l.qtyLeft} / ${l.qty}`)}${sumRow(i18n.t('market.netSoFar'), priced(mul(sold - MarketService.fee(sold, cur), 1, cur), cur), 'lk-total')}</div>
         ${open ? `${note('upgrade', esc(i18n.t('market.cancelHint')))}${actBtn('lk-btn-secondary-wood', `<img class="lk-ai" src="${I('resource')}" alt="">`, i18n.t('market.cancelBtn'), '')}` : ''}`;
@@ -376,10 +384,10 @@ export function attachShop(game) {
         const t = String(v).trim().replace(/\s/g, ''); // «3,75», «3.75» o «1.000,50»
         const n = Number(t.includes(',') ? t.replace(/\./g, '').replace(',', '.') : t);
         const c = Math.min(top, Math.max(r.min, Number.isFinite(n) ? n : r.min));
-        MK.price[e.id] = cur === 'baxs' ? Math.round(c * 100) / 100 : Math.round(c);
+        MK.price[e.id] = isDec(cur) ? Math.round(c * 100) / 100 : Math.round(c);
         renderMarket();
       };
-      const step = cur === 'baxs' ? 0.1 : Math.max(1, Math.round((r.max ?? r.min * 10) / 50));
+      const step = isDec(cur) ? 0.1 : Math.max(1, Math.round((r.max ?? r.min * 10) / 50));
       pg.querySelectorAll('[data-p]').forEach((b) => b.addEventListener('click', () => setPrice(MK.price[e.id] + Number(b.dataset.p) * step)));
       const inp = pg.querySelector('.lk-mk-price');
       inp?.addEventListener('change', () => setPrice(inp.value));
@@ -408,7 +416,7 @@ export function attachShop(game) {
   function inboxToasts(r) {
     const name = (id) => itemOf(id)?.name || id;
     const lines = [
-      ...(r.sold || []).map((s) => i18n.t('market.inboxSold', { qty: qtyTxt(s.qty), item: name(s.item), n: money(s.net, s.currency || 'gold'), cur: s.currency === 'baxs' ? 'bAXS' : i18n.t('market.goldWord') })),
+      ...(r.sold || []).map((s) => i18n.t('market.inboxSold', { qty: qtyTxt(s.qty), item: name(s.item), n: money(s.net, s.currency || 'gold'), cur: curWord(s.currency) })),
       ...(r.expired || []).map((x) => i18n.t('market.inboxExpired', { qty: qtyTxt(x.qty), item: name(x.item) })),
     ];
     lines.forEach((t, i) => setTimeout(() => toast(t), i * 2400));

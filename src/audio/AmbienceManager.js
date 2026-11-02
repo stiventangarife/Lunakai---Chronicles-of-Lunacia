@@ -16,6 +16,7 @@
 // Consola: lkDebug.audio() / lunakaiAmbience.status().
 
 import { canonicalZoneId } from '../rpg/world/islands/IslandWorldLayout.js';
+import { v as withVersion } from '../render/AssetVersion.js'; // Hito 109: versión en la ruta
 
 const TICK_MS = 100;
 const MIX_GAIN = 2.5;
@@ -215,7 +216,7 @@ export class AmbienceManager {
     if (e) return e.state === 'ok' ? e.buf : null;
     const entry = { state: 'loading', buf: null };
     this.loops.set(name, entry);
-    fetch(LOOP_DIR + name)
+    fetch(withVersion(LOOP_DIR + name))
       .then((r) => { if (!r.ok) throw new Error(r.status); return r.arrayBuffer(); })
       .then((ab) => this.ctx.decodeAudioData(ab))
       .then((buf) => { entry.state = 'ok'; entry.buf = buf; this._dirty = true; })

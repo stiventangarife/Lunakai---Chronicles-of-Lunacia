@@ -1,7 +1,8 @@
 // EconomyService.js — Hito 76 (Fase 1 del Mercado): oro, bAXS y SLP en el servidor para las partidas con cuenta.
+// Hito 110: también el AXS (moneda del Mercado de equipo, runas y charms).
 //
 // Con cuenta, cada ganancia o gasto se pide a una función de Supabase (migración 20261026000000_economy.sql) y el
-// saldo que devuelve es el que vale: se aplica a la partida (EquipmentManager.gold y ForgeService slp/baxs).
+// saldo que devuelve es el que vale: se aplica a la partida (EquipmentManager.gold y ForgeService slp/baxs/axs).
 // Como invitado no hace nada: el juego sigue en local como siempre (`active` = false).
 // Si la base de datos aún no tiene las funciones (migración sin aplicar), se desactiva sola y el juego sigue en local.
 //
@@ -84,6 +85,8 @@ class EconomyServiceImpl {
       const f = forge._store();
       f.slp = Math.max(0, Number(res.slp) || 0);
       f.baxs = +Math.max(0, Number(res.baxs) || 0).toFixed(2);
+      // Si el servidor aún no tiene la migración del Hito 110 no manda `axs`: se deja el de la partida.
+      if (res.axs != null) { f.axs = +Math.max(0, Number(res.axs) || 0).toFixed(2); f.axsLaunch = true; }
     }
     try { forge?._commit?.(false); } catch { /* nada */ }
     try { em?._notifyChange?.(); } catch { /* nada */ }
@@ -159,7 +162,7 @@ class EconomyServiceImpl {
     const n = res?.need;
     const KEYS = {
       offline: 'notices.economy.offline', unavailable: 'notices.economy.error', need_gold: 'notices.economy.needGold',
-      need_slp: 'notices.economy.needSlp', need_baxs: 'notices.economy.needBaxs', daily_cap: 'notices.economy.dailyCap',
+      need_slp: 'notices.economy.needSlp', need_baxs: 'notices.economy.needBaxs', need_axs: 'notices.economy.needAxs', daily_cap: 'notices.economy.dailyCap',
       too_fast: 'notices.economy.tooFast', not_owned: 'notices.economy.notOwned', already_claimed: 'notices.economy.alreadyClaimed',
       nothing_to_rebuy: 'notices.economy.nothingToRebuy', not_for_sale: 'notices.shop.notForSale', not_sellable: 'notices.economy.notSellable',
     };

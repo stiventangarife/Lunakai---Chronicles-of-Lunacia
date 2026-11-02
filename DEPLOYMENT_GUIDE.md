@@ -88,3 +88,40 @@ Si prefieres ejecutar el servidor Node.js propio incluido en [`server.js`](./ser
 - [x] Archivos `.glb` y `.gltf` con cabeceras MIME declaradas en `.htaccess`, `vercel.json`, `netlify.toml` y `server.js`.
 - [x] Zero errores de sintaxis en los 28 módulos ES.
 - [x] Compatibilidad móvil y de escritorio con layout responsive.
+
+---
+
+## Antes de cada entrega: versión del juego (Hito 110)
+
+La versión que se ve en la pantalla de inicio y en la de selección de personaje («Demo 1 (v0.4.0) - Lunakai») es la constante `GAME_VERSION` de `src/rpg/ui/StartScreenUI.js`. Súbela cuando quieras marcar una entrega nueva (por ejemplo, `0.4.0` → `0.4.1` para correcciones, `0.5.0` para funciones nuevas). Es independiente de la versión de los assets de abajo.
+
+## Base de datos (Supabase): migraciones pendientes
+
+Si la entrega trae migraciones nuevas en `supabase/migrations/`, aplícalas **en orden** con `supabase db push` o en el SQL Editor de Supabase. Las del Hito 110 (moneda AXS):
+
+1. `20261101000000_axs.sql`
+2. `20261101000001_economy_catalog.sql`
+3. `20261101000002_market_rules.sql`
+4. `20261101000003_market_bound_bags.sql`
+5. `20261101000004_economy_catalog.sql`
+6. `20261101000005_market_rules.sql`
+
+Si hay que repetirlas, ejecútalas todas y en este mismo orden (las de catálogo reescriben la lista entera). El regalo de AXS a las partidas existentes se da una sola vez aunque se repita la primera.
+
+## Actualizar el juego ya publicado: versión de los assets (Hito 109)
+
+Los modelos, la música y los efectos se guardan **un año** en el navegador de cada jugador sin volver a preguntar al servidor (`.htaccess`, `_headers`, `netlify.toml`, `vercel.json`). Por eso, si reemplazas un archivo de `assets/` conservando su nombre, quien ya jugó seguiría viendo o escuchando el viejo.
+
+El juego pide esos archivos con `?v=<versión>` (`src/render/AssetVersion.js`). Antes de cada subida:
+
+1. ¿Cambiaste, reemplazaste u optimizaste algo en `assets/` o `vendor/`? Sube la versión en `src/render/AssetVersion.js`:
+   ```js
+   export const ASSET_VERSION = '0.4.1'; // antes '0.4.0'
+   ```
+   Si solo cambiaste código (`src/`), textos o añadiste archivos nuevos con nombre nuevo, no hace falta.
+2. Sube el juego como siempre (Hostinger: Administrador de archivos / FTP a `public_html`, incluido `.htaccess`).
+3. Si tienes activada la **CDN de Hostinger** o LiteSpeed Cache, púrgala desde hPanel.
+4. Comprueba en el navegador (F12 → Red) que los `.glb` / `.mp3` llevan `?v=0.4.1`. En la consola, `lkAssetVersion` muestra la versión activa.
+
+Las imágenes de la interfaz (iconos, retratos) no llevan versión: el `.htaccess` hace que el navegador pregunte si cambiaron, así que se actualizan solas.
+

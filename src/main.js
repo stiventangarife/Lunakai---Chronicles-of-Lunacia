@@ -1,6 +1,8 @@
 // main.js - Core Orchestrator for Axie Tactics 3D with Biomes, Equipment & Guided Tutorial
 // Debe ser la primera importación: cuenta la memoria de GPU desde el primer contexto WebGL (lkDebug.gpu)
 import { installGpuProbe } from './debug/GpuProbe.js';
+// Hito 109: ?v=ASSET_VERSION en las peticiones de assets (caché de un año del hosting). Antes de cualquier carga.
+import './render/AssetVersion.js';
 import { unlockLevelOf, newlyUnlocked } from './tactics/combat/SkillUnlocks.js'; // Hito 98
 import * as THREE from 'three';
 import './ui/AccessPrefs.js'; // Hito 85: preferencias de accesibilidad aplicadas antes de crear la interfaz

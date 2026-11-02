@@ -31,6 +31,10 @@ import { accountManager } from '../../net/AccountManager.js';
 import * as i18n from '../../i18n/i18n.js';
 import { MAP_REGISTRY } from '../world/MapRegistry.js';
 
+/** Versión del juego que se ve en la pantalla de inicio y en la de selección de personaje. Súbela con cada entrega
+ *  (no es la de los assets: esa es ASSET_VERSION, en render/AssetVersion.js, y solo cambia si se reemplaza algo de assets/). */
+export const GAME_VERSION = '0.4.0';
+
 // Nombre de la zona de una ranura en el idioma actual (la ranura guarda el nombre del momento en que se guardó)
 const zoneLabel = (z) => (z && z.mapId && MAP_REGISTRY[z.mapId] && MAP_REGISTRY[z.mapId].name) || (z && z.name) || '';
 
@@ -369,7 +373,7 @@ export class StartScreenUI {
             <div class="lk-login__err"><span class="lk-err-ring">!</span><b data-ref="errTitle">${i18n.t('start.errConnect')}</b><p data-ref="errText">${i18n.t('start.errConnectText')}</p><div class="lk-acts"><button class="lk-btn lk-btn-primary-gold lk-btn--sm" data-act="retry"><span class="lk-b-ico"><img class="lk-ai" src="${I('replay')}" alt=""></span>${i18n.t('start.retry')}</button><button class="lk-btn lk-btn-secondary-wood lk-btn--sm" data-act="guest"><span class="lk-b-ico"><img class="lk-ai" src="${I('friend')}" alt=""></span>${i18n.t('start.playGuest')}</button></div><button class="lk-text-btn" data-act="errBack">${i18n.t('start.backToStart')}</button></div>
             <div class="lk-login__ok"><span class="lk-ok-ring">✓</span><b>${i18n.t('start.signedIn')}</b><span class="lk-wallet-chip" data-ref="wallet"></span><p data-ref="okText">${i18n.t('start.loadingAdventures')}</p></div>
           </div>
-          <div class="lk-login__foot"><span class="lk-on">${i18n.t('start.online')}</span><span>Demo 1 (v0.4.0) - Lunakai</span></div>
+          <div class="lk-login__foot"><span class="lk-on">${i18n.t('start.online')}</span><span>Demo 1 (v${GAME_VERSION}) - Lunakai</span></div>
         </div>
       </section>
 
@@ -388,7 +392,7 @@ export class StartScreenUI {
           <div class="lk-slots" id="start-slots-grid" role="listbox" aria-label="${i18n.t('start.slotsAria')}"></div>
         </div>
         <div class="lk-sel-foot"><div class="lk-sel-summary" data-ref="summary"></div><button class="lk-btn lk-btn-primary-gold lk-btn--lg" data-act="play"><span class="lk-b-ico" data-ref="playIco"></span><span data-ref="playTxt">${i18n.t('start.continue')}</span></button></div>
-        <div class="lk-sel-legal"><span>Demo 1 (v0.4.0) - Lunakai</span></div>
+        <div class="lk-sel-legal"><span>Demo 1 (v${GAME_VERSION}) - Lunakai</span></div>
       </section>
 
       <div class="lk-confirm" id="lk-delete-confirm" role="alertdialog" aria-labelledby="lk-del-title">

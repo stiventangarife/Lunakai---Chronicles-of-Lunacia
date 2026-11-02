@@ -8,7 +8,7 @@ import { SPELLS_DB } from '../../tactics/Spells.js';
 import { STARTER_DECKS } from '../../tactics/data/StarterCards.js';
 import { getHeroSpells } from '../SaveSlotManager.js';
 import { portraitService } from '../../tactics/CharacterPortraitService.js';
-import { asset, sprite, toast, curIcon } from '../../ui/lk.js';
+import { asset, sprite, toast, curIcon, isNftGear, nftSeal } from '../../ui/lk.js';
 import { HeroModelPreview } from './HeroModelPreview.js';
 import { warmupRender } from '../../render/RenderWarmup.js';
 import { createRunesView, runesPending } from '../../ui/RunesCharmsPanel.js';
@@ -131,7 +131,7 @@ export class InventoryModal {
           <h3><small>${i18n.t('inventory.kicker')}</small>${i18n.t('inventory.title')}</h3>
           <button type="button" class="lk-btn lk-btn-moon lk-btn--sm lk-bag__squad" data-ref="squadBtn" title="${i18n.t('inventory.keyK')}"><span class="lk-b-ico"><img class="lk-ai" src="${I('team')}" alt=""></span>${i18n.t('inventory.squad')}</button>
           <div class="lk-segmented" data-ref="viewTabs"><button type="button" aria-pressed="true" data-view="equipment">${i18n.t('inventory.title')}</button><button type="button" aria-pressed="false" data-view="runes" title="${i18n.t('inventory.keyU')}">${i18n.t('inventory.runesCharms')}<span class="lk-bag-dot" data-ref="runesDot" hidden></span></button></div>
-          <div class="lk-wallet" aria-label="${i18n.t('inventory.currencies')}"><span class="lk-res-pill" title="${i18n.t('inventory.gold')}"><img class="lk-cur-ico" src="${curIcon('gold')}" alt="${i18n.t('inventory.gold')}"><span data-ref="gold">0</span></span><span class="lk-res-pill lk-cur" title="${i18n.t('inventory.slpTitle')}"><img class="lk-cur-ico" src="${curIcon('slp')}" alt="SLP"><span data-ref="slp">0</span></span><span class="lk-res-pill lk-cur" title="${i18n.t('inventory.baxsTitle')}"><img class="lk-cur-ico" src="${curIcon('baxs')}" alt="bAXS"><span data-ref="baxs">0</span></span></div>
+          <div class="lk-wallet" aria-label="${i18n.t('inventory.currencies')}"><span class="lk-res-pill" title="${i18n.t('inventory.gold')}"><img class="lk-cur-ico" src="${curIcon('gold')}" alt="${i18n.t('inventory.gold')}"><span data-ref="gold">0</span></span><span class="lk-res-pill lk-cur" title="${i18n.t('inventory.slpTitle')}"><img class="lk-cur-ico" src="${curIcon('slp')}" alt="SLP"><span data-ref="slp">0</span></span><span class="lk-res-pill lk-cur" title="${i18n.t('inventory.axsTitle')}"><img class="lk-cur-ico" src="${curIcon('axs')}" alt="AXS"><span data-ref="axs">0</span></span><span class="lk-res-pill lk-cur" title="${i18n.t('inventory.baxsTitle')}"><img class="lk-cur-ico" src="${curIcon('baxs')}" alt="bAXS"><span data-ref="baxs">0</span></span></div>
           <button type="button" class="lk-btn-close-x" data-ref="close" aria-label="${i18n.t('inventory.close')}">${sprite('i-close')}</button>
         </div>
         <div class="lk-bag__body lk-bag__body--3">
@@ -244,11 +244,13 @@ export class InventoryModal {
   _renderGold() {
     const g = typeof this.equipmentManager?.getGold === 'function' ? this.equipmentManager.getGold() : (this.equipmentManager?.gold || 0);
     this.$('gold').textContent = i18n.num(g);
-    // SLP y bAXS (se guardan con la Forja)
+    // SLP, AXS y bAXS (se guardan con la Forja)
     try {
       const w = ForgeService.wallet();
+      const dec = (v) => (Math.round((Number(v) || 0) * 100) / 100).toLocaleString(i18n.lang() === 'es' ? 'es' : 'en', { maximumFractionDigits: 2 });
       this.$('slp').textContent = i18n.num(w.slp);
-      this.$('baxs').textContent = (Math.round(w.baxs * 100) / 100).toLocaleString(i18n.lang() === 'es' ? 'es' : 'en', { maximumFractionDigits: 2 });
+      this.$('axs').textContent = dec(w.axs);
+      this.$('baxs').textContent = dec(w.baxs);
     } catch { /* sin partida activa */ }
   }
 
@@ -533,7 +535,7 @@ export class InventoryModal {
       b.classList.toggle('lk-has', !!it);
       b.style.setProperty('--rc', it ? rv(it.rarity) : '');
       b.classList.toggle('lk-is-focus', this.activeCategoryFilter === b.dataset.slot);
-      b.innerHTML = it ? art(it) : `<span class="lk-ph">${SLOT1[b.dataset.slot]}</span>`;
+      b.innerHTML = it ? `${art(it)}${isNftGear(it) ? nftSeal(i18n.t('market.nftHint'), 'lk-nft-seal--slot') : ''}` : `<span class="lk-ph">${SLOT1[b.dataset.slot]}</span>`;
       b.setAttribute('aria-label', it ? it.name : SLOT1[b.dataset.slot]);
     });
     this._renderStats(flash);
@@ -634,7 +636,7 @@ export class InventoryModal {
         ? (Object.entries(st).filter(([, v]) => v).slice(0, 1).map(([s, v]) => `+${v} ${STAT_ES[s] || s}`).join('') || SLOT1[k])
         : k === 'material' ? (it.tier ? `${MATERIAL_RARITY_NAME[it.rarity] || ''} · ${BIOME[it.biome]?.[0] || ''}` : i18n.t('inventory.catalyst')) : effectCap(it, k);
       const spot = tutOn && !tutDone && it.id === this.tutorialTargetItemId;
-      return `<button type="button" class="lk-it ${this.pinned?.id === it.id ? 'lk-is-sel' : ''} ${spot ? 'lk-tut-spot' : ''}" data-id="${it.id}" ${EQ_SLOTS.includes(k) ? `data-slot="${k}"` : ''} style="--r:${rv(it.rarity)}" aria-label="${esc(it.name)}${qty > 1 ? ` ×${qty}` : ''}"><span class="lk-art">${art(it)}${EQ_SLOTS.includes(k) && it.tier != null ? `<span class="lk-tier">T${it.tier}</span>` : ''}${qty > 1 ? `<span class="lk-qty">×${qty}</span>` : ''}</span><span class="lk-cap">${esc(cap)}</span></button>`;
+      return `<button type="button" class="lk-it ${this.pinned?.id === it.id ? 'lk-is-sel' : ''} ${spot ? 'lk-tut-spot' : ''}" data-id="${it.id}" ${EQ_SLOTS.includes(k) ? `data-slot="${k}"` : ''} style="--r:${rv(it.rarity)}" aria-label="${esc(it.name)}${qty > 1 ? ` ×${qty}` : ''}"><span class="lk-art">${art(it)}${EQ_SLOTS.includes(k) && it.tier != null ? `<span class="lk-tier">T${it.tier}</span>` : ''}${qty > 1 ? `<span class="lk-qty">×${qty}</span>` : ''}${isNftGear(it) ? nftSeal(i18n.t('market.nftHint')) : ''}</span><span class="lk-cap">${esc(cap)}</span></button>`;
     });
     const pad = Math.max(0, Math.ceil((cells.length + 1) / 8) * 8 - cells.length);
     const grid = this.$('grid');
@@ -726,7 +728,7 @@ export class InventoryModal {
     }
     const r = it.rarity || 'common';
     return `${pinned ? `<button type="button" class="lk-tt-x" aria-label="${i18n.t('inventory.closeCard')}">${sprite('i-close')}</button>` : ''}
-      <header><span class="lk-tt-art">${art(it)}</span><div><small>${SLOT1[k] || i18n.t('inventory.item')}${EQ_SLOTS.includes(k) && it.tier != null ? i18n.t('inventory.tierSuffix', { n: it.tier }) : ''}</small><b>${esc(it.name)}</b><span class="lk-rar-chip" data-r="${r === 'legendary' ? 'mystic' : r}">${RAR_NAME[r] || r}</span></div></header>
+      <header><span class="lk-tt-art">${art(it)}</span><div><small>${SLOT1[k] || i18n.t('inventory.item')}${EQ_SLOTS.includes(k) && it.tier != null ? i18n.t('inventory.tierSuffix', { n: it.tier }) : ''}</small><b>${esc(it.name)}</b><span class="lk-rar-chip" data-r="${r === 'legendary' ? 'mystic' : r}">${RAR_NAME[r] || r}</span>${isNftGear(it) ? `<span class="lk-nft-chip" title="${esc(i18n.t('market.nftHint'))}">${nftSeal('', 'lk-nft-seal--chip')}${i18n.t('market.nft')}</span>` : ''}</div></header>
       <div class="lk-tt-body">
         ${keys.length || effRows ? `<div class="lk-tt-stats">${keys.map((s) => `<span class="lk-tt-stat">${STAT_ES[s]}<b>${st[s] ? `+${st[s]}` : '—'}${diff(s)}</b></span>`).join('')}${effRows}</div>` : ''}
         ${isOn ? `<span class="lk-tt-note">${i18n.t('inventory.equippedOn', { name: esc(hero) })}</span>` : cur ? `<span class="lk-tt-note">${i18n.t('inventory.comparedWith', { item: esc(cur.name), name: esc(hero) })}</span>` : ''}

@@ -1,7 +1,9 @@
 // Avisos de juego (Fase 4, bloque 2): motivos de Tienda, Forja y Recolección.
 export default {
   "notices.shop.questNoSell": "Los objetos de misión no se venden.",
-  "notices.shop.tierOnly": "Este mercader solo compra equipo de Tier {max}.",
+  "notices.shop.rcMarketOnly": "Ochi no compra runas ni charms: véndelos en el Mercado, por AXS.",
+  "notices.shop.bagMarketOnly": "Ochi no compra bolsas de runa ni de charm: véndelas en el Mercado, por AXS.",
+  "notices.shop.tierOnly": "Este mercader solo compra equipo de Tier {max}. El de Tier 1 a 3 es NFT: se vende en el Mercado, por AXS.",
   "notices.shop.inForge": "Está en la forja: recógela antes de venderla.",
   "notices.shop.equippedAxie": "La lleva equipada un Axie: quítasela antes de venderla.",
   "notices.shop.notForSale": "No está a la venta",
@@ -42,6 +44,7 @@ export default {
   "notices.economy.needGold": "Te falta oro ({n}).",
   "notices.economy.needSlp": "Te falta SLP ({n}).",
   "notices.economy.needBaxs": "Te falta bAXS ({n}).",
+  "notices.economy.needAxs": "Te falta AXS ({n}).",
   "notices.economy.dailyCap": "Has llegado al límite diario. Vuelve mañana.",
   "notices.economy.tooFast": "Espera unos segundos antes de volver a intentarlo.",
   "notices.economy.notOwned": "El servidor no tiene ese objeto en tu partida guardada. Espera a que se guarde e inténtalo de nuevo.",

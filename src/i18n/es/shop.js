@@ -2,6 +2,7 @@
 export default {
   "shop.bag": "Bolsa",
   "shop.baxsTitle": "bAXS (comisión y rapidez de la forja)",
+  "shop.axsTitle": "AXS (Mercado entre jugadores: equipo, runas y charms)",
   "shop.bought": "Compraste {qty}{item}{extra}",
   "shop.buy": "Comprar",
   "shop.buyBtn": "Comprar ×{q} · {n}",

@@ -1,6 +1,7 @@
 // AxieMixerService.js - Service for Sky Mavis API queries and 3D Axie character assembly
 import * as THREE from 'three';
 import { createAxieMixer3D, formatAxiePartAssetId } from '@jaatster/threejs-axie-mixer3d-public';
+import { v as withVersion } from '../render/AssetVersion.js';
 import { portraitService } from '../tactics/CharacterPortraitService.js';
 import { partStage } from '../tactics/data/VariantCards.js';
 import { supabaseFetch, authService } from '../net/AuthService.js';
@@ -210,6 +211,7 @@ class AxieMixerService {
     if (!this.mixerInstance) {
       this.mixerInstance = await createAxieMixer3D({
         assetBaseUrl: './assets/axie/',
+        resolveAssetUrl: withVersion, // Hito 109: versión en la ruta (también para lo que el mixer pide con fetch)
         renderer: renderer
       });
       console.log('[AxieMixerService] Axie 3D Mixer initialized successfully');

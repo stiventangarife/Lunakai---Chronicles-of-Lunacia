@@ -14,6 +14,7 @@ export default {
   "inventory.bagNoteCharm": "Charm de clase <b>{cls}</b>: va en las partes de esa clase. Está en Mochila › Runas y charms, marcado como «Nuevo».",
   "inventory.bagNoteRune": "Runa de clase <b>{cls}</b>: la equipan los Axies de esa clase. Está en Mochila › Runas y charms, marcada como «Nueva».",
   "inventory.baxsTitle": "bAXS (comisión y rapidez de la forja)",
+  "inventory.axsTitle": "AXS (Mercado entre jugadores: equipo, runas y charms)",
   "inventory.bond": "Vínculo",
   "inventory.bondFull": "Vínculo al 100 %",
   "inventory.bondFullFood": "El vínculo ya está al 100 %: guarda la comida para más adelante",

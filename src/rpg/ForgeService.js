@@ -1,17 +1,19 @@
 // ForgeService.js — Estado y reglas de la Forja (pantalla 25 del sistema de diseño). Fuente de verdad única.
 //
-// Se guarda en la ranura activa: slot.forge = { slp, baxs, mats: { id: n }, jobs: [...], uid, starter }
+// Se guarda en la ranura activa: slot.forge = { slp, baxs, axs, mats: { id: n }, jobs: [...], uid, starter, axsLaunch }
 // (viaja con la partida como el resto del progreso). Sin ranura activa funciona en memoria.
 //  · Crear: receta (CRAFT_RECIPES) → oro + materiales → objeto Tier 0 a la Mochila al instante.
 //  · Evolucionar: pieza → siguiente de su línea pagando SLP + materiales + esquirlas + bAXS (comisión y rapidez).
 //    Tarda horas reales (EVOLUTION_COST.hours / rapidez). La pieza sale de donde esté
 //    (ranura o Mochila) y se queda en el yunque; al recogerla vuelve equipada en su ranura si sigue libre, o a la Mochila.
 // El oro y el equipo viven en EquipmentManager; aquí solo SLP, bAXS, materiales y yunques.
+// Hito 110: también guarda el AXS de la partida (lo usa el Mercado entre jugadores; la Forja no lo gasta).
 
 import { saveSlotManager } from './SaveSlotManager.js';
 import { ITEMS_DB } from '../tactics/ItemDatabase.js';
 import {
   MATERIALS, TIER0_ITEMS, CRAFT_RECIPES, EVOLUTION_COST, FORGE_ANVILS, SPEEDUP_BAXS, SPEEDUP_TIER_MULT, evolutionQuote, nextEvolution,
+  STARTER_AXS, LAUNCH_GIFT,
 } from '../tactics/data/EconomyCatalog.js';
 import * as i18n from '../i18n/i18n.js';
 import { EconomyService } from '../net/EconomyService.js';
@@ -20,9 +22,13 @@ export const EQ_SLOTS = ['weapon', 'hat', 'shield', 'body', 'boots'];
 const HOUR_MS = 3600 * 1000;
 
 /** Para probar la demo: cada partida nueva recibe una vez este lote (aún no hay botín de materiales ni SLP). */
-const STARTER = { slp: 500, baxs: 30, mats: { mat_copper: 6, mat_slime_goo: 6, mat_chimera_tail: 4, mat_lunar_shard: 1 } };
+// Hito 110: 15 bAXS (antes 30) y 5 AXS.
+const STARTER = { slp: 500, baxs: 15, axs: STARTER_AXS, mats: { mat_copper: 6, mat_slime_goo: 6, mat_chimera_tail: 4, mat_lunar_shard: 1 } };
 /** Partidas que ya recibieron el lote anterior (200 SLP · 3 bAXS): se les completa la diferencia una vez. */
 const STARTER_V1 = { slp: 200, baxs: 3 };
+/** bAXS del lote v2 (Hito 76), con el que se completaba la diferencia de las partidas v1. */
+const STARTER_V2_BAXS = 30;
+const r2 = (n) => +(Number(n) || 0).toFixed(2);
 
 const tierOf = (id) => (TIER0_ITEMS[id] ? 0 : ITEMS_DB[id]?.tier ?? null);
 
@@ -40,7 +46,7 @@ class ForgeServiceImpl {
 
   _store() {
     const slot = this.slots?.getActiveSlot?.();
-    const fresh = () => ({ slp: 0, baxs: 0, mats: {}, jobs: [], uid: 0, starter: false });
+    const fresh = () => ({ slp: 0, baxs: 0, axs: 0, mats: {}, jobs: [], uid: 0, starter: false });
     let f;
     if (!slot) f = (this.memory ||= fresh());
     else {
@@ -50,12 +56,13 @@ class ForgeServiceImpl {
     f.mats ||= {}; f.jobs = Array.isArray(f.jobs) ? f.jobs : []; f.uid ||= 0;
     if (!f.starter) { // lote inicial de la demo (una sola vez por partida)
       f.starter = true;
-      f.slp = (f.slp || 0) + STARTER.slp; f.baxs = +((f.baxs || 0) + STARTER.baxs).toFixed(2);
+      f.slp = (f.slp || 0) + STARTER.slp; f.baxs = r2((f.baxs || 0) + STARTER.baxs); f.axs = r2((f.axs || 0) + STARTER.axs);
+      f.axsLaunch = true; // una partida nueva ya trae su AXS: no recibe el regalo de las partidas antiguas
       Object.entries(STARTER.mats).forEach(([id, n]) => { f.mats[id] = (f.mats[id] || 0) + n; });
       f.starterV = 2;
     } else if ((f.starterV || 1) < 2) {
       f.starterV = 2;
-      f.slp = (f.slp || 0) + STARTER.slp - STARTER_V1.slp; f.baxs = +((f.baxs || 0) + STARTER.baxs - STARTER_V1.baxs).toFixed(2);
+      f.slp = (f.slp || 0) + STARTER.slp - STARTER_V1.slp; f.baxs = r2((f.baxs || 0) + STARTER_V2_BAXS - STARTER_V1.baxs);
     }
     if ((f.starterV || 1) < 3) { // Hito 46: materiales nuevos. Se quitan los que ya no existen y se da el lote nuevo.
       f.starterV = 3;
@@ -63,11 +70,16 @@ class ForgeServiceImpl {
       Object.entries(STARTER.mats).forEach(([id, n]) => { f.mats[id] = Math.max(f.mats[id] || 0, n); });
       f.jobs = f.jobs.filter((j) => ITEMS_DB[j.to] && (!j.from || ITEMS_DB[j.from]));
     }
+    if (!f.axsLaunch) { // Hito 110: regalo único a las partidas que ya existían (+5 AXS +15 bAXS). Con cuenta lo da el servidor.
+      f.axsLaunch = true;
+      f.axs = r2((f.axs || 0) + LAUNCH_GIFT.axs); f.baxs = r2((f.baxs || 0) + LAUNCH_GIFT.baxs);
+    }
+    if (typeof f.axs !== 'number') f.axs = r2(f.axs);
     return f;
   }
 
   // ------------------------------------------------------------------ lectura
-  wallet() { const f = this._store(); return { gold: this.em?.getGold?.() || 0, slp: f.slp || 0, baxs: f.baxs || 0 }; }
+  wallet() { const f = this._store(); return { gold: this.em?.getGold?.() || 0, slp: f.slp || 0, baxs: f.baxs || 0, axs: f.axs || 0 }; }
   mats() { return { ...this._store().mats }; }
   jobs() { return this._store().jobs.map((j) => ({ ...j, ready: Date.now() >= j.end })); }
   anvilsFree() { return FORGE_ANVILS - this._store().jobs.length; }
@@ -225,11 +237,12 @@ class ForgeServiceImpl {
     return true;
   }
 
-  /** Hito 48: regalos del tutorial (SLP y bAXS). */
-  grant({ slp = 0, baxs = 0 } = {}) {
+  /** Hito 48: regalos del tutorial (SLP y bAXS). Hito 110: también AXS. */
+  grant({ slp = 0, baxs = 0, axs = 0 } = {}) {
     const f = this._store();
     f.slp = (f.slp || 0) + slp;
-    f.baxs = +((f.baxs || 0) + baxs).toFixed(2);
+    f.baxs = r2((f.baxs || 0) + baxs);
+    f.axs = r2((f.axs || 0) + axs);
     this._commit();
   }
 

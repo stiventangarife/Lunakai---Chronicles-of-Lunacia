@@ -120,10 +120,25 @@ export const MATERIAL_PRICE = { 0: 250, 1: 6, 2: 14, 3: 30, 4: 65 }; // por tier
 export const CONSUMABLE_PRICE = {
   food_berry: 12, food_fruit: 10, food_fish: 15, food_rice_cake: 30, food_feast: 75, food_koi: 120,
   potion_health_small: 25, dew_flask: 55, potion_health_large: 90,
-  rune_bag: 160, charm_bag: 100, // no se venden en la tienda; esto fija lo que te dan al venderlas (×0,3)
+  rune_bag: 160, charm_bag: 100, // no se venden en la tienda; desde el Hito 110 Ochi tampoco las compra (solo Mercado, AXS)
 };
-/** Runas y charms (Hito 54): solo se venden. Neutros 15 de oro; de clase según su rareza. */
-export const RUNE_CHARM_SELL = { neutral: 15, common: 10, rare: 20, epic: 40, mystic: 80, secret: 40 };
+/** Runas y charms: desde el Hito 110 Ochi ya no las compra; solo se intercambian en el Mercado, en AXS. */
+export const RUNE_CHARM_SELL = { neutral: 0, common: 0, rare: 0, epic: 0, mystic: 0, secret: 0 };
+/* ───────────────────────── Monedas (Hito 110) ─────────────────────────
+   Oro: Ochi, Forja T0 y Mercado de recursos · SLP: evolución y bolsas · AXS: Mercado de equipo T1–3, runas y charms
+   (se perciben como NFT) · bAXS: tasas de la Forja y, más adelante, premios de arena y reto semanal (no se intercambia). */
+export const CURRENCIES = ['gold', 'slp', 'axs', 'baxs'];
+/** Monedas con 2 decimales. */
+export const DECIMAL_CURRENCIES = ['axs', 'baxs'];
+/** Mercado entre jugadores: moneda de cada categoría y precio mínimo por unidad en AXS (sin máximo). */
+export const MARKET_CURRENCY = { res: 'gold', gear: 'axs', rc: 'axs' };
+export const MARKET_GEAR_MIN_AXS = { 1: 0.5, 2: 1, 3: 3 };
+export const MARKET_RC_MIN_AXS = { neutral: 0.2, common: 0.2, rare: 0.5, epic: 1, secret: 1, mystic: 2, legendary: 2 };
+/** Bolsas de runa y de charm: solo en el Mercado, en AXS (Ochi ya no las compra). */
+export const MARKET_BAG_MIN_AXS = { rune_bag: 0.5, charm_bag: 0.3 };
+/** Bono de inicio de cada partida nueva y regalo único a las partidas que ya existían (Hito 110). */
+export const STARTER_AXS = 5;
+export const LAUNCH_GIFT = { axs: 5, baxs: 15 };
 /** Botín de los combates (fuera del tutorial): probabilidad de un charm y de una runa neutros por victoria; ×2 con jefes. */
 export const RUNE_CHARM_DROP = { charm: 0.10, rune: 0.05, bossMult: 2 };
 export const SELL_RATIO = 0.3;           // el equipo y los consumibles se venden al 30 %
@@ -140,10 +155,13 @@ export function buyPrice(item) {
 /** Precio de venta (0 = no se puede vender). */
 export function sellPrice(item) {
   if (!item || item.slot === 'quest' || item.category === 'quest') return 0;
-  if (item.runeCharm) return item.class === 'neutral' ? RUNE_CHARM_SELL.neutral : (RUNE_CHARM_SELL[item.rarity] ?? 20);
+  if (item.runeCharm || item.category === 'bag') return 0; // Hito 110: solo en el Mercado (AXS)
   const ratio = item.id in MATERIALS ? SELL_RATIO_MATERIAL : SELL_RATIO;
   return Math.max(1, Math.floor(buyPrice(item) * ratio));
 }
+
+/** Tier más alto de equipo que compra alguna tienda (el servidor no acepta vender a Ochi nada por encima). */
+export const maxSellGearTier = () => Math.max(...Object.values(SHOPS).map((s) => s.maxGearTier ?? 3));
 
 /* ───────────────────────── Existencias de cada tienda ─────────────────────────
    `stock` = unidades al día (null = ilimitado). Se renuevan cada `restockHours`. */

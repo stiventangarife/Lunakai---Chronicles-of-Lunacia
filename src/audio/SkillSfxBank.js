@@ -11,6 +11,7 @@
 //   · tope de memoria: MAX_MB de búferes decodificados; se sueltan los menos usados que no estén en el combate en curso.
 // Consola: lunakaiCombatSfx.skills.status()
 
+import { v as withVersion } from '../render/AssetVersion.js'; // Hito 109: versión en la ruta
 const DIR = './assets/sounds/sfx/skills/';
 const MAX_PARALLEL = 4;
 const MAX_MB = 32;            // ~ 3 Axies con sus cartas + estados + Ultimate caben de sobra (~12–20 MB)
@@ -96,7 +97,7 @@ export class SkillSfxBank {
   async _fetch({ c, e }) {
     try {
       const file = this.manifest.sounds[c].file;
-      const r = await fetch(DIR + file);
+      const r = await fetch(withVersion(DIR + file)); // Hito 109: versión en la ruta
       if (!r.ok) throw new Error(r.status);
       const ab = await r.arrayBuffer();
       const ctx = await this._waitCtx();

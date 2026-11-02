@@ -26,8 +26,12 @@ export const sprite = (id, { fill = false } = {}) => `<svg class="lk-ic ${fill ?
 
 /** Ícono de clase de axie (assets/classes/<cls>.png). */
 const CLASS_FILE = { dusk: 'dust' }; // los PNG están en minúsculas; el de Dusk se llama dust.png
-/** Ícono de moneda (assets/currency/<k>.webp, 64 px): gold · slp · baxs. Cambiar aquí la extensión para todo el juego. */
+/** Ícono de moneda (assets/currency/<k>.webp, 64 px): gold · slp · axs · baxs. Cambiar aquí la extensión para todo el juego. */
 export const curIcon = (k) => asset(`assets/currency/${k}.webp`);
+/** Hito 110: el equipo Tier 1–3 es NFT (Ronin): solo se compra y vende entre jugadores, en el Mercado, con AXS. */
+export const isNftGear = (it) => !!it && ['weapon', 'hat', 'shield', 'body', 'boots'].includes(it.slot) && it.tier >= 1 && it.tier <= 3;
+/** Sello NFT con el logo de Ronin (el mismo icono que las runas y charms Ronin). cls: posición extra. */
+export const nftSeal = (title = '', cls = '') => `<img class="lk-nft-seal ${cls}" src="${asset('assets/ui/icons/ronin.webp')}" alt="NFT" title="${esc(title)}" draggable="false">`;
 export const classIcon = (cls) => `<img src="${asset(`assets/classes/${CLASS_FILE[cls] || cls}.png`)}" alt="${esc(cls)}">`;
 
 /**

@@ -14,6 +14,7 @@ export default {
   "inventory.bagNoteCharm": "<b>{cls}</b> class charm: it goes on parts of that class. Find it in Backpack › Runes & Charms, marked «New».",
   "inventory.bagNoteRune": "<b>{cls}</b> class rune: Axies of that class can equip it. Find it in Backpack › Runes & Charms, marked «New».",
   "inventory.baxsTitle": "bAXS (Forge fees and speed-ups)",
+  "inventory.axsTitle": "AXS (player Market: gear, runes and charms)",
   "inventory.bond": "Bond",
   "inventory.bondFull": "Bond at 100%",
   "inventory.bondFullFood": "Bond is already at 100%: save the food for later",

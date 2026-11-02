@@ -2,9 +2,10 @@
 
 Bienvenido al repositorio de documentación técnica, arquitectura y especificaciones de **Lunakai: Chronicles of Lunacia** (anteriormente *Axie Tactics*), un RPG táctico 3D con exploración de mundo abierto (*Overworld*) estilizado y combates estratégicos por turnos basado en la propiedad intelectual de Axie Infinity.
 
-> **Estado actual (23-oct-2026) — versión de prueba:** el mundo jugable son las **5 grandes islas** con dirección de arte Genshin: Bosque, Sabana, Ártico, Mística y **Genesis** (la antigua Mazmorra, rediseñada en el Hito 24).
+> **Estado actual (1-nov-2026) — versión de prueba v0.4.0:** el mundo jugable son las **5 grandes islas** con dirección de arte Genshin: Bosque, Sabana, Ártico, Mística y **Genesis** (la antigua Mazmorra, rediseñada en el Hito 24).
 > - **Viaje entre islas:** se habla con el barquero **Kawa** en la playa de cada isla (hasta el Hito 51 era Pomodoro; se llamó Kappa hasta el Hito 56); los portales cardinales están retirados.
 > - **Cuentas y nube (Hito 25):** inicio de sesión con Sky Mavis o correo y guardado en Supabase; falta la configuración del servidor.
+> - **Economía (Hito 110):** oro (Ochi, Forja T0, recursos) · SLP (evolución y bolsas) · **AXS** (Mercado entre jugadores de equipo T1–3, runas, charms y bolsas, con sello NFT de Ronin) · bAXS (tasas de la Forja; más adelante, premios de arena y reto semanal).
 > - **Motor de combate nuevo (Hitos 26–32):**
 >   - eventos separados de los VFX;
 >   - 22 estados alterados y triángulo de clases;
@@ -475,6 +476,15 @@ Bienvenido al repositorio de documentación técnica, arquitectura y especificac
     - El pack de combate (161 WAV, 35,6 MB) pasa a 145 MP3 mono (2,8 MB) con nivel igualado y manifiesto (`tools/audio/build_skill_sfx.py`); los WAV quedan en `backups/2026-10-30_sounds/combat/`.
     - Las 235 cartas suenan con la clase del Axie que lanza y su tipo de ataque (mordisco, cornada, tajo, golpe, magia, disparo, lanzamiento), sincronizadas con el impacto de su VFX (±10 ms). El Sapidae, los gólems, los enemigos (86 habilidades) y las 3 Ultimates usan el pack más firmas sintetizadas; los 31 estados, curas y escudos tienen sonido del pack.
     - Mezcla frente a la música (cartas +3 dB sobre ella, Ultimates con la música atenuada 6 dB), carga solo de lo que hay en cada combate (tope 32 MB) y `lkDebug.sfx('skills' | 'sapidae' | 'enemigos' | 'estados' | 'ultimates' | 'recorrido' | 'skill' | 'memoria')`.
+109. [**Hito 109: Versión de los assets en las rutas (caché del hosting)**](HITO_109_VERSION_DE_ASSETS.md)
+    - Modelos, texturas, KTX2, DRACO, Axies y audio se piden con `?v=ASSET_VERSION` (`src/render/AssetVersion.js`): un asset reemplazado llega a todos los jugadores aunque tengan guardado el viejo (caso: cactus de la Sabana optimizado). La caché de un año se mantiene.
+    - `.htaccess` (Hostinger): imágenes revalidadas (`no-cache`), un año `immutable` para modelos, audio, `.ktx2`, `.bin` y `.wasm`.
+    - Regla: si cambias algo en `assets/`, sube `ASSET_VERSION` antes de subir el juego. Pasos en `DEPLOYMENT_GUIDE.md`.
+110. [**Hito 110: Moneda AXS en el Mercado entre jugadores**](HITO_110_MONEDA_AXS.md)
+    - El equipo Tier 1–3, las runas y los charms se compran y venden entre jugadores en **AXS** (antes bAXS, que es una recompensa y no se intercambia), con sello NFT y comisión del 5 % en AXS. Las bolsas de runa y de charm también se venden solo en el Mercado. Ochi ya no compra runas, charms, bolsas ni equipo T1–3, y el regalo del tutorial (una runa y un charm) no se comercia.
+    - Economía: oro (Ochi, Forja T0, recursos) · SLP (evolución y bolsas) · AXS (Mercado de equipo, runas y charms) · bAXS (tasas de la Forja; más adelante, premios de arena y reto semanal).
+    - Bono: partidas nuevas 5 AXS + 15 bAXS (antes 30 bAXS); las existentes, +5 AXS +15 bAXS una vez. Migraciones `20261101000000` a `20261101000005`.
+    - Sello NFT (logo de Ronin) en el equipo T1–3 en la Mochila, la Tienda, el Mercado y la Forja; AXS en la cabecera de la Tienda, la Mochila y la Forja. Versión del juego en pantalla: v0.4.0 (`GAME_VERSION`).
 
 ---
 

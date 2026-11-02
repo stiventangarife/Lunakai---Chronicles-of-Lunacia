@@ -12,6 +12,7 @@
 
 import { saveSlotManager } from './SaveSlotManager.js';
 import { PP_MAX, RUNES, CHARMS, RUNE_BY_ID, CHARM_BY_ID, ppAllocate, ppCanSet } from '../tactics/data/RunesCharms.js';
+import { REWARDS as TUT_REWARDS } from './tutorial/TutorialScript.js';
 
 export const PART_ORDER = ['eyes', 'ears', 'mouth', 'horn', 'back', 'tail'];
 /** Las 6 clases que dan las bolsas de la Forja (Mech, Dawn y Dusk son secretas y sus runas no tienen efecto). */
@@ -19,6 +20,9 @@ export const BAG_CLASSES = ['aquatic', 'beast', 'bird', 'bug', 'plant', 'reptile
 /** Peso de cada rareza al sacar una runa o un charm al azar (bolsas y botín). */
 const RARITY_WEIGHT = { common: 45, neutral: 45, rare: 35, epic: 15, mystic: 5 };
 const BY_KIND = { runes: RUNE_BY_ID, charms: CHARM_BY_ID };
+/** Hito 110: la runa y el charm que regala el tutorial no se comercian (una unidad de cada uno, ligada a la partida).
+ *  El servidor aplica la misma regla en _mkt_locked (20261101000003_market_bound_bags.sql): si cambian, cambiar los dos. */
+export const BOUND_GIFT = { runes: TUT_REWARDS.rune, charms: TUT_REWARDS.charm };
 
 /** Una al azar de la lista, pesada por rareza. */
 function pickWeighted(list, rnd = Math.random) {
@@ -119,10 +123,18 @@ class RuneCharmServiceImpl {
   /** Cuántas tienes (equipadas incluidas, también las copias Ronin). kind = 'runes' | 'charms'. */
   owned(kind, id) { return (this._bag()[kind]?.[id] || 0) + this.roninCount(kind, id); }
 
-  /** Cuántas se pueden vender o gastar: solo las de la bolsa que no están equipadas (lo equipado usa primero las Ronin). */
+  /** Hito 110: unidades ligadas a la partida (regalo del tutorial, una vez recibido): se equipan pero no se comercian. */
+  boundCount(kind, id) {
+    const slot = this.slots?.getActiveSlot?.();
+    const got = slot?.tutorialProgress?.flags?.runes === true && BOUND_GIFT[kind] === id;
+    return got ? Math.min(1, this._bag()[kind]?.[id] || 0) : 0;
+  }
+
+  /** Cuántas se pueden vender o gastar: las de la bolsa sin las ligadas ni las equipadas
+   *  (lo equipado usa primero las copias Ronin y las ligadas). */
   sellable(kind, id) {
-    const bag = this._bag()[kind]?.[id] || 0;
-    return Math.max(0, bag - Math.max(0, this.equippedCount(kind, id) - this.roninCount(kind, id)));
+    const bag = this._bag()[kind]?.[id] || 0, bound = this.boundCount(kind, id);
+    return Math.max(0, bag - bound - Math.max(0, this.equippedCount(kind, id) - this.roninCount(kind, id) - bound));
   }
 
   /** Cuántas hay equipadas en todos los Axies. */
@@ -143,14 +155,14 @@ class RuneCharmServiceImpl {
     const ids = new Set([...Object.keys(this._bag()[kind] || {}), ...Object.keys(this._roninStore()[kind] || {})]);
     return [...ids].filter((id) => db[id] && this.owned(kind, id) > 0).map((id) => {
       const n = this.owned(kind, id);
-      return { id, item: db[id], owned: n, free: Math.max(0, n - this.equippedCount(kind, id)), ronin: this.roninCount(kind, id), sellable: this.sellable(kind, id) };
+      return { id, item: db[id], owned: n, free: Math.max(0, n - this.equippedCount(kind, id)), ronin: this.roninCount(kind, id), bound: this.boundCount(kind, id), sellable: this.sellable(kind, id) };
     });
   }
 
   /** Suma (n > 0) o quita (n < 0, solo de las libres) runas o charms. Devuelve false si no alcanzan. */
   add(kind, id, n = 1, save = true) {
     if (!BY_KIND[kind]?.[id] || !n) return false;
-    if (n < 0 && this.sellable(kind, id) < -n) return false; // las copias Ronin no se venden ni se gastan
+    if (n < 0 && this.sellable(kind, id) < -n) return false; // las copias Ronin y el regalo del tutorial no se venden ni se gastan
     const bag = this._bag();
     bag[kind][id] = Math.max(0, (bag[kind][id] || 0) + n);
     if (!bag[kind][id]) delete bag[kind][id];

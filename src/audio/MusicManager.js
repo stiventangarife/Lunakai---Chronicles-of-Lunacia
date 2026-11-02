@@ -1,4 +1,5 @@
 // MusicManager.js - Dynamic Music Orchestrator with Biome Transitions, Crossfades & Autoplay Resilience
+import { v as withVersion } from '../render/AssetVersion.js'; // Hito 109: versión en la ruta
 
 export const MUSIC_TRACKS = {
   CINEMATICA: './assets/sounds/CINEMATICA.mp3',
@@ -86,7 +87,7 @@ export class MusicManager {
     }
 
     if (!this.audioCache.has(trackKey)) {
-      const audio = new Audio(MUSIC_TRACKS[trackKey]);
+      const audio = new Audio(withVersion(MUSIC_TRACKS[trackKey]));
       audio.preload = 'auto';
       this.audioCache.set(trackKey, audio);
     }
