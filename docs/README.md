@@ -485,6 +485,11 @@ Bienvenido al repositorio de documentación técnica, arquitectura y especificac
     - Economía: oro (Ochi, Forja T0, recursos) · SLP (evolución y bolsas) · AXS (Mercado de equipo, runas y charms) · bAXS (tasas de la Forja; más adelante, premios de arena y reto semanal).
     - Bono: partidas nuevas 5 AXS + 15 bAXS (antes 30 bAXS); las existentes, +5 AXS +15 bAXS una vez. Migraciones `20261101000000` a `20261101000005`.
     - Sello NFT (logo de Ronin) en el equipo T1–3 en la Mochila, la Tienda, el Mercado y la Forja; AXS en la cabecera de la Tienda, la Mochila y la Forja. Versión del juego en pantalla: v0.4.0 (`GAME_VERSION`).
+111. [**Hito 111: Interfaz adaptable a ventanas de PC (bajas y estrechas)**](HITO_111_RESPONSIVE_PC.md)
+    - Medido a 1920×1080, 1600×900, 1440×900, 1366×768, 1280×720, 1024×768 y 1280×600: el botón principal de Forja y Tienda queda siempre a la vista (`sticky`), la Forja ya no tiene un scroll fantasma (las chispas del yunque) y Mochila y Runas conservan las tres columnas hasta 981 px.
+    - «Reglas y controles» cabe entera hasta 1280×720 (compactación por altura); la cola de turnos se recorta al ancho libre y la ficha de la unidad reserva una fila de 3 chips de estado (sin saltos). Las pantallas pendientes se trataron en el Hito 112.
+112. [**Hito 112: Escuadra, inicio y scrollbars visibles (PC)**](HITO_112_RESPONSIVE_PC_PANTALLAS.md)
+    - Escuadra compacta las ranuras con poca altura (la colección gana ~90 px a 1280×600); la pantalla de inicio escala el logo por altura y ya no hace scroll hasta 1280×720 y 1024×768; fin de combate compacta el encabezado; barras de scroll doradas visibles en misiones, mapa, escuadra y fin de combate. Mundo abierto ya estaba bien. Sin auditar: formulario de email y selector de slots.
 
 ---
 

@@ -664,8 +664,7 @@ body:not(.state-combat) #ui-overlay .lk-cb-enemy, body:not(.state-combat) #ui-ov
 #ui-overlay .lk-cb-hp { height: 7px; }
 #ui-overlay .lk-cb-hp > i { width: 100%; }
 #ui-overlay .lk-cb-hp > em { width: 0; }
-#ui-overlay .lk-cb-status { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px; min-height: 0; }
-#ui-overlay .lk-cb-status:empty { display: none; }
+#ui-overlay .lk-cb-status { display: flex; flex-wrap: nowrap; gap: 4px; margin-top: 6px; min-height: 1.1rem; overflow: hidden; } /* Hito 111: fila reservada, sin saltos */
 #ui-overlay .lk-cb-st { display: inline-flex; align-items: center; gap: 2px; padding: 1px 6px 1px 4px; border-radius: var(--lk-r-pill); font-size: .7rem; line-height: 1.3; background: rgba(11, 15, 28, .6); box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .1); }
 #ui-overlay .lk-cb-st b { font: 900 .62rem var(--lk-font-ui); color: var(--lk-ivory-100); }
 #ui-overlay .lk-res-meters { display: grid; gap: 10px; align-self: center; }
@@ -1675,3 +1674,148 @@ img.lk-coin { width: 15px; height: 15px; object-fit: contain; background: none; 
 @keyframes lkResLoss { from { transform: scale(.82); opacity: .7; } }
 #ui-overlay .lk-meter.lk-has-extra b { color: var(--lk-gilt-100); }
 html.lk-reduce-motion #ui-overlay .lk-meter .lk-pips i.lk-new, html.lk-reduce-motion #ui-overlay .lk-meter b.lk-gain, html.lk-reduce-motion #ui-overlay .lk-meter b.lk-loss { animation: none; }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   Hito 111 · Responsive de PC (ventanas bajas y estrechas: 1366×768, 1280×720, 1280×600, 1024×768)
+   Principio: cabecera y acción principal siempre a la vista; el cuerpo hace scroll solo si hace falta, con una barra
+   visible y un degradado en el borde; y lo que sobra se compacta por ALTURA, no solo por ancho. Todo es CSS salvo
+   la cola de turnos y los chips de estado (CombatHUD.js). Sin saltos de layout: nada cambia de tamaño al interactuar.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* Barra de scroll visible (dorada, fina) en los cuerpos con scroll propio de las ventanas */
+.lk-rules__body, .lk-forge-layer .lk-forge-stage, .lk-forge-layer .lk-forge-rows, .lk-shop-layer .lk-shop-page,
+.lk-bag-layer .lk-bag__attrs, .lk-bag-layer .lk-bag__doll, .lk-bag-runes, .lk-bag-skills {
+  scrollbar-width: thin; scrollbar-color: rgba(211, 174, 108, .62) rgba(11, 15, 28, .35);
+}
+.lk-shop-layer .lk-shop-page { scrollbar-color: rgba(157, 122, 66, .7) rgba(157, 122, 66, .12); }
+
+/* Forja: la franja de coste y el botón «Forjar» quedan pegados al pie de la columna central; si el yunque no cabe, es lo
+   de arriba lo que se desplaza, nunca el botón. */
+.lk-forge-layer .lk-forge-stage > .lk-forge-cost { position: sticky; bottom: 0; z-index: 2; background: linear-gradient(rgba(14, 19, 34, .97), rgba(14, 19, 34, .97)); }
+@media (max-height: 700px) {
+  .lk-forge-layer .lk-forge-stage { padding: 10px 18px; gap: 8px; grid-template-rows: auto auto; align-content: start; }
+  .lk-forge-layer .lk-anvil { min-height: 0; gap: 8px; }
+  .lk-forge-layer .lk-anvil__pair { gap: 12px; }
+  .lk-forge-layer .lk-fcard { width: 188px; }
+  .lk-forge-layer .lk-fcard__art { height: 62px; }
+  .lk-forge-layer .lk-fcard__art img { width: 46px; height: 46px; }
+  .lk-forge-layer .lk-fcard__body { padding: 6px 10px 8px; gap: 2px; }
+  .lk-forge-layer .lk-fcard__body b { font-size: .94rem; }
+  .lk-forge-layer .lk-fcard .lk-sp-stat { padding: 2px 0; font-size: .72rem; }
+  .lk-forge-layer .lk-forge-cost { padding: 10px 14px; gap: 12px; }
+  .lk-forge-layer .lk-forge-pouch { padding: 6px 22px 8px; gap: 4px; }
+  .lk-forge-layer .lk-forge-pouch__hint { display: none; }
+}
+
+/* Tienda: el botón «Comprar / Vender» se queda al pie del panel de detalle y los bloques informativos se compactan */
+.lk-shop-layer .lk-sp-act { position: sticky; bottom: 0; z-index: 2; margin: 0 -20px -18px; padding: 8px 20px 18px; background: linear-gradient(180deg, rgba(247, 241, 229, 0), var(--lk-ivory-100) 26%); }
+@media (max-height: 700px) {
+  .lk-shop-layer .lk-shop-page { padding: 14px 18px 0; gap: 8px; }
+  .lk-shop-layer .lk-sp-art { width: 56px; height: 56px; }
+  .lk-shop-layer .lk-sp-art img { width: 40px; height: 40px; }
+  .lk-shop-layer .lk-sp-head b { font-size: 1.1rem; }
+  .lk-shop-layer .lk-sp-desc { font-size: .78rem; line-height: 1.35; }
+  .lk-shop-layer .lk-sp-note { padding: 5px 8px; font-size: .72rem; line-height: 1.3; }
+  .lk-shop-layer .lk-sp-sum { padding: 7px 10px; }
+  .lk-shop-layer .lk-sp-act { margin: 0 -18px; padding: 10px 18px 12px; }
+  .lk-shop-layer .lk-sp-act .lk-btn { min-height: 42px; }
+}
+
+/* Mochila: en PC estrecho (981–1100 px) se conservan las tres columnas, más angostas, en lugar de apilarlas */
+@media (min-width: 981px) and (max-width: 1100px) {
+  .lk-bag-layer .lk-bag__body, .lk-bag-layer .lk-bag__body--3 { grid-template-columns: 224px 252px minmax(0, 1fr); grid-template-rows: minmax(0, 1fr); overflow-y: visible; }
+  .lk-bag-layer .lk-bag__body--3 .lk-bag__attrs { grid-column: auto; grid-template-columns: none; border-right: 1px solid rgba(211, 174, 108, .14); border-bottom: 0; overflow-y: auto; padding: 16px 12px; }
+  .lk-bag-layer .lk-bag__doll--model { overflow: hidden; }
+  .lk-doll.lk-doll--model { height: 100%; min-height: 0; }
+  .lk-bag-layer .lk-bag__grid-wrap { min-height: 0; padding: 14px; }
+}
+/* El muñeco 3D no fija un alto: ocupa la columna y se ajusta con la altura de la ventana */
+@media (max-height: 700px) { .lk-doll.lk-doll--model { min-height: 0; } .lk-bag-layer .lk-bag__attrs { padding: 14px 14px; gap: 12px; } }
+
+/* Reglas y controles: con poca altura se compacta en dos escalones (≤ 900 y ≤ 740 px de alto); por debajo sigue haciendo scroll, con barra visible */
+.lk-rules-layer > .lk-rules { display: flex; flex-direction: column; grid-template-columns: none; }
+@media (max-height: 900px) {
+  .lk-rules-layer > .lk-rules { max-height: calc(100vh - 24px); }
+  .lk-rules__body { gap: 8px; padding: 10px 20px; }
+  .lk-rules__grid { gap: 8px; }
+  .lk-rules__card { padding: 9px 11px; gap: 10px; }
+  .lk-rules__ico { width: 30px; height: 30px; margin: 4px 4px 0; }
+  .lk-rules__ico .lk-ai { width: 18px; height: 18px; }
+  .lk-rules__card h4 { font-size: .94rem; margin-bottom: 2px; }
+  .lk-rules__card p { font-size: .74rem; line-height: 1.4; }
+  .lk-rules__tri { padding: 9px 12px; gap: 6px; }
+  .lk-rules__cycle { flex-wrap: nowrap; gap: 6px; }
+  .lk-rules__beats { font-size: 1.25rem; }
+  .lk-rules__note { font-size: .72rem; }
+  .lk-rules__controls { gap: 12px; }
+  .lk-rules__controls ul { margin-top: 4px; }
+  .lk-rules__controls li { padding: 4px 4px; }
+  .lk-rules__foot { padding: 8px 20px 10px; }
+}
+/* Segundo escalón (≤ 740 px de alto): lo justo para que todo quepa sin scroll a 1280×720 */
+@media (max-height: 740px) {
+  .lk-rules__body { gap: 6px; padding: 8px 20px; }
+  .lk-rules__grid { gap: 6px; }
+  .lk-rules__card { padding: 7px 10px; }
+  .lk-rules__card p { line-height: 1.3; }
+  .lk-rules__tri { padding: 7px 12px; gap: 4px; }
+  .lk-rules__controls li { padding: 3px 4px; }
+  .lk-rules__foot { padding: 6px 20px 8px; }
+}
+/* Forja: las chispas del yunque (SVG decorativo) ocupaban su tamaño natural y creaban un scroll fantasma de ~500 px en la columna central */
+.lk-forge-layer .lk-anvil__fx { width: 100%; height: 100%; }
+
+/* Cola de turnos (Hito 111): se recorta al ancho libre en vez de pasar bajo los botones de la esquina. El colchón de
+   relleno/margen negativo deja sitio al rombo, al halo del turno activo y a los nombres sin mover nada de sitio. */
+#ui-overlay .lk-cb-tracker { min-width: 0; }
+#ui-overlay .lk-cb-timeline { min-width: 0; flex: 0 1 auto; overflow-x: auto; overflow-y: hidden; margin: -16px -10px -24px; padding: 22px 14px 24px; scrollbar-width: none; }
+#ui-overlay .lk-cb-timeline::-webkit-scrollbar { display: none; }
+#ui-overlay .lk-cb-timeline.lk-tl-clip { -webkit-mask-image: linear-gradient(90deg, transparent 0, #000 18px, #000 calc(100% - 26px), transparent); mask-image: linear-gradient(90deg, transparent 0, #000 18px, #000 calc(100% - 26px), transparent); }
+#ui-overlay .lk-cb-timeline.lk-tl-dense { gap: 8px; }
+#ui-overlay .lk-cb-timeline.lk-tl-dense .timeline-card { width: 34px; height: 34px; }
+#ui-overlay .lk-cb-timeline.lk-tl-dense .timeline-card.active-turn { width: 44px; height: 44px; }
+#ui-overlay .lk-cb-timeline.lk-tl-dense .card-name { display: none; }
+#ui-overlay .lk-cb-st--more { padding: 1px 7px; cursor: help; }
+
+/* ===== Hito 112: Escuadra, inicio y scrollbars visibles (PC) ===== */
+/* Scrollbars visibles: fondo oscuro (dorado claro) y pergamino (dorado oscuro) */
+.lk-end-layer > .lk-end > .lk-end__body,
+.lk-squad-layer .lk-squad__col, .lk-squad-layer .lk-squad__detail, .lk-squad-layer .lk-squad__body,
+.lk-chron .lk-j-list { scrollbar-width: thin; scrollbar-color: rgba(211, 174, 108, .62) rgba(11, 15, 28, .35); }
+.lk-chron .lk-j-page, #world-map-modal .lk-wmap__page { scrollbar-width: thin; scrollbar-color: rgba(157, 122, 66, .7) rgba(157, 122, 66, .14); }
+#world-map-modal .lk-wmap__stage, #world-map-modal .lk-wmap__map { scrollbar-width: thin; scrollbar-color: rgba(211, 174, 108, .62) rgba(11, 15, 28, .35); }
+
+/* Escuadra: con poca altura las 4 ranuras se compactan para dejar sitio a colección y ficha */
+@media (min-width: 1101px) and (max-height: 820px) {
+  .lk-squad-layer .lk-squad__top { padding: 12px 18px; gap: 10px; }
+  .lk-squad-layer .lk-sq-slot { padding: 8px 8px 8px; gap: 3px; }
+  .lk-squad-layer .lk-sq-slot .lk-pfw { margin: 2px 0 0; }
+  .lk-squad-layer .lk-sq-slot .lk-med { --s: 52px; }
+  .lk-squad-layer .lk-sq-slot b { font-size: 1rem; }
+  .lk-squad-layer .lk-sq-slot .lk-mini { margin-top: 2px; padding-top: 5px; }
+  .lk-squad-layer .lk-sq-slot.lk-is-empty .lk-ph-d { width: 36px; height: 36px; margin: 8px 0 4px; }
+}
+@media (min-width: 1101px) and (max-height: 680px) {
+  .lk-squad-layer .lk-sq-slot .lk-med { --s: 40px; }
+  .lk-squad-layer .lk-sq-slot .lk-meta { font-size: .66rem; }
+  .lk-squad-layer .lk-sq-slot .lk-bondtag { display: none; }
+}
+
+/* Inicio / login: el logo y los márgenes se ajustan a la altura para evitar scroll */
+@media (max-height: 820px) {
+  .lk-start .lk-login { gap: 12px; padding: 24px 20px 16px; }
+  .lk-start .lk-login__logo { width: min(300px, 80%, 40vh); }
+  .lk-start .lk-login__card { padding: 20px 24px 16px; gap: 10px; min-height: 0; }
+}
+@media (max-height: 680px) {
+  .lk-start .lk-login { gap: 8px; padding-top: 14px; }
+  .lk-start .lk-login__logo { width: min(220px, 80%, 36vh); }
+  .lk-start .lk-login__card { padding: 14px 22px 12px; gap: 8px; }
+}
+
+/* Fin de combate: encabezado más bajo con poca altura (más sitio para el resumen) */
+@media (max-height: 700px) {
+  .lk-end-layer > .lk-end .lk-end__crest { padding: 18px 24px 12px; gap: 3px; }
+  .lk-end-layer > .lk-end .lk-end__emblem { width: 44px; height: 44px; }
+  .lk-end-layer > .lk-end .lk-end__title { font-size: 2.4rem; }
+}

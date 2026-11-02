@@ -342,15 +342,18 @@ export function attachCombatHUD(game) {
       }
     }
 
-    // Estados alterados
+    // Estados alterados (Hito 111): una sola fila de 3 huecos, con el nombre y el HP fijos; si hay más, dos chips y un «+N»
+    // cuyo tooltip lista el resto. Así la ficha no cambia de alto ni se mueve al aplicar o quitar estados.
     const st = q('[data-ref="status"]');
     if (st) {
-      const list = (unit.statuses || []).slice(0, 6);
+      const all = unit.statuses || [];
+      const MAX_CHIPS = 3;
+      const shown = all.length > MAX_CHIPS ? all.slice(0, MAX_CHIPS - 1) : all;
+      const rest = all.slice(shown.length);
       const defs = STATUS_DEFS;
-      st.innerHTML = list.map((s) => {
-        const label = s.label || defs?.[s.id]?.label || s.id;
-        return `<span class="lk-cb-st" title="${esc(label)} · ${i18n.t(s.duration === 1 ? 'combatHud.turn1' : 'combatHud.turnsN', { n: s.duration })}">${statusIconHtml(s.id, s.icon || defs?.[s.id]?.icon)}<b>${s.duration}</b></span>`;
-      }).join('');
+      const tip = (s) => `${s.label || defs?.[s.id]?.label || s.id} · ${i18n.t(s.duration === 1 ? 'combatHud.turn1' : 'combatHud.turnsN', { n: s.duration })}`;
+      st.innerHTML = shown.map((s) => `<span class="lk-cb-st" title="${esc(tip(s))}">${statusIconHtml(s.id, s.icon || defs?.[s.id]?.icon)}<b>${s.duration}</b></span>`).join('')
+        + (rest.length ? `<span class="lk-cb-st lk-cb-st--more" title="${esc(rest.map(tip).join('\n'))}"><b>+${rest.length}</b></span>` : '');
     }
 
     // Cartas
@@ -444,7 +447,27 @@ export function attachCombatHUD(game) {
       const name = card.querySelector('.card-name')?.textContent || '';
       card.title = name;
     });
+    fitTimeline();
   }
+
+  // Cola de turnos en ventanas estrechas (Hito 111): con más de 9 unidades las tarjetas se compactan (sin nombres) y, si
+  // aun así no caben, la cola se recorta al ancho libre —con degradado en los bordes— y el turno activo se centra.
+  // Así nunca pasa por debajo de los botones de la esquina. Sin animación con «Reducir movimiento».
+  let tlFirst = true;
+  function fitTimeline() {
+    const tl = $('initiative-timeline');
+    if (!tl) return;
+    tl.classList.toggle('lk-tl-dense', tl.querySelectorAll('.timeline-card').length > 9);
+    const over = tl.scrollWidth > tl.clientWidth + 1;
+    tl.classList.toggle('lk-tl-clip', over);
+    if (!over) { if (tl.scrollLeft) tl.scrollLeft = 0; return; }
+    const act = tl.querySelector('.timeline-card.active-turn');
+    if (!act) return;
+    const reduced = document.documentElement.classList.contains('lk-reduce-motion') || matchMedia('(prefers-reduced-motion: reduce)').matches;
+    tl.scrollTo({ left: Math.max(0, act.offsetLeft - (tl.clientWidth - act.offsetWidth) / 2), behavior: tlFirst || reduced ? 'auto' : 'smooth' });
+    tlFirst = false;
+  }
+  window.addEventListener('resize', fitTimeline);
 
   // ── Cartel de turno en español y con la cartela del sistema
   function decorateBanner(unit) {

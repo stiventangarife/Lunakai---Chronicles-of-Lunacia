@@ -609,6 +609,24 @@ Detalle y medidas en `docs/HITO_106_RESPAWN_DE_MOBS.md`.
 - **Versión:** el juego muestra «Demo 1 (v0.4.0)» (`GAME_VERSION` en `rpg/ui/StartScreenUI.js`). `ASSET_VERSION` sigue en `0.4.0` (no se reemplazó ningún asset).
 - **Despliegue:** migraciones `20261101000000` a `20261101000005`, en orden (los catálogos, generados con `tools/gen_catalog.mjs`). Detalle en `docs/HITO_110_MONEDA_AXS.md`.
 
+### 5.37 Interfaz adaptable a PC (Hito 111)
+
+- **Objetivo:** que las ventanas y el HUD se vean bien en ventanas de PC bajas y estrechas (1366×768, 1280×720, 1280×600, 1024×768). En PC lo que falla es la **altura**, no el ancho.
+- **Reglas** (todo en `ui/lunakai-ui.css`, bloque «Hito 111»):
+  - ventana con `height: min(Xpx, 100vh − 40px)`, cabecera y acción principal siempre visibles y cuerpo con scroll propio (barra dorada visible);
+  - compactar por altura con `@media (max-height: …)`;
+  - la franja de coste de la Forja y el botón de la Tienda son `sticky` al pie;
+  - Mochila y Runas conservan las tres columnas hasta 981 px;
+  - un SVG o canvas decorativo dentro de un contenedor con scroll lleva tamaño explícito (las chispas de la Forja creaban un scroll fantasma).
+- **Combate:** la cola de turnos se recorta al ancho libre y se compacta con > 9 unidades (`fitTimeline` en `CombatHUD.js`); la ficha de la unidad reserva una fila de 3 chips de estado (2 + «+N») y no se mueve.
+- **Pendiente de auditar:** resuelto en el Hito 112. Detalle en `docs/HITO_111_RESPONSIVE_PC.md`.
+
+### 5.38 Escuadra, inicio y scrollbars (Hito 112)
+
+- Bloque «Hito 112» al final de `ui/lunakai-ui.css`: ranuras de la Escuadra compactadas por altura (`max-height: 820px` y `680px`, solo ≥ 1101 px de ancho); el logo del inicio se escala con `vh` y la tarjeta se compacta (`max-height: 820px` y `680px`); fin de combate compacta el escudo/título con `max-height: 700px`.
+- Scrollbars visibles: dorado claro en fondos oscuros, dorado oscuro en pergamino.
+- **Sin auditar:** formulario de email, código y selector de slots del acceso. Detalle en `docs/HITO_112_RESPONSIVE_PC_PANTALLAS.md`.
+
 ---
 
 ## 6. Reglas Inmutables para Desarrolladores y Agentes

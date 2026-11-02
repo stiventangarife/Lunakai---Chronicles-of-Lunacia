@@ -1548,13 +1548,30 @@ export class StartScreenUI {
 
   _hideSkillTooltip() { tooltip.hide(); }
 
+  /** Hito 113: aplica el color en vivo como mucho cada 120 ms (el último valor siempre llega). */
+  _ccApplyLive() {
+    if (this._ccLiveTimer) return;
+    const now = performance.now(), wait = Math.max(0, 120 - (now - (this._ccLiveLast || 0)));
+    this._ccLiveTimer = setTimeout(() => {
+      this._ccLiveTimer = 0;
+      this._ccLiveLast = performance.now();
+      if (this.diorama) this.diorama.applyCustomization(this.customization);
+    }, wait);
+  }
+
+  _ccCancelLive() {
+    if (this._ccLiveTimer) { clearTimeout(this._ccLiveTimer); this._ccLiveTimer = 0; }
+  }
+
   _setupEventListeners() {
     const m = this.heroSelectModal;
     const sfx = () => { if (this.audio && typeof this.audio.playSelect === 'function') this.audio.playSelect(); };
-    const setColor = (part, hex) => {
+    const setColor = (part, hex, live = false) => {
       this.customization[part] = hex;
       if (part === 'suitColor') { this.customization.shirt = hex; this.customization.pants = hex; }
-      if (this.diorama) this.diorama.applyCustomization(this.customization);
+      if (!this.diorama) return;
+      if (!live) { this._ccCancelLive(); this.diorama.applyCustomization(this.customization); return; }
+      this._ccApplyLive();
     };
 
     m.addEventListener('click', (e) => {
@@ -1646,11 +1663,15 @@ export class StartScreenUI {
         return;
       }
       if (e.target.matches('input[type="color"][data-part]')) {
-        setColor(e.target.dataset.part, e.target.value);
+        setColor(e.target.dataset.part, e.target.value, true); // arrastrando en el selector: llegan decenas de eventos por segundo
         e.target.closest('.lk-opt-sec')?.querySelectorAll('.lk-cc-sw').forEach((b) => b.setAttribute('aria-pressed', 'false'));
       }
     });
-    m.addEventListener('change', (e) => { if (e.target.matches('input[type="color"][data-part]')) this._ccRenderLook(); });
+    m.addEventListener('change', (e) => {
+      if (!e.target.matches('input[type="color"][data-part]')) return;
+      setColor(e.target.dataset.part, e.target.value); // valor final, al momento
+      this._ccRenderLook();
+    });
 
     // Tooltips de hechizos y cartas (ratón, foco y pulsación larga)
     m.addEventListener('mouseover', (e) => { const el = e.target.closest('.lk-spell[data-tip]'); if (el) this._showSkillTooltip(el); });
@@ -1723,6 +1744,7 @@ export class StartScreenUI {
   }
 
   closeHeroSelect() {
+    this._ccCancelLive?.();
     this._hideSkillTooltip();
     if (this.diorama) {
       this.diorama.dispose();

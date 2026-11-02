@@ -298,10 +298,96 @@ function whiteHairTexture(src) {
   return tex;
 }
 
+/**
+ * Hito 113 — recoloreado de telas por tono, partido en dos pasos.
+ * 1) analyzeHue: qué píxeles son de la tela y su luminosidad. No depende del color elegido: se hace una vez por imagen.
+ * 2) applyHue: escribe el color nuevo solo en esos píxeles. Es lo único que se repite al mover el selector.
+ * Mismo resultado que la versión anterior (THREE.Color.setHSL en espacio de trabajo), sin crear un arreglo por píxel.
+ */
+export function analyzeHue(px, spec) {
+  const minSat = spec.minSat || 0.3;
+  const n = px.length >> 2;
+  const idx = new Uint32Array(n), ls = new Float32Array(n);
+  let count = 0, sumL = 0;
+  for (let i = 0, j = 0; i < px.length; i += 4, j++) {
+    const r = px[i], g = px[i + 1], b = px[i + 2];
+    const mx = r > g ? (r > b ? r : b) : (g > b ? g : b), mn = r < g ? (r < b ? r : b) : (g < b ? g : b), d = mx - mn;
+    if (!d) continue; // gris: saturación 0, nunca entra
+    const l = (mx + mn) / 510;
+    const sat = d / 255 / (1 - Math.abs(2 * l - 1) || 1);
+    if (sat < minSat || !(l > 0.08)) continue;
+    let hh = mx === r ? ((g - b) / d) % 6 : mx === g ? (b - r) / d + 2 : (r - g) / d + 4;
+    hh *= 60; if (hh < 0) hh += 360;
+    const dh = Math.min(Math.abs(hh - spec.hue), 360 - Math.abs(hh - spec.hue));
+    if (dh <= spec.tol) { idx[count] = j; ls[count] = l; count++; sumL += l; }
+  }
+  if (!count) return null;
+  return { idx: idx.slice(0, count), l: ls.slice(0, count), refL: sumL / count, count };
+}
+
+const _h2c = (p, q, t) => { if (t < 0) t += 1; if (t > 1) t -= 1; if (t < 1 / 6) return p + (q - p) * 6 * t; if (t < 1 / 2) return q; if (t < 2 / 3) return p + (q - p) * 6 * (2 / 3 - t); return p; };
+export function applyHue(outPx, an, tHsl) {
+  const h = ((tHsl.h % 1) + 1) % 1, sat = Math.max(0, Math.min(1, tHsl.s));
+  for (let k = 0; k < an.count; k++) {
+    const l = Math.max(0, Math.min(1, tHsl.l * (an.l[k] / an.refL)));
+    let r, g, b;
+    if (sat === 0) { r = g = b = l; } else {
+      const q = l <= 0.5 ? l * (1 + sat) : l + sat - l * sat, p = 2 * l - q;
+      r = _h2c(p, q, h + 1 / 3); g = _h2c(p, q, h); b = _h2c(p, q, h - 1 / 3);
+    }
+    const o = an.idx[k] * 4;
+    outPx[o] = Math.round(r * 255); outPx[o + 1] = Math.round(g * 255); outPx[o + 2] = Math.round(b * 255);
+  }
+}
+
 export class SapidaeModularController {
   constructor() {
     this._hornsCache = new Map();
     this._textureCache = new Map();
+    this._hueAnalysis = new Map(); // análisis de tela por imagen y tono (Hito 113)
+    this._srcPixels = new Map();   // píxeles originales por huella de imagen (Hito 113): evita drawImage + getImageData en cada color
+    this._recolorLru = new Map();  // tipo de recoloreado → claves de más antigua a más reciente
+  }
+
+  /**
+   * Guarda una textura recoloreada y libera las más antiguas de su tipo (Hito 113).
+   * Antes cada color probado en el selector dejaba un canvas de 1024² en la caché para siempre (heap 120 → 430 MB).
+   * `cap` debe ser mayor que las texturas de ese tipo que pueden estar en pantalla a la vez.
+   */
+  _cachePut(kind, key, tex, cap) {
+    this._textureCache.set(key, tex);
+    const lru = this._recolorLru.get(kind) || [];
+    const at = lru.indexOf(key); if (at >= 0) lru.splice(at, 1);
+    lru.push(key);
+    while (lru.length > cap) {
+      const old = lru.shift();
+      const t = this._textureCache.get(old);
+      this._textureCache.delete(old);
+      if (t && typeof t.dispose === 'function') t.dispose();
+      if (t?.image) { t.image.width = 1; t.image.height = 1; } // suelta la memoria del canvas
+    }
+    this._recolorLru.set(kind, lru);
+    return tex;
+  }
+
+  /** Mantiene al día el orden de uso de una clave de caché (un acierto la hace «reciente»). */
+  _cacheTouch(kind, key) {
+    const lru = this._recolorLru.get(kind); if (!lru) return;
+    const at = lru.indexOf(key); if (at >= 0) { lru.splice(at, 1); lru.push(key); }
+  }
+
+  /** Píxeles originales de una imagen (copia, solo lectura), leídos una sola vez. */
+  _sourcePixels(image) {
+    const k = this._imgKey(image);
+    let e = this._srcPixels.get(k);
+    if (e) return e;
+    const w = image.width || image.naturalWidth || 1024, h = image.height || image.naturalHeight || 1024;
+    const cv = document.createElement('canvas'); cv.width = w; cv.height = h;
+    const ctx = cv.getContext('2d', { willReadFrequently: true });
+    ctx.drawImage(image, 0, 0);
+    e = { w, h, px: ctx.getImageData(0, 0, w, h).data };
+    this._srcPixels.set(k, e);
+    return e;
   }
 
   /**
@@ -411,6 +497,23 @@ export class SapidaeModularController {
     };
   }
 
+  /** Pinta las piezas ocultas una por tarea, 250 ms después del último cambio de color (Hito 113). Un temporizador por `key`. */
+  _deferPaint(model, key, meshes, paint) {
+    const ud = model.userData;
+    const timers = ud._deferTimers || (ud._deferTimers = {});
+    if (timers[key]) clearTimeout(timers[key]);
+    const queue = meshes.filter(Boolean);
+    const step = () => {
+      const m = queue.shift();
+      if (!m) { timers[key] = 0; return; }
+      try { paint(m); } catch (e) { console.warn('[SapidaeModularController] repaint', key, e); }
+      timers[key] = setTimeout(step, 0);
+    };
+    timers[key] = queue.length ? setTimeout(step, 250) : 0;
+  }
+
+  _deferEyePaint(model, meshes, paint) { this._deferPaint(model, 'eyes', meshes, paint); }
+
   /** Muestra solo la pieza elegida de cada grupo de Kai. */
   _showKaiGroup(model, grp, id) {
     Object.entries(grp || {}).forEach(([k, mesh]) => this._setPartVisible(model, mesh, k === id));
@@ -438,8 +541,9 @@ export class SapidaeModularController {
     this._showKaiGroup(model, g.mouth, look.mouth);
     this._showKaiGroup(model, g.mouthIn, null); // Ema_mouth_C_in sobra: la boca C ya trae su dibujo
     this._showKaiGroup(model, g.horns, 'a');
-    // Color de ojos: el iris de las 5 texturas de ojos
-    Object.values(g.eyes).forEach((mesh) => {
+    // Color de ojos: el iris de las 5 texturas de ojos. Hito 113: la expresión visible se recolorea ya; las otras 4
+    // esperan a que el color deje de cambiar (en el selector llegan decenas de cambios por segundo).
+    const paintEyes = (mesh) => {
       const mat = Array.isArray(mesh.material) ? mesh.material[0] : mesh.material;
       if (!mat) return;
       if (!mat.userData.origMap && mat.map) mat.userData.origMap = mat.map;
@@ -448,11 +552,16 @@ export class SapidaeModularController {
       mat.map = rec || mat.userData.origMap || mat.map;
       mat.color.setHex(0xffffff);
       mat.needsUpdate = true;
-    });
+    };
+    if (g.eyes[look.eyes]) paintEyes(g.eyes[look.eyes]);
+    this._deferEyePaint(model, Object.entries(g.eyes).filter(([k]) => k !== look.eyes).map(([, m]) => m), paintEyes);
     this._applyV2HornColor(parts, c.hornColor || 'original');
     [parts.top, parts.legs, g.body].forEach((mesh) => mesh && this._tintMesh(mesh, '#ffffff'));
     // Camisa: color de la tela (la D por defecto)
-    Object.values(g.shirt || {}).forEach((mesh) => this._recolorClothV2(mesh, c.suitColor || 'original'));
+    // Hito 113: solo la camisa visible al momento (cada cambio de color recoloreaba las 5 variantes); las otras, en reposo
+    const shirtColor = c.suitColor || 'original';
+    if (g.shirt?.[look.outfit]) this._recolorClothV2(g.shirt[look.outfit], shirtColor);
+    this._deferPaint(model, 'shirt', Object.entries(g.shirt || {}).filter(([k]) => k !== look.outfit).map(([, m]) => m), (m) => this._recolorClothV2(m, shirtColor));
     // Pelo y cabeza del mismo color: el pelo con su versión blanca teñida; la cabeza solo en la zona pintada de pelo
     const hairColor = c.hair && c.hair !== 'original' ? c.hair : null;
     const hairMesh = g.hair[look.hair], headMesh = g.head[look.hair];
@@ -623,8 +732,7 @@ export class SapidaeModularController {
     const tex = new THREE.CanvasTexture(cv);
     ['flipY', 'wrapS', 'wrapT', 'magFilter', 'minFilter', 'anisotropy', 'colorSpace', 'channel', 'generateMipmaps'].forEach((k) => { if (src[k] !== undefined) tex[k] = src[k]; });
     tex.needsUpdate = true;
-    this._textureCache.set(key, tex);
-    return tex;
+    return this._cachePut('kaihead', key, tex, 4);
   }
 
   _getV2Parts(model) {
@@ -806,36 +914,27 @@ export class SapidaeModularController {
   _recolorHueTexture(image, spec, colorHex) {
     if (typeof document === 'undefined' || !image) return null;
     const key = `hue_${colorHex}_${this._imgKey(image)}`;
-    if (this._textureCache.has(key)) return this._textureCache.get(key);
+    if (this._textureCache.has(key)) { this._cacheTouch('hue', key); return this._textureCache.get(key); }
     try {
-      const w = image.width || image.naturalWidth || 1024, h = image.height || image.naturalHeight || 1024;
-      const canvas = document.createElement('canvas'); canvas.width = w; canvas.height = h;
-      const ctx = canvas.getContext('2d', { willReadFrequently: true });
-      ctx.drawImage(image, 0, 0);
-      const data = ctx.getImageData(0, 0, w, h); const px = data.data;
+      const src = this._sourcePixels(image);
+      const akey = `${this._imgKey(image)}_${spec.hue}_${spec.tol}_${spec.minSat || 0.3}`;
+      let an = this._hueAnalysis.get(akey);
+      if (an === undefined) {
+        an = analyzeHue(src.px, spec);
+        this._hueAnalysis.set(akey, an);
+        if (this._hueAnalysis.size > 8) this._hueAnalysis.delete(this._hueAnalysis.keys().next().value);
+      }
+      if (!an) return null;
       const target = new THREE.Color(colorHex); const tHsl = {}; target.getHSL(tHsl);
-      const hueOf = (r, g, b) => { const mx = Math.max(r, g, b), mn = Math.min(r, g, b), d = mx - mn; if (!d) return [0, 0, mx / 255]; let hh = mx === r ? ((g - b) / d) % 6 : mx === g ? (b - r) / d + 2 : (r - g) / d + 4; hh *= 60; if (hh < 0) hh += 360; const l = (mx + mn) / 510; return [hh, d / 255 / (1 - Math.abs(2 * l - 1) || 1), l]; };
-      // Luminosidad de referencia de la tela (media de los píxeles que cambian)
-      let sumL = 0, n = 0;
-      const hit = new Uint8Array(w * h);
-      for (let i = 0, j = 0; i < px.length; i += 4, j++) {
-        const [hh, sat, l] = hueOf(px[i], px[i + 1], px[i + 2]);
-        const dh = Math.min(Math.abs(hh - spec.hue), 360 - Math.abs(hh - spec.hue));
-        if (dh <= spec.tol && sat >= (spec.minSat || 0.3) && l > 0.08) { hit[j] = 1; sumL += l; n++; }
-      }
-      if (!n) return null;
-      const refL = sumL / n; const out = new THREE.Color();
-      for (let i = 0, j = 0; i < px.length; i += 4, j++) {
-        if (!hit[j]) continue;
-        const l = hueOf(px[i], px[i + 1], px[i + 2])[2];
-        out.setHSL(tHsl.h, tHsl.s, Math.max(0, Math.min(1, tHsl.l * (l / refL))));
-        px[i] = Math.round(out.r * 255); px[i + 1] = Math.round(out.g * 255); px[i + 2] = Math.round(out.b * 255);
-      }
+      const canvas = document.createElement('canvas'); canvas.width = src.w; canvas.height = src.h;
+      const ctx = canvas.getContext('2d', { willReadFrequently: true });
+      const data = ctx.createImageData(src.w, src.h);
+      data.data.set(src.px);
+      applyHue(data.data, an, tHsl);
       ctx.putImageData(data, 0, 0);
       const tex = new THREE.CanvasTexture(canvas);
       tex.flipY = false; tex.colorSpace = THREE.SRGBColorSpace; tex.needsUpdate = true;
-      this._textureCache.set(key, tex);
-      return tex;
+      return this._cachePut('hue', key, tex, 12);
     } catch (e) {
       console.warn('[SapidaeModularController] Hue recolor failed:', e);
       return null;
@@ -865,7 +964,11 @@ export class SapidaeModularController {
       eyeMat.needsUpdate = true;
     }
     this.setExpression(model, customization.eyeExpr || 'normal', customization.mouthExpr || 'smile');
-    [parts.found.top, parts.found.top_B].forEach((mesh) => mesh && this._recolorClothV2(mesh, suitColor));
+    {
+      const tops = [parts.found.top, parts.found.top_B].filter(Boolean);
+      tops.filter((m) => m.visible).forEach((m) => this._recolorClothV2(m, suitColor));
+      this._deferPaint(model, 'tops', tops.filter((m) => !m.visible), (m) => this._recolorClothV2(m, suitColor));
+    }
     [parts.found.legs, parts.found.legs_B].forEach((mesh) => { if (mesh) this._recolorClothV2(mesh, 'original'); });
     this._applyV2HornColor(parts, hornColor);
     [parts.head, parts.cheek, parts.mouth].forEach((mesh) => mesh && this._tintMesh(mesh, '#ffffff'));
@@ -884,18 +987,19 @@ export class SapidaeModularController {
 
     const cacheKey = `suit_${colorHex}_${image.src || image.name || this._imgKey(image)}`;
     if (this._textureCache.has(cacheKey)) {
+      this._cacheTouch('suit', cacheKey);
       return this._textureCache.get(cacheKey);
     }
 
     try {
+      const srcPx = this._sourcePixels(image);
       const canvas = document.createElement('canvas');
-      canvas.width = image.width || image.naturalWidth || 1024;
-      canvas.height = image.height || image.naturalHeight || 1024;
-      const ctx = canvas.getContext('2d');
-      ctx.drawImage(image, 0, 0);
-
-      const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+      canvas.width = srcPx.w;
+      canvas.height = srcPx.h;
+      const ctx = canvas.getContext('2d', { willReadFrequently: true });
+      const imgData = ctx.createImageData(srcPx.w, srcPx.h);
       const data = imgData.data;
+      data.set(srcPx.px);
 
       const tr = parseInt(colorHex.slice(1, 3), 16);
       const tg = parseInt(colorHex.slice(3, 5), 16);
@@ -921,8 +1025,7 @@ export class SapidaeModularController {
       tex.flipY = false;
       tex.colorSpace = THREE.SRGBColorSpace;
       tex.needsUpdate = true;
-      this._textureCache.set(cacheKey, tex);
-      return tex;
+      return this._cachePut('suit', cacheKey, tex, 6);
     } catch (e) {
       console.warn('[SapidaeModularController] Suit recolor failed:', e);
       return null;
@@ -942,18 +1045,20 @@ export class SapidaeModularController {
 
     const cacheKey = `pupil_${colorHex}_${image.src || image.name || this._imgKey(image)}`;
     if (this._textureCache.has(cacheKey)) {
+      this._cacheTouch('pupil', cacheKey);
       return this._textureCache.get(cacheKey);
     }
 
     try {
+      // Hito 113: píxeles de origen leídos una sola vez; por color solo se recorre el arreglo y se escribe el resultado.
+      const src = this._sourcePixels(image);
       const canvas = document.createElement('canvas');
-      canvas.width = image.width || image.naturalWidth || 1024;
-      canvas.height = image.height || image.naturalHeight || 1024;
-      const ctx = canvas.getContext('2d');
-      ctx.drawImage(image, 0, 0);
-
-      const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+      canvas.width = src.w;
+      canvas.height = src.h;
+      const ctx = canvas.getContext('2d', { willReadFrequently: true });
+      const imgData = ctx.createImageData(src.w, src.h);
       const data = imgData.data;
+      data.set(src.px);
 
       const tr = parseInt(colorHex.slice(1, 3), 16);
       const tg = parseInt(colorHex.slice(3, 5), 16);
@@ -983,8 +1088,7 @@ export class SapidaeModularController {
       tex.flipY = false;
       tex.colorSpace = THREE.SRGBColorSpace;
       tex.needsUpdate = true;
-      this._textureCache.set(cacheKey, tex);
-      return tex;
+      return this._cachePut('pupil', cacheKey, tex, 15); // 5 atlas de ojos × 3 colores recientes
     } catch (e) {
       console.warn('[SapidaeModularController] Pupil recolor failed:', e);
       return null;
