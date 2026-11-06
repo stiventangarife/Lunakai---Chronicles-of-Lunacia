@@ -367,7 +367,7 @@ export class InventoryModal {
     this.modalEl.classList.remove('lk-is-open');
     this.modalEl.classList.add('hidden');
     this.model?.stop();
-    if (this.audio && this.audio.playStep) this.audio.playStep();
+    if (this.audio && this.audio.playClick) this.audio.playClick(); // Hito 119
     if (this.onClose) this.onClose();
   }
 
@@ -442,7 +442,8 @@ export class InventoryModal {
 
   _refreshModelEquipment() {
     if (this.model && this._isSapi(this.selectedHeroId)) {
-      this.model.applyEquipment(this._base(), this._equipped());
+      // Hito 113: el visor oculta al Sapidae mientras se precompilan las piezas nuevas (evita el bloqueo al equipar)
+      Promise.resolve(this.model.refreshEquipment(this._base(), this._equipped())).catch(() => {});
       this._modelShown = this._modelKey(); // el modelo ya muestra este equipo
     }
   }
@@ -473,7 +474,7 @@ export class InventoryModal {
       : portraitService.getPortraitSync(key) || (sapi ? `./assets/portraits/${key}.png` : base?.image || null);
     if (!url && !base?.axieId) portraitService.getPortrait(key).then((u) => { if (u && this.isOpen) this._renderRoster(); }).catch(() => {});
     const cc = sapi ? 'var(--lk-gilt-300)' : `var(--lk-class-${this._clsKey(id)})`;
-    return `<span class="lk-med" style="--cc:${cc}${size ? `;--s:${size}px` : ''}">${url ? `<img src="${url}" alt="">` : ''}</span>`;
+    return `<span class="lk-med${sapi ? '' : ' lk-med--axie'}" style="--cc:${cc}${size ? `;--s:${size}px` : ''}">${url ? `<img src="${url}" alt="">` : ''}</span>`;
   }
 
   _rosterSoon() {
@@ -818,7 +819,7 @@ export class InventoryModal {
     if (!id) return;
     const before = this._statKeys();
     this.equipmentManager.unequipItem(hero, slot);
-    if (this.audio && this.audio.playStep) this.audio.playStep();
+    if (this.audio && this.audio.playClick) this.audio.playClick(); // Hito 119
     if (typeof this.onItemUnequipped === 'function') this.onItemUnequipped(hero, slot);
     this._refreshModelEquipment();
     const after = this._statKeys();
@@ -950,5 +951,5 @@ export class InventoryModal {
 
   _showToast(msg) { toast(msg); }
 
-  _sfx() { if (this.audio && this.audio.playStep) this.audio.playStep(); }
+  _sfx() { if (this.audio && this.audio.playClick) this.audio.playClick(); } // Hito 119: clic de interfaz (antes, sonido de paso)
 }

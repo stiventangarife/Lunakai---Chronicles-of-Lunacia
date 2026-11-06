@@ -46,7 +46,8 @@ build(a){
   const IDS=["vfx_gaia_grid_pulse","vfx_gaia_root_bind","vfx_gaia_spirit_tree","vfx_gaia_pollen_rain","vfx_gaia_cleanse_smoke","vfx_gaia_hex_dome","vfx_gaia_clay_quake"];
   const [GP,RB,ST,PR,CS,HD,CQ]=IDS, VG=variantGroups(a,IDS); for(const k of IDS)VG[k].n=0;
   const SP=V3(-3.7,0,0), AX=V3(-3.7,0,-1.0), A1=ALLY_POS[1].clone();
-  const C=V3((SP.x+AX.x+A1.x)/3,0,(SP.z+AX.z+A1.z)/3), M=V3((SP.x+AX.x)/2,0,(SP.z+AX.z)/2);
+  // Hito 113: el centro del efecto es el Sapidae (antes el promedio del trío, que en el tablero quedaba desplazado hacia atrás)
+  const C=V3(SP.x,0,SP.z), M=V3((SP.x+AX.x)/2,0,(SP.z+AX.z)/2);
   const TR=0.35,TT=0.6,TN=0.9,TS=1.1,TD=1.5,TI=1.78,TE=2.3;
 
   // ---------------------------------------------------------------

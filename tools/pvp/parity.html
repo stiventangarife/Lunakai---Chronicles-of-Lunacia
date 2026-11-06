@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>Lunakai · Arena PvP · paridad del motor sin gráficos</title>
+<!-- Arena PvP, fase P0. Abrir con el servidor del juego: http://localhost:8082/tools/pvp/parity.html?n=12
+     Juega N partidas al azar en el motor sin gráficos (HeadlessCombat) y las repite con las clases del juego
+     (Unit + GridManager + SpellManager con sus VFX y GolemSystem con modelos). La huella del estado tras cada orden
+     debe ser idéntica: si no, el combate del juego y el del árbitro han dejado de dar lo mismo. -->
+<script type="importmap">
+{ "imports": {
+  "three": "../../vendor/three.module.js",
+  "three/addons/": "../../vendor/",
+  "three/examples/jsm/": "../../vendor/",
+  "@jaatster/threejs-axie-mixer3d-public": "../../vendor/axie-mixer3d/index.js",
+  "@jaatster/threejs-axie-mixer3d-public/three": "../../vendor/axie-mixer3d/three.js"
+} }
+</script>
+<style>body{font:14px/1.5 system-ui,sans-serif;background:#0e1424;color:#e8ecf6;padding:24px}pre{white-space:pre-wrap}.ok{color:#9fd8a3}.bad{color:#ff8a80}</style>
+</head>
+<body>
+<h1>Paridad juego ↔ motor sin gráficos</h1>
+<pre id="out">Cargando…</pre>
+<script type="module">
+const out = document.getElementById('out');
+const log = (t, cls = '') => { out.innerHTML += `\n<span class="${cls}">${t}</span>`; };
+out.textContent = '';
+// Animaciones al instante: aquí solo cuentan las reglas
+window.requestAnimationFrame = (cb) => setTimeout(() => cb(performance.now() + 1e6), 0);
+
+const THREE = await import('three');
+const { GridManager } = await import('../../src/tactics/GridManager.js');
+const { Unit } = await import('../../src/tactics/Unit.js');
+const { SpellManager } = await import('../../src/tactics/Spells.js');
+const { TurnManager } = await import('../../src/tactics/TurnManager.js');
+const { getBattleMap } = await import('../../src/tactics/maps/BattleMaps.js');
+const { mulberry32 } = await import('../../src/tactics/sim/SeededRandom.js');
+const { stateHash } = await import('../../src/tactics/sim/StateHash.js');
+const { playRandom } = await import('../../src/tactics/sim/CombatReplay.js');
+const { setupFor } = await import('./test-teams.js');
+
+const noop = () => {};
+const scene = new THREE.Scene();
+const sceneManager = new Proxy({ scene, camera: new THREE.PerspectiveCamera(), lightPool: undefined, composer: undefined, renderer: undefined },
+  { get: (t, k) => (k in t ? t[k] : noop) });
+const audio = new Proxy({}, { get: (t, k) => (k === 'combat' || k === 'then' ? undefined : noop) });
+const combatText = new Proxy({}, { get: (t, k) => (k === 'then' ? undefined : noop) });
+
+/** Repite un registro con las clases del juego y devuelve la huella tras cada orden. */
+async function playVisual(rec) {
+  const s = rec.setup;
+  const grid = new GridManager(scene);
+  if (s.mapId) grid.loadLayout(getBattleMap(s.mapId), {});
+  const game = { units: [] };
+  const sm = new SpellManager(grid, sceneManager, audio, combatText, game);
+  sm.rng = mulberry32(s.seed);
+  const tm = new TurnManager(sceneManager, audio);
+  tm.sim = true; // sin esperas entre turnos (solo cambia el tiempo, no las reglas)
+  tm.tieBreak = s.tieBreak;
+  sm.bindTurnManager(tm);
+  const onRound = tm.onRoundStart;
+  tm.onRoundStart = (r) => { if (r > s.maxRounds && !tm.isCombatOver) { tm.isCombatOver = true; return; } onRound(r); };
+  for (const c of s.units) game.units.push(new Unit({ ...c }, grid, sceneManager, audio));
+  tm.setUnits(game.units);
+  tm.startCombat();
+  const hashes = [];
+  for (const { h, ...o } of rec.orders) {
+    const u = tm.getActiveUnit();
+    if (!u || u.id !== o.unit) break;
+    if (o.t === 'move') {
+      const reach = grid.getReachableCells(u.gridX, u.gridZ, u.currentPM, u).find((c) => c.x === o.x && c.z === o.z);
+      if (!reach) break;
+      await u.moveAlongPath(reach.path);
+    } else if (o.t === 'cast') {
+      await sm.castSpell(u, sm.getSpell(o.spell, u), { x: o.x, z: o.z });
+      tm.checkCombatEnd();
+    } else await tm.endCurrentTurn();
+    hashes.push(stateHash({ turnManager: tm, spellManager: sm, units: game.units }));
+  }
+  for (const u of game.units) { scene.remove(u.group); u.dispose?.(); }
+  sm.releaseBattle?.();
+  return hashes;
+}
+
+const N = Number(new URLSearchParams(location.search).get('n')) || 12;
+let bad = 0, orders = 0;
+const t0 = performance.now();
+for (let k = 0; k < N; k++) {
+  const { record } = await playRandom(setupFor(k), { pickSeed: 500 + k });
+  const hashes = await playVisual(record);
+  orders += record.orders.length;
+  const diff = hashes.length !== record.orders.length ? hashes.length : hashes.findIndex((h, i) => h !== record.orders[i].h);
+  if (diff < 0) log(`✓ ${record.setup.mapId} · ${record.orders.length} órdenes · ${record.result?.reason}:${record.result?.winner}`, 'ok');
+  else { bad++; log(`✗ ${record.setup.mapId}: se separa en la orden ${diff} ${JSON.stringify(record.orders[diff] || null)}`, 'bad'); }
+}
+log(`\n${bad ? `✗ ${bad} partidas distintas` : `✓ ${N} partidas idénticas`} · ${orders} órdenes · ${((performance.now() - t0) / 1000).toFixed(1)} s`, bad ? 'bad' : 'ok');
+window.parityResult = { n: N, bad, orders };
+</script>
+</body>
+</html>

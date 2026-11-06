@@ -11,8 +11,10 @@ import { TILE_SIZE } from '../GridManager.js';
 
 // Hito 95 · marcas en el suelo de las zonas (tierra estable, grieta corrupta…). Geometría y materiales compartidos
 // por todas las marcas y combates (no se crean materiales en cada lanzamiento).
-const ZONE_DECAL_COLORS = { stable_ground: 0xa6e37a, corrupt_rift: 0x9b5cf0, gravity_well: 0x6fb7ff };
+const ZONE_DECAL_COLORS = { stable_ground: 0xa6e37a, corrupt_rift: 0x9b5cf0, gravity_well: 0x6fb7ff, miasma: 0xb440ff };
 let _zoneGeo = null;
+// Geometrías del destello de impacto (anillo y chispas): compartidas, antes se creaban y subían a la GPU en cada golpe
+let _impactRingGeo = null, _impactSparkGeo = null;
 const _zoneMats = {};
 function zoneDecalGeo() {
   if (!_zoneGeo) { _zoneGeo = new THREE.PlaneGeometry(TILE_SIZE * 0.86, TILE_SIZE * 0.86); _zoneGeo.rotateX(-Math.PI / 2); }
@@ -24,6 +26,52 @@ function zoneDecalMat(kind) {
     _zoneMats[color] = new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.32, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 });
   }
   return _zoneMats[color];
+}
+
+// Rastro de Miasma: morado saturado (no se confunde con el azul del movimiento), humo que gira y burbujas que suben.
+// Todo compartido y con los mismos tipos de material que ya se precalientan (sin shaders nuevos al aparecer).
+const MIASMA = { base: null, swirl: null, bubble: null, bubbleGeo: null };
+function miasmaRes() {
+  if (!MIASMA.base) {
+    MIASMA.base = new THREE.MeshBasicMaterial({ color: 0x9d12ff, transparent: true, opacity: 0.55, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 });
+    const c = document.createElement('canvas');
+    c.width = c.height = 128;
+    const ctx = c.getContext('2d');
+    // manchas de humo dentro de un círculo que se apaga hacia el borde (gira sin que se vean esquinas)
+    const blobs = [[44, 50, 30], [84, 46, 26], [64, 84, 32], [38, 86, 20], [90, 84, 22], [64, 60, 22]];
+    for (const [x, y, r] of blobs) {
+      const g = ctx.createRadialGradient(x, y, 0, x, y, r);
+      g.addColorStop(0, 'rgba(236, 160, 255, 0.85)');
+      g.addColorStop(0.55, 'rgba(178, 60, 255, 0.45)');
+      g.addColorStop(1, 'rgba(120, 0, 200, 0)');
+      ctx.fillStyle = g;
+      ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fill();
+    }
+    ctx.globalCompositeOperation = 'destination-in';
+    const edge = ctx.createRadialGradient(64, 64, 40, 64, 64, 64);
+    edge.addColorStop(0, 'rgba(0,0,0,1)');
+    edge.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = edge;
+    ctx.fillRect(0, 0, 128, 128);
+    MIASMA.swirl = new THREE.MeshBasicMaterial({ map: new THREE.CanvasTexture(c), transparent: true, opacity: 0.8, depthWrite: false, side: THREE.DoubleSide });
+    MIASMA.bubble = new THREE.MeshBasicMaterial({ color: 0xf0c4ff, transparent: true, opacity: 0.85, depthWrite: false });
+    MIASMA.bubbleGeo = new THREE.SphereGeometry(0.06, 8, 6);
+  }
+  return MIASMA;
+}
+
+/**
+ * Grupo con las mallas del miasma (base, humo y burbuja) para el precalentado del combate (main._prewarmBattle):
+ * se compilan sus shaders, se sube la textura del humo y las geometrías detrás del velo, no al aparecer el Rastro.
+ * Los materiales son compartidos y permanentes: no hay que liberar nada.
+ */
+export function miasmaWarmGroup() {
+  const R = miasmaRes();
+  const g = new THREE.Group();
+  g.name = 'miasma_warmup';
+  g.add(new THREE.Mesh(zoneDecalGeo(), R.base), new THREE.Mesh(zoneDecalGeo(), R.swirl), new THREE.Mesh(R.bubbleGeo, R.bubble));
+  g.position.set(0, -60, 0);
+  return g;
 }
 
 export class SpellPresentation {
@@ -228,8 +276,14 @@ export class SpellPresentation {
     });
     on('field:zonePlaced', (zone) => {
       const { positions, kind } = zone;
-      if (positions[0]) this.combatText.pop({ pos: positions[0], kind: 'buff', text: kind === 'stable_ground' ? i18n.t('golems.stable') : i18n.t('combatFx.zone') });
+      const zoneTxt = kind === 'stable_ground' ? i18n.t('golems.stable') : kind === 'miasma' ? i18n.t('combatFx.miasma') : i18n.t('combatFx.zone');
+      if (positions[0]) this.combatText.pop({ pos: positions[0], kind: kind === 'miasma' ? 'debuff' : 'buff', text: zoneTxt });
+      if (kind === 'miasma') this.sceneManager.shake?.(0.08);
       this._addZoneDecal(zone);
+    });
+    // Rastro de Miasma: vida perdida al terminar el turno en una casilla infectada
+    on('field:zoneHurt', ({ unit, damage }) => {
+      if (damage > 0) this.combatText.pop({ pos: this._posOf(unit), key: unit, kind: unit.team === 'player' ? 'taken' : 'hit', value: damage, size: 0.9, label: i18n.t('combatFx.miasmaHit') });
     });
     on('field:zoneExpired', (zone) => this._removeZoneDecal(zone));
     // Hito 95 · gólems del Sapidae
@@ -265,6 +319,13 @@ export class SpellPresentation {
     this._zoneDecals ||= new Map();
     const group = new THREE.Group();
     group.name = `zone_${zone.kind}`;
+    if (zone.kind === 'miasma') {
+      this._buildMiasma(group, zone.positions);
+      scene.add(group);
+      this._zoneDecals.set(this._zoneKey(zone), group);
+      this._startMiasmaAnim();
+      return;
+    }
     for (const p of zone.positions) {
       const m = new THREE.Mesh(zoneDecalGeo(), zoneDecalMat(zone.kind));
       m.position.set(p.x, 0.045, p.z);
@@ -283,10 +344,60 @@ export class SpellPresentation {
     this._zoneDecals.delete(key);
   }
 
+  /** Casillas del miasma: base morada, humo que gira (por encima del azul del movimiento) y 3 burbujas por casilla. */
+  _buildMiasma(group, positions) {
+    const R = miasmaRes();
+    const anim = (group.userData.miasma = { swirls: [], bubbles: [] });
+    positions.forEach((p, i) => {
+      const base = new THREE.Mesh(zoneDecalGeo(), R.base);
+      base.position.set(p.x, 0.045, p.z);
+      base.renderOrder = 3;
+      const swirl = new THREE.Mesh(zoneDecalGeo(), R.swirl);
+      swirl.position.set(p.x, 0.05, p.z);
+      swirl.rotation.y = i * 1.3;
+      swirl.renderOrder = 4;
+      group.add(base, swirl);
+      anim.swirls.push({ m: swirl, s: i % 2 ? 0.5 : -0.4 });
+      for (let k = 0; k < 3; k++) {
+        const b = new THREE.Mesh(R.bubbleGeo, R.bubble);
+        b.renderOrder = 5;
+        const a = (k / 3) * Math.PI * 2 + i;
+        anim.bubbles.push({ m: b, x: p.x + Math.cos(a) * TILE_SIZE * 0.22, z: p.z + Math.sin(a) * TILE_SIZE * 0.22, ph: (k / 3 + i * 0.37) % 1 });
+        group.add(b);
+      }
+    });
+  }
+
+  /** Un solo bucle mientras quede miasma en el tablero (se para solo). */
+  _startMiasmaAnim() {
+    if (this._miasmaRaf) return;
+    let last = performance.now();
+    const tick = (now) => {
+      const dt = Math.min(0.05, (now - last) / 1000);
+      last = now;
+      let any = false;
+      if (this._zoneDecals) for (const g of this._zoneDecals.values()) {
+        const a = g.userData.miasma;
+        if (!a) continue;
+        any = true;
+        for (const s of a.swirls) s.m.rotation.y += s.s * dt;
+        for (const b of a.bubbles) {
+          b.ph = (b.ph + dt * 0.55) % 1;
+          b.m.position.set(b.x, 0.08 + b.ph * 0.75, b.z);
+          b.m.scale.setScalar(b.ph < 0.85 ? 0.6 + b.ph * 0.6 : (1 - b.ph) * 7); // crece y «revienta» arriba
+        }
+      }
+      if (MIASMA.swirl) MIASMA.swirl.opacity = 0.7 + Math.sin(now * 0.003) * 0.15;
+      this._miasmaRaf = any ? requestAnimationFrame(tick) : 0;
+    };
+    this._miasmaRaf = requestAnimationFrame(tick);
+  }
+
   /** Quita todas las marcas de zona (al empezar otro combate o al desinstalar). */
   clearZoneDecals() {
+    if (this._miasmaRaf) { cancelAnimationFrame(this._miasmaRaf); this._miasmaRaf = 0; } // el bucle del humo no sigue en el mundo
     if (!this._zoneDecals) return;
-    for (const g of this._zoneDecals.values()) g.parent?.remove(g);
+    for (const g of this._zoneDecals.values()) g.parent?.remove(g); // geometrías y materiales compartidos: no se liberan
     this._zoneDecals.clear();
   }
 
@@ -318,6 +429,7 @@ export class SpellPresentation {
   }
 
   spawnProjectile(fromPos, toPos, spell) {
+    if (this.gridManager?.fastForward) return Promise.resolve(); // Arena PvP: puesta al día sin efectos
     return new Promise(resolve => {
       const scene = this.sceneManager.scene;
       const group = new THREE.Group();
@@ -543,7 +655,7 @@ export class SpellPresentation {
     this.gridManager.spawnImpactDecal(worldPos, decalType);
 
     // 2. Shockwave expanding ring
-    const ringGeo = new THREE.RingGeometry(0.12, 0.45, 32);
+    const ringGeo = (_impactRingGeo ||= new THREE.RingGeometry(0.12, 0.45, 32));
     const ringMat = new THREE.MeshBasicMaterial({
       color: fxColor,
       transparent: true,
@@ -557,7 +669,7 @@ export class SpellPresentation {
 
     // 3. 3D Spark Particle Explosion (16 sparks)
     const sparks = [];
-    const sparkGeo = new THREE.OctahedronGeometry(0.09, 0);
+    const sparkGeo = (_impactSparkGeo ||= new THREE.OctahedronGeometry(0.09, 0));
     const sparkMat = new THREE.MeshBasicMaterial({ color: fxColor, transparent: true, opacity: 1.0 });
 
     for (let i = 0; i < 16; i++) {
@@ -606,14 +718,12 @@ export class SpellPresentation {
         requestAnimationFrame(animate);
       } else {
         scene.remove(ringMesh);
-        ringGeo.dispose();
-        ringMat.dispose();
+        ringMat.dispose(); // la geometría es compartida
 
         sparks.forEach(s => {
           scene.remove(s.mesh);
           s.mat.dispose();
         });
-        sparkGeo.dispose();
       }
     };
 

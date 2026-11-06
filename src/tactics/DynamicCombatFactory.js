@@ -6,7 +6,7 @@ import { ENEMY_ARCHETYPES } from '../rpg/world/BiomeEnemyCatalog.js';
 
 // Botín: objetos (ITEMS_DB) o materiales de la Forja (MATERIALS).
 const isLoot = (id) => Boolean(ITEMS_DB[id] || MATERIALS[id]);
-import { pickBattleMap } from './maps/BattleMaps.js';
+import { pickBattleMap, getBattleMap } from './maps/BattleMaps.js';
 import { facingTowards } from './maps/BattleMapLayout.js';
 
 // Hito 35: combates que siempre usan el mapa de jefe de su bioma (además de las manadas con líder 👑)
@@ -202,7 +202,9 @@ export class DynamicCombatFactory {
     }
 
     // Hito 35: mapa del bioma (3 por bioma al azar; los jefes, el suyo fijo). Si no hay mapa, el 10×10 de siempre.
-    const battleMap = pickBattleMap(biome, { isBoss: this.isBossEncounter(encounterData, pack, members) });
+    // Koliseo: tablero fijado por el servidor (encounterData.battleMapId)
+    const battleMap = (encounterData.battleMapId && getBattleMap(encounterData.battleMapId))
+      || pickBattleMap(biome, { isBoss: this.isBossEncounter(encounterData, pack, members) });
     let sapidaePosition = null;
     if (battleMap) {
       const { player, enemy } = battleMap.spawns;

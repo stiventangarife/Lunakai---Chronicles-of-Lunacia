@@ -25,15 +25,18 @@ import {
 } from '../SapidaeModularController.js';
 import { SAPIDAE_BASES, DEFAULT_SAPIDAE_MODEL } from '../SapidaeModels.js';
 import { CharacterPreviewDiorama } from './CharacterPreviewDiorama.js';
+import { SlotStagePreview } from './SlotStagePreview.js'; // Hito 131: personaje 3D del selector
+import { QuestManager } from '../QuestManager.js'; // Hito 132: misión actual de cada partida (panel «Tu partida»)
 import { sprite, toast, tooltip, esc, spellLimitStats } from '../../ui/lk.js';
 import { SLOT_UNLOCK_LEVEL, PART_UNLOCK_LEVEL } from '../../tactics/combat/SkillUnlocks.js'; // Hito 98
 import { accountManager } from '../../net/AccountManager.js';
 import * as i18n from '../../i18n/i18n.js';
 import { MAP_REGISTRY } from '../world/MapRegistry.js';
+import { canonicalZoneId } from '../world/islands/IslandWorldLayout.js'; // Hito 133: isla de la zona guardada
 
 /** Versión del juego que se ve en la pantalla de inicio y en la de selección de personaje. Súbela con cada entrega
  *  (no es la de los assets: esa es ASSET_VERSION, en render/AssetVersion.js, y solo cambia si se reemplaza algo de assets/). */
-export const GAME_VERSION = '0.4.0';
+export const GAME_VERSION = '0.5.0';
 
 // Nombre de la zona de una ranura en el idioma actual (la ranura guarda el nombre del momento en que se guardó)
 const zoneLabel = (z) => (z && z.mapId && MAP_REGISTRY[z.mapId] && MAP_REGISTRY[z.mapId].name) || (z && z.name) || '';
@@ -295,6 +298,9 @@ export class StartScreenUI {
     this.isOpen = true;
     this._createDOM();
     this.refreshSlots();
+    // Hito 119: al cargar el juego la pantalla aparece aquí (show() solo se usa al volver al título): música del título.
+    // El navegador la retiene hasta el primer clic o tecla y entonces suena.
+    this.audio?.playTitleMusic?.();
 
     // Listen to portrait service updates to refresh slot and hero avatars in real time
     portraitService.addListener(() => {
@@ -338,7 +344,6 @@ export class StartScreenUI {
             <h3 class="lk-idle">${i18n.t('start.welcomeTitle')}</h3>
             <p class="lk-idle">${i18n.t('start.welcomeText')}</p>
             <button class="lk-btn-sso lk-idle" data-act="sso"><span class="lk-ico">${SHIELD}</span><span><b>${i18n.t('start.ssoBtn')}</b><small>${i18n.t('start.ssoSub')}</small></span><span class="lk-arr">→</span></button>
-            <button class="lk-btn lk-btn-secondary-wood lk-email-btn lk-idle" data-act="emailStart"><span class="lk-b-ico"><img class="lk-ai" src="${I('mail')}" alt=""></span>${i18n.t('start.emailBtn')}</button>
             <ul class="lk-perks lk-idle"><li>${i18n.t('start.perkCloud')}</li><li>${i18n.t('start.perkNoWallet')}</li><li>${i18n.t('start.perkNoSeed')}</li></ul>
             <div class="lk-or lk-idle">${i18n.t('start.or')}</div>
             <button class="lk-btn lk-btn-secondary-wood lk-guest lk-idle" data-act="guest"><span class="lk-b-ico"><img class="lk-ai" src="${I('friend')}" alt=""></span>${i18n.t('start.playGuest')}</button>
@@ -387,11 +392,32 @@ export class StartScreenUI {
         </header>
         <div class="lk-guest-banner" data-ref="guestBanner" hidden><img class="lk-ai" src="${I('info')}" alt="">${i18n.t('start.guestBanner')}<button class="lk-btn lk-btn-moon lk-btn--sm" data-act="link"><span class="lk-b-ico" style="width:28px;height:28px">${SHIELD.replace('<svg ', '<svg style="width:16px;height:16px" ')}</span>${i18n.t('start.linkAccount')}</button></div>
         <div class="lk-guest-banner lk-sync-banner" data-ref="syncBanner" hidden><img class="lk-ai" src="${I('info')}" alt=""><span data-ref="syncText">${i18n.t('start.syncFail')}</span><button class="lk-btn lk-btn-moon lk-btn--sm" data-act="syncRetry">${i18n.t('start.retry')}</button></div>
-        <div class="lk-sel-body">
-          <div class="lk-sel-head"><h3>${i18n.t('start.chooseAdventure')}</h3><small>${i18n.t('start.keysHint')}</small></div>
-          <div class="lk-slots" id="start-slots-grid" role="listbox" aria-label="${i18n.t('start.slotsAria')}"></div>
+        <div class="lk-sel-body lk-sel2">
+          <!-- Hito 131: escenario de la aventura elegida (personaje grande, datos y Jugar) + lista de ranuras -->
+          <section class="lk-advstage" data-ref="stage" aria-label="${i18n.t('start.stageAria')}">
+            <div class="lk-advstage__3d" data-ref="stage3d" aria-hidden="true"></div>
+            <div class="lk-advstage__view" data-ref="stageView">
+              <span class="lk-advstage__ring" aria-hidden="true"></span>
+              <div class="lk-advstage__fig" data-ref="stageFig" aria-hidden="true"></div>
+              <span class="lk-advstage__hint" aria-hidden="true">${i18n.t('start.rotateHint')}</span>
+              <button type="button" class="lk-advstage__nav lk-is-prev" data-act="prevSlot" aria-label="${i18n.t('start.prevSlot')}"><span aria-hidden="true">‹</span></button>
+              <button type="button" class="lk-advstage__nav lk-is-next" data-act="nextSlot" aria-label="${i18n.t('start.nextSlot')}"><span aria-hidden="true">›</span></button>
+            </div>
+            <div class="lk-advstage__plate" aria-live="polite">
+              <span class="lk-advstage__eyebrow" data-ref="stageEyebrow"></span>
+              <h3 class="lk-advstage__name" data-ref="stageName"></h3>
+              <p class="lk-advstage__meta" data-ref="stageMeta"></p>
+              <p class="lk-advstage__where" data-ref="stageWhere"></p>
+              <button class="lk-btn lk-btn-primary-gold lk-btn--lg lk-advstage__play" data-act="play"><span class="lk-b-ico" data-ref="playIco"></span><span data-ref="playTxt">${i18n.t('start.continue')}</span></button>
+            </div>
+          </section>
+          <aside class="lk-sel-side">
+            <div class="lk-sel-head"><h3>${i18n.t('start.chooseAdventure')}</h3><span class="lk-sel-count" data-ref="slotCount"></span></div>
+            <div class="lk-slist" id="start-slots-grid" role="listbox" aria-label="${i18n.t('start.slotsAria')}"></div>
+            <section class="lk-sel-info" data-ref="slotInfo" aria-label="${i18n.t('start.infoTitle')}" hidden></section>
+            <small class="lk-sel-keys">${i18n.t('start.keysHint')}</small>
+          </aside>
         </div>
-        <div class="lk-sel-foot"><div class="lk-sel-summary" data-ref="summary"></div><button class="lk-btn lk-btn-primary-gold lk-btn--lg" data-act="play"><span class="lk-b-ico" data-ref="playIco"></span><span data-ref="playTxt">${i18n.t('start.continue')}</span></button></div>
         <div class="lk-sel-legal"><span>Demo 1 (v${GAME_VERSION}) - Lunakai</span></div>
       </section>
 
@@ -766,6 +792,7 @@ export class StartScreenUI {
     }
     this.ownedAxies = [];
     this._ref('syncBanner').hidden = true;
+    this._stage3dDispose();
     this.container.dataset.view = 'login';
     this._setLoginState('idle');
     // Con Sky Mavis, el navegador va a cerrar también su sesión y vuelve aquí (AuthService.signOut).
@@ -794,8 +821,9 @@ export class StartScreenUI {
     this.container.querySelector('[data-act="logout"]').textContent = guest ? i18n.t('start.exitGuest') : i18n.t('start.logout');
     this.container.dataset.view = 'select';
     if (animate) { this.container.classList.remove('lk-view-in'); void this.container.offsetWidth; this.container.classList.add('lk-view-in'); }
+    this._stageId = undefined; // Hito 131: el escenario (y su 3D) se vuelve a montar
     this.refreshSlots();
-    setTimeout(() => this.container.querySelector('.lk-slot[aria-selected="true"]')?.focus({ preventScroll: true }), 60);
+    setTimeout(() => this.container.querySelector('.lk-srow[aria-selected="true"]')?.focus({ preventScroll: true }), 60);
   }
 
   _setupStartScreen() {
@@ -830,6 +858,7 @@ export class StartScreenUI {
         case 'link': {
           // Desde invitado: se inicia sesión y luego se ofrece subir sus aventuras a la cuenta.
           this._linkGuest = true;
+          this._stage3dDispose();
           root.dataset.view = 'login';
           this._setLoginState('idle');
           toast(i18n.t('start.chooseLink'));
@@ -841,6 +870,8 @@ export class StartScreenUI {
           break;
         }
         case 'play': this._playSelected(); break;
+        case 'prevSlot': this._moveSlot(-1, true); break;
+        case 'nextSlot': this._moveSlot(1, true); break;
         case 'delCancel': this.confirmModal.classList.remove('lk-is-on'); break;
         default: break;
       }
@@ -861,14 +892,12 @@ export class StartScreenUI {
         if (e.key === 'Escape' && this.confirmModal.classList.contains('lk-is-on')) { this.confirmModal.classList.remove('lk-is-on'); e.stopPropagation(); }
         return;
       }
-      const ids = saveSlotManager.getSlots().map((s) => s.id);
-      if (e.key === 'ArrowRight' || e.key === 'ArrowLeft') {
+      if (e.target.closest?.('input, textarea, .lk-kmenu')) return;
+      // ← → (y ↑ ↓ en la lista) cambian de ranura; Intro juega
+      if (e.key === 'ArrowRight' || e.key === 'ArrowLeft' || (e.target.classList?.contains('lk-srow') && (e.key === 'ArrowDown' || e.key === 'ArrowUp'))) {
         e.preventDefault();
-        const i = ids.indexOf(this._selectedSlot);
-        this._selectedSlot = ids[(i + (e.key === 'ArrowRight' ? 1 : ids.length - 1)) % ids.length];
-        this.refreshSlots();
-        root.querySelector('.lk-slot[aria-selected="true"]')?.focus({ preventScroll: true });
-      } else if (e.key === 'Enter' && e.target.classList?.contains('lk-slot')) {
+        this._moveSlot(e.key === 'ArrowRight' || e.key === 'ArrowDown' ? 1 : -1);
+      } else if (e.key === 'Enter' && e.target.classList?.contains('lk-srow')) {
         e.preventDefault();
         this._playSelected();
       }
@@ -901,13 +930,61 @@ export class StartScreenUI {
     hold.addEventListener('keyup', stop);
   }
 
-  _biomeOf(zone) {
+  /**
+   * Bioma de la zona guardada (Hito 133: por la isla del mapa; las zonas antiguas pasan a su isla con canonicalZoneId):
+   * forest · savannah · arctic · mystic · genesis. Pone el cielo del escenario y la isla 3D bajo el personaje.
+   */
+  _biomeKey(zone) {
+    const ISLAND = { zone_2_2: 'forest', zone_3_2: 'savannah', zone_2_1: 'arctic', zone_1_2: 'mystic', zone_2_3: 'genesis' };
+    const id = canonicalZoneId(zone?.mapId);
+    if (ISLAND[id]) return ISLAND[id];
     const n = `${zone?.name || ''} ${zone?.mapId || ''}`.toLowerCase();
-    if (/ártic|artic|glaci|nieve|hielo|polar|snow|arctic/.test(n)) return 'linear-gradient(180deg,#9EC4E8,#5E86B8 60%,#3B5A86)';
-    if (/sabana|savan|desiert|dune|árid|arid|cañón|canon/.test(n)) return 'linear-gradient(180deg,#F6D29A,#D9A25E 50%,#8C6A3E)';
-    if (/místic|mystic|astral|vacío|void|cósmic/.test(n)) return 'linear-gradient(180deg,#B9A4E8,#6E58B8 55%,#3B2E6E)';
-    if (/mazmorra|dungeon|cripta|ígnea|volc/.test(n)) return 'linear-gradient(180deg,#E89A7A,#9C4A3E 55%,#3E1E22)';
-    return 'linear-gradient(180deg,#F2C6B4,#C98A9C 45%,#5E8A62)';
+    if (/ártic|artic|glaci|nieve|hielo|polar|snow|arctic|escarcha|frost/.test(n)) return 'arctic';
+    if (/sabana|savan|desiert|dune|árid|arid|cañón|canon|yermo/.test(n)) return 'savannah';
+    if (/místic|mystic|astral|vacío|void|cósmic/.test(n)) return 'mystic';
+    if (/genesis|génesis|origen|origin|mazmorra|dungeon|cripta|ígnea|volc/.test(n)) return 'genesis';
+    return 'forest';
+  }
+
+  /** Hito 132: misión seguida de la partida y su siguiente paso (QuestManager sin juego, solo para leer el guardado). */
+  _slotQuest(data) {
+    const key = `${data.id}|${data.lastSaved || 0}|${i18n.lang()}`;
+    this._questCache = this._questCache || new Map();
+    if (this._questCache.has(key)) return this._questCache.get(key);
+    let out = null;
+    try {
+      const qm = new QuestManager(null, null);
+      qm.loadSaveData(data.questProgress, data.level || 1);
+      const q = qm.getTrackedQuest();
+      if (q) {
+        const step = (q.objective?.steps || []).find((st) => !st.done);
+        out = { title: q.title, step: step?.desc || q.objective?.summary || '', ready: q.status === 'ready_to_turn_in' };
+      }
+    } catch (err) { console.warn('[StartScreenUI] Misión de la ranura no disponible:', err); }
+    this._questCache.set(key, out);
+    return out;
+  }
+
+  /** Hito 132: panel «Tu partida» bajo la lista (misión actual, escuadrón y desde cuándo). Vacío → oculto. */
+  _renderSlotInfo(d) {
+    const el = this._ref('slotInfo');
+    if (!el) return;
+    if (!d) { el.hidden = true; el.innerHTML = ''; return; }
+    const I = (n) => `./assets/ui/icons/${n}.png`;
+    const q = this._slotQuest(d);
+    const squad = Array.isArray(d.squad) ? d.squad.filter(Boolean).length : 0;
+    const since = d.createdAt ? new Date(d.createdAt).toLocaleDateString(i18n.lang(), { day: 'numeric', month: 'short', year: 'numeric' }) : '';
+    // Los textos de pasos pueden traer atajos entre corchetes («[I]»): se muestran como tecla
+    const step = q?.step ? esc(q.step).replace(/\[([A-Z0-9]{1,3})\]/g, '<kbd>$1</kbd>') : '';
+    const html = `<h4 class="lk-sel-info__t">${i18n.t('start.infoTitle')}</h4>
+      <div class="lk-sel-info__quest"><img src="${I('mission')}" alt="">
+        <span><small>${i18n.t(q?.ready ? 'start.infoQuestReady' : 'start.infoQuest')}</small><b>${q ? esc(q.title) : i18n.t('start.infoNoQuest')}</b>${step ? `<em>${step}</em>` : ''}</span></div>
+      <dl class="lk-sel-info__stats">
+        ${squad ? `<div><dt><img src="${I('team')}" alt="">${i18n.t('start.infoSquad')}</dt><dd>${squad} / 4</dd></div>` : ''}
+        ${since ? `<div><dt><img src="${I('event')}" alt="">${i18n.t('start.infoSince')}</dt><dd>${since}</dd></div>` : ''}
+      </dl>`;
+    if (el.innerHTML !== html) el.innerHTML = html;
+    el.hidden = false;
   }
 
   _when(ts) {
@@ -921,60 +998,76 @@ export class StartScreenUI {
     return d.toLocaleDateString(i18n.lang(), { day: 'numeric', month: 'short' }) + `, ${hm}`;
   }
 
+  /** Hito 131: cambia de ranura (flechas del escenario o del teclado) y deja el foco en la fila elegida. */
+  _moveSlot(dir, fromArrow = false) {
+    const ids = saveSlotManager.getSlots().map((x) => x.id);
+    const i = ids.indexOf(this._selectedSlot);
+    this._selectedSlot = ids[(i + dir + ids.length) % ids.length];
+    if (this.audio && typeof this.audio.playHover === 'function') this.audio.playHover();
+    this.refreshSlots();
+    if (!fromArrow) this.container.querySelector('.lk-srow[aria-selected="true"]')?.focus({ preventScroll: true });
+  }
+
+  /** Nombre de la clase del Sapidae en el idioma del juego (SAPIDAE_CLASSES guarda el nombre en español). */
+  _className(id) {
+    const k = `heroes.class.${id}.name`;
+    const t = i18n.t(k);
+    return t !== k ? t : (SAPIDAE_CLASSES[id] || SAPIDAE_CLASSES.crafter).name;
+  }
+
+  /** Axie principal de la partida (puesto 1 del escuadrón) con nombre, número y retrato. */
+  _slotAxie(data) {
+    // `hero` es el Axie con que se creó la partida y no cambia al cambiar de principal; las partidas aún sin
+    // `mainAxie` siguen mostrando `hero`.
+    const hero = data.hero || {};
+    const ax = data.mainAxie || hero;
+    const id = String(ax.axieId || (ax === hero ? '10455' : '') || '');
+    const name = ax.name || 'Shinji';
+    const portrait = portraitService.getPortraitSync(ax.axieId) || (ax.heroKey && portraitService.getPortraitSync(ax.heroKey)) || ax.image || null;
+    // «Axie #11655 #11655»: el número solo se añade si el nombre no lo lleva ya
+    const label = id && !name.includes(id) ? `${name} #${id}` : name;
+    return { ax, id, name, label, portrait, cls: axieClassKey(ax.class || ax.heroKey || ax.archetype) || 'beast', genes: ax.genes || (ax === hero ? hero.genes : null) || null };
+  }
+
   refreshSlots() {
-    const grid = document.getElementById('start-slots-grid');
-    if (!grid) return;
+    const list = document.getElementById('start-slots-grid');
+    if (!list) return;
     const slots = saveSlotManager.getSlots();
     const occupied = slots.filter((s) => s.data);
-    const recentId = occupied.sort((a, b) => (b.data.lastSaved || 0) - (a.data.lastSaved || 0))[0]?.id ?? null;
+    const recentId = [...occupied].sort((a, b) => (b.data.lastSaved || 0) - (a.data.lastSaved || 0))[0]?.id ?? null;
     if (this._selectedSlot == null || !slots.some((s) => s.id === this._selectedSlot)) {
       this._selectedSlot = recentId ?? slots[0]?.id ?? 1;
     }
     const sel = this._selectedSlot;
     const I = (n) => `./assets/ui/icons/${n}.png`;
 
-    grid.innerHTML = slots.map((slotInfo) => {
+    // Lista de ranuras (filas compactas)
+    list.innerHTML = slots.map((slotInfo) => {
       const selected = slotInfo.id === sel;
       const common = `role="option" tabindex="${selected ? 0 : -1}" aria-selected="${selected}" data-slot-id="${slotInfo.id}"`;
+      const n = `<span class="lk-srow__n">${i18n.t('start.slot', { n: slotInfo.id })}${slotInfo.id === recentId ? `<span class="lk-recent">${i18n.t('start.lastPlayed')}</span>` : ''}</span>`;
       if (!slotInfo.data) {
-        return `<div class="lk-slot lk-is-empty" ${common}>
-          <div class="lk-slot__top"><span class="lk-slot__n">${i18n.t('start.slot', { n: slotInfo.id })}</span></div>
-          <div class="lk-new"><span class="lk-plus"><span>+</span></span><b>${i18n.t('start.newAdventure')}</b><small>${i18n.t('start.newAdventureText')}</small></div>
+        return `<div class="lk-srow lk-is-empty" ${common}>
+          <span class="lk-srow__plus" aria-hidden="true"><span>+</span></span>
+          <span class="lk-srow__txt">${n}<b>${i18n.t('start.newAdventure')}</b><small>${i18n.t('start.newAdventureShort')}</small></span>
         </div>`;
       }
       const data = slotInfo.data;
-      const hero = data.hero || {};
-      const classDef = SAPIDAE_CLASSES[data.sapidaeClass || 'crafter'] || SAPIDAE_CLASSES.crafter;
-      const sapidaePortrait = this._sapidaePortrait(data);
-      const axiePortrait = portraitService.getPortraitSync(hero.axieId)
-        || (hero.heroKey && portraitService.getPortraitSync(hero.heroKey))
-        || hero.image || null;
-      const axCls = axieClassKey(hero.class || hero.heroKey || hero.archetype) || 'beast';
-      return `<div class="lk-slot" ${common}>
-        <div class="lk-slot__top"><span class="lk-slot__n">${i18n.t('start.slot', { n: slotInfo.id })}</span>${slotInfo.id === recentId ? `<span class="lk-recent">${i18n.t('start.lastPlayed')}</span>` : ''}
-          <button class="lk-kebab" aria-label="${i18n.t('start.slotMore', { n: slotInfo.id })}"><svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><circle cx="5" cy="12" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="19" cy="12" r="2"/></svg></button>
-          <div class="lk-kmenu" role="menu"><button data-k="play">${i18n.t('start.play')}</button><button class="lk-del" data-k="del">${i18n.t('start.delete')}</button></div></div>
-        <div class="lk-slot__art" style="--biome:${this._biomeOf(data.zone)}"><span class="lk-mt"></span>
-          <span class="lk-med lk-is-sapi" style="--cc:var(--lk-lumen-500)"><img class="slot-fullbody-img" src="${sapidaePortrait}" alt=""></span>
-          ${axiePortrait ? `<span class="lk-med" style="--cc:var(--lk-class-${axCls})"><img src="${axiePortrait}" alt="" onerror="this.style.display='none'"></span>` : ''}
-          <span class="lk-loc"><img src="${I('map')}" alt="" style="width:14px;height:14px;vertical-align:-3px;margin-right:4px">${zoneLabel(data.zone) || i18n.t('start.defaultZone')}</span></div>
-        <div class="lk-slot__info"><div class="lk-nm"><b>${data.playerName || 'Sapidae'}</b><span class="lk-lv">${i18n.t('start.xpLevel', { n: data.level || 1 })}</span></div>
-          <span class="lk-row"><img src="${I('friend')}" alt="">Sapidae · <em>${classDef.name}</em></span>
-          <span class="lk-row"><img src="${getAxieClassIcon(hero.class || hero.heroKey || hero.archetype)}" alt=""><em>${hero.name || 'Shinji'}</em> #${hero.axieId || '10455'}</span>
-          <span class="lk-when">${this._when(data.lastSaved || data.createdAt)}</span></div>
+      return `<div class="lk-srow" ${common}>
+        <span class="lk-srow__av"><img src="${this._sapidaePortrait(data)}" alt="" onerror="this.style.visibility='hidden'"></span>
+        <span class="lk-srow__txt">${n}<b>${esc(data.playerName || 'Sapidae')}</b>
+          <small>${i18n.t('start.levelShort', { n: data.level || 1 })} · ${esc(this._className(data.sapidaeClass || 'crafter'))}</small>
+          <small class="lk-srow__when">${this._when(data.lastSaved || data.createdAt)}</small></span>
+        <button type="button" class="lk-kebab" aria-label="${i18n.t('start.slotMore', { n: slotInfo.id })}" aria-haspopup="menu"><svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor" aria-hidden="true"><circle cx="5" cy="12" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="19" cy="12" r="2"/></svg></button>
+        <div class="lk-kmenu" role="menu"><button data-k="play">${i18n.t('start.play')}</button><button class="lk-del" data-k="del">${i18n.t('start.delete')}</button></div>
       </div>`;
     }).join('');
+    const cnt = this._ref('slotCount');
+    if (cnt) cnt.textContent = i18n.t('start.slotsUsed', { n: occupied.length, total: slots.length });
 
-    // Resumen y botón principal
-    const d = saveSlotManager.getSlot(sel);
-    const playIco = this._ref('playIco'), playTxt = this._ref('playTxt'), summary = this._ref('summary');
-    if (playIco) playIco.innerHTML = `<img class="lk-ai" src="${I(d ? 'resume' : 'add')}" alt="">`;
-    if (playTxt) playTxt.textContent = d ? i18n.t('start.continue') : i18n.t('start.create');
-    if (summary) summary.innerHTML = d
-      ? i18n.t('start.summary', { name: d.playerName || 'Sapidae', axie: (d.hero && d.hero.name) || 'Shinji', zone: zoneLabel(d.zone) || i18n.t('start.defaultZone'), lv: d.level || 1 })
-      : i18n.t('start.freeSlot');
+    this._renderStage(sel);
 
-    grid.querySelectorAll('.lk-slot').forEach((el) => {
+    list.querySelectorAll('.lk-srow').forEach((el) => {
       const id = +el.dataset.slotId;
       el.addEventListener('click', (e) => {
         if (e.target.closest('.lk-kebab, .lk-kmenu')) return;
@@ -982,24 +1075,66 @@ export class StartScreenUI {
         this._selectedSlot = id;
         if (this.audio && typeof this.audio.playHover === 'function') this.audio.playHover();
         this.refreshSlots();
-        grid.querySelector(`.lk-slot[data-slot-id="${id}"]`)?.focus({ preventScroll: true });
+        list.querySelector(`.lk-srow[data-slot-id="${id}"]`)?.focus({ preventScroll: true });
       });
       el.addEventListener('dblclick', (e) => { if (!e.target.closest('.lk-kebab, .lk-kmenu')) this._playSelected(); });
     });
-    grid.querySelectorAll('.lk-kebab').forEach((k) => k.addEventListener('click', (e) => {
+    list.querySelectorAll('.lk-kebab').forEach((k) => k.addEventListener('click', (e) => {
       e.stopPropagation();
       const m = k.nextElementSibling, on = !m.classList.contains('lk-is-on');
-      grid.querySelectorAll('.lk-kmenu').forEach((x) => x.classList.remove('lk-is-on'));
+      list.querySelectorAll('.lk-kmenu').forEach((x) => x.classList.remove('lk-is-on'));
       m.classList.toggle('lk-is-on', on);
     }));
-    grid.querySelectorAll('.lk-kmenu button').forEach((b) => b.addEventListener('click', (e) => {
+    list.querySelectorAll('.lk-kmenu button').forEach((b) => b.addEventListener('click', (e) => {
       e.stopPropagation();
-      const id = +b.closest('.lk-slot').dataset.slotId;
+      const id = +b.closest('.lk-srow').dataset.slotId;
       b.parentElement.classList.remove('lk-is-on');
       const data = saveSlotManager.getSlot(id);
       if (b.dataset.k === 'del') this._confirmDeleteSlot(id, i18n.t('start.delWho', { name: data?.playerName || 'Sapidae', axie: data?.hero?.name || i18n.t('start.theirAxie') }));
       else this._playSlot(id);
     }));
+  }
+
+  /**
+   * Hito 131: escenario de la ranura elegida. El retrato (captura 3D ya hecha) sale al instante; si el escenario 3D
+   * está activo (Fase B, _stage3dShow) el modelo aparece encima con un fundido. Solo cambia el contenido del escenario,
+   * nunca su tamaño (sin saltos de diseño).
+   */
+  _renderStage(id) {
+    const stage = this._ref('stage');
+    if (!stage) return;
+    const I = (n) => `./assets/ui/icons/${n}.png`;
+    const d = saveSlotManager.getSlot(id);
+    const changed = this._stageId !== id || this._stageHad !== Boolean(d);
+    this._stageId = id; this._stageHad = Boolean(d);
+    stage.classList.toggle('lk-is-empty', !d);
+    stage.dataset.biome = d ? this._biomeKey(d.zone) : 'none'; // Hito 133: cielo e isla del bioma
+    this._renderSlotInfo(d);
+    const fig = this._ref('stageFig');
+    // Se compara con lo último que se escribió (no con el DOM: un retrato que falla se oculta y cambiaría su HTML)
+    const set = (ref, html) => { const el = this._ref(ref); if (el && el.__lkHtml !== html) { el.innerHTML = html; el.__lkHtml = html; } };
+    if (!d) {
+      set('stageFig', '<span class="lk-advstage__plus"><span>+</span></span>');
+      set('stageEyebrow', i18n.t('start.slot', { n: id }));
+      set('stageName', i18n.t('start.newAdventure'));
+      set('stageMeta', i18n.t('start.newAdventureText'));
+      set('stageWhere', '');
+    } else {
+      const ax = this._slotAxie(d);
+      const sapi = this._sapidaePortrait(d);
+      set('stageFig', `<img class="lk-advstage__sapi" src="${sapi}" alt="" onerror="this.style.visibility='hidden'">${ax.portrait ? `<img class="lk-advstage__axie" src="${ax.portrait}" alt="" onerror="this.remove()">` : ''}`);
+      set('stageEyebrow', i18n.t('start.level', { n: d.level || 1 }));
+      set('stageName', esc(d.playerName || 'Sapidae'));
+      set('stageMeta', `${esc(this._className(d.sapidaeClass || 'crafter'))} · ${i18n.t('start.withAxie', { axie: `<img src="${getAxieClassIcon(ax.ax.class || ax.ax.heroKey || ax.ax.archetype)}" alt="">${esc(ax.label)}` })}`);
+      set('stageWhere', `<img src="${I('map')}" alt="">${esc(zoneLabel(d.zone) || i18n.t('start.defaultZone'))}<i aria-hidden="true">·</i>${this._when(d.lastSaved || d.createdAt)}`);
+    }
+    const playIco = this._ref('playIco'), playTxt = this._ref('playTxt');
+    if (playIco) playIco.innerHTML = `<img class="lk-ai" src="${I(d ? 'resume' : 'add')}" alt="">`;
+    if (playTxt) playTxt.textContent = d ? i18n.t('start.continue') : i18n.t('start.create');
+    if (changed && fig) {
+      stage.classList.remove('lk-advstage--swap'); void stage.offsetWidth; stage.classList.add('lk-advstage--swap');
+    }
+    if (changed) this._stage3dShow?.(d);
   }
 
   _sapidaePortrait(data) {
@@ -1201,7 +1336,7 @@ export class StartScreenUI {
     const img = (file, kind) => `<img src="./assets/ui/creator/${file}.webp" alt="" loading="lazy" class="lk-opt-img lk-opt-img--${kind}">`;
     const opts = (list, cat, cur, kind, fileOf) => `<div class="lk-opts">${list.map((o) => `<button type="button" class="lk-opt lk-opt--img" aria-pressed="${cur === o.id}" data-cc="trait" data-cat="${cat}" data-v="${o.id}" title="${o.desc || o.name}">${img(fileOf(o), kind)}<span>${o.name}</span></button>`).join('')}</div>`;
     const who = g === 'm' ? 'kai' : 'ema', kai = Boolean(PIECE_SETS[g]); // por piezas: camisa fija (solo color); el color de pelo tiñe también la cabeza
-    const bases = Object.entries(SAPIDAE_BASES).map(([k, b]) => `<button type="button" aria-pressed="${this.selectedSapidaeModel === k}" data-cc="base" data-v="${k}">${b.label} · ${b.name}</button>`).join('');
+    const bases = Object.entries(SAPIDAE_BASES).map(([k, b]) => `<button type="button" aria-pressed="${this.selectedSapidaeModel === k}" data-cc="base" data-v="${k}">${b.label}</button>`).join('');
     pane.innerHTML = `<div style="display:flex;justify-content:space-between;align-items:center;gap:10px"><h4>${i18n.t('startCreator.stepLook')}</h4><button type="button" class="lk-btn lk-btn-secondary-wood lk-btn--sm" data-cc="random"><span class="lk-b-ico"><img class="lk-ai" src="${CC_ICON('rotate')}" alt=""></span>${i18n.t('startCreator.random')}</button></div>
       <p class="lk-lead">${i18n.t('startCreator.lookLead')}</p>
       <div class="lk-opt-sec lk-base-seg"><div class="lk-hd"><span class="lk-label">${i18n.t('startCreator.base')}</span></div><div class="lk-segmented">${bases}</div></div>
@@ -1222,10 +1357,10 @@ export class StartScreenUI {
     const portraitOf = (h) => portraitService.getPortraitSync(h.axieId) || h.image || `./assets/portraits/${h.heroKey}.png`;
     const clsKey = (h) => axieClassKey(h.class || h.heroKey) || 'beast';
     const clsName = (h) => i18n.t(`heroes.axieClass.${clsKey(h)}`); // `class` es dato (Beast…): se muestra traducido
-    const card = (h) => `<button type="button" aria-pressed="${h.heroKey === this.selectedCompanionKey}" data-cc="axie" data-k="${h.heroKey}"><span class="lk-med" style="--cc:var(--lk-class-${clsKey(h)})"><img src="${portraitOf(h)}" alt=""></span><b>${h.name}</b><small><img src="${getAxieClassIcon(h.class || h.heroKey)}" alt="">${clsName(h)}</small></button>`;
+    const card = (h) => `<button type="button" aria-pressed="${h.heroKey === this.selectedCompanionKey}" data-cc="axie" data-k="${h.heroKey}"><span class="lk-med lk-med--axie" style="--cc:var(--lk-class-${clsKey(h)})"><img src="${portraitOf(h)}" alt=""></span><b>${h.name}</b><small><img src="${getAxieClassIcon(h.class || h.heroKey)}" alt="">${clsName(h)}</small></button>`;
     const custom = this._customCompanion && this._customCompanion.heroKey === this.selectedCompanionKey;
     const mine = custom
-      ? `<button type="button" class="lk-is-mine" aria-pressed="true" data-cc="mine"><span class="lk-med" style="--cc:var(--lk-class-${clsKey(comp)})"><img src="${portraitOf(comp)}" alt=""></span><b>${comp.name}</b><small><img src="${getAxieClassIcon(comp.class)}" alt="">${clsName(comp)} · <span class="lk-chg">${i18n.t('startCreator.change')}</span></small><span class="lk-mine-tag">${i18n.t('startCreator.yourAxie')}</span></button>`
+      ? `<button type="button" class="lk-is-mine" aria-pressed="true" data-cc="mine"><span class="lk-med lk-med--axie" style="--cc:var(--lk-class-${clsKey(comp)})"><img src="${portraitOf(comp)}" alt=""></span><b>${comp.name}</b><small><img src="${getAxieClassIcon(comp.class)}" alt="">${clsName(comp)} · <span class="lk-chg">${i18n.t('startCreator.change')}</span></small><span class="lk-mine-tag">${i18n.t('startCreator.yourAxie')}</span></button>`
       : `<button type="button" class="lk-pick-mine" data-cc="mine"><span class="lk-pm-ico"><img class="lk-ai" src="${CC_ICON('collection')}" alt=""></span><b>${i18n.t('startCreator.myAxies')}</b><small>${guest || (!this._ownedLoading && !this.ownedAxies?.length) ? i18n.t('startCreator.loadById') : (this.ownedAxies?.length ? i18n.t('startCreator.pickOrLoad', { n: this.ownedAxies.length }) : i18n.t('startCreator.collection'))}</small></button>`;
     const parts = (s, idx) => { const k = (s.part || AXIE_BODY_PARTS[idx]?.id || '').toLowerCase(); return AXIE_BODY_PARTS_MAP[k] || null; };
     const axieSkills = this._ccAxieSkills(comp);
@@ -1430,7 +1565,7 @@ export class StartScreenUI {
     const grid = this._ccRef('pickGrid');
     const clsKey = (h) => axieClassKey(h.class || h.heroKey) || 'beast';
     const clsName = (h) => i18n.t(`heroes.axieClass.${clsKey(h)}`); // `class` es dato (Beast…): se muestra traducido
-    grid.innerHTML = list.map((a, i) => `<button type="button" class="lk-ax-card ${a.heroKey === this.selectedCompanionKey ? 'lk-is-sel' : ''}" data-cc="pickAxie" data-i="${i}" style="--cc:var(--lk-class-${clsKey(a)});cursor:pointer"><span class="lk-med" style="--cc:var(--lk-class-${clsKey(a)})"><img src="${portraitService.getPortraitSync(a.axieId) || a.image || ''}" alt=""></span><b>${a.name}</b><small><img src="${getAxieClassIcon(a.class)}" alt="">${clsName(a)}${a.axpLevel ? ` · AXP ${a.axpLevel}` : ''}</small></button>`).join('')
+    grid.innerHTML = list.map((a, i) => `<button type="button" class="lk-ax-card ${a.heroKey === this.selectedCompanionKey ? 'lk-is-sel' : ''}" data-cc="pickAxie" data-i="${i}" style="--cc:var(--lk-class-${clsKey(a)});cursor:pointer"><span class="lk-med lk-med--axie" style="--cc:var(--lk-class-${clsKey(a)})"><img src="${portraitService.getPortraitSync(a.axieId) || a.image || ''}" alt=""></span><b>${a.name}</b><small><img src="${getAxieClassIcon(a.class)}" alt="">${clsName(a)}${a.axpLevel ? ` · AXP ${a.axpLevel}` : ''}</small></button>`).join('')
       // También con cuenta: cargar cualquier Axie por su ID (19-oct)
       + `<button type="button" class="lk-ax-card" data-cc="pickById" style="--cc:var(--lk-gilt-300);cursor:pointer"><span class="lk-med" style="--cc:var(--lk-gilt-300);display:grid;place-items:center;font-size:22px;font-weight:700">#</span><b>${i18n.t('startCreator.loadByIdShort')}</b><small>${i18n.t('startCreator.anyAxie')}</small></button>`;
     this._ccRef('picker').classList.add('lk-is-on');
@@ -1711,6 +1846,7 @@ export class StartScreenUI {
     if (this.audio && typeof this.audio.playSelect === 'function') {
       this.audio.playSelect();
     }
+    this._stage3dDispose(); // Hito 131: un solo visor 3D a la vez (el creador monta el suyo)
     this.pendingSlotId = slotId;
     this.selectedSapidaeClass = this.selectedSapidaeClass || 'crafter';
     this.selectedSapidaeModel = SAPIDAE_BASES[this.selectedSapidaeModel] ? this.selectedSapidaeModel : DEFAULT_SAPIDAE_MODEL;
@@ -1743,7 +1879,7 @@ export class StartScreenUI {
     }
   }
 
-  closeHeroSelect() {
+  closeHeroSelect({ restoreStage = true } = {}) {
     this._ccCancelLive?.();
     this._hideSkillTooltip();
     if (this.diorama) {
@@ -1752,6 +1888,32 @@ export class StartScreenUI {
     }
     this.heroSelectModal.classList.add('hidden');
     this.pendingSlotId = null;
+    // Hito 131: de vuelta en la lista, el escenario vuelve a montar su 3D (salvo si se va a empezar a jugar)
+    if (restoreStage && this.isOpen && this.container.dataset.view === 'select') { this._stageId = undefined; this._renderStage(this._selectedSlot); }
+  }
+
+  // ------------------------------------------------ Hito 131: personaje 3D del escenario (SlotStagePreview)
+  _stage3dShow(d) {
+    const stage = this._ref('stage'), host = this._ref('stage3d');
+    if (!stage || !host) return;
+    stage.classList.remove('lk-has-3d');
+    const creatorOpen = this.heroSelectModal && !this.heroSelectModal.classList.contains('hidden');
+    if (!d || !this.isOpen || this.container.dataset.view !== 'select' || creatorOpen || this._launching || window.lkNoStage3d) {
+      this.stagePreview?.hide();
+      return;
+    }
+    if (!this.stagePreview) this.stagePreview = new SlotStagePreview(host, { viewEl: this._ref('stageView') });
+    const p = this.stagePreview;
+    const tok = (this._stageTok = (this._stageTok || 0) + 1);
+    p.show(d, { biome: this._biomeKey(d.zone) }).then((ok) => { if (ok && tok === this._stageTok && this.stagePreview === p) stage.classList.add('lk-has-3d'); });
+  }
+
+  /** Libera el visor 3D del escenario (contexto WebGL y modelos). */
+  _stage3dDispose() {
+    this._stageTok = (this._stageTok || 0) + 1;
+    this._ref('stage')?.classList.remove('lk-has-3d');
+    if (this.stagePreview) { this.stagePreview.dispose(); this.stagePreview = null; }
+    this._stageId = undefined;
   }
 
   _createSlotAndStart(slotId, heroTemplate) {
@@ -1783,7 +1945,7 @@ export class StartScreenUI {
       sapidaePortrait: dynamicPortrait
     });
     const newSlot = saveSlotManager.createSlot(slotId, templateWithSapidae);
-    this.closeHeroSelect();
+    this.closeHeroSelect({ restoreStage: false });
     this.refreshSlots();
     this._launchGameWithSlot(newSlot, true);
   }
@@ -1809,12 +1971,16 @@ export class StartScreenUI {
   }
 
   _launchGameWithSlot(slotData, isNewGame = false) {
+    // Hito 131: el visor 3D del escenario se libera ya (el mundo necesita la gráfica); se ve el retrato durante el fundido
+    this._launching = true;
+    this._stage3dDispose();
     // Fundido de salida
     this.container.classList.add('lk-is-leaving');
     setTimeout(() => {
       this.container.classList.add('hidden');
       this.container.classList.remove('lk-is-leaving');
       this.isOpen = false;
+      this._launching = false;
       if (typeof this.onStartAdventure === 'function') {
         this.onStartAdventure(slotData, isNewGame);
       }
@@ -1829,9 +1995,11 @@ export class StartScreenUI {
     this.container.classList.remove('hidden', 'lk-is-leaving');
     this.container.style.display = '';
     this.isOpen = true;
+    this.audio?.playTitleMusic?.(); // Hito 119: música del título (suena con el primer gesto si el navegador la retiene)
   }
 
   hide() {
+    this._stage3dDispose();
     this.container.classList.add('hidden');
     this.isOpen = false;
   }

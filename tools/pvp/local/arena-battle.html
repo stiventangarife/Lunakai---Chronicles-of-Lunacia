@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>Lunakai · Arena PvP · jugador de prueba (P3)</title>
+<!-- Arena PvP, fase P3: un jugador con el COMBATE DEL JUEGO (PvpBattle: Unit, SpellManager con VFX, TurnManager sin
+     modo simulación, PvpHud) + PvpSession + PvpService contra tools/pvp/local/fake-supabase.cjs. La abre
+     two-players-p3.cjs (dos navegadores). Sin el resto del juego (mundo abierto, cuenta): solo lo que la Arena usa.
+     ?u=<uuid>&mode=play|idle|surrender|cheat&pick=<semilla de las decisiones> -->
+<script type="importmap">
+{ "imports": {
+  "three": "../../../vendor/three.module.js",
+  "three/addons/": "../../../vendor/",
+  "three/examples/jsm/": "../../../vendor/",
+  "@jaatster/threejs-axie-mixer3d-public": "../../../vendor/axie-mixer3d/index.js",
+  "@jaatster/threejs-axie-mixer3d-public/three": "../../../vendor/axie-mixer3d/three.js"
+} }
+</script>
+<link rel="stylesheet" href="../../../src/ui/lunakai-ui.css">
+<style>body{font:14px/1.5 system-ui,sans-serif;background:#0e1424;color:#e8ecf6;padding:80px 24px 24px}</style>
+</head>
+<body>
+<pre id="log"></pre>
+<script type="module">
+const P = new URLSearchParams(location.search);
+const uid = P.get('u'), mode = P.get('mode') || 'play';
+const b64 = (o) => btoa(JSON.stringify(o)).replace(/=+$/, '').replace(/\+/g, '-').replace(/\//g, '_');
+const TOKEN = `${b64({ alg: 'none' })}.${b64({ sub: uid })}.x`;
+window.requestAnimationFrame = (cb) => setTimeout(() => cb(performance.now() + 1e6), 0); // animaciones al instante
+
+const THREE = await import('three');
+const { PvpService } = await import('../../../src/net/PvpService.js');
+const { RealtimeClient } = await import('../../../src/net/RealtimeClient.js');
+const { GridManager } = await import('../../../src/tactics/GridManager.js');
+const { Unit } = await import('../../../src/tactics/Unit.js');
+const { SpellManager } = await import('../../../src/tactics/Spells.js');
+const { TurnManager } = await import('../../../src/tactics/TurnManager.js');
+const { PvpBattle } = await import('../../../src/rpg/arena/PvpBattle.js');
+const { legalMove } = await import('../../../src/tactics/sim/HeadlessCombat.js');
+const { mulberry32 } = await import('../../../src/tactics/sim/SeededRandom.js');
+
+const fakeFetch = async (path, { method, body, token }) => {
+  const r = await fetch('http://localhost:8200' + path, { method, headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: 'Bearer ' + token } : {}) }, body: JSON.stringify(body) });
+  const d = await r.json(); if (!r.ok) throw Object.assign(new Error(d.message), { code: d.code }); return d;
+};
+const getToken = async () => TOKEN;
+const service = new PvpService({ fetch: fakeFetch, getToken, realtime: new RealtimeClient({ url: 'ws://localhost:8200/realtime/v1/websocket', apikey: 'test', getToken }) });
+
+const noop = () => {};
+const scene = new THREE.Scene();
+const sceneManager = new Proxy({ scene, camera: new THREE.PerspectiveCamera(), lightPool: undefined, composer: undefined, renderer: undefined, flipSide: false },
+  { get: (t, k) => (k in t ? t[k] : noop), set: (t, k, v) => { t[k] = v; return true; } });
+const audio = new Proxy({ isMuted: false, setMuted(v) { this.isMuted = v; } }, { get: (t, k) => (k in t ? t[k] : k === 'combat' || k === 'then' ? undefined : noop), set: (t, k, v) => { t[k] = v; return true; } });
+const combatText = new Proxy({}, { get: (t, k) => (k === 'then' ? undefined : noop) });
+
+const S = window.S = { events: [], queue: [], done: false, battle: null, left: false, orders: 0 };
+const log = (t) => { document.getElementById('log').textContent += t + '\n'; };
+const pick = mulberry32(Number(P.get('pick') || 1));
+
+/** Lo mínimo del juego que usa PvpBattle (main.js), con las clases de combate de verdad. */
+function makeGame() {
+  const grid = new GridManager(scene);
+  const game = { units: [], gridManager: grid, sceneManager, audio, combatText, activeUnit: null };
+  const sm = new SpellManager(grid, sceneManager, audio, combatText, game);
+  const tm = new TurnManager(sceneManager, audio);
+  sm.bindTurnManager(tm);
+  Object.assign(game, { spellManager: sm, turnManager: tm });
+  tm.onTurnChange = (u, q, r, meta = {}) => { game.activeUnit = u; if (!meta.skipped) game.pvpBattle?.onTurnChange(u, meta); };
+  tm.onVictory = () => game.pvpBattle?.onCombatEnd('player');
+  tm.onDefeat = () => game.pvpBattle?.onCombatEnd('enemy');
+  // main._startBattle: la puesta al día tras una resincronización rehace el combate
+  game._startBattle = async (cfg) => { build(game, cfg.pvp); };
+  game._returnToOverworld = () => { S.left = true; };
+  return game;
+}
+
+function build(game, battle) {
+  for (const u of game.units) { scene.remove(u.group); u.dispose?.(); }
+  game.units = [];
+  const grid = game.gridManager;
+  grid.loadLayout(battle.map, {});
+  game.pvpBattle = battle;
+  for (const c of battle.unitConfigs()) game.units.push(new Unit(c, grid, sceneManager, audio));
+  game.turnManager.alternateTeams = true;
+  game.turnManager.setUnits(game.units);
+  battle.prepareRules();
+  game.turnManager.startCombat();
+  battle.onBattleReady();
+}
+
+/** Órdenes legales de mi unidad activa en el combate del juego. */
+function legal(game) {
+  const tm = game.turnManager, sm = game.spellManager, grid = game.gridManager;
+  const u = tm.getActiveUnit();
+  const out = [];
+  if (u.currentPM > 0) for (const c of grid.getReachableCells(u.gridX, u.gridZ, u.currentPM, u)) out.push({ t: 'move', unit: u.id, x: c.x, z: c.z });
+  for (const id of u.spellIds) {
+    const sp = sm.getSpell(id, u);
+    if (!sp || !sm._canPay(u, sp)) continue;
+    for (const c of sm.getValidTargetCells(u, sp)) out.push({ t: 'cast', unit: u.id, spell: id, x: c.x, z: c.z });
+  }
+  return out;
+}
+
+let playing = false;
+async function bot() {
+  const b = S.battle;
+  if (!b || playing || !b.canAct()) return;
+  playing = true;
+  try {
+    if (mode === 'idle') return;
+    if (mode === 'surrender' && S.orders >= 12) { S.surrendered = true; await b.surrender(); return; }
+    if (mode === 'cheat' && S.orders >= 10 && !S.cheated) {
+      // Trampa (fase P4): una orden imposible directamente al servidor, sin pasar por el motor
+      const s = b.session, u = b.tm.getActiveUnit();
+      S.cheated = true;
+      await service.act(s.id, s.seq, { t: 'move', unit: u.id, x: 99, z: 99 });
+      return;
+    }
+    if (mode === 'cheat' && S.cheated) return;
+    const opts = legal(b.game);
+    const casts = opts.filter((o) => o.t === 'cast'), moves = opts.filter((o) => o.t === 'move'), r = pick();
+    const o = casts.length && r < 0.6 ? casts[Math.floor(pick() * casts.length)] : moves.length && r < 0.85 ? moves[Math.floor(pick() * moves.length)] : null;
+    const ok = o ? await b.localOrder(o) : await b.endTurn();
+    if (ok) S.orders++;
+  } catch (e) { S.events.push({ type: 'botError', error: e.code || e.message }); }
+  finally { playing = false; }
+}
+
+function launch(match) {
+  const game = S.game = makeGame();
+  const battle = S.battle = new PvpBattle({ game, match, service, onLeave: (m) => { S.official = m; } });
+  const onEvent = battle._onSessionEvent.bind(battle);
+  battle._onSessionEvent = (e) => {
+    S.events.push({ type: e.type, side: e.side, seq: e.seq, online: e.online, reason: e.reason, error: e.error });
+    onEvent(e);
+    if (e.type === 'finished' || e.type === 'disputed') { S.done = true; S.final = e.match; S.hash = battle.hash(); S.result = battle.result; }
+  };
+  battle._playEndBanner = async function () { this._bannerPlayed = true; this._bannerDone = true; if (this.official) this.hud?.showEnd(this.official); };
+  build(game, battle);
+  S.started = true;
+  setInterval(bot, 40);
+}
+
+const me = await service.me();
+S.me = { points: me.points, games: me.games };
+if (me.match && ['active', 'ended'].includes(me.match.status)) launch(me.match);
+else S.stopQueue = service.startQueue({ slot: 1, onStatus: (s) => S.queue.push(s.status), onMatched: (m) => launch(m) });
+window.ready = true;
+</script>
+</body>
+</html>

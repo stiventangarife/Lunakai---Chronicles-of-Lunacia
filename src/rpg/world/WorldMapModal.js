@@ -363,10 +363,18 @@ export class WorldMapModal {
     return `<svg viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${G[biome] || G.forest}</svg>`;
   }
 
-  /** «Isla de la Sabana» → «Sabana»: en las tarjetas basta con el bioma (la ficha mantiene el nombre completo). */
+  /** «Tierra de la Sabana» → «Sabana»: en las tarjetas basta con el bioma (la ficha mantiene el nombre completo). */
   _shortName(island) {
-    const n = String(island?.name || '').replace(/^isla\s+(?:de\s+la|de\s+los|de\s+las|del|de)?\s*/i, '').replace(/\s+island$/i, '').trim();
+    const n = String(island?.name || '').replace(/^(?:isla|tierra)\s+(?:de\s+la|de\s+los|de\s+las|del|de)?\s*/i, '').replace(/\s+(?:island|land)$/i, '').trim();
     return n ? n.charAt(0).toUpperCase() + n.slice(1) : (island?.name || '');
+  }
+
+  /** Coordenada de la tierra en la carta del mundo, la misma de las misiones: zone_3_2 → [3, 2] (el nivel recomendado sigue en la ficha). */
+  _coordLabel(island) {
+    const m = /^zone_(-?\d+)_(-?\d+)$/.exec(String(island?.zoneId || ''));
+    const x = m ? Number(m[1]) : (island?.gridPos?.col ?? 0) + 1;
+    const y = m ? Number(m[2]) : (island?.gridPos?.row ?? 0) + 1;
+    return i18n.t('worldMap.coordN', { x, y });
   }
 
   /** Nivel del Sapidae (para comparar con el nivel recomendado de cada isla). */
@@ -426,7 +434,7 @@ export class WorldMapModal {
           <span class="lk-isle__med">${this._biomeGlyph(island.biome)}</span>
           <b class="lk-isle__name">${this._shortName(island)}</b>
           <span class="lk-isle__tag">${island.tagline}</span>
-          <span class="lk-isle__lvl ${under ? 'lk-is-hard' : ''}">${i18n.t('worldMap.lvN', { n: li.label })}</span>`;
+          <span class="lk-isle__lvl">${this._coordLabel(island)}</span>`;
 
         // Clic: ver la ficha. Doble clic en la isla actual: abrir su mapa
         cell.addEventListener('click', () => this.selectIsland(island.id));

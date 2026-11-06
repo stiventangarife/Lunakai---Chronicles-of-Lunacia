@@ -19,6 +19,8 @@
 // tabla «framesLargos» del informe y en la columna «codigo» de los tirones. Las marcas lk:* (telón, precalentado…)
 // se ponen solas desde el juego con perfMark() y también salen en el panel Performance de DevTools.
 
+import { GLTFLoader } from '../../vendor/GLTFLoader.js'; // Hito 113: para etiquetar las imágenes de cada GLB (misma instancia que usan ModelCache y el diorama)
+
 const now = () => performance.now();
 
 function pct(sorted, p) {
@@ -38,6 +40,154 @@ export function perfMark(label) {
 }
 
 /**
+ * Hito 113 (memoria): ImageBitmap vivos. three.js decodifica cada imagen de un GLB a un ImageBitmap (RGBA, 4 bytes por píxel)
+ * y el navegador la mantiene hasta que alguien llama a close() o pasa el recolector de basura; esa memoria NO sale en el heap
+ * de JS (por eso el Administrador de tareas sube con el heap plano). Se envuelve createImageBitmap y ImageBitmap.close
+ * al importar este módulo para contar todo desde el arranque. vivos = creados − cerrados − recolectados.
+ */
+const BM = { creados: 0, mbCreados: 0, cerrados: 0, mbCerrados: 0, recolectados: 0, mbRecolectados: 0 };
+const bmRecs = new WeakMap();   // ImageBitmap → { mb, closed }
+const bmLabeled = [];           // { ref: WeakRef(ImageBitmap), rec, name, id }: imágenes de GLB con el nombre del modelo que las cargó
+let bmGltfSeq = 0;
+export function bitmapStats() {
+  const vivos = BM.creados - BM.cerrados - BM.recolectados;
+  const mbVivos = BM.mbCreados - BM.mbCerrados - BM.mbRecolectados;
+  const r = (v) => Math.round(v * 10) / 10;
+  return { vivos, mbVivos: r(mbVivos), creados: BM.creados, mbCreados: r(BM.mbCreados), cerrados: BM.cerrados, mbCerrados: r(BM.mbCerrados),
+    recolectados: BM.recolectados, mbRecolectados: r(BM.mbRecolectados) };
+}
+/** Imágenes vivas por modelo GLB: { modelo, copias (cargas distintas con imágenes vivas), imagenes, mb } + «sin etiqueta» (no vienen de un GLB). */
+export function bitmapsPorModelo() {
+  const r = (v) => Math.round(v * 10) / 10;
+  const acc = new Map();
+  let labeledN = 0, labeledMb = 0;
+  for (let i = bmLabeled.length - 1; i >= 0; i--) {
+    const e = bmLabeled[i];
+    if (e.rec.closed || !e.ref.deref()) { bmLabeled.splice(i, 1); continue; } // ya no está viva: se quita del registro
+    const a = acc.get(e.name) || { n: 0, mb: 0, ids: new Set() };
+    a.n++; a.mb += e.rec.mb; a.ids.add(e.id); acc.set(e.name, a);
+    labeledN++; labeledMb += e.rec.mb;
+  }
+  const rows = [...acc.entries()].map(([modelo, a]) => ({ modelo, copias: a.ids.size, imagenes: a.n, mb: r(a.mb) })).sort((x, y) => y.mb - x.mb);
+  const st = bitmapStats();
+  if (st.vivos - labeledN > 0) rows.push({ modelo: '(sin etiqueta: no vienen de un GLB)', copias: 0, imagenes: st.vivos - labeledN, mb: r(st.mbVivos - labeledMb) });
+  return rows;
+}
+function labelGltfBitmaps(gltf, url) {
+  const cache = gltf && gltf.parser && gltf.parser.sourceCache;
+  if (!cache) return;
+  const name = String(url || '?').split('?')[0].split('/').pop();
+  const id = ++bmGltfSeq;
+  Object.keys(cache).forEach((k) => Promise.resolve(cache[k]).then((t) => {
+    const img = t && t.image;
+    const rec = img && bmRecs.get(img);
+    if (rec) bmLabeled.push({ ref: new WeakRef(img), rec, name, id });
+  }).catch(() => { /* la carga falló */ }));
+}
+try {
+  if (typeof window !== 'undefined' && !window.__lkBitmapPatched) {
+    window.__lkBitmapPatched = true;
+    const fin = typeof FinalizationRegistry !== 'undefined'
+      ? new FinalizationRegistry((rec) => { if (!rec.closed) { rec.closed = true; BM.recolectados++; BM.mbRecolectados += rec.mb; } })
+      : null;
+    const origCreate = window.createImageBitmap;
+    if (typeof origCreate === 'function') {
+      window.createImageBitmap = function (...a) {
+        return origCreate.apply(this, a).then((b) => {
+          try {
+            const rec = { mb: (b.width * b.height * 4) / 1048576, closed: false };
+            bmRecs.set(b, rec); BM.creados++; BM.mbCreados += rec.mb;
+            if (fin) fin.register(b, rec);
+          } catch (_) { /* opcional */ }
+          return b;
+        });
+      };
+    }
+    const proto = typeof ImageBitmap !== 'undefined' ? ImageBitmap.prototype : null;
+    const origClose = proto && proto.close;
+    if (origClose) {
+      proto.close = function () {
+        try { const rec = bmRecs.get(this); if (rec && !rec.closed) { rec.closed = true; BM.cerrados++; BM.mbCerrados += rec.mb; } } catch (_) { /* opcional */ }
+        return origClose.apply(this, arguments);
+      };
+    }
+    // Etiqueta cada GLB con el nombre del archivo (todas las cargas pasan por GLTFLoader.load / loadAsync)
+    const gp = GLTFLoader.prototype;
+    const origLoad = gp.load;
+    if (typeof origLoad === 'function' && !origLoad.__lkBm) {
+      gp.load = function (url, onLoad, onProgress, onError) {
+        return origLoad.call(this, url, (gltf) => { try { labelGltfBitmaps(gltf, url); } catch (_) { /* opcional */ } if (onLoad) onLoad(gltf); }, onProgress, onError);
+      };
+      gp.load.__lkBm = true;
+    }
+  }
+} catch (_) { /* opcional: sin contador de bitmaps */ }
+
+/**
+ * Hito 113 (memoria): memoria de CPU que retienen los recursos de three.js (no sale en el heap de JS ni en la GPU): arrays de
+ * las geometrías, datos de texturas comprimidas (KTX2: three los conserva tras subirlas), lienzos 2D, DataTexture e imágenes.
+ * roots: [[etiqueta, Object3D], …]. Cada geometría y cada textura (por su fuente compartida) se cuenta una sola vez.
+ */
+export function cpuResourcesOf(roots) {
+  const r = (v) => Math.round(v * 10) / 10;
+  const MB = 1048576;
+  const cat = { geometrias: { n: 0, mb: 0 }, instancias: { n: 0, mb: 0 }, comprimidas: { n: 0, mb: 0 }, lienzos: { n: 0, mb: 0 }, datos: { n: 0, mb: 0 }, bitmaps: { n: 0, mb: 0 } };
+  const seenArr = new Set(), seenSrc = new Set();
+  const topG = [], topT = [];
+  const add = (k, bytes) => { cat[k].n++; cat[k].mb += bytes / MB; };
+  const arrBytes = (a) => (a && a.byteLength && !seenArr.has(a) ? (seenArr.add(a), a.byteLength) : 0);
+  const addTexture = (t, owner) => {
+    if (!t || !t.isTexture) return;
+    const key = t.source || t;
+    if (seenSrc.has(key)) return;
+    seenSrc.add(key);
+    const img = (t.source && t.source.data) || t.image;
+    let kind = null, bytes = 0;
+    if (t.isCompressedTexture || t.isCompressedArrayTexture) {
+      kind = 'comprimidas'; (t.mipmaps || []).forEach((m) => { bytes += (m && m.data && m.data.byteLength) || 0; });
+    } else if (img && img.data && img.data.byteLength !== undefined) {   // DataTexture
+      kind = 'datos'; bytes = img.data.byteLength;
+    } else if (typeof ImageBitmap !== 'undefined' && img instanceof ImageBitmap) {
+      kind = 'bitmaps'; bytes = (img.width || 0) * (img.height || 0) * 4;
+    } else if (img && img.width && img.height) {                          // lienzo, OffscreenCanvas, <img>
+      kind = 'lienzos'; bytes = img.width * img.height * 4;
+    }
+    if (!kind || !bytes) return;
+    add(kind, bytes);
+    topT.push({ mb: bytes / MB, tipo: kind, nombre: t.name || (owner && owner.name) || `${(img && img.width) || '?'}x${(img && img.height) || '?'}` });
+  };
+  const addMaterialTextures = (m, owner) => {
+    if (!m) return;
+    for (const k in m) { const v = m[k]; if (v && v.isTexture) addTexture(v, owner); }
+    if (m.uniforms) for (const k in m.uniforms) { const v = m.uniforms[k] && m.uniforms[k].value; if (v && v.isTexture) addTexture(v, owner); }
+  };
+  for (const [label, root] of roots) {
+    if (!root || !root.traverse) continue;
+    root.traverse((o) => {
+      const g = o.geometry;
+      if (g) {
+        let b = 0;
+        for (const k in g.attributes) { const a = g.attributes[k]; b += arrBytes(a.isInterleavedBufferAttribute ? a.data && a.data.array : a.array); }
+        if (g.index) b += arrBytes(g.index.array);
+        for (const k in g.morphAttributes) (g.morphAttributes[k] || []).forEach((a) => { b += arrBytes(a.array); });
+        if (b) { add('geometrias', b); topG.push({ mb: b / MB, mapa: label, malla: o.name || g.type, vertices: (g.attributes.position && g.attributes.position.count) || 0 }); }
+      }
+      if (o.isInstancedMesh) {
+        const b = arrBytes(o.instanceMatrix && o.instanceMatrix.array) + arrBytes(o.instanceColor && o.instanceColor.array);
+        if (b) add('instancias', b);
+      }
+      if (o.isSkinnedMesh && o.skeleton && o.skeleton.boneTexture) addTexture(o.skeleton.boneTexture, o);
+      (Array.isArray(o.material) ? o.material : [o.material]).forEach((m) => addMaterialTextures(m, o));
+    });
+    if (root.isScene) { addTexture(root.background, root); addTexture(root.environment, root); }
+  }
+  const resumen = {};
+  for (const k in cat) resumen[k] = { n: cat[k].n, mb: r(cat[k].mb) };
+  const top = (arr) => arr.sort((a, b) => b.mb - a.mb).slice(0, 8).map((x) => ({ ...x, mb: r(x.mb) }));
+  return { resumen, totalMB: r(Object.values(cat).reduce((s, c) => s + c.mb, 0)), topGeometrias: top(topG), topTexturas: top(topT) };
+}
+
+/**
  * 29-oct: llamadas que pueden BLOQUEAR el hilo principal esperando a la GPU (compilar/enlazar shaders, subir texturas,
  * leer píxeles, toDataURL…). Mientras se graba se cronometran en TODOS los contextos WebGL (el del juego, el de los
  * retratos, el visor de la Mochila) y las de más de 25 ms se guardan con su pila de llamadas (qué función del juego
@@ -48,7 +198,10 @@ const GL_SLOW_MS = 25;
 const STACK_LIMIT = 60;
 const GL_WATCH = ['getProgramParameter', 'getShaderParameter', 'getProgramInfoLog', 'linkProgram', 'compileShader', 'useProgram',
   'texImage2D', 'texSubImage2D', 'texImage3D', 'texStorage2D', 'compressedTexImage2D', 'generateMipmap', 'readPixels',
-  'bufferData', 'bufferSubData', 'finish', 'getError', 'clientWaitSync'];
+  'bufferData', 'bufferSubData', 'finish', 'getError', 'clientWaitSync',
+  // Hito 113: el primer dibujo con un programa nuevo puede bloquear dentro de drawElements/drawArrays (ANGLE compila
+  // el HLSL de forma diferida): sin esto esos fotogramas salían como «sin scripts»
+  'drawElements', 'drawArrays', 'drawElementsInstanced', 'drawArraysInstanced'];
 function shortStack(stack) {
   const all = String(stack || '').split('\n').slice(2)
     .map((l) => l.trim().replace(/^at /, ''))
@@ -110,6 +263,48 @@ export function installPerfProbe(game) {
   const renderer = game.sceneManager && game.sceneManager.renderer;
   if (!renderer) return null;
   const info = renderer.info;
+  // Hito 113: nº de objetos y de luces/mallas vivas en la escena principal (si crece en cada combate, algo no se retira)
+  // Hito 113: rastreo de geometrías subidas a la GPU. three.js engancha un oyente «dispose» (onGeometryDispose) la primera vez
+  // que se dibuja una geometría y lo quita al hacer dispose(): mientras siga enganchado, la geometría está viva en la GPU.
+  // Se guarda con WeakRef (no la retenemos nosotros), su pila de creación y su peso; así se ve cuáles quedan fuera de la escena.
+  const GT = { recs: [], on: false };
+  const geoBytes = (g) => { let b = 0; try { for (const k in g.attributes) b += g.attributes[k].array?.byteLength || 0; b += g.index?.array?.byteLength || 0; } catch (_) { /* nada */ } return b; };
+  const trackGeometries = (on) => {
+    const proto = THREE.BufferGeometry.prototype;
+    if (!on) { if (GT.on) { delete proto.addEventListener; GT.on = false; } return; }
+    if (GT.on) return;
+    GT.recs = []; GT.on = true;
+    const orig = proto.addEventListener;
+    proto.addEventListener = function (type, listener) {
+      try {
+        if (type === 'dispose' && listener && listener.name === 'onGeometryDispose' && GT.recs.length < 6000) {
+          GT.recs.push({ ref: new WeakRef(this), fn: listener, t: now() - S.t0, stack: shortStack(new Error().stack), name: this.name || this.type, mb: geoBytes(this) / 1048576 });
+        }
+      } catch (_) { /* nada */ }
+      return orig.apply(this, arguments);
+    };
+  };
+  // Estado de las geometrías vivas: cuántas, cuánto pesan y cuáles NO cuelgan de la escena principal (agrupadas por quién las creó)
+  const geoStats = (detalle = false) => {
+    const inScene = new Set();
+    try { game.sceneManager.scene.traverse((o) => { if (o.geometry) inScene.add(o.geometry); }); } catch (_) { /* nada */ }
+    let vivas = 0, mbVivas = 0, fuera = 0, mbFuera = 0;
+    const grupos = new Map();
+    for (const r of GT.recs) {
+      const g = r.ref.deref();
+      if (!g) continue;
+      const alive = g._listeners && g._listeners.dispose && g._listeners.dispose.indexOf(r.fn) !== -1;
+      if (!alive) continue;
+      vivas++; mbVivas += r.mb;
+      if (inScene.has(g)) continue;
+      fuera++; mbFuera += r.mb;
+      if (detalle) { const a = grupos.get(r.stack) || { geometrias: 0, mb: 0, ejemplo: r.name, desdeS: r1(r.t / 1000) }; a.geometrias++; a.mb += r.mb; grupos.set(r.stack, a); }
+    }
+    const out = { vivas, mbVivas: r1(mbVivas), fuera, mbFuera: r1(mbFuera) };
+    if (detalle) out.gruposFuera = [...grupos.entries()].sort((a, b) => b[1].mb - a[1].mb).slice(0, 12).map(([donde, a]) => ({ ...a, mb: r1(a.mb), donde }));
+    return out;
+  };
+  const sceneObjs = () => { try { let n = 0, m = 0; game.sceneManager.scene.traverse((o) => { n++; if (o.isMesh) m++; }); return `${n} objetos, ${m} mallas`; } catch (_) { return null; } };
 
   const S = {
     rec: false,
@@ -260,6 +455,14 @@ export function installPerfProbe(game) {
         drawCallsPico: S.peak.calls, triangulosPico: S.peak.tris,
       },
       heapMB: performance.memory ? Math.round(performance.memory.usedJSHeapSize / 1048576) : null,
+      // Hito 113: serie de memoria cada 5 s (heap JS, programas, geometrías, texturas y objetos de la escena) para separar
+      // crecimiento puntual (compilar programas una vez) de una fuga (sube en cada repetición y no baja)
+      serieMemoria: S.serie || [],
+      // geometrías vivas en la GPU al parar y las que NO cuelgan de la escena principal, agrupadas por quién las creó
+      // (pueden ser de otros visores: el de la Mochila, los retratos; la pila dice cuál)
+      geometriasAlParar: S.geoFinal || null,
+      // imágenes decodificadas (ImageBitmap) de los GLB desde el arranque de la página: creadas, cerradas y vivas (MB)
+      bitmapsAlParar: { ...bitmapStats(), porModelo: bitmapsPorModelo() },
       // 29-oct: el heap sube y baja con el recolector de basura; para ver si crece de verdad, mirar el mínimo
       heap: S.heap ? { inicio: S.heap.inicio, min: S.heap.min, max: S.heap.max, fin: S.heap.fin,
         minPrimeraMitad: S.heap.muestras.length > 3 ? Math.min(...S.heap.muestras.slice(0, S.heap.muestras.length >> 1)) : null,
@@ -287,7 +490,7 @@ export function installPerfProbe(game) {
         for (const x of S.loafs) for (const s of x.scripts) acc.set(s.donde, (acc.get(s.donde) || 0) + s.ms);
         return [...acc.entries()].sort((a, b) => b[1] - a[1]).slice(0, 15).map(([donde, ms]) => ({ ms: Math.round(ms), donde }));
       })(),
-      marcas: S.marks.map((m) => ({ s: r1(m.t / 1000), marca: m.label })),
+      marcas: S.marks.map((m) => ({ s: r1(m.t / 1000), marca: m.label, ...(m.mem ? { mem: m.mem } : {}) })),
       renderer: {
         pixelRatio: renderer.getPixelRatio(),
         tamaño: `${renderer.domElement.width}×${renderer.domElement.height}`,
@@ -319,7 +522,12 @@ export function installPerfProbe(game) {
       const mb = () => (performance.memory ? Math.round(performance.memory.usedJSHeapSize / 1048576) : null);
       S.heap = { inicio: mb(), min: mb(), max: mb(), fin: null, muestras: [] };
       clearInterval(S.heapTimer);
-      S.heapTimer = setInterval(() => { const v = mb(); if (v == null) return; S.heap.min = Math.min(S.heap.min, v); S.heap.max = Math.max(S.heap.max, v); S.heap.muestras.push(v); }, 1000);
+      try { trackGeometries(true); } catch (_) { /* opcional */ }
+      S.serie = [];
+      const snap = () => ({ s: r1((now() - S.t0) / 1000), heapMB: mb(), prog: programsCount(), geo: info.memory.geometries, tex: info.memory.textures, escena: sceneObjs(), geoFuera: (({ fuera, mbFuera, mbVivas }) => ({ fuera, mbFuera, mbVivas }))(geoStats()), bitmaps: (({ vivos, mbVivos }) => ({ vivos, mbVivos }))(bitmapStats()) });
+      S.snap = snap;
+      let tick = 0;
+      S.heapTimer = setInterval(() => { const v = mb(); if (v == null) return; S.heap.min = Math.min(S.heap.min, v); S.heap.max = Math.max(S.heap.max, v); S.heap.muestras.push(v); if ((tick++ % 5) === 0 && S.serie.length < 400) S.serie.push(snap()); }, 1000);
       try { if (unspyGl) unspyGl(); unspyGl = installGlSpy((e) => { if (S.glSlow.length < 2000) S.glSlow.push({ ...e, t: e.t - S.t0 }); }); } catch (_) { unspyGl = null; }
       S.lastState = null;
       S.prev = null;
@@ -366,6 +574,7 @@ export function installPerfProbe(game) {
       if (loafPo) { loafPo.disconnect(); loafPo = null; }
       if (unspyGl) { try { unspyGl(); } catch (_) { /* nada */ } unspyGl = null; }
       clearInterval(S.heapTimer);
+      try { S.geoFinal = geoStats(true); trackGeometries(false); } catch (_) { /* opcional */ }
       if (S.heap) S.heap.fin = performance.memory ? Math.round(performance.memory.usedJSHeapSize / 1048576) : null;
       info.autoReset = S.hudEl ? false : prevAutoReset;
       const rep = buildReport();
@@ -373,8 +582,37 @@ export function installPerfProbe(game) {
       printReport(rep);
       return rep;
     },
+    /** lkDebug.perf.geometrias() — en cualquier momento (grabando): geometrías vivas y las que han quedado fuera de la escena */
+    geometrias() { const r = geoStats(true); console.log('[perf] geometrías vivas:', r.vivas, `(${r.mbVivas} MB)`, ' fuera de la escena:', r.fuera, `(${r.mbFuera} MB)`); if (r.gruposFuera.length) console.table(r.gruposFuera); return r; },
+    /** lkDebug.perf.recursos() — memoria de CPU que retienen geometrías y texturas (mapa activo + modelos de ModelCache). Es async. */
+    async recursos() {
+      const roots = [];
+      try { roots.push(['combate', game.sceneManager.scene]); } catch (_) { /* nada */ }
+      try { if (game.overworldManager && game.overworldManager.scene) roots.push(['mundo', game.overworldManager.scene]); } catch (_) { /* nada */ }
+      try {
+        const mc = await import('../render/ModelCache.js');
+        for (const p of mc.cachedModelPaths()) { try { const g = await mc.loadGLTFCached(p); if (g && g.scene) roots.push([String(p).split('/').pop(), g.scene]); } catch (_) { /* nada */ } }
+      } catch (_) { /* nada */ }
+      const out = cpuResourcesOf(roots);
+      try { const m = await import('../rpg/SapidaeModularController.js'); out.teñido = m.tintMemoryStats(); } catch (_) { out.teñido = null; }
+      console.log('[perf] recursos de CPU de three.js (MB):', out.totalMB); console.table(out.resumen);
+      if (out.teñido && out.teñido.length) { console.log('cachés del teñido del Sapidae'); console.table(out.teñido); }
+      if (out.topGeometrias.length) { console.log('geometrías más pesadas'); console.table(out.topGeometrias); }
+      if (out.topTexturas.length) { console.log('texturas más pesadas'); console.table(out.topTexturas); }
+      return out;
+    },
+    /** lkDebug.perf.memoria() — todo junto para apuntar en cada punto de la prueba (es async: await lkDebug.perf.memoria()) */
+    async memoria() {
+      const mb = performance.memory ? Math.round(performance.memory.usedJSHeapSize / 1048576) : null;
+      const b = bitmapStats();
+      console.log(`[perf] heap JS: ${mb} MB · ImageBitmap vivos: ${b.vivos} (${b.mbVivos} MB) · creados ${b.creados} · cerrados ${b.cerrados} · programas ${programsCount()} · geometrías ${info.memory.geometries} · texturas ${info.memory.textures}`);
+      console.table(bitmapsPorModelo());
+      return api.recursos();
+    },
+    /** lkDebug.perf.bitmaps() — imágenes de GLB decodificadas que siguen en memoria (ver bitmapStats) */
+    bitmaps() { const r = bitmapStats(); console.log('[perf] ImageBitmap vivos:', r.vivos, `(${r.mbVivos} MB)`, ' creados:', r.creados, `(${r.mbCreados} MB)`, ' cerrados:', r.cerrados, ' recolectados:', r.recolectados); return r; },
     mark(label) {
-      if (S.rec) S.marks.push({ t: now() - S.t0, label: String(label) });
+      if (S.rec) S.marks.push({ t: now() - S.t0, label: String(label), mem: S.snap ? (({ heapMB, prog, geo, tex, geoFuera, bitmaps }) => ({ heapMB, prog, geo, tex, geoFuera, bitmaps }))(S.snap()) : null });
     },
     hud(on = true) {
       if (on && !S.hudEl) {
@@ -441,6 +679,9 @@ export function installPerfProbe(game) {
         'lkDebug.perf — perfilador de rendimiento',
         '  start(seg=60)   graba (FPS, ms, draw calls, triángulos, shaders, tirones y su causa)',
         '  mark("texto")   marca un momento (p. ej. antes de abrir la Forja)',
+        '  bitmaps()       imágenes de GLB decodificadas que siguen en memoria (MB)',
+        '  await memoria() heap + imágenes vivas por modelo + memoria de CPU de geometrías y texturas',
+        '  geometrias()    geometrías vivas en la GPU y las que quedaron fuera de la escena',
         '  stop()          para y muestra el informe',
         '  hud(true|false) contador en pantalla',
         '  scene()         desglose de la escena por grupo: mallas visibles/ocultas y triángulos',

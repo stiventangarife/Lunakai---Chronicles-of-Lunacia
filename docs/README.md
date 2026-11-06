@@ -2,9 +2,12 @@
 
 Bienvenido al repositorio de documentación técnica, arquitectura y especificaciones de **Lunakai: Chronicles of Lunacia** (anteriormente *Axie Tactics*), un RPG táctico 3D con exploración de mundo abierto (*Overworld*) estilizado y combates estratégicos por turnos basado en la propiedad intelectual de Axie Infinity.
 
-> **Estado actual (1-nov-2026) — versión de prueba v0.4.0:** el mundo jugable son las **5 grandes islas** con dirección de arte Genshin: Bosque, Sabana, Ártico, Mística y **Genesis** (la antigua Mazmorra, rediseñada en el Hito 24).
+> **Estado actual (5-nov-2026) — versión de prueba v0.5.0:** el mundo jugable son las **5 grandes islas** con dirección de arte Genshin: Bosque, Sabana, Ártico, Mística y **Genesis** (la antigua Mazmorra, rediseñada en el Hito 24).
+> - **Códice de Lunacia (Hito 126, tecla C):** enciclopedia ilustrada del bucle del juego con Bestiario; el Escuadrón (T) se abre al graduarse con un recorrido guiado.
+> - **Misión del mercader Ochi (Hito 124):** tras graduarse, una misión corta enseña la Tienda y el Mercado (comprar y equiparse un casco) antes de ir a por Bing.
+> - **Koliseo (Hitos 122–123, tecla K):** Desafío de la Bruma (reto semanal de 5 combates con clasificación y premios) y **Arena PvP** (duelos 1 contra 1 con el Sapidae y el Axie principal igualados, temporadas con Elo, SLP y bAXS, árbitro en Supabase). Puesta en marcha: `DEPLOYMENT_GUIDE.md` y `docs/PLAN_ARENA_PVP.md`.
 > - **Viaje entre islas:** se habla con el barquero **Kawa** en la playa de cada isla (hasta el Hito 51 era Pomodoro; se llamó Kappa hasta el Hito 56); los portales cardinales están retirados.
-> - **Cuentas y nube (Hito 25):** inicio de sesión con Sky Mavis o correo y guardado en Supabase; falta la configuración del servidor.
+> - **Cuentas y nube (Hito 25):** inicio de sesión con Sky Mavis (el botón de correo se quitó de la pantalla de inicio en el Hito 115) y guardado en Supabase; falta la configuración del servidor.
 > - **Economía (Hito 110):** oro (Ochi, Forja T0, recursos) · SLP (evolución y bolsas) · **AXS** (Mercado entre jugadores de equipo T1–3, runas, charms y bolsas, con sello NFT de Ronin) · bAXS (tasas de la Forja; más adelante, premios de arena y reto semanal).
 > - **Motor de combate nuevo (Hitos 26–32):**
 >   - eventos separados de los VFX;
@@ -29,7 +32,7 @@ Bienvenido al repositorio de documentación técnica, arquitectura y especificac
 > - **Tutorial guiado (Hito 50):** el tutorial y sus combates señalan cada acción con flecha y resaltado y bloquean todo lo demás hasta hacerla; corazones y media luna en la cinemática, tienda en (-77, 3.7) y slimes ocultos durante el tutorial.
 > - **Rendimiento (Hito 49):** optimización isla por isla y de los tableros de combate sin cambiar la imagen: texturas a 1024, carga diferida, horizonte combinado, menos memoria de GPU (~1220 → ~400 MB) y combates sin tirones al mover la cámara o lanzar habilidades.
 >
-> Los hitos 2, 3, 6, 9, 10, 11 y 21 describen sistemas históricos y llevan una nota de estado al principio. Los hitos 4, 12, 14, 15, 29, 30, 42, 43, 44, 45, 48 y 49 llevan una nota de actualización con lo que cambió después. Donde aparece "Mazmorra", hoy es Genesis.
+> Los hitos 2, 3, 6, 9, 10, 11 y 21 describen sistemas históricos y llevan una nota de estado al principio. Los hitos 4, 12, 14, 15, 25, 29, 30, 38, 42, 43, 44, 45, 48, 49, 50, 93 y 110 llevan una nota de actualización con lo que cambió después. Donde aparece "Mazmorra", hoy es Genesis.
 
 ---
 
@@ -491,6 +494,77 @@ Bienvenido al repositorio de documentación técnica, arquitectura y especificac
 112. [**Hito 112: Escuadra, inicio y scrollbars visibles (PC)**](HITO_112_RESPONSIVE_PC_PANTALLAS.md)
     - Escuadra compacta las ranuras con poca altura (la colección gana ~90 px a 1280×600); la pantalla de inicio escala el logo por altura y ya no hace scroll hasta 1280×720 y 1024×768; fin de combate compacta el encabezado; barras de scroll doradas visibles en misiones, mapa, escuadra y fin de combate. Mundo abierto ya estaba bien. Sin auditar: formulario de email y selector de slots.
 
+113. [**Hito 113: Égida de Gaia centrada en el Sapidae**](HITO_113_GAIA_CENTRADA_EN_EL_SAPIDAE.md)
+    - La cúpula, los pilares y el pulso de la Ultimate de Gaia se centran en el Sapidae (antes en el promedio del trío, que quedaba desplazado hacia atrás en el tablero).
+
+114. [**Hito 114: Tarjetas de la Mochila iguales y nueva interfaz de pesca**](HITO_114_MOCHILA_Y_PESCA.md)
+    - Las casillas de la Mochila ya no bajan el arte cuando su pie tiene 1 línea (el `<button>` centraba el contenido): arte arriba y pie de 2 líneas en todas.
+    - Pesca: un solo panel de tamaño fijo con corcho animado, anzuelos que quedan, hilo del tiempo y botín dentro; el marcador se mueve con `transform`. Sin cambios en las reglas del reto.
+115. [**Hito 115: Ajustes de runas, inicio, derrota, tutorial y ranura de partida**](HITO_115_AJUSTES_TUTORIAL_INICIO_Y_DERROTA.md)
+    - Runas y charms: sin candado en el regalo del tutorial y la cantidad («×N») pasa abajo a la derecha para no tapar la clase. Inicio: sin botón de correo. Sin el disco de sombra bajo el Sapidae.
+    - Al perder un combate el escuadrón despierta frente al altar de Atia del pueblo del Bosque (el tutorial sigue volviendo junto a Paladill).
+    - Tutorial: la cámara mantiene al Axie a la vista al acariciarlo y alimentarlo; en el primer combate el Axie ve una sola casilla azul; en el duelo con Paladill el Axie se mueve con total libertad (todas las casillas alcanzables marcadas, también en los pasos libres).
+    - Sin el cartel «Bosque» sobre la cinemática del prólogo. La tarjeta de la ranura en la selección de aventura muestra el Axie principal actual (`slot.mainAxie`), no el de creación.
+116. [**Hito 116: Los escudos de enemigos salen sobre el lanzador**](HITO_116_ESCUDOS_PROPIOS_DE_ENEMIGOS.md)
+    - Gelatinous Shield, Viscous Carapace, Paternal Protection y Thick Bark se dibujaban en una casilla vacía lejos del lanzador (el puente movía un receptor que el efecto ya dibujaba en el lanzador). Ahora declaran `receiver:'caster'`.
+117. [**Hito 117: Las partes místicas de nivel 1 se ven en el juego**](HITO_117_PARTES_MISTICAS_NIVEL_1.md)
+    - El shader `Mystic_Final` del mixer declaraba `uv1` y three r160 también (las piezas de nivel 1 traen un segundo juego de UV): no compilaba y solo se veía el contorno oscuro. Ahora la declaración va dentro de `#ifndef USE_UV1`. Sin subir `ASSET_VERSION` (los `.js` se revalidan solos).
+118. [**Hito 118: Menos brillo en las partes místicas**](HITO_118_BRILLO_MISTICOS.md)
+    - Los materiales místicos del mixer daban colores muy por encima del blanco (en Unity se recortan) y el bloom los convertía en un destello que tapaba las partes. Ahora su color se limita a 0,88, por debajo del umbral del bloom; queda el brillo suave de sus partículas.
+119. [**Hito 119: Música del título y sonido en todos los botones**](HITO_119_MUSICA_TITULO_Y_SONIDO_BOTONES.md)
+    - El inicio de sesión y la creación de personaje tienen música (`AVATAR_THEME_V1`) y sus sonidos ya se oyen desde la primera visita (el audio se enciende con el primer gesto). Arreglados el corte y la bajada de volumen de una pista retenida por el navegador.
+    - Clic común en todos los botones sin dobles sonidos (`audio/UiClickSfx.js`, `data-sfx="none"` para excluir) y la Mochila, la Escuadra y el Libro de misiones dejan de usar el sonido de paso como clic.
+120. [**Hito 120: Tutorial rápido, cámara isométrica de combate y correcciones**](HITO_120_TUTORIAL_RAPIDO_CAMARA_ISOMETRICA_Y_CORRECCIONES.md)
+    - Tutorial corto: Dojo → Mochila → Forja → vínculo → runas → combate final contra el Slime Caballero (Rastro de Miasma, Ultimate) → graduación. Duelo con Paladill opcional. Cámara de combate isométrica fija (FOV 14, `Q`/`E` 90°, opción `combatCam`) y clic en el modelo = su casilla.
+    - Mapa con coordenadas en vez de niveles, «Isla» → «Tierra», aviso y aspecto nuevo del miasma, árboles transparentes sobre las unidades, Ultimate solo en el turno del Sapidae y precalentado de los efectos (muerte, marcas, miasma) contra los tirones.
+121. [**Hito 121: Formulario de feedback**](HITO_121_FORMULARIO_DE_FEEDBACK.md)
+    - Botón 💬 (tecla **F**) entre Mapa y Opciones (también durante el tutorial: la guía deja un hueco sobre él) que abre «Envíanos tu opinión». Se guarda en Supabase (`feedback`, función `submit_feedback`) como invitado o con la cuenta de Sky Mavis; el tipo de cuenta lo decide el servidor y hay antispam.
+    - Al graduarse en el tutorial, en lugar del mapa, «¿Te está gustando Lunakai?» con «Enviar mi opinión» / «Ahora no». Versión v0.4.1.
+122. [**Hito 122: Koliseo · Desafío de la Bruma**](HITO_122_KOLISEO_DESAFIO_DE_LA_BRUMA.md)
+    - Koliseo (botón del HUD, tecla **K**, o Paladill; el Escuadrón pasa a la **T**): reto semanal de 5 combates en los tableros de un bioma (rotación desde el Bosque), enemigos ×1 → ×3, jefe final Slime Caballero con miasma, un modificador por semana, 2 intentos y 2 derrotas.
+    - Clasificación (combates superados y luego rondas, top 10 y tu puesto) y premios al top 3 (bAXS, Esquirla lunar, Ámbar de Atia y oro) entregados sin perderse ni duplicarse. Servidor en Supabase (`bruma_*`, `koliseo_pending`, `koliseo_ack`). Versión v0.5.0.
+123. [**Hito 123: Arena PvP**](HITO_123_ARENA_PVP.md)
+    - Duelos 1 contra 1 en el Koliseo con el Sapidae y el Axie principal igualados (nivel 10, sin equipo, runas ni Ultimate), en 7 tableros simétricos; cola por puntos, turnos de 45 s con la hora del servidor, temporadas mensuales con Elo, 15 SLP por victoria y bAXS al top 10.
+    - Los dos jugadores ejecutan el mismo motor con la misma semilla (huella del estado en cada turno) y un árbitro en Supabase (Edge Function `pvp-arbiter`) repite las partidas en disputa y castiga al tramposo. Equilibrio y estadísticas (`balance.mjs`, `pvp_stats`). Versión v0.5.0.
+124. [**Hito 124: Misión «El mercader del Dojō» (Ochi)**](HITO_124_MISION_OCHI.md)
+    - Nueva misión principal 2, entre la graduación y Bing: Paladill manda con Ochi, que explica el oro, la Tienda y el Mercado, da un monedero (completa hasta 60 de oro) y pide comprar un casco y ponérselo; recompensa de 80 de oro y 2 pociones.
+    - El Yelmo Bestial deja de caer en combate (Tienda y Forja). Migración `20261111000000_quest_merchant_ochi.sql`. Versión v0.5.0.
+125. [**Hito 125: Koliseo más claro**](HITO_125_KOLISEO_MAS_CLARO.md)
+    - Arena PvP en dos tarjetas (temporada y duelo) con historial que dice tablero y hace cuánto; la Bruma marca la amenaza de cada combate, los intentos como rombos y cuándo vuelven; la Clasificación en una sola barra con el premio en cada fila.
+    - La ventana ya no cambia de alto entre pestañas. Sin cambios en el servidor.
+126. [**Hito 126: Escuadrón tras la graduación y Códice de Lunacia**](HITO_126_ESCUADRON_Y_CODICE.md)
+    - El Escuadrón (T) se abre al graduarse, con un recorrido de 3 tarjetas la primera vez y botón «?»; con Bing solo queda colocarlo en apoyo.
+    - Códice (C): libro de 12 capítulos sobre el bucle del juego, con capturas, diagramas en SVG y páginas generadas de los datos (Bestiario de 18 quimeras en silueta hasta vencerlas, tus cartas, tu clase y las tres Ultimate). Botones «?» en la Tienda, la Forja y el Koliseo. Versión v0.5.0.
+127. [**Hito 127: Códice más claro**](HITO_127_CODICE_MAS_CLARO.md)
+    - Sin cambiar el contenido: índice del capítulo bajo la ilustración, capturas ampliables (Esc vuelve), pasar página con texto que nombra el capítulo siguiente, contador en el Bestiario y progreso de lectura en el carril.
+128. [**Hito 128: Ajustes del Koliseo, las runas, la Forja y la apariencia**](HITO_128_AJUSTES_KOLISEO_RUNAS_FORJA_APARIENCIA.md)
+    - El Koliseo (K) tiene punto de «Nuevo» y un recorrido de 3 tarjetas en su primera apertura (componente común `PanelTour` con el Escuadrón); la etiqueta «Nuevo» de las runas vuelve a su tamaño.
+    - En la Forja del tutorial, la ficha de un material ya no se queda encima de «Acelerar»; el creador de personaje ya no muestra «Ema» ni «Kai». Versión v0.5.0.
+129. [**Hito 129: Recorridos de panel como «coach marks»**](HITO_129_RECORRIDOS_DE_PANEL_COACH_MARKS.md)
+    - Las tarjetas de primera apertura del Escuadrón y el Koliseo señalan su zona con una flecha y un foco que atenúa el resto; añaden «Atrás», «Saltar» arriba y teclas → / ← / Esc (Esc no cierra el panel).
+130. [**Hito 130: Avisos de «Nuevo» en el HUD**](HITO_130_AVISOS_DE_NUEVO.md)
+    - Gestor común `NewBadges` para el Escuadrón, el Koliseo y el Códice: número de páginas sin leer en el Códice (baja al leer cada una), texto del aviso al pasar el ratón, late 3 veces y queda fijo; el Escuadrón y el Koliseo se apagan al abrirlos.
+131. [**Hito 131: Selector de aventura con escenario 3D**](HITO_131_SELECTOR_DE_AVENTURA.md)
+    - «Elige tu aventura» con un escenario grande (Sapidae y Axie en 3D, flechas ‹ ›, Jugar junto al nombre) y lista de ranuras; el mundo ya no se dibuja detrás del título. Un solo visor 3D a 30 fps, sin sombras, que se libera al jugar.
+132. [**Hito 132: Selector: isla por bioma y panel «Tu partida»**](HITO_132_SELECTOR_ISLA_Y_TU_PARTIDA.md)
+    - El personaje del selector está sobre una isla flotante del bioma de su zona (SVG, sin coste de gráfica) y la columna derecha muestra la misión actual con su siguiente paso, el escuadrón y desde cuándo existe la partida.
+133. [**Hito 133: Selector: cielo del título e islas 3D**](HITO_133_SELECTOR_CIELO_E_ISLAS_3D.md)
+    - El escenario del selector lleva el cielo estrellado del título y los personajes se paran sobre una isla 3D con el aspecto de la isla de su partida (bosque, sabana, ártico, místico o Génesis), con props del juego y el mismo sombreado toon.
+134. [**Hito 134: Selector: terreno cuadrado de casillas**](HITO_134_SELECTOR_TERRENO_DE_CASILLAS.md)
+    - El personaje del selector se para sobre un trozo de tablero de combate flotante (5 × 4 casillas en damero con los colores de la arena de su bioma) en lugar de una isla redonda.
+135. [**Hito 135: Contextos WebGL liberados y lista de ranuras**](HITO_135_CONTEXTOS_WEBGL_Y_LISTA_DE_RANURAS.md)
+    - Los visores 3D (creador, selector, Mochila) cierran su contexto WebGL al liberarse: abrirlos muchas veces ya no hace que Chrome cierre el contexto del juego. En la lista de ranuras, la fila ya no se sale del marco al pasar el ratón y los retratos quedan centrados.
+136. [**Hito 136: Guía por migas y mapa de rumbo (fase 1), y ajustes visuales**](HITO_136_GUIA_MIGAS_Y_MAPA_DE_RUMBO.md)
+    - Una chispa dorada recorre el camino hacia el objetivo dejando migas de polvo, rodeando árboles, agua, vallas y mesetas. El camino se calcula por partes (≈2 ms por fotograma), ocupa 0,5 MB en la isla más grande y la estela se dibuja en una sola llamada. Se quita la flecha flotante delante del personaje.
+    - Ajustes visuales:
+      - retratos de Axie enteros dentro de su marco (HUD, Mochila, Escuadrón, fin de combate y creación);
+      - escuadrón de la Mochila en una fila de 4, con el corazón del vínculo visible;
+      - runa centrada en su ranura y Philosopher's Stone al tamaño de las demás;
+      - ramas de los árboles sobre el tronco curvado (Bosque e islas).
+137. [**Hito 137: Puente plano del Bosque**](HITO_137_PUENTE_PLANO_DEL_BOSQUE.md)
+    - Los puentes y el muelle del Bosque usan `puente_plano.glb`. Su textura pasa de WebP a KTX2 (el mismo atlas de madera que ya había): de ~5,6 MB a ~0,7 MB de memoria de vídeo.
+
+> Resumen de los Hitos 129–137 (qué se hizo, rendimiento, reglas nuevas y pendientes): [RESUMEN_HITOS_129_137.md](RESUMEN_HITOS_129_137.md)
 ---
 
 ## 🎮 Controles y Atajos de Teclado
@@ -498,13 +572,18 @@ Bienvenido al repositorio de documentación técnica, arquitectura y especificac
 | Tecla | Acción en el Modo Overworld | Acción en Modo Combate |
 | :---: | :--- | :--- |
 | **`[W] [A] [S] [D]`** / Flechas | Desplazamiento del héroe en 3D. | Desplazamiento de cámara táctica. |
-| **`[E]`** | Interactuar con NPCs y cofres (con el barquero Pomodoro: elegir isla de destino). | — |
+| **`[E]`** | Interactuar con NPCs y cofres (con el barquero Pomodoro: elegir tierra de destino). | Girar la cámara 90°. |
 | **`[Espacio]`** | Avanzar líneas de diálogo. | Pasar turno / Confirmar acción. |
 | **`[I]`** | Abrir / Cerrar Inventario y Habilidades. | — |
 | **`[U]`** | Mochila › Runas y charms. | — |
-| **`[K]`** | Abrir / Cerrar Escuadrón. | — |
+| **`[T]`** | Abrir / Cerrar Escuadrón. | — |
+| **`[C]`** | Abrir / Cerrar el Códice de Lunacia (desde la graduación). | — |
+| **`[K]`** | Abrir / Cerrar Koliseo (Desafío de la Bruma y clasificaciones). | — |
 | **`[L]` o `[J]`** | Abrir / Cerrar Diario de Aventuras. | — |
-| **`[M]`** | Abrir / Cerrar Mapa del Mundo e Isla. | — |
+| **`[M]`** | Abrir / Cerrar Mapa del Mundo y de la Tierra. | — |
+| **`[F]`** | Enviar opinión (formulario de feedback; también durante el tutorial). | — |
+| **`[Q]`** | — | Girar la cámara 90°. |
+| **Clic derecho o rueda pulsada + arrastrar** | — | Desplazar la cámara isométrica. |
 | **`[ESC]`** | Abrir / Cerrar Menú de Opciones (en la cinemática del prólogo: saltarla). | Deseleccionar acción. |
 | **`[1]`–`[6]`** | — | Seleccionar las 6 habilidades de la unidad activa. |
 | **`[7]`** | — | Duo Ultimate (Sapidae, vínculo al 100 %, desde la ronda 2; ronda 1 en la prueba del tutorial). |

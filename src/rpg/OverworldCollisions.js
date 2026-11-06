@@ -41,6 +41,7 @@ export class OverworldCollisions {
     };
 
     this._grid = new Map();   // clave de celda → { c:[], b:[], s:[] }
+    this.version = 0;         // Hito 136: sube con cada cambio (el mapa de rumbo de la guía sabe cuándo rehacerse)
     this._dirty = true;
     this._stamp = 0;
     this._candC = []; this._candB = []; this._candS = [];
@@ -86,10 +87,12 @@ export class OverworldCollisions {
     this.bounds.maxX = maxX;
     this.bounds.minZ = minZ;
     this.bounds.maxZ = maxZ;
+    this.version++;
   }
 
   _changed() {
     this._dirty = true;
+    this.version++;
     if (this._debug && !this._debug.pending) { this._debug.pending = true; queueMicrotask(() => { if (this._debug) { this._debug.pending = false; this._debugRebuild(); } }); }
   }
 
@@ -145,12 +148,14 @@ export class OverworldCollisions {
   setWaterMask(mask, maxDepth = 0.5) {
     this._water = mask || null;
     this._waterMax = maxDepth; this._waterLim = maxDepth;
+    this.version++;
   }
 
   /** Pendiente máxima que se puede subir caminando (grados); null quita el límite. */
   setSlopeMask(mask, maxDeg = 35) {
     this._slope = mask || null;
     this._slopeMax = maxDeg; this._slopeLim = maxDeg;
+    this.version++;
   }
 
   /** Profundidad del agua en (x, z) en metros (≤ 0 seco), o null si la isla no tiene máscara (o aún se calcula). */

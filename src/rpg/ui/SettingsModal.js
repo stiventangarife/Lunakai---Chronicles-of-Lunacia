@@ -30,7 +30,7 @@ const PREF_DEFAULTS = {
   ...accessDefaults()
 };
 const ACCESS_SWITCHES = ['contrast', 'reduceMotion', 'shake'];
-const ACCESS_SEGS = ['textSize', 'textSpeed', 'autoAdvance', 'colorblind', 'combatNumbers'];
+const ACCESS_SEGS = ['textSize', 'textSpeed', 'autoAdvance', 'colorblind', 'combatNumbers', 'combatCam'];
 
 const read = (k, fallback) => { try { const v = localStorage.getItem(k); return v === null ? fallback : v; } catch { return fallback; } };
 const readJSON = (k, fallback) => { try { return { ...fallback, ...JSON.parse(localStorage.getItem(k) || '{}') }; } catch { return { ...fallback }; } };
@@ -140,7 +140,7 @@ export class SettingsModal {
             <div class="lk-pause__pane" data-p="ctl" hidden>
               <div class="lk-pane-h"><h4>${i18n.t('settings.tabControls')}</h4><p>${i18n.t('settings.controlsHint')}</p></div>
               <div class="lk-keys">
-                <div class="lk-group"><span class="lk-label">${i18n.t('settings.kExplore')}</span>${keyRow(i18n.t('settings.kMove'), ['W', 'A', 'S', 'D'])}${keyRow(i18n.t('settings.kInteract'), ['E'])}${keyRow(i18n.t('settings.kDialog'), [i18n.t('settings.keySpace')])}${keyRow(i18n.t('settings.kBag'), ['I'])}${keyRow(i18n.t('settings.kJournal'), ['J'])}${keyRow(i18n.t('settings.kMap'), ['M'])}${keyRow(i18n.t('settings.title'), ['O'])}${keyRow(i18n.t('settings.kPause'), ['Esc'])}</div>
+                <div class="lk-group"><span class="lk-label">${i18n.t('settings.kExplore')}</span>${keyRow(i18n.t('settings.kMove'), ['W', 'A', 'S', 'D'])}${keyRow(i18n.t('settings.kInteract'), ['E'])}${keyRow(i18n.t('settings.kDialog'), [i18n.t('settings.keySpace')])}${keyRow(i18n.t('settings.kBag'), ['I'])}${keyRow(i18n.t('settings.kJournal'), ['J'])}${keyRow(i18n.t('settings.kMap'), ['M'])}${keyRow(i18n.t('overworld.menuSquad'), ['T'])}${keyRow(i18n.t('koliseo.menu'), ['K'])}${keyRow(i18n.t('feedback.menu'), ['F'])}${keyRow(i18n.t('settings.title'), ['O'])}${keyRow(i18n.t('settings.kPause'), ['Esc'])}</div>
                 <div class="lk-group"><span class="lk-label">${i18n.t('settings.kCombat')}</span>${keyRow(i18n.t('settings.kCard'), ['1 – 6'])}${keyRow(i18n.t('settings.kEndTurn'), [i18n.t('settings.keySpace')])}${keyRow(i18n.t('settings.kRotate'), ['Q', 'E'])}${keyRow(i18n.t('settings.kCenter'), ['R'])}${keyRow(i18n.t('settings.kOrbit'), [i18n.t('settings.keyRmb')])}${keyRow('Zoom', [i18n.t('settings.keyWheel')])}${keyRow(i18n.t('settings.kCancel'), ['Esc'])}</div>
               </div>
             </div>
@@ -160,6 +160,7 @@ export class SettingsModal {
                 ${sw('reduceMotion', i18n.t('settings.reduceMotion'), i18n.t('settings.reduceMotionDesc'), false)}
                 ${sw('shake', i18n.t('settings.shake'), i18n.t('settings.shakeDesc'), true)}
                 ${seg('combatNumbers', i18n.t('settings.combatNumbers'), i18n.t('settings.combatNumbersDesc'), [['full', i18n.t('settings.cnFull')], ['damage', i18n.t('settings.cnDamage')], ['off', i18n.t('settings.cnOff')]])}
+                ${seg('combatCam', i18n.t('settings.combatCamera'), i18n.t('settings.combatCameraDesc'), [['fixed', i18n.t('settings.ccFixed')], ['mine', i18n.t('settings.ccMine')], ['follow', i18n.t('settings.ccFollow')]])}
               </div>
             </div>
             <div class="lk-pause__foot"><span class="lk-hint"><i></i>${i18n.t('settings.applyHint')}</span><button class="lk-text-btn" data-act="reset">${i18n.t('settings.resetTab')}</button></div>

@@ -13,7 +13,7 @@ export default {
   "hud.ferrySails": "Kawa iza las velas...",
   "hud.ferrySetSail": "¡Rumbo a {place}! Agárrate fuerte, que hoy sopla el viento del este.",
   "hud.ferryTitle": "Barquero de Lunacia",
-  "hud.islandMapM": "Mapa de la isla [M]",
+  "hud.islandMapM": "Mapa de la tierra [M]",
   "hud.level": "Nivel",
   "hud.notNow": "Ahora no",
   "hud.plateLv": "NV. {n}",

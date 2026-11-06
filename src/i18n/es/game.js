@@ -96,5 +96,6 @@ export default {
   "game.spellCooldown1": "En recarga: lista en 1 turno",
   "game.spellCooldownN": "En recarga: lista en {n} turnos",
   "game.spellLocked": "Se desbloquea a nivel {n}",
-  "game.levelShortN": "Nv. {n}"
+  "game.levelShortN": "Nv. {n}",
+  "game.tutSwordHint": "Espada de madera: pulsa [I] para equiparla · Espacio · Continuar",
 };

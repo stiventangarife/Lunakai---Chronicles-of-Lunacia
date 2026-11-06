@@ -1,0 +1,67 @@
+<!DOCTYPE html><html><body><pre id="log"></pre><script type="module">
+// Página de prueba de la Arena PvP (fase P2): un jugador con PvpService + PvpSession + HeadlessCombat contra
+// tools/pvp/local/fake-supabase.cjs. La abre two-players.cjs (dos navegadores); también se puede abrir a mano.
+// ?u=<uuid>&mode=play|idle|cheat&slot=1&pick=<semilla de las decisiones>
+const P = new URLSearchParams(location.search);
+const uid = P.get('u'), mode = P.get('mode') || 'play';
+const b64 = (o) => btoa(JSON.stringify(o)).replace(/=+$/, '').replace(/\+/g, '-').replace(/\//g, '_');
+const TOKEN = `${b64({ alg: 'none' })}.${b64({ sub: uid })}.x`;
+const { PvpService } = await import('../../../src/net/PvpService.js');
+const { RealtimeClient } = await import('../../../src/net/RealtimeClient.js');
+const { PvpSession } = await import('../../../src/rpg/arena/PvpSession.js');
+const { HeadlessCombat } = await import('../../../src/tactics/sim/HeadlessCombat.js');
+const { getBattleMap } = await import('../../../src/tactics/maps/BattleMaps.js');
+const { SPELLS_DB } = await import('../../../src/tactics/data/SpellsDB.js');
+const { mulberry32 } = await import('../../../src/tactics/sim/SeededRandom.js');
+const fakeFetch = async (path, { method, body, token }) => {
+  const r = await fetch('http://localhost:8200' + path, { method, headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: 'Bearer ' + token } : {}) }, body: JSON.stringify(body) });
+  const d = await r.json(); if (!r.ok) throw Object.assign(new Error(d.message), { code: d.code }); return d;
+};
+const getToken = async () => TOKEN;
+const service = new PvpService({ fetch: fakeFetch, getToken, realtime: new RealtimeClient({ url: 'ws://localhost:8200/realtime/v1/websocket', apikey: 'test', getToken }) });
+const ids = Object.keys(SPELLS_DB);
+const PREFIX = { crafter: 'craft_', shepard: 'shepard_', lunalogist: 'lunalogist_', stargazer: 'stargazer_' };
+function createEngine(match) {           // foto → unidades (provisional; la fase P3 hará la versión igualada del juego)
+  const map = getBattleMap(match.map), units = [];
+  for (const side of ['A', 'B']) {
+    const s = match[side], team = side === 'A' ? 'player' : 'enemy', sp = side === 'A' ? map.spawns.player : map.spawns.enemy;
+    units.push({ id: `${side}_sapidae`, name: s.name, type: 'sapidae', team, x: sp[0].x, z: sp[0].z, maxHP: 278, maxPA: 6, maxPM: 3, initiative: 127, sapidaeClass: s.sapidaeClass, spellIds: ids.filter((i) => i.startsWith(PREFIX[s.sapidaeClass])) });
+    units.push({ id: `${side}_axie`, name: s.axie.name, type: 'axie', team, x: sp[1].x, z: sp[1].z, maxHP: 318, maxPA: 6, maxPM: 3, initiative: 120, axieClass: s.axie.class, spellIds: ids.filter((i) => i.startsWith(`part_${s.axie.class.toLowerCase()}_`)).slice(0, 6) });
+  }
+  return new HeadlessCombat({ mapId: match.map, units, seed: Number(match.seed) >>> 0, tieBreak: match.tieBreak === 'A' ? 'player' : 'enemy', maxRounds: match.maxRounds }).start();
+}
+const S = window.S = { events: [], queue: [], done: false, session: null };
+const log = (t) => { document.getElementById('log').textContent += t + '\n'; };
+const pick = mulberry32(Number(P.get('pick') || 1));
+let playing = false;
+async function play(session) {
+  if (playing || !session.myTurn) return;
+  playing = true;
+  try {
+    while (session.myTurn) {
+      if (mode === 'idle') return;
+      if (mode === 'cheat') { await service.act(session.id, session.seq, { t: 'move', unit: session.engine.activeUnit.id, x: 99, z: 99 }); S.cheated = true; return; }
+      await new Promise((r) => setTimeout(r, 15));
+      const legal = session.engine.legalOrders();
+      const casts = legal.filter((o) => o.t === 'cast'), moves = legal.filter((o) => o.t === 'move'), r = pick();
+      const o = casts.length && r < 0.6 ? casts[Math.floor(pick() * casts.length)] : moves.length && r < 0.85 ? moves[Math.floor(pick() * moves.length)] : legal.at(-1);
+      await session.act(o);
+    }
+  } catch (e) { S.events.push({ type: 'actError', error: e.code || e.message }); }
+  finally { playing = false; }
+}
+function open(match) {
+  const session = S.session = new PvpSession({ match, createEngine, service, onEvent: (e) => {
+    S.events.push({ type: e.type, side: e.side, seq: e.seq, online: e.online, reason: e.reason, error: e.error });
+    if (e.type === 'turn' && e.mine) setTimeout(() => play(session), 0);
+    if (e.type === 'finished' || e.type === 'disputed') { S.done = true; S.final = e.match; S.hash = session.engine.hash(); S.result = session.engine.result; log(e.type); }
+  } });
+  session.start().then(() => { S.started = true; play(session); });
+}
+// ¿Ya en partida (recarga)? Si no, a la cola.
+const me = await service.me();
+S.me = { points: me.points, games: me.games };
+if (me.match && ['active', 'ended'].includes(me.match.status)) open(me.match);
+else S.stopQueue = service.startQueue({ slot: Number(P.get('slot') || 1), onStatus: (s) => S.queue.push(s.status), onMatched: (m) => open(m) });
+window.ready = true;
+</script></body></html>

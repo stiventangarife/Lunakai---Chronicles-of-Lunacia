@@ -67,6 +67,11 @@ export class TacticalAudio {
     if (this.music) this.music.playBiome(biomeName);
   }
 
+  /** Hito 119: música del título (inicio de sesión, partidas y creación de personaje). */
+  playTitleMusic() {
+    if (this.music) this.music.playTitle();
+  }
+
   playCinematicMusic() {
     if (this.music) this.music.playCinematic();
   }

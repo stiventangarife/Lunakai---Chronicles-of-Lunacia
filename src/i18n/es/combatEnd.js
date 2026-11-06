@@ -61,5 +61,8 @@ export default {
   "combatEnd.xpOnlyVictories": "La XP y la AXP solo se ganan con victorias",
   "combatEnd.newSkill": "¡Nueva habilidad!",
   "combatEnd.newSkills": "¡Nuevas habilidades!",
-  "combatEnd.newSkillShort": "+{n} habilidad"
+  "combatEnd.newSkillShort": "+{n} habilidad",
+  "combatEnd.retry": "Reintentar",
+  "combatEnd.backToVillage": "Volver al pueblo",
+  "combatEnd.hintRetry": "Espacio · Reintentar sin castigo",
 };

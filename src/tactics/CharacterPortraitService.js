@@ -20,6 +20,7 @@ function cloneWithoutUserDataJson(model) {
 }
 import { waitProgramsReady } from '../render/RenderWarmup.js';
 import { cloneGLTF } from '../render/ModelCache.js';
+import { adoptGltf, releaseGltf } from '../render/ReleaseGltf.js';
 import { sapidaeModularController } from '../rpg/SapidaeModularController.js';
 import { sapidaeModelUrl, SAPIDAE_BASES } from '../rpg/SapidaeModels.js';
 
@@ -461,10 +462,12 @@ export class CharacterPortraitService {
       if (!this._initialized) return null;
 
       let model = null;
+      let loaded = null; // Hito 113: el GLB cargado aquí es solo para esta foto: se libera al terminar
       // Always load a fresh uncorrupted GLTF model to prevent SkinnedMesh clone destruction
       const modelPath = this._resolveModelPath(id);
       try {
         const gltf = await this.loader.loadAsync(modelPath);
+        loaded = adoptGltf(gltf);
         model = gltf.scene;
       } catch (err) {
         if (modelScene) {
@@ -475,7 +478,13 @@ export class CharacterPortraitService {
         }
       }
 
-      const dataUrl = this.captureModel(id, model, options);
+      let dataUrl;
+      try {
+        dataUrl = this.captureModel(id, model, options);
+      } finally {
+        // Hito 113 (memoria): geometrías, texturas e imágenes decodificadas del modelo de la foto (un Sapidae son ~150 MB)
+        if (loaded) releaseGltf(loaded);
+      }
       this.pending.delete(id);
       return dataUrl;
     })();
@@ -807,7 +816,8 @@ export class CharacterPortraitService {
           yTargetRatio: options.yTargetRatio !== undefined ? options.yTargetRatio : (isFullBody ? 0 : 0.30),
           yaw: options.yaw !== undefined ? options.yaw : -0.18,
           pitch: options.pitch !== undefined ? options.pitch : 0.03,
-          aliases: ['sapidae', modelId]
+          // Arena PvP: el retrato del rival no debe pasar a ser el genérico del modelo (aliases: [])
+          aliases: Array.isArray(options.aliases) ? options.aliases : ['sapidae', modelId]
         };
 
         // En segundo plano: espera a los shaders y sube las texturas de una en una (sin congelar el juego)

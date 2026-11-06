@@ -45,10 +45,10 @@ export class QuestManager {
           steps: [
             { id: 'defend_dojo', desc: i18n.t('quests.dojoApprentice.step.defendDojo'), done: false },
             { id: 'equip_sword', desc: i18n.t('quests.dojoApprentice.step.equipSword'), done: false },
-            { id: 'duel_paladill', desc: i18n.t('quests.dojoApprentice.step.duelPaladill'), done: false },
             { id: 'evolve_sword', desc: i18n.t('quests.dojoApprentice.step.evolveSword'), done: false },
             { id: 'bond_axie', desc: i18n.t('quests.dojoApprentice.step.bondAxie'), done: false },
             { id: 'equip_runes', desc: i18n.t('quests.dojoApprentice.step.equipRunes'), done: false },
+            { id: 'defeat_knight', desc: i18n.t('quests.dojoApprentice.step.defeatKnight'), done: false }, // tutorial rápido: combate final
             { id: 'graduate', desc: i18n.t('quests.dojoApprentice.step.graduate'), done: false }
           ]
         },
@@ -61,11 +61,47 @@ export class QuestManager {
         rewardClaimed: false
       },
 
+      // Hito 124: tras graduarse, Ochi enseña la economía (comprar un casco en la Tienda y ponérselo). Lógica: quests/OchiQuest.js
+      quest_merchant_ochi: {
+        id: 'quest_merchant_ochi',
+        title: i18n.t('quests.merchantOchi.title'),
+        category: 'Principal',
+        order: 2,
+        giver: {
+          name: i18n.t('npcDefs.ochiName'),
+          title: i18n.t('quests.merchantOchi.giverTitle'),
+          avatar: './assets/portraits/sapidae-m-d.png',
+          model: 'sapidae-m-d',
+          zoneCoords: [2, 2]
+        },
+        zoneCoords: [2, 2],
+        lore: i18n.t('quests.merchantOchi.lore'),
+        npcQuote: i18n.t('quests.merchantOchi.quote'),
+        objective: {
+          summary: i18n.t('quests.merchantOchi.summary'),
+          steps: [
+            { id: 'talk_ochi', desc: i18n.t('quests.merchantOchi.step.talkOchi'), done: false },
+            { id: 'buy_helmet', desc: i18n.t('quests.merchantOchi.step.buyHelmet'), done: false },
+            { id: 'equip_helmet', desc: i18n.t('quests.merchantOchi.step.equipHelmet'), done: false },
+            { id: 'report_ochi', desc: i18n.t('quests.merchantOchi.step.reportOchi'), done: false }
+          ]
+        },
+        rewards: {
+          gold: 80,
+          exp: 50,
+          items: [
+            { id: 'potion_health_small', name: i18n.t('items.potion_health_small.name'), qty: 2, stack: true, rarity: 'common', icon: './assets/consumable/lesser_health_potion.webp', desc: i18n.t('items.potion_health_small.description') }
+          ]
+        },
+        status: 'locked',
+        rewardClaimed: false
+      },
+
       quest_prove_ferocity: {
         id: 'quest_prove_ferocity',
         title: i18n.t('quests.proveFerocity.title'),
         category: 'Principal',
-        order: 2,
+        order: 3,
         giver: {
           name: 'Bing',
           title: i18n.t('quests.proveFerocity.giverTitle'),
@@ -99,7 +135,7 @@ export class QuestManager {
         id: 'quest_hostile_sands',
         title: i18n.t('quests.hostileSands.title'),
         category: 'Principal',
-        order: 3,
+        order: 4,
         giver: {
           name: i18n.t('quests.npc.desertSentinel'),
           title: i18n.t('quests.hostileSands.giverTitle'),
@@ -121,7 +157,9 @@ export class QuestManager {
           gold: 250,
           exp: 200,
           items: [
-            { id: 'beast_helmet', name: i18n.t('items.beast_helmet.name'), slot: 'hat', rarity: 'common', icon: './assets/equippable/beast_helmet.webp', desc: i18n.t('items.beast_helmet.description'), stats: { hp: 15 } }
+            // Hito 124: antes daba el Yelmo Bestial; ahora se compra a Ochi (misión 2), así que aquí van materiales de la sabana
+            { id: 'mat_chimera_tail', name: i18n.t('items.mat_chimera_tail.name'), qty: 3, kind: 'material', rarity: 'common', desc: i18n.t('items.mat_chimera_tail.description') },
+            { id: 'mat_copper', name: i18n.t('items.mat_copper.name'), qty: 3, kind: 'material', rarity: 'common', desc: i18n.t('items.mat_copper.description') }
           ]
         },
         status: 'locked',
@@ -132,7 +170,7 @@ export class QuestManager {
         id: 'quest_hunt_beaked_chimera',
         title: i18n.t('quests.huntBeakedChimera.title'),
         category: 'Principal',
-        order: 4,
+        order: 5,
         giver: {
           name: i18n.t('quests.npc.desertSentinel'),
           title: i18n.t('quests.huntBeakedChimera.giverTitle'),
@@ -166,7 +204,7 @@ export class QuestManager {
         id: 'quest_frozen_seed',
         title: i18n.t('quests.frozenSeed.title'),
         category: 'Principal',
-        order: 5,
+        order: 6,
         giver: {
           name: 'Pomodoro',
           title: i18n.t('quests.frozenSeed.giverTitle'),
@@ -201,7 +239,7 @@ export class QuestManager {
         id: 'quest_blizzard_core',
         title: i18n.t('quests.blizzardCore.title'),
         category: 'Principal',
-        order: 6,
+        order: 7,
         giver: {
           name: 'Pomodoro',
           title: i18n.t('quests.blizzardCore.giverTitle'),
@@ -234,7 +272,7 @@ export class QuestManager {
         id: 'quest_astral_void_echoes',
         title: i18n.t('quests.astralVoidEchoes.title'),
         category: 'Principal',
-        order: 7,
+        order: 8,
         giver: {
           name: i18n.t('quests.npc.astralSage'),
           title: i18n.t('quests.astralVoidEchoes.giverTitle'),
@@ -268,7 +306,7 @@ export class QuestManager {
         id: 'quest_forbidden_resonance',
         title: i18n.t('quests.forbiddenResonance.title'),
         category: 'Principal',
-        order: 8,
+        order: 9,
         giver: {
           name: i18n.t('quests.npc.astralOracle'),
           title: i18n.t('quests.forbiddenResonance.giverTitle'),
@@ -303,7 +341,7 @@ export class QuestManager {
         id: 'quest_sulfur_threshold',
         title: i18n.t('quests.genesisThreshold.title'),
         category: 'Principal',
-        order: 9,
+        order: 10,
         giver: {
           name: 'Kotaro',
           title: i18n.t('quests.genesisThreshold.giverTitle'),
@@ -336,7 +374,7 @@ export class QuestManager {
         id: 'quest_primeval_purification',
         title: i18n.t('quests.primevalPurification.title'),
         category: 'Principal',
-        order: 10,
+        order: 11,
         giver: {
           name: i18n.t('quests.npc.spiritOfAtia'),
           title: i18n.t('quests.primevalPurification.giverTitle'),
@@ -874,6 +912,12 @@ export class QuestManager {
           deliveredRewards.items.push(rewardItem);
           return;
         }
+        // Consumibles (Hito 124): se dan todas las copias, aunque ya tengas alguna
+        if (rewardItem.stack) {
+          for (let i = 0; i < (rewardItem.qty || 1); i++) this.equipmentManager.inventory.push(rewardItem.id);
+          deliveredRewards.items.push(rewardItem);
+          return;
+        }
         const isEquipped = Object.values(this.equipmentManager.equipped || {}).some(
           heroSlots => heroSlots && Object.values(heroSlots).includes(rewardItem.id)
         );
@@ -954,7 +998,8 @@ export class QuestManager {
 
     // LINEAR PROGRESSION: Auto-unlock next main story quest!
     const nextMainQuestMap = {
-      quest_slime_purification: 'quest_prove_ferocity',
+      quest_slime_purification: 'quest_merchant_ochi',
+      quest_merchant_ochi: 'quest_prove_ferocity',
       quest_prove_ferocity: 'quest_hostile_sands',
       quest_hostile_sands: 'quest_hunt_beaked_chimera',
       quest_hunt_beaked_chimera: 'quest_frozen_seed',
@@ -997,6 +1042,7 @@ export class QuestManager {
 
     const mainQuestIds = [
       'quest_slime_purification',
+      'quest_merchant_ochi',
       'quest_prove_ferocity',
       'quest_hostile_sands',
       'quest_hunt_beaked_chimera',
@@ -1092,6 +1138,11 @@ export class QuestManager {
             }
             targetName = i18n.t('quests.npc.paladill');
           }
+        } else if (quest.id === 'quest_merchant_ochi') {
+          // Hablar con Ochi y volver a él; comprar y equiparse son de interfaz (sin flecha: ver OverworldManager)
+          const ochiNpc = currentMapDef.npcs ? currentMapDef.npcs.find(n => n.id === 'merchant_ochi') : null;
+          if (ochiNpc) targetWorldPos = { x: ochiNpc.position.x, z: ochiNpc.position.z };
+          targetName = i18n.t('npcDefs.ochiName');
         } else if (quest.id === 'quest_hunt_beaked_chimera') {
           if (pendingStep && pendingStep.id === 'report_hunt') {
             const sentinelNpc = currentMapDef.npcs ? currentMapDef.npcs.find(n => n.id === 'sentinel') : null;
@@ -1321,6 +1372,20 @@ export class QuestManager {
         this.trackedQuestId = saveData.trackedQuestId;
       }
       this.trackingOff = Boolean(saveData.trackingOff); // partidas antiguas: seguimiento activado
+      // Hito 124: partidas de antes de la misión de Ochi. Si ya habían pasado a Bing (o más allá), queda completada
+      // (sin recompensa: no se paga dos veces la historia); si estaban en el tutorial, se desbloquea al graduarse.
+      if (!saveData.quests.quest_merchant_ochi && this.quests.quest_merchant_ochi) {
+        const bing = saveData.quests.quest_prove_ferocity;
+        const tut = saveData.quests.quest_slime_purification;
+        const q = this.quests.quest_merchant_ochi;
+        if (bing && bing.status && bing.status !== 'locked') {
+          q.status = 'completed';
+          q.rewardClaimed = true;
+          q.objective.steps.forEach(st => { st.done = true; });
+        } else if (tut && tut.status === 'completed') {
+          q.status = 'active';
+        }
+      }
       for (const [id, savedQ] of Object.entries(saveData.quests)) {
         const q = this.quests[id];
         if (q) {
@@ -1342,6 +1407,7 @@ export class QuestManager {
     if (heroLevel > 1) {
       const completedMainQuests = [];
       if (heroLevel >= 2) completedMainQuests.push('quest_slime_purification');
+      if (heroLevel >= 2) completedMainQuests.push('quest_merchant_ochi');
       if (heroLevel >= 3) completedMainQuests.push('quest_prove_ferocity');
       if (heroLevel >= 4) completedMainQuests.push('quest_hostile_sands');
       if (heroLevel >= 5) completedMainQuests.push('quest_hunt_beaked_chimera');

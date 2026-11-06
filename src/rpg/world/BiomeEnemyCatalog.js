@@ -339,10 +339,10 @@ export function getDifficultyTier(biome) {
   return cfg ? cfg.tier : 1;
 }
 
-function getRandomArchetype(biome) {
+function getRandomArchetype(biome, rng = Math.random) {
   const pool = BIOME_SPAWN_POOLS[biome] || BIOME_SPAWN_POOLS.forest;
   const totalWeight = pool.reduce((acc, p) => acc + p.weight, 0);
-  let r = Math.random() * totalWeight;
+  let r = rng() * totalWeight;
 
   for (const entry of pool) {
     if (r < entry.weight) {
@@ -353,11 +353,16 @@ function getRandomArchetype(biome) {
   return ENEMY_ARCHETYPES.slime_forest;
 }
 
-export function generatePackForBiome(biome, [gx, gy], forcedLeaderArchetypeId = null) {
+/**
+ * opts (Koliseo): { rng, size } — azar sembrado (mismo grupo para todos los jugadores) y tamaño fijo del grupo.
+ * Sin opts se comporta como siempre (Math.random).
+ */
+export function generatePackForBiome(biome, [gx, gy], forcedLeaderArchetypeId = null, opts = {}) {
   const tierConfig = BIOME_TIER_CONFIG[biome] || BIOME_TIER_CONFIG.forest;
   const tier = tierConfig.tier;
+  const rng = typeof opts.rng === 'function' ? opts.rng : Math.random;
 
-  const roll = Math.random();
+  const roll = rng();
   let packSize = 1;
   let packType = 'SOLO';
   if (roll > 0.80) {
@@ -367,14 +372,18 @@ export function generatePackForBiome(biome, [gx, gy], forcedLeaderArchetypeId = 
     packSize = 2;
     packType = 'DUO';
   }
+  if (opts.size >= 1 && opts.size <= 3) {
+    packSize = opts.size;
+    packType = ['SOLO', 'DUO', 'TRIO'][packSize - 1];
+  }
 
   const leaderArchetype = (forcedLeaderArchetypeId && ENEMY_ARCHETYPES[forcedLeaderArchetypeId])
     ? ENEMY_ARCHETYPES[forcedLeaderArchetypeId]
-    : getRandomArchetype(biome);
+    : getRandomArchetype(biome, rng);
   const members = [];
 
   for (let i = 0; i < packSize; i++) {
-    const arch = (i === 0) ? leaderArchetype : getRandomArchetype(biome);
+    const arch = (i === 0) ? leaderArchetype : getRandomArchetype(biome, rng);
 
     const scaledHP = Math.round(arch.baseStats.maxHP * tierConfig.hpMultiplier);
     const scaledShield = Math.round((arch.baseStats.initialShield || 0) + tierConfig.shieldBonus);

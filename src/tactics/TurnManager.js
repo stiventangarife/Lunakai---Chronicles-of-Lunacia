@@ -10,6 +10,10 @@ export class TurnManager {
     this.round = 1;
     this.isCombatOver = false;
     this.alternateTeams = true; // turnos alternados entre bandos (el tutorial lo desactiva)
+    // Arena PvP (P0): sim = true → sin esperas ni cámara (motor sin gráficos: todo pasa en el acto y en orden fijo).
+    // tieBreak: bando que empieza con empate de iniciativa ('player' | 'enemy'); null = el jugador, como siempre.
+    this.sim = false;
+    this.tieBreak = null;
 
     // Callbacks
     this.onTurnChange = null;
@@ -46,7 +50,8 @@ export class TurnManager {
     const enemies = alive.filter(u => u.team !== 'player');
     const bestP = players.length ? players[0].initiative : -Infinity;
     const bestE = enemies.length ? enemies[0].initiative : -Infinity;
-    const [first, second] = bestP >= bestE ? [players, enemies] : [enemies, players];
+    const playersFirst = bestP > bestE || (bestP === bestE && this.tieBreak !== 'enemy');
+    const [first, second] = playersFirst ? [players, enemies] : [enemies, players];
     const order = [];
     for (let i = 0; i < Math.max(first.length, second.length); i++) {
       if (i < first.length) order.push(first[i]);
@@ -127,13 +132,15 @@ export class TurnManager {
     const statusResult = this.onUnitTurnStart ? (this.onUnitTurnStart(currentUnit) || {}) : {};
     if (statusResult.died || currentUnit.isDead) {
       // Murió por daño periódico: se comprueba el fin del combate y se pasa al siguiente
-      setTimeout(() => this.nextTurn(), 700);
+      this._later(() => this.nextTurn(), 700);
       return;
     }
 
-    // Focus camera
-    const worldPos = currentUnit.gridManager.gridToWorld(currentUnit.gridX, currentUnit.gridZ);
-    this.sceneManager.focusOn(worldPos);
+    // Focus camera (según Opciones › Cámara de combate)
+    if (!this.sim) {
+      const worldPos = currentUnit.gridManager.gridToWorld(currentUnit.gridX, currentUnit.gridZ);
+      this.sceneManager.focusOnTurn(worldPos, currentUnit);
+    }
 
     if (this.onTurnChange) {
       this.onTurnChange(currentUnit, this.queue, this.round, { skipped: Boolean(statusResult.skip) });
@@ -142,17 +149,37 @@ export class TurnManager {
     // Aturdido o dormido: pierde el turno automáticamente
     if (statusResult.skip) {
       this.isSkippingTurn = true;
-      setTimeout(() => {
+      this._later(() => {
         this.isSkippingTurn = false;
         if (!this.isCombatOver && this.getActiveUnit() === currentUnit) this.nextTurn();
       }, 1100);
     }
   }
 
+  /** Espera de presentación; en simulación se ejecuta en el acto (mismo orden, sin tiempo real). */
+  _later(fn, ms) {
+    if (this.sim) { fn(); return; }
+    this._pendingLater = (this._pendingLater || 0) + 1;
+    setTimeout(() => { this._pendingLater--; fn(); }, ms);
+  }
+
+  /**
+   * Arena PvP (P3): espera a que el paso de turno termine del todo (turnos perdidos por aturdimiento, muertes por
+   * daño periódico…). Solo entonces el estado es el mismo que el del motor sin gráficos y se puede calcular la huella.
+   */
+  async settled() {
+    for (let i = 0; i < 400 && ((this._pendingLater || 0) > 0 || this.turnEnding); i++) await new Promise((r) => setTimeout(r, 25));
+  }
+
   async endCurrentTurn() {
     if (this.isCombatOver || this.isSkippingTurn) return; // el turno perdido se pasa solo
     if (this.turnEnding) return; // Fase 5: un segundo «fin de turno» durante la transición no salta otro turno
     this.turnEnding = true;
+    if (this.sim) {
+      this.turnEnding = false;
+      this.nextTurn();
+      return;
+    }
     try {
       await new Promise(r => setTimeout(r, 400));
       // nunca pasar de turno con la unidad todavía caminando (si no, el siguiente actúa con ella a medio camino)

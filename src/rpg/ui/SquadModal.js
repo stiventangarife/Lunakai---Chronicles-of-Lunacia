@@ -2,7 +2,7 @@
 // Pantalla 19 del sistema de diseño ("Escuadrón") con las clases lk- de src/ui/ds.generated.css.
 // Decide quién viaja y combate contigo: el Sapidae líder (fijo, entra siempre en combate), el compañero principal y 2 axies de apoyo.
 // El escuadrón se guarda en EquipmentManager (getSquad / setSquad) y DynamicCombatFactory lo usa para el combate.
-// Tecla K (OverworldManager). API: open(), close(), toggle(), isOpen, onOpen, onClose, onChange(squad), onOpenInventory(heroId).
+// Tecla T (OverworldManager). Botón «?»: recorrido de SquadTour.js (Hito 126). API: open(), close(), toggle(), isOpen, onOpen, onClose, onChange(squad), onOpenInventory(heroId).
 import { getHeroSpells, SAPIDAE_CLASSES } from '../SaveSlotManager.js';
 import { SPELLS_DB } from '../../tactics/Spells.js';
 import { STARTER_DECKS } from '../../tactics/data/StarterCards.js';
@@ -13,6 +13,7 @@ import { asset, sprite, toast } from '../../ui/lk.js';
 import { canBeMainAxie } from '../../tactics/EquipmentManager.js';
 import { axieMixerService } from '../AxieMixerService.js';
 import { loadAccountAxies, canLoadAccountAxies, loadAxieById } from '../AccountAxiesService.js';
+import { startSquadTour } from './SquadTour.js';
 import { RuneCharmService } from '../RuneCharmService.js';
 import * as i18n from '../../i18n/i18n.js';
 
@@ -43,6 +44,7 @@ export class SquadModal {
     this.onClose = null;
     this.onChange = null;
     this.onOpenInventory = null;
+    this.onTourDone = null; // Hito 126: (completed) => … — el recorrido terminó (true) o se cortó al cerrar (false)
     this._createDOM();
   }
 
@@ -58,6 +60,7 @@ export class SquadModal {
           <span class="lk-emblem"><img class="lk-ai" src="${I('team')}" alt=""></span>
           <h3><small>${i18n.t('squad.kicker')}</small>${i18n.t('squad.title')}</h3>
           <span class="lk-res-pill" data-ref="count"></span>
+          <button type="button" class="lk-btn-close-x lk-sq-help" data-ref="help" aria-label="${i18n.t('squad.help')}" title="${i18n.t('squad.help')}">?</button>
           <button type="button" class="lk-btn-close-x" data-ref="close" aria-label="${i18n.t('squad.close')}">${sprite('i-close')}</button>
         </div>
         <div class="lk-squad__top" data-ref="slots"></div>
@@ -85,6 +88,7 @@ export class SquadModal {
 
     m.addEventListener('click', (e) => { if (e.target === m) this.close(); });
     this.$('close').addEventListener('click', () => this.close());
+    this.$('help').addEventListener('click', () => this.startTour()); // Hito 126: repetir el recorrido
     m.addEventListener('wheel', (e) => e.stopPropagation(), { passive: true });
     window.addEventListener('keydown', (e) => {
       if (this.isOpen && e.key === 'Escape' && this.pending) { this.pending = null; this._render(); e.stopImmediatePropagation(); }
@@ -138,13 +142,21 @@ export class SquadModal {
     if (!this.isOpen) return;
     this.isOpen = false;
     this.pending = null;
+    this.__lkTour?.stop(false);
     this.root.classList.remove('lk-is-open');
     this.root.classList.add('hidden');
-    if (this.audio?.playStep) this.audio.playStep();
+    if (this.audio?.playClick) this.audio.playClick(); // Hito 119
     this.onClose?.();
   }
 
   toggle() { if (this.isOpen) this.close(); else this.open(); }
+
+  /** Hito 126: recorrido de 3 tarjetas (Líder/Principal/Apoyo · colección · Cargar mis Axies). */
+  startTour() {
+    if (!this.isOpen) return null;
+    return startSquadTour(this, { onDone: (completed) => this.onTourDone?.(completed) });
+  }
+  get tourActive() { return Boolean(this.__lkTour?.active); }
 
   // ------------------------------------------------------------ datos
   _owned() { return (this.em.unlockedHeroes || []).filter((id) => id !== 'sapidae' && this.em.heroesBase[id]); }
@@ -214,7 +226,7 @@ export class SquadModal {
     let url = !sapi && base?.axieId ? portraitService.axieUrl(base, () => this._renderSoon())
       : portraitService.getPortraitSync(key) || (sapi ? `./assets/portraits/${key}.png` : base?.image || null);
     if (!url && !base?.axieId) portraitService.getPortrait(key).then((u) => { if (u && this.isOpen) this._render(); }).catch(() => {});
-    return `<span class="lk-med" style="--cc:${this._cc(id)}${size ? `;--s:${size}px` : ''}">${url ? `<img src="${url}" alt="">` : ''}</span>`;
+    return `<span class="lk-med${sapi ? '' : ' lk-med--axie'}" style="--cc:${this._cc(id)}${size ? `;--s:${size}px` : ''}">${url ? `<img src="${url}" alt="">` : ''}</span>`;
   }
   _idx(id) { return this.slots.indexOf(id); }
   /** Hito 93: lo que lleva puesto un Axie (se conserva aunque salga del escuadrón). */
@@ -506,5 +518,5 @@ export class SquadModal {
     document.addEventListener('pointercancel', up);
   }
 
-  _sfx() { if (this.audio?.playStep) this.audio.playStep(); }
+  _sfx() { if (this.audio?.playClick) this.audio.playClick(); } // Hito 119: clic de interfaz (antes, sonido de paso)
 }

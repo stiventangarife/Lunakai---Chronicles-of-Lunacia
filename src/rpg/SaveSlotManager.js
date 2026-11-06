@@ -752,9 +752,11 @@ export class SaveSlotManager {
     if (progressData.zone) slot.zone = progressData.zone;
     if (progressData.questProgress) slot.questProgress = progressData.questProgress;
     if (progressData.tutorialProgress) slot.tutorialProgress = progressData.tutorialProgress;
+    if (progressData.codexProgress) slot.codexProgress = progressData.codexProgress; // Hito 126: Códice (páginas leídas, quimeras vencidas)
     if (progressData.unlockedHeroes) slot.unlockedHeroes = progressData.unlockedHeroes;
     if (progressData.squad !== undefined) slot.squad = progressData.squad;
     if (progressData.accountAxies) slot.accountAxies = progressData.accountAxies; // Hito 75: Axies de la cuenta
+    if (progressData.mainAxie) slot.mainAxie = progressData.mainAxie; // Axie principal actual (tarjeta de la ranura)
     if (progressData.inventory) slot.inventory = progressData.inventory;
     if (progressData.equipped) slot.equipped = progressData.equipped;
     if (progressData.progression) slot.progression = progressData.progression;

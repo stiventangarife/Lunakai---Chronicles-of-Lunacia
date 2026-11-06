@@ -303,6 +303,7 @@ class AxieMixerService {
         const captureTask = () => {
           // Hito 93: puede que ya lo haya hecho ensureAxiePortrait mientras esperaba (o el modelo ya no exista)
           if (portraitService.getPortraitSync(String(axieId))) return;
+          if (axie.__lkDisposed) return; // Hito 113: quien lo pidió ya lo devolvió (cambio rápido de compañero); no se fotografía un Axie liberado
           try {
             const aliases = ['axie'];
             if (heroId) aliases.push(heroId);

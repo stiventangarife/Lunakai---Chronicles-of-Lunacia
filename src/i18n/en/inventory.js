@@ -76,7 +76,7 @@ export default {
   "inventory.item": "Item",
   "inventory.itemsMany": "{n} items",
   "inventory.itemsOne": "{n} item",
-  "inventory.keyK": "Key K",
+  "inventory.keyK": "Key T",
   "inventory.keyU": "Key U",
   "inventory.kicker": "Inventory",
   "inventory.lv": "Lv {n}",

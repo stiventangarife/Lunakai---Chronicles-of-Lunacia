@@ -135,7 +135,7 @@ export function mountOnSapidae(bone, modelRoot, weapon, family, level) {
 }
 
 /** Esqueletos de las armas que la librería del mixer ha colgado en `root` (o en lo que ya soltó). */
-function weaponObjects(root) {
+export function weaponObjects(root) {
   const out = [];
   root?.traverse?.((o) => { if (/^AxieWeapon:/.test(o.name || '')) out.push(o); });
   return out;

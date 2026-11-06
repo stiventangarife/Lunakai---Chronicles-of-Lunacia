@@ -32,7 +32,7 @@ export default {
   "squad.iniShort": "Ini",
   "squad.initiative": "Iniciativa",
   "squad.joins": "{name} se une al escuadrón",
-  "squad.kicker": "Equipo · tecla K",
+  "squad.kicker": "Equipo · tecla T",
   "squad.leaderNoReplace": "El Sapidae líder no se puede sustituir",
   "squad.leaderNoRetire": "El Sapidae líder no se puede retirar",
   "squad.lv": "Nv {n}",
@@ -100,5 +100,6 @@ export default {
   "squad.gearLine": "Lleva puesto: {items} pieza(s) · {rune} runa · {charms} charm(s)",
   "squad.returnGear": "Devolver equipo a la bolsa",
   "squad.returnGearTitle": "Quita sus piezas, su runa y sus charms y los deja libres en la bolsa para otro Axie.",
-  "squad.gearReturned": "El equipo de {name} volvió a la bolsa."
+  "squad.gearReturned": "El equipo de {name} volvió a la bolsa.",
+  "squad.help": "¿Cómo funciona el Escuadrón?",
 };

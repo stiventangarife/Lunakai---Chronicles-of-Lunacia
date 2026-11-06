@@ -199,3 +199,35 @@ export async function warmupRender(renderer, scene, camera, { target = null, dea
   const total = renderer.info && renderer.info.programs ? renderer.info.programs.length : 0;
   return { programs: total - before, total, textures, ms: Math.round(performance.now() - t0) };
 }
+
+/**
+ * Hito 113 — Precompila y sube las texturas de unos pocos objetos ya montados en `scene` (p. ej. el arma que acaba de
+ * equipar un Axie), con el mismo destino que el render real, y espera a que el driver termine de enlazar (sin bloquear).
+ * Es la versión pequeña de warmupRender: no recorre toda la escena.
+ * @param {THREE.Object3D[]} objects
+ * @returns {Promise<{programs:number, textures:number, ms:number}>}
+ */
+export async function warmupObjects(renderer, scene, camera, objects, { target = null, deadline = Infinity } = {}) {
+  const t0 = performance.now();
+  if (!renderer || !scene || !camera || !objects || !objects.length) return { programs: 0, textures: 0, ms: 0 };
+  const late = () => performance.now() > deadline || (renderer.getContext && renderer.getContext().isContextLost());
+  const slice = makeSlicer();
+  slice.late = late;
+  let textures = 0;
+  for (const o of objects) textures += await uploadTextures(renderer, o, slice);
+  const before = renderer.info && renderer.info.programs ? renderer.info.programs.length : 0;
+  const proxy = { traverse: (cb) => { for (const o of objects) o.traverse(cb); }, traverseVisible: () => {} };
+  const materials = new Set();
+  const prev = renderer.getRenderTarget();
+  renderer.setRenderTarget(target);
+  try {
+    const mats = renderer.compile(proxy, camera, scene);
+    if (mats && typeof mats[Symbol.iterator] === 'function') for (const m of mats) materials.add(m);
+  } catch (_) { /* un objeto raro no debe impedir mostrar el resto */ } finally {
+    renderer.setRenderTarget(prev);
+  }
+  const parallel = !!(renderer.extensions && renderer.extensions.has && renderer.extensions.has('KHR_parallel_shader_compile'));
+  if (parallel) await waitProgramsReady(renderer, materials, Math.max(0, Math.min(deadline, performance.now() + 5000) - performance.now()), late);
+  const total = renderer.info && renderer.info.programs ? renderer.info.programs.length : 0;
+  return { programs: total - before, textures, ms: Math.round(performance.now() - t0) };
+}

@@ -51,7 +51,10 @@ function s(e) {
 var c = "\n  varying vec2 vMysticUv;\n  varying vec2 vMysticUv0Zw;\n  varying vec2 vMysticUv2;\n  varying vec3 vMysticNormalWS;\n  varying vec3 vMysticNormalVS;\n  varying vec3 vMysticViewDirectionWS;\n  varying vec3 vMysticWorldPosition;\n  varying vec3 vMysticObjectPosition;\n  varying vec3 vMysticObjectNormal;\n  varying float vMysticEyeDepth;\n  varying vec4 vMysticScreenPosition;\n  varying vec4 vMysticColor;\n  varying vec4 vMysticCustom0;\n", l = `
   ${c}
 
+  // Lunakai Hito 117: three r160 already declares uv1 when the mesh has TEXCOORD_1 (USE_UV1).
+  #ifndef USE_UV1
   attribute vec2 uv1;
+  #endif
   uniform mat4 uMysticUnityObjectFromGeometry;
 
   #include <common>
@@ -320,7 +323,7 @@ var c = "\n  varying vec2 vMysticUv;\n  varying vec2 vMysticUv0Zw;\n  varying ve
     vec3 overlay = mix(shaded + 2.0 * (source - 0.5), shaded + 2.0 * source - 1.0, step(vec3(0.5), source));
     return clamp(mix(shaded, overlay, rimWeight), 0.0, 1.0);
   }
-`, d = "\n    if (uMysticGammaBlendPass > 0.5) {\n      gl_FragColor = vec4(clamp(color, 0.0, 1.0), clamp(alpha, 0.0, 1.0));\n      return;\n    }\n    if (uUnityGammaWorkflow > 0.5) color = unitySrgbToLinear(color);\n    gl_FragColor = vec4(color, alpha);\n    #include <colorspace_fragment>\n  }\n";
+`, d = "\n    if (uMysticGammaBlendPass > 0.5) {\n      gl_FragColor = vec4(clamp(color, 0.0, 1.0), clamp(alpha, 0.0, 1.0));\n      return;\n    }\n    // Lunakai Hito 118: cap below the game bloom threshold (Unity clips to LDR; here HDR values flooded the bloom).\n    color = clamp(color, 0.0, 0.88);\n    if (uUnityGammaWorkflow > 0.5) color = unitySrgbToLinear(color);\n    gl_FragColor = vec4(color, alpha);\n    #include <colorspace_fragment>\n  }\n";
 function f(e) {
 	return `${u}\nvoid main() {\n${e}\n${d}`;
 }

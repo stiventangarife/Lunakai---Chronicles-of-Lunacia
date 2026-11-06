@@ -125,5 +125,20 @@ export default {
   "start.welcomeText": "Your account saves your progress in the cloud, so you can continue your adventure on any device. Already have a Sky Mavis account? No need to sign up again.",
   "start.welcomeTitle": "Welcome to Lunacia",
   "start.xpLevel": "XP Lv {n}",
-  "start.yesterday": "Yesterday, {time}"
+  "start.yesterday": "Yesterday, {time}",
+  "start.stageAria": "Selected adventure",
+  "start.prevSlot": "Previous slot",
+  "start.nextSlot": "Next slot",
+  "start.slotsUsed": "{n} of {total}",
+  "start.newAdventureShort": "Create a new Sapidae",
+  "start.levelShort": "Lv {n}",
+  "start.level": "Level {n}",
+  "start.withAxie": "with {axie}",
+  "start.rotateHint": "Drag to rotate",
+  "start.infoTitle": "Your adventure",
+  "start.infoQuest": "Current quest",
+  "start.infoQuestReady": "Ready to turn in",
+  "start.infoNoQuest": "No tracked quest",
+  "start.infoSquad": "Squad",
+  "start.infoSince": "Since"
 };

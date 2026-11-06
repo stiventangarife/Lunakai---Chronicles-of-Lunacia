@@ -381,7 +381,8 @@ export class GenshinTrees {
     }
     geo.setAttribute('uv', new THREE.BufferAttribute(uv, 2));
     geo.computeVertexNormals();
-    return { geo, end: pts[pts.length - 1] };
+    // Hito 136: también la curva, para que las ramas nazcan SOBRE el tronco curvado (no en la recta base→punta)
+    return { geo, end: pts[pts.length - 1], curve };
   }
 
   /**
@@ -463,7 +464,9 @@ export class GenshinTrees {
     const limbs = 2 + Math.floor(rng() * 3);
     for (let l = 0; l < limbs; l++) {
       const a = (l / limbs) * Math.PI * 2 + rng() * 0.8;
-      const start = trunk.end.clone().multiplyScalar(0.62 + rng() * 0.2);
+      // Hito 136: antes `trunk.end × t` (punto de la recta, no del tronco): con la curvatura del tronco la rama
+      // nacía hasta ~1 m fuera y se veía suelta o cruzada. Mismo número de rng() → mismo bosque.
+      const start = trunk.curve.getPointAt(0.62 + rng() * 0.2);
       const dir = new THREE.Vector3(Math.cos(a), 0.9 + rng() * 0.6, Math.sin(a));
       const limb = br(start, dir, 1.8 + rng() * 1.0, 0.16, 0.06, 6, 3, seed + 10 + l);
       trunkGeos.push(limb.geo);

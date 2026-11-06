@@ -33,6 +33,13 @@ export class OverworldCamera {
     this.lookAheadTime = 0.18;   // segundos de velocidad que se adelanta
     this.lookAheadMax = 1.4;
 
+    // Encuadre de un acompañante (tutorial de acariciar y alimentar): ver setFrameTarget / _updateFrame.
+    // _frameF (0–1) es cuánto se ha alejado y subido la cámara para que el Axie quepa en pantalla.
+    this._frameGetter = null;
+    this._frameAxie = null;
+    this._frameF = 0;
+    this._frameV = new THREE.Vector3();
+
     this.isDragging = false;
     this.prevMouseX = 0;
     this.prevMouseY = 0;
@@ -58,6 +65,32 @@ export class OverworldCamera {
         this.snapToTarget();
       }
     }
+  }
+
+  /**
+   * Mantiene a la vista a un acompañante (el Axie) mientras dura un paso del tutorial. `getter` es una función que
+   * devuelve su objeto 3D (así sigue valiendo si el modelo se rehace) o null para volver a la cámara normal.
+   * Con el encuadre activo la cámara apunta entre el jugador y el Axie y, si el Axie se sale de la zona segura de la
+   * pantalla (detrás de la cámara, bajo el borde inferior…), se aleja y sube un poco hasta que vuelve a verse.
+   */
+  setFrameTarget(getter) {
+    this._frameGetter = typeof getter === 'function' ? getter : null;
+  }
+
+  _updateFrame(dt) {
+    const c = this._frameGetter ? this._frameGetter() : null;
+    this._frameAxie = (c && c.visible !== false) ? c : null;
+    if (!this._frameAxie) {
+      if (this._frameF > 0) this._frameF = Math.max(0, this._frameF - 0.8 * dt);
+      return;
+    }
+    // Dónde cae el Axie en la pantalla (con la matriz del fotograma anterior)
+    const v = this._frameV.copy(c.position);
+    v.y += 0.8;
+    v.project(this.camera);
+    const e = v.z > 1 ? 1 : Math.max(Math.abs(v.x) - 0.62, v.y - 0.62, -0.5 - v.y, 0);
+    if (e > 0) this._frameF = Math.min(1, this._frameF + (0.35 + e) * dt);
+    else if (Math.abs(v.x) < 0.45 && v.y > -0.35 && v.y < 0.45) this._frameF = Math.max(0, this._frameF - 0.25 * dt); // con holgura: vuelve poco a poco
   }
 
   snapToTarget() {
@@ -243,12 +276,22 @@ export class OverworldCamera {
       this.distance += (this.zoomTarget - this.distance) * (1 - Math.exp(-12 * dt));
       if (Math.abs(this.zoomTarget - this.distance) < 0.01) { this.distance = this.zoomTarget; this.zoomTarget = null; }
     }
+    // Encuadre del Axie (solo durante los pasos de cuidado del tutorial): distancia y ángulo extra
+    this._updateFrame(dt);
+    const frameF = this._frameF;
+    const dist = this.distance + frameF * 6.0;
+    const pitch = frameF > 0 ? Math.min(1.45, this.pitchAngle + frameF * 0.32) : this.pitchAngle;
     // Follow target smoothly
     if (this.followTarget) {
       // Dynamic look target: when pitch is negative (looking up at sky), elevate the lookAt point into the sky
       const skyLookUpOffset = Math.max(0, -this.pitchAngle) * 8.5;
       this.targetLookAt.copy(this.followTarget.position);
       this.targetLookAt.y += 1.75 + skyLookUpOffset;
+      // Con un Axie que encuadrar, la cámara apunta al punto medio entre él y el jugador
+      if (this._frameAxie) {
+        this.targetLookAt.x = (this.targetLookAt.x + this._frameAxie.position.x) * 0.5;
+        this.targetLookAt.z = (this.targetLookAt.z + this._frameAxie.position.z) * 0.5;
+      }
       // Hito 90: adelanto según la velocidad del jugador (solo cuando la cámara le sigue a él)
       const pc = this.om?.playerController;
       const want = this._laWant || (this._laWant = new THREE.Vector3());
@@ -278,17 +321,17 @@ export class OverworldCamera {
     // Spherical to Cartesian with pitch & distance
     // Hito 74 · brazo de cámara con colisión: si entre el personaje y la cámara hay una casa, una roca o una ladera,
     // la cámara se pone delante (al instante) y vuelve despacio a su distancia cuando queda libre.
-    let armDist = this.distance;
+    let armDist = dist;
     if (this.occlusion && this.followTarget) {
       this.occlusion.tick();
-      const hd = this.distance * Math.cos(this.pitchAngle), hh = this.distance * Math.sin(this.pitchAngle);
+      const hd = dist * Math.cos(pitch), hh = dist * Math.sin(pitch);
       this._wantPos = this._wantPos || new THREE.Vector3();
       this._wantPos.set(this.currentLookAt.x + Math.sin(this.currentAngle) * hd, this.currentLookAt.y + hh, this.currentLookAt.z + Math.cos(this.currentAngle) * hd);
       let f = this.occlusion.cast(this.currentLookAt, this._wantPos, 0.2);
       // Hito 79: si el obstáculo solo queda junto a la cámara (pasar al lado de una casa, rozar una esquina) y la cámara
       // no está dentro de nada, no se acerca: esa esquina se transparenta, como los árboles.
       if (f >= 0.7 && f < 1 && this.occlusion.inside && !this.occlusion.inside(this._wantPos, 0.3)) f = 1;
-      const target = f < 1 ? Math.max(1.6, this.distance * f - 0.3) : this.distance;
+      const target = f < 1 ? Math.max(1.6, dist * f - 0.3) : dist;
       // Hito 79 · sin rebotes: se acerca rápido pero suave (~0,06 s, no de un fotograma a otro); al quedar libre
       // espera 0,3 s antes de volver a alejarse, así pasar rozando una esquina no la hace ir y venir.
       if (this._arm === undefined || !Number.isFinite(this._arm)) { this._arm = target; this._armHold = 0; this._armFree = 9; }
@@ -303,12 +346,12 @@ export class OverworldCamera {
         if (this._armHold > 0) this._armHold -= dt;
         else this._arm += (target - this._arm) * (1 - Math.exp(-2.5 * dt));        // alejarse: despacio
       }
-      armDist = Math.min(this.distance, this._arm);
+      armDist = Math.min(dist, this._arm);
     } else {
-      this._arm = this.distance;
+      this._arm = dist;
     }
-    const horizontalDist = armDist * Math.cos(this.pitchAngle);
-    const height = armDist * Math.sin(this.pitchAngle);
+    const horizontalDist = armDist * Math.cos(pitch);
+    const height = armDist * Math.sin(pitch);
 
     const camX = this.currentLookAt.x + Math.sin(this.currentAngle) * horizontalDist;
     const camZ = this.currentLookAt.z + Math.cos(this.currentAngle) * horizontalDist;

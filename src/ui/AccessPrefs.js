@@ -18,9 +18,11 @@ const LEGACY_DIALOG_AUTO = 'axie_lk_dialog_auto'; // botón «Auto» del diálog
 export const TEXT_SCALE = { normal: 1, large: 1.125, xlarge: 1.25 };
 export const TEXT_SPEED_MS = { slow: 40, normal: 22, instant: 0 };   // ms por carácter (0 = la frase entera)
 export const AUTO_ADVANCE = { off: 0, normal: 1, slow: 1.7 };         // multiplicador de la espera
-const ACCESS_KEYS = ['textSize', 'textSpeed', 'autoAdvance', 'contrast', 'reduceMotion', 'shake', 'colorblind', 'combatNumbers'];
+const ACCESS_KEYS = ['textSize', 'textSpeed', 'autoAdvance', 'contrast', 'reduceMotion', 'shake', 'colorblind', 'combatNumbers', 'combatCam'];
 /** Hito 107 · números flotantes del combate: todos, solo daño y curas, o ninguno. */
 export const COMBAT_NUMBERS = ['full', 'damage', 'off'];
+/** Cámara del combate al cambiar de turno: se queda donde la deja el jugador (por defecto), va a sus unidades o a cada una. */
+export const COMBAT_CAMERA = ['fixed', 'mine', 'follow'];
 
 /**
  * Colores por bando y casillas del tablero. 'off' = los de siempre.
@@ -48,6 +50,7 @@ export function accessDefaults() {
     shake: true,
     colorblind: 'off',
     combatNumbers: 'full',
+    combatCam: 'fixed',
   };
 }
 
@@ -84,6 +87,7 @@ class AccessPrefs {
     if (!(p.autoAdvance in AUTO_ADVANCE)) p.autoAdvance = 'off';
     if (!(p.colorblind in PALETTES)) p.colorblind = 'off';
     if (!COMBAT_NUMBERS.includes(p.combatNumbers)) p.combatNumbers = 'full';
+    if (!COMBAT_CAMERA.includes(p.combatCam)) p.combatCam = 'fixed';
     p.contrast = Boolean(p.contrast);
     p.reduceMotion = Boolean(p.reduceMotion);
     p.shake = p.shake !== false;
@@ -104,6 +108,7 @@ class AccessPrefs {
   get reduceMotion() { return this.p.reduceMotion || mq('(prefers-reduced-motion: reduce)'); }
   get colorblind() { return this.p.colorblind; }
   get combatNumbers() { return this.p.combatNumbers || 'full'; }
+  get combatCamera() { return this.p.combatCam || 'fixed'; } // clave 'combatCam': la cámara isométrica empieza fija
   get palette() { return PALETTES[this.p.colorblind] || PALETTES.off; }
   /** Multiplicador del temblor de cámara: 0 apagado; la mitad con «Reducir movimiento». */
   get shakeScale() { return this.p.shake ? (this.reduceMotion ? 0.5 : 1) : 0; }

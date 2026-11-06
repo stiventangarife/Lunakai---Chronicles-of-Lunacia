@@ -20,6 +20,7 @@ import { BiomeDecorationManager } from './world/BiomeDecorationManager.js';
 import { MagicalSkybox } from './world/MagicalSkybox.js';
 import { ZoneParticleManager } from './world/ZoneParticleManager.js';
 import { DojoRockSanctuary } from './world/DojoRockSanctuary.js';
+import { newBadges } from '../ui/NewBadges.js';
 import { DojoBambooGrove } from './world/DojoBambooGrove.js';
 import { DojoBuilding } from './world/DojoBuilding.js';
 import { ForestNatureManager, DojoNatureManager } from './world/ForestNatureManager.js';
@@ -28,6 +29,7 @@ import { StylizedPond } from './stylized/StylizedPond.js';
 import { InventoryModal } from './ui/InventoryModal.js';
 import { QuestManager } from './QuestManager.js';
 import { QuestBookModal } from './ui/QuestBookModal.js';
+import { CodexModal } from './ui/CodexModal.js';
 import { TutorialDirector } from './tutorial/TutorialDirector.js';
 import { SquadHUD } from './ui/SquadHUD.js';
 import { SquadModal } from './ui/SquadModal.js';
@@ -36,6 +38,11 @@ import { portraitService } from '../tactics/CharacterPortraitService.js';
 import { SAPIDAE_CLASSES } from './SaveSlotManager.js';
 import { QuestInteractablesManager } from './world/QuestInteractablesManager.js';
 import { SettingsModal } from './ui/SettingsModal.js';
+import { FeedbackPanel } from '../ui/FeedbackPanel.js';
+import { KoliseoPanel } from '../ui/KoliseoPanel.js';
+import { KoliseoRun } from './koliseo/KoliseoRun.js';
+import { ArenaFlow } from './arena/ArenaFlow.js';
+import { KoliseoRewards } from './koliseo/KoliseoRewards.js';
 import { OverworldLODManager } from './world/OverworldLODManager.js';
 import { EnvironmentSystem } from './world/EnvironmentSystem.js';
 import { DemoScenaZone22 } from './world/demo_scena/DemoScenaZone22.js';
@@ -43,10 +50,15 @@ import { DemoScenaDebugUI } from './world/demo_scena/DemoScenaDebugUI.js';
 import { SavannaZone } from './world/savanna/SavannaZone.js';
 import { createGrandIslands, getActiveGrandIsland, GRAND_ISLAND_ZONES } from './world/islands/GrandIslands.js';
 import { canonicalZoneId, FERRY_DOCKS, mergedBattleAnchor } from './world/islands/IslandWorldLayout.js';
-import { PALADILL_SPOT } from './world/ForestVillageLayout.js';
+import { PALADILL_SPOT, ATIA_RESPAWN_SPOT } from './world/ForestVillageLayout.js';
 import * as i18n from '../i18n/i18n.js';
 import { waitForLoads, holdLoads, trackLoad } from '../render/LoadGate.js';
 import { perfMark } from '../debug/PerfProbe.js';
+import { cachedModelPaths, evictGLTF } from '../render/ModelCache.js';
+import { sapidaeModelUrl } from './SapidaeModels.js';
+import { OchiQuest } from './quests/OchiQuest.js';
+import { GuideFlowField } from './guide/GuideFlowField.js'; // Hito 136
+import { GuideTrail, GUIDE_LEN } from './guide/GuideTrail.js'; // Hito 136
 
 /**
  * The 80 m terrains of the demo 1.0.0 grid (9 macro-zones) are retired: every zone is now one of the
@@ -101,7 +113,11 @@ export class OverworldManager {
     this.monsters.questManager = this.questManager;
     this.questInteractables = new QuestInteractablesManager(this.scene, this.questManager, this.audio, this);
     this.questBookModal = new QuestBookModal(this.questManager, this.audio);
+    // Hito 126: Códice de Lunacia (tecla C). Sus botones de acción abren paneles del juego.
+    this.codexModal = new CodexModal({ audio: this.audio, runAction: (id) => this._codexAction(id), context: () => ({ em: this.equipmentManager }) });
+    this.codexModal.onChange = () => { this._updateCodexDot(); this.onCodexChange?.(); };
     this.tutorialManager = new TutorialDirector(this); // Hito 48: tutorial nuevo (cinemática + 7 fases)
+    this.ochiQuest = new OchiQuest(this); // Hito 124: misión 2 «El mercader del Dojō» (Tienda tras graduarse)
     this.lodManager = new OverworldLODManager(this);
     window.overworldLODManager = this.lodManager;
     this.environmentSystem = null;
@@ -126,6 +142,22 @@ export class OverworldManager {
         }
       }
     });
+
+    // Hito 121: formulario de feedback (botón del HUD e invitación del final del tutorial)
+    this.feedbackPanel = new FeedbackPanel({ audio: this.audio });
+    this.feedbackPanel.onOpen = () => { try { this.tutorialManager?._updateGuide?.(); } catch (_) { /* nada */ } };
+    this.feedbackPanel.onClose = () => { try { this.tutorialManager?._updateGuide?.(); } catch (_) { /* nada */ } };
+    // Koliseo (fase B1): Desafío de la Bruma, Arena PvP y clasificaciones. Se abre con el botón del HUD o desde Paladill.
+    this.koliseoPanel = new KoliseoPanel({ audio: this.audio });
+    // Fase B2: intento del Desafío de la Bruma (empezar, combates, informe y preparación entre combates)
+    this.koliseoRun = new KoliseoRun(this);
+    this.koliseoRewards = new KoliseoRewards(this); // fase B4: premios del top 3 (al cargar la partida y al abrir el Koliseo)
+    this.koliseoPanel.onStartRun = () => this.koliseoRun.start();
+    this.koliseoPanel.onPrep = (kind) => this.koliseoRun.prep(kind);
+    // Arena PvP (fase P3): búsqueda de rival, partida y vuelta. Cerrar la ventana del Koliseo sale de la cola.
+    this.arenaFlow = new ArenaFlow(this);
+    this.koliseoPanel.arena = this.arenaFlow;
+    this.koliseoPanel.onClose = () => this.arenaFlow.cancel();
 
     if (this.inventoryModal) {
       this.inventoryModal.tutorialManager = this.tutorialManager;
@@ -238,6 +270,7 @@ export class OverworldManager {
 
   setEquipmentManager(equipmentManager) {
     this.equipmentManager = equipmentManager;
+    this.ochiQuest?.attachEquipment(equipmentManager);
     if (!this.inventoryModal && equipmentManager) {
       this.inventoryModal = new InventoryModal(equipmentManager, this.audio);
       if (this.tutorialManager) {
@@ -336,9 +369,12 @@ export class OverworldManager {
 
         <div class="lk-ow-menu">
           ${circ('btn-open-inventory', 'inventory', i18n.t('overworld.menuBackpack'), 'I')}
-          ${circ('btn-open-squad', 'team', i18n.t('overworld.menuSquad'), 'K')}
+          ${circ('btn-open-squad', 'team', i18n.t('overworld.menuSquad'), 'T')}
           ${circ('btn-open-quest-book', 'mission', i18n.t('overworld.menuChronicle'), 'J')}
+          ${circ('btn-open-codex', 'codex', i18n.t('codex.menu'), 'C')}
           ${circ('btn-open-world-map', 'map', i18n.t('overworld.menuMap'), 'M')}
+          ${circ('btn-open-koliseo', 'tournament', i18n.t('koliseo.menu'), 'K')}
+          ${circ('btn-open-feedback', 'chat', i18n.t('feedback.menu'), 'F')}
           ${circ('btn-open-options', 'setting', i18n.t('overworld.menuOptions'), 'Esc')}
         </div>
 
@@ -360,6 +396,16 @@ export class OverworldManager {
           }
         });
       }
+
+      // Hito 121: feedback. Funciona también durante el tutorial (la guía deja un hueco sobre el botón).
+      const feedbackBtn = document.getElementById('btn-open-feedback');
+      if (feedbackBtn) feedbackBtn.addEventListener('click', () => this.toggleFeedback());
+
+      const codexBtn = document.getElementById('btn-open-codex'); // Hito 126
+      if (codexBtn) codexBtn.addEventListener('click', () => this.toggleCodex());
+
+      const koliseoBtn = document.getElementById('btn-open-koliseo');
+      if (koliseoBtn) koliseoBtn.addEventListener('click', () => this.toggleKoliseo());
 
       const mapBtn = document.getElementById('btn-open-world-map');
       if (mapBtn) {
@@ -580,6 +626,25 @@ export class OverworldManager {
     this.player.setCompanionWeapon(w);
   }
 
+  /**
+   * Hito 113 (memoria): el GLB de Sapidae que NO es el del jugador (Ema ↔ Kai) se precarga en el arranque y se queda en la
+   * caché con todas sus imágenes decodificadas (~150–165 MB medidos con lkDebug.perf.memoria()). Solo el jugador y su unidad
+   * de combate usan ese GLB, así que se suelta en cuanto se cargó el del jugador. Si hiciera falta de nuevo se vuelve a
+   * cargar del caché HTTP.
+   */
+  _evictOtherSapidaeBase() {
+    try {
+      const mine = String(sapidaeModelUrl(this.player && this.player.sapidaeModel)).split('/').pop();
+      for (const p of cachedModelPaths()) {
+        const file = String(p).split('/').pop();
+        if (/^Sapidae_(Ema|Kai)\.glb$/i.test(file) && file !== mine) {
+          evictGLTF(p).catch(() => { /* opcional */ });
+          perfMark(`memoria: GLB sin uso liberado (${file})`);
+        }
+      }
+    } catch (e) { console.warn('[OverworldManager] No se pudo liberar el Sapidae sin uso:', e); }
+  }
+
   _syncCompanionToSquad(animate = true) {
     const em = this.equipmentManager;
     if (!em || !this.player || typeof em.getSquad !== 'function') return;
@@ -603,6 +668,68 @@ export class OverworldManager {
     this.player.companionWeaponItem = w;
   }
 
+  /** Hito 121: abre o cierra el formulario de feedback (botón del HUD y tecla F). Funciona durante el tutorial. */
+  toggleFeedback() {
+    const fp = this.feedbackPanel;
+    if (!fp) return false;
+    if (fp.isOpen) { fp.close(); return true; }
+    if (this.isCombatActive() || this.state !== 'EXPLORING' || this.isLoadingZone) return false;
+    if (this.tutorialManager?.isCutsceneActive || this.dialogSystem?.isActive) return false;
+    // Encima de otra ventana no: primero se cierra la que está abierta
+    if (this.inventoryModal?.isOpen || this.squadModal?.isOpen || this.questBookModal?.isOpen || this.settingsModal?.isOpen
+      || this.worldMapManager?.worldMapModal?.isOpen || this.forgeModal?.isOpen) return false;
+    fp.open({ source: 'hud' });
+    return true;
+  }
+
+  /** Koliseo (fase B1): abre o cierra su panel. Se desbloquea al terminar el tutorial. */
+  toggleKoliseo(tab = null) {
+    const kp = this.koliseoPanel;
+    if (!kp) return false;
+    if (kp.isOpen) { kp.close(); return true; }
+    if (this.isCombatActive() || this.state !== 'EXPLORING' || this.isLoadingZone) return false;
+    if (this.tutorialManager?.isCutsceneActive || this.dialogSystem?.isActive) return false;
+    if (this.tutorialManager && !this.tutorialManager.isFeatureUnlocked('koliseo')) {
+      this._showFeatureLockedFeedback(i18n.t('koliseo.locked'));
+      return false;
+    }
+    if (this.inventoryModal?.isOpen || this.squadModal?.isOpen || this.questBookModal?.isOpen || this.settingsModal?.isOpen
+      || this.worldMapManager?.worldMapModal?.isOpen || this.forgeModal?.isOpen) return false;
+    kp.open(tab);
+    this.koliseoRewards?.check();
+    return true;
+  }
+
+  /** Hito 126: abre o cierra el Códice (botón del HUD y tecla C). Se desbloquea al graduarse. */
+  toggleCodex(chapter = null) {
+    const cm = this.codexModal;
+    if (!cm) return false;
+    if (cm.isOpen) { cm.close(); return true; }
+    if (this.isCombatActive() || this.state !== 'EXPLORING' || this.isLoadingZone) return false;
+    if (this.tutorialManager?.isCutsceneActive || this.tutorialManager?.isOverlayActive || this.dialogSystem?.isActive) return false;
+    if (this.tutorialManager && !this.tutorialManager.isFeatureUnlocked('codex')) {
+      this._showFeatureLockedFeedback(i18n.t('codex.locked'));
+      return false;
+    }
+    cm.open(chapter);
+    return true;
+  }
+
+  /** Botones de las páginas del Códice: llevan al panel del que habla la página. */
+  _codexAction(id) {
+    const tm = this.tutorialManager;
+    if (id === 'inventory' || id === 'runes') { if (!tm || tm.isFeatureUnlocked('inventory')) this.inventoryModal?.openTab?.(id === 'runes' ? 'runes' : 'equipment'); return; }
+    if (id === 'squad') { if (!tm || tm.isFeatureUnlocked('squad')) this.squadModal?.open?.(); return; }
+    if (id === 'koliseo') { this.toggleKoliseo('arena'); return; }
+    if (id === 'mist') { this.toggleKoliseo('bruma'); return; }
+  }
+
+  /** Aviso del botón del Códice (Hito 130): número de páginas sin leer (baja al leer cada una). */
+  _updateCodexDot() {
+    const n = this.codexModal && this.tutorialManager?.isFeatureUnlocked('codex') ? this.codexModal.unreadCount() : 0;
+    newBadges.set('btn-open-codex', { on: n > 0, count: n, hint: i18n.t(n === 1 ? 'overworld.newCodexOne' : 'overworld.newCodex', { n }), prio: 1 });
+  }
+
   isAnyModalOpen() {
     if (this.isLoadingZone) return true;
     if (this.worldMapManager?.transitionManager?.isTransitioning) return true;
@@ -612,7 +739,10 @@ export class OverworldManager {
     if (this.inventoryModal && this.inventoryModal.isOpen) return true;
     if (this.squadModal && this.squadModal.isOpen) return true;
     if (this.questBookModal && this.questBookModal.isOpen) return true;
+    if (this.codexModal && this.codexModal.isOpen) return true;
     if (this.settingsModal && this.settingsModal.isOpen) return true;
+    if (this.feedbackPanel && this.feedbackPanel.isOpen) return true;
+    if (this.koliseoPanel && this.koliseoPanel.isOpen) return true;
     if (this.worldMapManager && this.worldMapManager.worldMapModal && this.worldMapManager.worldMapModal.isOpen) return true;
     if (this.dialogSystem && this.dialogSystem.isActive) return true;
     if (this.tutorialManager && (this.tutorialManager.isCutsceneActive || this.tutorialManager.isOverlayActive)) return true;
@@ -659,6 +789,12 @@ export class OverworldManager {
 
       // Prioridad máxima: Escape para cerrar modales y menús abiertos en cualquier momento (incluso durante tutorial)
       if (e.code === 'Escape') {
+        // Hito 126: el Códice va por encima de los demás paneles (se abre desde sus botones «?»)
+        if (this.codexModal && this.codexModal.isOpen) {
+          this.codexModal.close();
+          e.preventDefault();
+          return;
+        }
         if (this.settingsModal && this.settingsModal.isOpen) {
           this.settingsModal.close();
           e.preventDefault();
@@ -681,6 +817,11 @@ export class OverworldManager {
         }
         if (this.worldMapManager && this.worldMapManager.worldMapModal && this.worldMapManager.worldMapModal.isOpen) {
           this.worldMapManager.closeWorldMap();
+          e.preventDefault();
+          return;
+        }
+        if (this.koliseoPanel && this.koliseoPanel.isOpen) {
+          this.koliseoPanel.close();
           e.preventDefault();
           return;
         }
@@ -709,6 +850,13 @@ export class OverworldManager {
       // Bloquear apertura de mapa, inventario y misiones durante combate
       const inCombat = this.isCombatActive();
 
+      // Hito 121: F = formulario de feedback (también durante el tutorial: TutorialDirector._guideKeyAllowed la deja pasar)
+      if (e.code === 'KeyF') {
+        if (!e.repeat && !inCombat) this.toggleFeedback();
+        e.preventDefault();
+        return;
+      }
+
       if (e.code === 'KeyI') {
         if (inCombat) {
           e.preventDefault();
@@ -726,7 +874,21 @@ export class OverworldManager {
         }
       }
 
+      // Hito 126: C = Códice
+      if (e.code === 'KeyC') {
+        if (!e.repeat && !inCombat) this.toggleCodex();
+        e.preventDefault();
+        return;
+      }
+
+      // Koliseo (fase B2): K abre el Koliseo; el Escuadrón pasa a la T
       if (e.code === 'KeyK') {
+        if (!e.repeat && !inCombat) this.toggleKoliseo();
+        e.preventDefault();
+        return;
+      }
+
+      if (e.code === 'KeyT') {
         if (inCombat) {
           e.preventDefault();
           return;
@@ -1001,6 +1163,7 @@ export class OverworldManager {
 
     console.log('[DIAG] Cargando modelo del jugador Sapidae y compañero Axie...');
     await this.player.loadModel(this.renderer);
+    this._evictOtherSapidaeBase();
     // El compañero que sigue al Sapidae es el Axie principal del escuadrón (al cargar, sin animación)
     this._companionHeroId = 'kotaro';
     this._syncCompanionToSquad(false);
@@ -1108,6 +1271,8 @@ export class OverworldManager {
     if (this.tutorialManager) {
       this.tutorialManager.loadSaveData(slotData?.tutorialProgress, slotData?.level || 1);
     }
+    this.codexModal?.loadSaveData(slotData?.codexProgress); // Hito 126
+    this._updateCodexDot();
 
     // 7. Initialize Biome 3D Decoration Manager (Savannah cacti, desert trees, rocks)
     console.log('[DIAG] Iniciando BiomeDecorationManager...');
@@ -1204,6 +1369,9 @@ export class OverworldManager {
     perfMark('carga: cargas diferidas listas');
     if (waited > 50) console.log(`[OverworldManager] Cargas diferidas esperadas antes de abrir el telón: ${waited} ms`);
     this.environmentSystem?.markShadowCastersDirty?.();
+
+    // Hito 136: estela de la guía (oculta); se crea antes del precalentado para que su shader ya esté compilado
+    if (!this.guideTrail) this.guideTrail = new GuideTrail(this.scene);
 
     // Precalentado final: ahora sí existen el composer, las luces definitivas, la forja y los nodos
     // de recolección. El de loadMap() se hizo antes de todo eso y sus programas no coinciden.
@@ -1368,6 +1536,7 @@ export class OverworldManager {
 
   _handleMonsterEncounter(monster) {
     if (this.state === 'TRANSITION' || this.state === 'COMBAT') return;
+    this.feedbackPanel?.close({ force: true }); // Hito 121: el texto escrito se conserva para la próxima vez
     this.state = 'TRANSITION';
     this.playerController.setEnabled(false);
 
@@ -1451,8 +1620,37 @@ export class OverworldManager {
     await this._handleMonsterEncounter(monsterObj);
   }
 
+  /**
+   * Koliseo (fase B2): vuelta de un combate del Koliseo (ids 'kol_…'), gane o pierda. El jugador aparece donde estaba,
+   * sin tocar misiones, monstruos del mapa ni el altar de Atia, y se abre el panel con el resultado.
+   */
+  async _returnFromKoliseo(battlingMonsterId) {
+    await this.transition.playReturn(() => {
+      if (this.player) {
+        if (this.player.group) this.player.group.visible = true;
+        if (this.player.companionGroup) this.player.companionGroup.visible = true;
+        if (this.savedPlayerPosition) this.player.teleport(this.savedPlayerPosition.x, this.savedPlayerPosition.y, this.savedPlayerPosition.z);
+        this.cameraController?.setFollowTarget(this.player, true);
+      }
+      this.currentBattlingMonsterId = null;
+      if (this.monsters) this.monsters.isEncounterTriggered = false;
+      if (this.zoneParticleManager) this.zoneParticleManager.group.visible = true;
+      this.overworldHudEl.classList.remove('hidden');
+      this.squadHUD?.render();
+      this.minimapHUD?.show();
+      this.state = 'EXPLORING';
+      if (this.onStateChange) this.onStateChange('OVERWORLD');
+      this.playerController?.setEnabled(true);
+      this.audio?.playBiomeMusic?.(this.worldMapManager?.currentMapDef?.biome || 'forest');
+      this.player?.releaseHiddenFace?.();
+    }, () => {});
+    if (String(battlingMonsterId || '').startsWith('kol_arena')) this.arenaFlow?.onReturn();
+    else this.koliseoRun?.onReturn(battlingMonsterId);
+  }
+
   async resumeAfterVictory() {
     const battlingMonsterId = this.currentBattlingMonsterId;
+    if (String(battlingMonsterId || '').startsWith('kol_')) return this._returnFromKoliseo(battlingMonsterId);
     const curMap = this.worldMapManager ? this.worldMapManager.currentMapDef : null;
     const battlingZoneKey = this.currentBattlingZoneKey || (curMap ? `${curMap.gx}_${curMap.gy}` : '3_3');
 
@@ -1637,6 +1835,7 @@ export class OverworldManager {
 
   async resumeAfterDefeat() {
     const battlingMonsterId = this.currentBattlingMonsterId;
+    if (String(battlingMonsterId || '').startsWith('kol_')) return this._returnFromKoliseo(battlingMonsterId);
     // Hito 48: en el tutorial se vuelve junto al Maestro Paladill (sin cambiar de zona)
     if (String(battlingMonsterId || '').startsWith('tut_')) {
       await this.transition.playReturn(() => {
@@ -1663,9 +1862,9 @@ export class OverworldManager {
     // Return fade transition back to Overworld (safe Dojo sanctuary spawn)
     await this.transition.playReturn(
       async () => {
-        // Teleport player back safely to the central peaceful Dojo sanctuary [3, 3]
+        // Al perder, el jugador reaparece en el altar de Atia del pueblo del Bosque
         if (this.worldMapManager) {
-          await this.worldMapManager.changeMap('zone_2_2');
+          await this.worldMapManager.changeMap('zone_2_2', null, ATIA_RESPAWN_SPOT);
         } else if (this.player) {
           this.player.teleport(0, 0, 2, Math.PI);
         }
@@ -1701,7 +1900,7 @@ export class OverworldManager {
         }
       },
       () => {
-        this._showBannerMessage(i18n.t('overworld.dojoRest'), i18n.t('overworld.dojoRestDesc'));
+        this._showBannerMessage(i18n.t('overworld.atiaRest'), i18n.t('overworld.atiaRestDesc'));
       }
     );
   }
@@ -1910,6 +2109,56 @@ export class OverworldManager {
     }
   }
 
+  /**
+   * Hito 136 · Guía por migas. El mapa de rumbo (GuideFlowField) se calcula por partes desde el objetivo con las
+   * colisiones del mundo; la estela (GuideTrail) lanza un pulso cada cierto tiempo por el camino que se puede andar.
+   * Mientras el mapa no está (o el objetivo no se alcanza a pie) se usa la línea recta, sin migas dentro de obstáculos.
+   */
+  _updateGuide(dt, nav) {
+    const p = this.player?.position, t = nav?.targetWorldPos;
+    if (!p || !t || !this.collisions || !this.scene) { this._guideOff(); return; }
+    if (!this.guideField) {
+      this.guideField = new GuideFlowField(this.collisions);
+      // Consola: lkGuide.info() → estado y coste del mapa de rumbo; lkGuide.pulse() → lanzar un pulso ya
+      if (typeof window !== 'undefined') window.lkGuide = {
+        info: () => ({ state: this.guideField.state, ...this.guideField.stats }),
+        pulse: () => { if (this._guide) this._guide.next = 0; if (this.guideTrail) this.guideTrail.stop(); }
+      };
+    }
+    if (!this.guideTrail) {
+      // Por si el mundo se montó sin pasar por init(): se precompila antes del primer pulso
+      const trail = this.guideTrail = new GuideTrail(this.scene);
+      trail.ready = false;
+      import('../render/RenderWarmup.js')
+        .then(({ warmupObjects }) => warmupObjects(this.renderer, this.scene, this.camera, [trail.points], { deadline: performance.now() + 3000 }))
+        .catch(() => null)
+        .finally(() => { trail.ready = true; });
+    }
+    const f = this.guideField, trail = this.guideTrail;
+    const g = this._guide || (this._guide = { next: 0 });
+    const now = performance.now();
+    if (f.setTarget(t.x, t.z)) g.next = Math.max(g.next, now + 500); // objetivo nuevo: un instante para el mapa
+    f.step(p.x, p.z, 2);
+    const dist = Math.hypot(t.x - p.x, t.z - p.z);
+    if (dist >= 5 && now >= g.next && trail.ready && !trail.busy && !this.isAnyModalOpen()) {
+      let path = f.state === 'unreachable' ? null : f.trace(p.x, p.z, GUIDE_LEN);
+      let skip = null;
+      if (!path) {
+        path = [{ x: p.x, z: p.z }, { x: t.x, z: t.z }];
+        skip = (x, z) => this.collisions.isPointBlocked(x, z, 0.3);
+      }
+      trail.pulse(path, (x, z) => this.getGroundHeight(x, z), { skip });
+      g.next = now + 1400; // pausa entre pulsos (se suma a lo que dura cada uno)
+    } else if (dist < 5) trail.stop();
+    trail.update(dt, this.camera, this.renderer);
+  }
+
+  _guideOff() {
+    if (!this.guideTrail) return;
+    this.guideTrail.stop();
+    this.guideTrail.update(1 / 60, this.camera, this.renderer);
+  }
+
   _updateQuestNavigation(dt, time) {
     if (!this.questManager || !this.player) return;
 
@@ -1921,6 +2170,7 @@ export class OverworldManager {
     const isNavActive = nav && (this.state === 'EXPLORING' || this.state === 'HERO_PRESENTATION');
 
     if (!isNavActive) {
+      this._guideOff(); // Hito 136
       if (this.player.setNavTarget) {
         this.player.setNavTarget(null, false);
       }
@@ -1942,6 +2192,8 @@ export class OverworldManager {
     // Live tracking of roaming tutorial slime or Maestro Paladill if active
     let hasAttachedMobArrow = false;
     if (nav && nav.quest && nav.isCurrentZone) {
+      // Hito 124: «Equípate el casco» se hace en la Mochila: sin flecha (hablar, comprar y volver sí apuntan a Ochi)
+      if (nav.quest.id === 'quest_merchant_ochi' && this.ochiQuest?.pending() === 'equip_helmet') nav.targetWorldPos = null;
       // Tutorial (Hito 48/50): el director dice adónde hay que ir (árbol de la Forja, yunque, Paladill…).
       // Si el paso no tiene un sitio al que caminar (Mochila, vínculo, runas), no hay flecha.
       const tutDir = nav.quest.id === 'quest_slime_purification' ? window.lunakaiTutorial?.director : null;
@@ -2115,6 +2367,8 @@ export class OverworldManager {
     if (this.player.setNavTarget) {
       this.player.setNavTarget(nav.targetWorldPos, true);
     }
+    // 1b. Hito 136: «Chispa guía» por el camino que se puede andar (mapa de rumbo)
+    this._updateGuide(dt, nav);
 
     // 2. 3D exit portal highlight (if navigating across zones)
     if (this.worldMapManager?.transitionManager) {

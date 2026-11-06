@@ -139,6 +139,8 @@ export class CombatEndScreen {
     this.primary = document.getElementById('btn-return-overworld');
     this.primaryLabel = this.root?.querySelector('[data-ref="primaryLabel"]');
     this.primaryIcon = this.root?.querySelector('[data-ref="primaryIcon"]');
+    this.restartBtn = document.getElementById('btn-restart');
+    this._restartHTML = this.restartBtn ? this.restartBtn.innerHTML : '';
 
     // Espacio / Enter = botón principal mientras la pantalla está abierta
     window.addEventListener('keydown', (e) => {
@@ -163,7 +165,7 @@ export class CombatEndScreen {
         if (url && el) el.innerHTML = `<img src="${url}" alt="">`;
       }).catch(() => {});
     }
-    return `<span class="lk-med" id="${id}" style="--cc:${cc}${size ? `;--s:${size}px` : ''}">${p.portraitUrl ? `<img src="${p.portraitUrl}" alt="">` : ''}</span>`;
+    return `<span class="lk-med${!p.isSapidae && p.cls && CLASSES.includes(p.cls) ? ' lk-med--axie' : ''}" id="${id}" style="--cc:${cc}${size ? `;--s:${size}px` : ''}">${p.portraitUrl ? `<img src="${p.portraitUrl}" alt="">` : ''}</span>`;
   }
 
   _bar(u, zero = false) {
@@ -282,6 +284,23 @@ export class CombatEndScreen {
     if (this.primaryIcon) this.primaryIcon.src = I(icon);
   }
 
+  /**
+   * Botón secundario. mode: null (oculto) · 'secondary' («Reintentar», el de siempre) · 'swap' (el principal pasa a
+   * «Reintentar» y el secundario es «Volver al pueblo»; main.js intercambia sus acciones con `_endSwap`).
+   */
+  _setRestart(mode = null) {
+    const b = this.restartBtn;
+    if (!b) return;
+    b.innerHTML = this._restartHTML;
+    b.classList.toggle('hidden', !mode);
+    if (mode === 'swap') {
+      const label = [...b.childNodes].reverse().find((n) => n.nodeType === 3 && n.textContent.trim());
+      if (label) label.textContent = i18n.t('combatEnd.backToVillage');
+      const ico = b.querySelector('img');
+      if (ico) ico.src = I('back');
+    }
+  }
+
   // ------------------------------------------------------------ victoria
   /**
    * @param {object} d
@@ -311,14 +330,17 @@ export class CombatEndScreen {
         <div class="lk-kv">${(d.summary || []).map(([k, v]) => `<span>${esc(k)}<b>${esc(v)}</b></span>`).join('')}</div>
       </div>`;
     this._bindLootTips(d.loot || []);
-    if (this.hint) this.hint.textContent = i18n.t('combatEnd.hintContinue');
+    if (this.hint) this.hint.textContent = d.hint || i18n.t('combatEnd.hintContinue');
     this._setPrimary(i18n.t('combatEnd.continue'), 'map');
+    this._setRestart(null);
     this._open(false);
   }
 
   // ------------------------------------------------------------ derrota
   /**
    * d.subtitle, d.squad (como en victoria, sin ganancia), d.lostLoot [item], d.hints [{icon, html}]
+   * d.noBondLoss: sin pérdida de vínculo (entrenamientos y combates del tutorial)
+   * d.restart: null | 'secondary' | 'swap' (reintento inmediato como acción principal; ver _setRestart)
    */
   showDefeat(d) {
     if (!this.root) return;
@@ -332,7 +354,7 @@ export class CombatEndScreen {
     const main = (d.squad || []).find((u) => u.isMain && !u.isSapidae);
     let bondRow = '';
     const hints = [...(d.hints || [])];
-    if (main) {
+    if (main && !d.noBondLoss) {
       const b = BondDemo.lose(main.id || main.name);
       bondRow = `<div class="lk-xp-row lk-bond-loss">${this._portrait(main, 44)}<b>${i18n.t('combatEnd.bondWith', { name: esc(main.name) })}<small>${i18n.t('combatEnd.squadDefeat')}</small></b><span class="lk-gain lk-bad">−${formatBond(b.lost)}%</span>`
         + `<span class="lk-ds-bar lk-bond lk-loss"><i class="lk-base" style="--a:${b.before}%;--b:${b.after}%"></i><i class="lk-lost" style="--a:${b.before}%;--b:${b.after}%"></i></span></div>`
@@ -353,8 +375,10 @@ export class CombatEndScreen {
         <ul class="lk-hints">${hints.slice(0, 4).map((h) => `<li><img class="lk-ai" src="${I(h.icon)}" alt=""><span>${h.html}</span></li>`).join('')}</ul>
       </div>`;
     this._bindLootTips(d.lostLoot || []);
-    if (this.hint) this.hint.textContent = i18n.t('combatEnd.mapProgressKept');
-    this._setPrimary(i18n.t('combatEnd.backToDojo'), 'back');
+    if (this.hint) this.hint.textContent = d.restart === 'swap' ? i18n.t('combatEnd.hintRetry') : i18n.t('combatEnd.mapProgressKept');
+    if (d.restart === 'swap') this._setPrimary(i18n.t('combatEnd.retry'), 'replay');
+    else this._setPrimary(i18n.t('combatEnd.backToDojo'), 'back');
+    this._setRestart(d.restart || null);
     this._open(true);
   }
 }

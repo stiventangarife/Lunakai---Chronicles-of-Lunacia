@@ -13,7 +13,7 @@ export default {
   "hud.ferrySails": "Kawa hoists the sails...",
   "hud.ferrySetSail": "Setting course for {place}! Hold on tight, the east wind is blowing today.",
   "hud.ferryTitle": "Ferryman of Lunacia",
-  "hud.islandMapM": "Island map [M]",
+  "hud.islandMapM": "Land map [M]",
   "hud.level": "Level",
   "hud.notNow": "Not now",
   "hud.plateLv": "LV. {n}",

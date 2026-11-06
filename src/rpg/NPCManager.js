@@ -582,6 +582,8 @@ export class NPCManager {
     if (this.audio && typeof this.audio.playHover === 'function') {
       this.audio.playHover();
     }
+    // Hito 124: misión «El mercader del Dojō» (rpg/quests/OchiQuest.js) antes del saludo de siempre
+    if (this.overworldManager?.ochiQuest?.handleOchi(this, npc)) return;
     const shop = this.overworldManager?.shopModal;
     this.dialogSystem.startDialogue([{
       speaker: npc.name,
@@ -1452,6 +1454,17 @@ export class NPCManager {
         greeting.fadeOut(0.3);
         if (paladill.idleAction) paladill.idleAction.reset().fadeIn(0.3).play();
       }, 1400);
+    }
+
+    // Hito 124: recién graduado, Paladill manda al jugador con Ochi mientras no haya hablado con él
+    if (this.overworldManager?.ochiQuest?.pending() === 'talk_ochi') {
+      this.dialogSystem.startDialogue([{
+        speaker: i18n.t('npc.paladill.name'),
+        title: i18n.t('npc.paladill.title'),
+        avatar: './assets/portraits/paladill.png',
+        text: i18n.t('npc.paladill.goOchi')
+      }]);
+      return;
     }
 
     // Hito 48: durante el entrenamiento, Paladill habla según el paso del tutorial (TutorialDirector)

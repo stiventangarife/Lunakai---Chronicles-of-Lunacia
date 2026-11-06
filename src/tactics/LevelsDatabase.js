@@ -23,11 +23,14 @@ export const LEVELS_CONFIG = {
         type: 'slime',
         x: 4,
         z: 6,
-        maxHP: 36, // Fase 5: < golpe mínimo de la habilidad 1 de las 4 clases de Sapidae (38) → el tutorial siempre la derrota
+        // Sobrevive al golpe del Sapidae (habilidad 1: 35–55 según la clase; TutorialCombatHooks además le deja vida)
+        // y cae con el ataque del Axie. Muerde al Sapidae (aiTargetId) para enseñar que las quimeras también atacan.
+        maxHP: 90,
         maxPA: 4,
         maxPM: 2,
         initiative: 40,
         scale: 1.05,
+        aiTargetId: 'sapidae_hero',
         spellIds: ['chimera_bite']
       },
       {
@@ -41,6 +44,7 @@ export const LEVELS_CONFIG = {
         maxPM: 2,
         initiative: 35,
         scale: 1.15,
+        aiTargetId: 'sapidae_hero',
         spellIds: ['chimera_bite']
       }
     ],
@@ -55,7 +59,8 @@ export const LEVELS_CONFIG = {
   },
 
   // ── Hito 48: combates del tutorial nuevo (TutorialDirector) ──────────────────────────────────────────
-  // Duelo de entrenamiento con el Maestro Paladill: termina cuando alguien baja al 30 % de vida.
+  // Duelo de entrenamiento con el Maestro Paladill (opcional, al hablar con él después del tutorial): más fuerte que
+  // el del tutorial antiguo y hasta que alguien cae (0 % de vida). Sin castigo de vínculo si pierdes.
   tut_duel: {
     id: 'tut_duel',
     title: i18n.t('levels.duel.title'),
@@ -68,13 +73,41 @@ export const LEVELS_CONFIG = {
     sapidaePosition: { x: 4, z: 3 },
     heroPositions: [{ id: 'kotaro', x: 3, z: 4 }],
     enemies: [
-      { id: 'paladill_duel', name: i18n.t('npcDefs.paladillName'), type: 'paladill', x: 4, z: 7, maxHP: 240, maxPA: 4, maxPM: 3, initiative: 40, scale: 1.25, spellIds: ['chimera_bite', 'chimera_bellow'] },
+      { id: 'paladill_duel', name: i18n.t('npcDefs.paladillName'), type: 'paladill', x: 4, z: 7, maxHP: 420, maxPA: 6, maxPM: 4, initiative: 70, scale: 1.25, bonusDamage: 8, spellIds: ['chimera_bite', 'chimera_bellow'] },
     ],
     obstacles: [],
     rewardRecruits: [],
     rewardItems: [],
     rewardExp: 60,
-    duel: { threshold: 0.3 },
+    duel: { threshold: 0 }, // 0 = sin regla de fin propia: gana quien deja al otro a 0 de vida
+    noPersistentHP: true,
+  },
+
+  // ── Tutorial rápido: combate final contra el Slime Knight en las Raíces del Gran Árbol ─────────────────
+  // Sin pasos forzados ni reloj. Mecánica «Rastro de Miasma» (mechanic: 'miasma', SpellManager): al final de su turno
+  // marca en morado las casillas del Sapidae y del Axie durante 3 rondas; quien termine su turno dentro pierde el 50 %
+  // de su vida máxima. Dos escoltas Slime para decidir prioridades. Ultimate desde la ronda 2 (vínculo al 100 %).
+  // Mismas habilidades, VFX y sonidos que el Slime Knight del Ártico; daño = (base − 12) × 2 (bonusDamage, damageMult).
+  tut_boss: {
+    id: 'tut_boss',
+    title: i18n.t('levels.boss.title'),
+    subtitle: i18n.t('levels.boss.subtitle'),
+    badgeText: i18n.t('levels.badgeTutorial'),
+    biome: 'forest',
+    biomeName: i18n.t('levels.place.greatRoots'),
+    battleMapId: 'forest_great_roots',
+    heroIds: ['kotaro'],
+    sapidaePosition: { x: 5, z: 9, facing: Math.PI },
+    heroPositions: [{ id: 'kotaro', x: 4, z: 10, facing: Math.PI }],
+    enemies: [
+      { id: 'tut_knight', name: i18n.t('enemies.arch.treant_flower.name'), type: 'treant-flower', x: 5, z: 1, facing: 0, maxHP: 650, maxPA: 6, maxPM: 3, initiative: 45, scale: 1.25, bonusDamage: -12, damageMult: 2, mechanic: 'miasma', spellIds: ['treant_flower_slam', 'treant_flower_nova'] },
+      { id: 'tut_escort_a', name: i18n.t('enemies.arch.slime.name'), type: 'slime', x: 4, z: 0, facing: 0, maxHP: 60, maxPA: 3, maxPM: 3, initiative: 40, scale: 1.05, bonusDamage: -14, spellIds: ['chimera_bite'] },
+      { id: 'tut_escort_b', name: i18n.t('enemies.arch.slime.name'), type: 'slime', x: 6, z: 0, facing: 0, maxHP: 60, maxPA: 3, maxPM: 3, initiative: 38, scale: 1.05, bonusDamage: -14, spellIds: ['chimera_bite'] },
+    ],
+    obstacles: [],
+    rewardRecruits: [],
+    rewardItems: [],
+    rewardExp: 120,
     noPersistentHP: true,
   },
   // Prueba de la Duo Ultimate: vínculo prestado al 100 % y Ultimate desde la ronda 1.

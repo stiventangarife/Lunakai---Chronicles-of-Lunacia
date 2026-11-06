@@ -23,7 +23,7 @@ export default {
   "overworld.lockMap": "The map unlocks once you graduate from the Dojo.",
   "overworld.lockBackpack": "Your Backpack opens after your first battle.",
   "overworld.lockChronicle": "Talk to Master Paladill first [E].",
-  "overworld.lockSquad": "Your Squad unlocks once you recruit Bing in the Savanna.",
+  "overworld.lockSquad": "Your Squad unlocks once you finish your training at the Dojo.",
   "overworld.openChronicle": "Open the Chronicle [J]",
   "overworld.catMain": "Main quest",
   "overworld.catSide": "Side quest",
@@ -36,5 +36,11 @@ export default {
   "overworld.victory": "VICTORY!",
   "overworld.victoryDesc": "The wild creatures have been defeated.",
   "overworld.dojoRest": "RESTING AT THE DOJO",
-  "overworld.dojoRestDesc": "Your heroes recover at the Dojo. Get ready and return to battle."
+  "overworld.dojoRestDesc": "Your heroes recover at the Dojo. Get ready and return to battle.",
+  "overworld.atiaRest": "RESTING AT ATIA'S ALTAR",
+  "overworld.atiaRestDesc": "Your heroes recover beside Atia's Altar. Get ready and return to battle.",
+  "overworld.newSquad": "New: organize your team",
+  "overworld.newKoliseo": "New: PvP Arena and Mist Challenge",
+  "overworld.newCodex": "{n} unread pages",
+  "overworld.newCodexOne": "1 unread page"
 };

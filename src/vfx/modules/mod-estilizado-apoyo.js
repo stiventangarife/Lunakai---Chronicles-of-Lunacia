@@ -32,6 +32,8 @@ function factory(spec){
     const def={key:cfg.key||spec.key,name:cfg.name||spec.name,pal:cfg.pal||spec.pal,dur:spec.dur,ti:spec.ti,tier:spec.tier,
       stylized:true,phases:spec.phases.map(p=>p.slice())};
     if(spec.allies)def.allies=()=>spec.allies(def.o||fixed);
+    // Hito 113: efecto sobre el propio lanzador (escudo de slime/oso/ent): el receptor ya se dibuja en el lanzador, el puente no lo desplaza
+    if(fixed.self)def.receiver='caster';
     if(cfg.demo&&spec.variants){
       def.variants=spec.variants.map(v=>[v[0],v[1]]); def.v=spec.variants[0][0]; def.vlabel="Opción";
       if(spec.variants.some(v=>v[3]))def.pal=()=>{const e=spec.variants.find(x=>x[0]===def.v);return (e&&e[3])||cfg.pal||spec.pal;};

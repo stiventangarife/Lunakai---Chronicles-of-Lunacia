@@ -1,6 +1,7 @@
 // check-maps.mjs - Validador de los mapas de combate (Hito 35).
 // Uso:  node tools/battle-maps/check-maps.mjs        (desde axie-tactics-web/)
 // Comprueba cada mapa de src/tactics/maps/BattleMaps.js y sale con código 1 si alguno falla.
+// Arena PvP (fase P5): las versiones espejo (`pvp: true`) deben ser simétricas con un giro de 180°.
 
 import { BATTLE_MAPS, getBattleMap, getBattleMapsForBiome, pickBattleMap } from '../../src/tactics/maps/BattleMaps.js';
 import { CELL, cellWalkable } from '../../src/tactics/maps/BattleMapLayout.js';
@@ -89,6 +90,12 @@ for (const id of Object.keys(BATTLE_MAPS)) {
     }
     if (stuck) errs.push(`la IA se atasca en ${stuck} recorridos`);
     if (lead > LIMITS.maxFrontDistance) errs.push(`líderes demasiado lejos (${lead})`);
+    // Arena PvP (fase P5): las versiones espejo son idénticas al girarlas media vuelta (salidas P ↔ E)
+    if (BATTLE_MAPS[id].pvp) {
+      const L = BATTLE_MAPS[id].layout;
+      const rot = L.map((r) => [...r].reverse().join('')).reverse().map((r) => r.replace(/[PE]/g, (c) => (c === 'P' ? 'E' : 'P')));
+      if (rot.join('|') !== L.join('|')) errs.push('mapa de la Arena no simétrico (180°)');
+    }
     rows.push({
       id, size: `${map.width}×${map.height}`, walk: map.walkableCount, obst: map.obstacles.length,
       water: map.cells.flat().filter((c) => c === CELL.WATER).length,
@@ -130,4 +137,5 @@ if (failures) {
   console.log(`\n${failures} problema(s).`);
   process.exit(1);
 }
-console.log('\n✓ 15 mapas válidos · selección aleatoria sin repetir · jefes en su mapa fijo');
+const nPvp = Object.values(BATTLE_MAPS).filter((m) => m.pvp).length;
+console.log(`\n✓ ${Object.keys(BATTLE_MAPS).length - nPvp} mapas válidos · selección aleatoria sin repetir · jefes en su mapa fijo · ${nPvp} versiones espejo de la Arena simétricas`);

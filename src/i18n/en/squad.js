@@ -32,7 +32,7 @@ export default {
   "squad.iniShort": "Ini",
   "squad.initiative": "Initiative",
   "squad.joins": "{name} joins the squad",
-  "squad.kicker": "Team · key K",
+  "squad.kicker": "Team · key T",
   "squad.leaderNoReplace": "The Sapidae leader can't be replaced",
   "squad.leaderNoRetire": "The Sapidae leader can't be removed",
   "squad.lv": "Lv {n}",
@@ -100,5 +100,6 @@ export default {
   "squad.gearLine": "Wearing: {items} item(s) · {rune} rune · {charms} charm(s)",
   "squad.returnGear": "Return gear to the bag",
   "squad.returnGearTitle": "Takes off its items, rune and charms and leaves them free in the bag for another Axie.",
-  "squad.gearReturned": "{name}'s gear went back to the bag."
+  "squad.gearReturned": "{name}'s gear went back to the bag.",
+  "squad.help": "How does the Squad work?",
 };

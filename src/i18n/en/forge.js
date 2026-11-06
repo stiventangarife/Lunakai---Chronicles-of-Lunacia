@@ -6,7 +6,7 @@ export default {
   "forge.bagRune": "Bag · random class rune",
   "forge.baxsTitle": "bAXS (fees and speed-ups)",
   "forge.axsTitle": "AXS (player Market: gear, runes and charms)",
-  "forge.biomeAny": "All islands",
+  "forge.biomeAny": "All lands",
   "forge.biomeArctic": "Arctic",
   "forge.biomeDungeon": "Genesis",
   "forge.biomeForest": "Forest",
@@ -104,4 +104,5 @@ export default {
   "forge.whereGet": "Where to find it",
   "forge.youHave": "you have {n}",
   "forge.yourGear": "Your gear",
+  "forge.demoNote": "Demo: sped-up timers. In the full game forging takes longer.",
 };

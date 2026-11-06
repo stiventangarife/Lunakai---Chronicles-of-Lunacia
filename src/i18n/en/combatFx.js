@@ -43,5 +43,8 @@ export default {
   "combatFx.ko": "KO",
   "combatFx.total": "Total {n}",
   "combatFx.dodge": "Dodge",
-  "combatFx.shieldBroken": "−{n} shield"
+  "combatFx.shieldBroken": "−{n} shield",
+  "combatFx.miasma": "Infected ground!",
+  "combatFx.miasmaHit": "Miasma",
+  "combatFx.miasmaWarn": "−{pct}% HP (−{dmg}) if you end your turn here",
 };

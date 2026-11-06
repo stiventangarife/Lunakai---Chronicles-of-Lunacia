@@ -76,7 +76,7 @@ export class QuestBookModal {
     this.$('close').addEventListener('click', () => this.close());
     m.addEventListener('wheel', (e) => e.stopPropagation(), { passive: true });
     bindSwitch(this.$('hide'), (on) => {
-      if (this.audio?.playStep) this.audio.playStep();
+      if (this.audio?.playClick) this.audio.playClick(); // Hito 119
       this.hideCompleted = on;
       this._renderLeftPage();
       this._renderRightPage();
@@ -84,7 +84,7 @@ export class QuestBookModal {
     this.$('rail').addEventListener('click', (e) => {
       const b = e.target.closest('button[data-cat]');
       if (!b) return;
-      if (this.audio?.playTileSelect) this.audio.playTileSelect();
+      if (this.audio?.playClick) this.audio.playClick(); // Hito 119
       this.activeCategory = b.dataset.cat;
       this.$('rail').querySelectorAll('button').forEach((x) => x.classList.toggle('lk-is-on', x === b));
       this._renderLeftPage();
@@ -93,7 +93,7 @@ export class QuestBookModal {
     this.$('list').addEventListener('click', (e) => {
       const b = e.target.closest('.lk-q-item[data-id]');
       if (!b) return;
-      if (this.audio?.playStep) this.audio.playStep();
+      if (this.audio?.playClick) this.audio.playClick(); // Hito 119
       this.selectedQuestId = b.dataset.id;
       this._renderLeftPage();
       this._renderRightPage();
@@ -123,7 +123,7 @@ export class QuestBookModal {
     this.isOpen = false;
     this.modalEl.classList.remove('lk-is-open');
     this.modalEl.classList.add('hidden');
-    if (this.audio && typeof this.audio.playStep === 'function') this.audio.playStep();
+    if (this.audio && typeof this.audio.playClick === 'function') this.audio.playClick(); // Hito 119
     if (this.onClose) this.onClose();
   }
 

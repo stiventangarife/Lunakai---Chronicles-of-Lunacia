@@ -342,8 +342,10 @@ export function applyHue(outPx, an, tHsl) {
 
 export class SapidaeModularController {
   constructor() {
+    (globalThis.__lkSapidaeCtl || (globalThis.__lkSapidaeCtl = [])).push(new WeakRef(this)); // para tintMemoryStats (solo medición)
     this._hornsCache = new Map();
     this._textureCache = new Map();
+    this._weaponReady = new WeakMap(); // modelo → promesa del arma que se está montando (Hito 113)
     this._hueAnalysis = new Map(); // análisis de tela por imagen y tono (Hito 113)
     this._srcPixels = new Map();   // píxeles originales por huella de imagen (Hito 113): evita drawImage + getImageData en cada color
     this._recolorLru = new Map();  // tipo de recoloreado → claves de más antigua a más reciente
@@ -368,6 +370,25 @@ export class SapidaeModularController {
     }
     this._recolorLru.set(kind, lru);
     return tex;
+  }
+
+  /**
+   * Hito 113 (memoria): vacía todas las cachés de ESTA instancia (lienzos teñidos, píxeles originales y análisis de tela:
+   * ~120 MB medidos en el diorama del creador). Solo para cuando la instancia se descarta (CharacterPreviewDiorama.dispose):
+   * las texturas se liberan también de la GPU, así que no hay que llamarla con un modelo que aún las use.
+   * No toca el pelo blanco, que es global y compartido.
+   */
+  releaseCaches() {
+    this._textureCache.forEach((t) => {
+      try {
+        if (t && typeof t.dispose === 'function') t.dispose();
+        if (t && t.image && t.image.width) { t.image.width = 1; t.image.height = 1; } // suelta la memoria del canvas
+      } catch (_) { /* opcional */ }
+    });
+    this._textureCache.clear();
+    this._recolorLru.clear();
+    this._srcPixels.clear();
+    this._hueAnalysis.clear();
   }
 
   /** Mantiene al día el orden de uso de una clave de caché (un acierto la hace «reciente»). */
@@ -1546,6 +1567,9 @@ export class SapidaeModularController {
     this._updateWeaponProp(parts, equipped.weapon, model);
   }
 
+  /** Promesa del arma que se está montando en `model` (null si no hay). El arma del mixer llega de forma asíncrona. */
+  weaponReady(model) { return this._weaponReady.get(model) || null; }
+
   /**
    * Mounts a 3D weapon prop to the weapon bone.
    */
@@ -1561,6 +1585,7 @@ export class SapidaeModularController {
     // Cada cambio lleva un número: si llega una carga vieja (cambio rápido de arma), se descarta
     const token = (model.userData.weaponToken || 0) + 1;
     model.userData.weaponToken = token;
+    this._weaponReady.delete(model);
 
     if (!weaponId) return;
 
@@ -1571,11 +1596,12 @@ export class SapidaeModularController {
     const visual = weaponVisual(weaponId);
     if (visual) {
       const bone = gripHand(visual.family) === 'L' ? (parts.weaponBoneL || weaponBone) : weaponBone;
-      buildStaticWeapon(visual.url).then((w) => {
+      const ready = buildStaticWeapon(visual.url).then((w) => {
         if (model.userData.weaponToken !== token) return;
         const holder = mountOnSapidae(bone, model, w, visual.family, visual.level);
         if (holder) holder.name = 'Sapidae_Equipped_Weapon';
       }).catch((e) => console.warn('[SapidaeModularController] Arma', visual.variant, e));
+      this._weaponReady.set(model, ready);
       return;
     }
 
@@ -2116,6 +2142,36 @@ export class SapidaeModularController {
       }
     }
   }
+}
+
+
+/**
+ * Hito 113 (memoria): cuánto retienen las cachés del teñido de cada controlador (el del mundo y los retratos, y uno por cada
+ * diorama: creador y visor de la Mochila): píxeles originales, análisis de tela, lienzos teñidos y el pelo blanco (global).
+ * Solo lectura; lo usa lkDebug.perf.recursos().
+ */
+export function tintMemoryStats() {
+  const MB = 1048576, r = (v) => Math.round(v * 10) / 10;
+  const bytesOf = (v, seen, depth = 0) => {
+    if (!v || typeof v !== 'object' || depth > 4) return 0;
+    if (ArrayBuffer.isView(v)) { if (seen.has(v.buffer)) return 0; seen.add(v.buffer); return v.byteLength; }
+    if (v.isTexture) { const img = v.image; return img && img.width ? img.width * img.height * 4 : 0; }
+    if (v instanceof Map) { let b = 0; v.forEach((x) => { b += bytesOf(x, seen, depth + 1); }); return b; }
+    if (Array.isArray(v)) return v.reduce((s, x) => s + bytesOf(x, seen, depth + 1), 0);
+    let b = 0; for (const k in v) { try { b += bytesOf(v[k], seen, depth + 1); } catch (_) { /* nada */ } } return b;
+  };
+  const rows = [];
+  (globalThis.__lkSapidaeCtl || []).forEach((ref, i) => {
+    const c = ref.deref();
+    if (!c) return;
+    const seen = new Set();
+    const px = bytesOf(c._srcPixels, seen), an = bytesOf(c._hueAnalysis, seen), tx = bytesOf(c._textureCache, seen);
+    rows.push({ instancia: i === 0 ? 'mundo + retratos' : `diorama #${i} (creador / visor)`,
+      pixelesOriginales: `${c._srcPixels.size} · ${r(px / MB)} MB`, analisisTela: `${c._hueAnalysis.size} · ${r(an / MB)} MB`,
+      lienzosTenidos: `${c._textureCache.size} · ${r(tx / MB)} MB`, totalMB: r((px + an + tx) / MB) });
+  });
+  { const seen = new Set(); const b = bytesOf(_whiteHairCache, seen); rows.push({ instancia: 'pelo blanco (global)', lienzosTenidos: `${_whiteHairCache.size} · ${r(b / MB)} MB`, totalMB: r(b / MB) }); }
+  return rows;
 }
 
 export const sapidaeModularController = new SapidaeModularController();

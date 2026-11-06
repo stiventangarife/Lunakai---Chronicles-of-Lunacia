@@ -51,4 +51,7 @@ export default {
   "levels.l10.title": "Trono de la Quimera Suprema",
   "levels.l10.subtitle": "Duelo final por Lunacia",
   "levels.l10.badge": "JEFE FINAL",
+  "levels.boss.title": "El Slime Caballero",
+  "levels.boss.subtitle": "Graduación del Dojo",
+  "levels.place.greatRoots": "Raíces del Gran Árbol",
 };

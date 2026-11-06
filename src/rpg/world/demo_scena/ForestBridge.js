@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { GLTFLoader } from '../../../../vendor/GLTFLoader.js';
+import { mergeGeometries } from '../../../../vendor/utils/BufferGeometryUtils.js';
 import { WaterManager } from './WaterManager.js';
 import { getSoftToonRamp } from './genshin/GenshinMaterials.js';
 
@@ -7,10 +8,10 @@ import { getSoftToonRamp } from './genshin/GenshinMaterials.js';
  * Wooden footbridge over the river rapids of the Forest island. It joins the end of the
  * Elder-Tree path (west bank) with the Shrine road (east bank).
  *
- * The model is the "SmallBridge" mesh of assets/environment/bridge.glb (the file also holds a flag,
- * a gate and a lamp, which are not used). One module is about 7 m long once scaled to a 4 m wide
- * deck, so 4 modules are chained along a gentle arch, with the model's own proportions. Only the
- * lower ends of the posts are lengthened so that every post reaches below the water surface.
+ * Hito 137: the model is assets/environment/puente_plano.glb (a flat plank deck with posts; its pieces are merged
+ * into one mesh). Its texture is the same wood atlas as before, stored as KTX2 (ETC1S) instead of WebP.
+ * Scaled to a 4 m wide deck, as many modules as fit are chained along a gentle arch with the model's own
+ * proportions. Only the lower ends of the posts are lengthened so that every post reaches below the water surface.
  *
  * Gameplay:
  *   - getDeckHeight(x, z) → walkable deck height (profile sampled on the deck once it is built,
@@ -21,7 +22,7 @@ export const FOREST_BRIDGE = {
   a: { x: 17.3, z: 27.0 },   // west bank, end of the Elder-Tree path
   b: { x: 53.4, z: 22.0 },   // east bank, on the Shrine road
   width: 4.0,                // deck width (m)
-  modules: 4,
+  modules: 4,                // sin uso desde el Hito 137: los módulos salen del largo del modelo
   arch: 0.6,                 // extra rise at mid-span (m)
   endLift: 0.22              // deck ends sit slightly above the bank (grass never pokes through)
 };
@@ -34,7 +35,7 @@ export const FOREST_BRIDGE_VILLAGE = {
   a: { x: 2.2, z: -29.2 },   // orilla oeste, al pie del Gran Árbol
   b: { x: 30.6, z: -21.9 },  // orilla este, inicio del camino del Santuario
   width: 4.0,
-  modules: 4,
+  modules: 4,                // sin uso desde el Hito 137: los módulos salen del largo del modelo
   arch: 0.7,
   endLift: 0.22
 };
@@ -47,7 +48,7 @@ export const FOREST_PIER = {
   a: { x: 42.7, z: 138.2 },  // Hito 82d: entrada en la arena, a unos 6 m de Kawa (43, 132,2)
   b: { x: 52.6, z: 153.2 },  // punta, 18 m mar adentro (dirección marcada por el usuario, ~57° desde +x)
   width: 4.0,
-  modules: 2,
+  modules: 2,                // sin uso desde el Hito 137
   arch: 0,
   endLift: 0.22,
   level: 0.8,                // Hito 82c: tablero bajo, a ras de la arena de la orilla de Kawa (el mar está a 0,45)
@@ -55,6 +56,15 @@ export const FOREST_PIER = {
 };
 
 const RAIL_TAG = 'forest_bridge_rail';
+
+/** Copia sin intercalar de un atributo (el GLB guarda posición, normal y UV intercalados y mergeGeometries no los acepta). */
+function plainAttr(attr) {
+  if (!attr.isInterleavedBufferAttribute) return attr;
+  const n = attr.count, sz = attr.itemSize, out = new Float32Array(n * sz);
+  const get = [attr.getX, attr.getY, attr.getZ, attr.getW];
+  for (let i = 0; i < n; i++) for (let c = 0; c < sz; c++) out[i * sz + c] = get[c].call(attr, i);
+  return new THREE.BufferAttribute(out, sz, attr.normalized);
+}
 
 export class ForestBridge {
   /**
@@ -85,19 +95,29 @@ export class ForestBridge {
     this._origin = new THREE.Vector3();
 
     this.loading = this._build().catch((err) => {
-      console.warn('[ForestBridge] bridge.glb could not be built:', err);
+      console.warn('[ForestBridge] puente_plano.glb could not be built:', err);
     });
   }
 
   async _build() {
-    const gltf = await new GLTFLoader().loadAsync('./assets/environment/bridge.glb');
+    const gltf = await new GLTFLoader().loadAsync('./assets/environment/puente_plano.glb');
     gltf.scene.updateMatrixWorld(true);
+    // Hito 137: every piece of the model (deck and posts) in one geometry; they all use the same wood texture
+    const parts = [];
     let src = null;
-    gltf.scene.traverse((o) => { if (o.isMesh && o.name === 'SmallBridge') src = o; });
-    if (!src) throw new Error('SmallBridge mesh not found');
+    gltf.scene.traverse((o) => {
+      if (!o.isMesh) return;
+      if (!src) src = o;
+      const g = new THREE.BufferGeometry();
+      for (const k of ['position', 'normal', 'uv']) if (o.geometry.attributes[k]) g.setAttribute(k, plainAttr(o.geometry.attributes[k]));
+      g.setIndex(o.geometry.index);
+      parts.push(g.applyMatrix4(o.matrixWorld));
+    });
+    if (!src) throw new Error('bridge mesh not found');
 
     // 1. Bake the authored transform, then align the bridge length with +X (principal axis in XZ)
-    const geo = src.geometry.clone().applyMatrix4(src.matrixWorld);
+    const geo = parts.length > 1 ? mergeGeometries(parts.map((g) => (g.index ? g : g.toNonIndexed())), false) : parts[0];
+    if (!geo) throw new Error('bridge pieces could not be merged');
     const p = geo.attributes.position;
     let mx = 0, mz = 0;
     for (let i = 0; i < p.count; i++) { mx += p.getX(i); mz += p.getZ(i); }
@@ -141,7 +161,7 @@ export class ForestBridge {
     mat.name = 'ForestBridgeWood';
 
     // 3. Chain the modules along the arch (uniform scale: the model keeps its proportions)
-    const { a, b, width, modules, arch, endLift } = this.cfg;
+    const { a, b, width, arch, endLift } = this.cfg;
     const terrain = this.zone.terrain;
     const yA = this.cfg.level ?? terrain.getHeight(a.x, a.z) + endLift;
     const yB = this.cfg.level ?? terrain.getHeight(b.x, b.z) + endLift;
@@ -150,6 +170,9 @@ export class ForestBridge {
     const ky = kz;
     const postCut = -0.85 * postDepth; // only the bottom rings of the posts lie this low (model units)
 
+    // Hito 137: as many modules as fit with the model's own length (the flat deck is shorter than the old bridge)
+    const modules = Math.max(1, Math.round(this.length / (len0 * kz)));
+    this.modules = modules;
     const yaw = Math.atan2(-this.dir.y, this.dir.x);
     const segH = this.length / modules;
     for (let i = 0; i < modules; i++) {

@@ -76,7 +76,7 @@ export default {
   "inventory.item": "Objeto",
   "inventory.itemsMany": "{n} objetos",
   "inventory.itemsOne": "{n} objeto",
-  "inventory.keyK": "Tecla K",
+  "inventory.keyK": "Tecla T",
   "inventory.keyU": "Tecla U",
   "inventory.kicker": "Inventario",
   "inventory.lv": "Nv {n}",

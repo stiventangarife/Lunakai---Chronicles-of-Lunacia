@@ -47,6 +47,16 @@ class ShopServiceImpl {
     this.memory = {};
     this.em = null;
     this.onSave = null;
+    this._buyFns = []; // Hito 124: oyentes de cada compra (la misión de Ochi)
+  }
+
+  /** Avisa de cada compra hecha: fn({ shopId, id, qty, it }). Devuelve la función para quitar el oyente. */
+  onBuy(fn) { this._buyFns.push(fn); return () => { this._buyFns = this._buyFns.filter((f) => f !== fn); }; }
+
+  /** Asegura al menos `n` unidades de un objeto en el stock (p. ej. el casco de la misión de Ochi). */
+  ensureStock(shopId, id, n = 1) {
+    const st = this._state(shopId); if (!st || !(id in st.stock)) return;
+    if (st.stock[id] !== null && st.stock[id] < n) { st.stock[id] = n; this._commit(); }
   }
 
   init({ equipmentManager, onSave = null }) { this.em = equipmentManager; this.onSave = onSave; }
@@ -143,6 +153,7 @@ class ShopServiceImpl {
     if (left !== null) st.stock[id] = left - qty;
     this._give(id, qty);
     this._commit();
+    this._buyFns.forEach((fn) => { try { fn({ shopId, id, qty, it }); } catch (e) { console.warn('[Shop] onBuy', e); } });
     return { ok: true, it, qty, cost };
   }
 

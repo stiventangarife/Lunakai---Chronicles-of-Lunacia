@@ -61,5 +61,8 @@ export default {
   "combatEnd.xpOnlyVictories": "XP and AXP are only earned through victories",
   "combatEnd.newSkill": "New skill!",
   "combatEnd.newSkills": "New skills!",
-  "combatEnd.newSkillShort": "+{n} skill"
+  "combatEnd.newSkillShort": "+{n} skill",
+  "combatEnd.retry": "Retry",
+  "combatEnd.backToVillage": "Back to the village",
+  "combatEnd.hintRetry": "Space · Retry with no penalty",
 };

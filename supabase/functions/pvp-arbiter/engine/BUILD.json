@@ -1,0 +1,8 @@
+{
+  "engine": "ec7165c5311161f9",
+  "files": 144,
+  "entry": [
+    "src/tactics/sim/PvpArbiter.js"
+  ],
+  "note": "Copia generada por tools/pvp/arbiter/build.mjs: no editar."
+}

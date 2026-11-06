@@ -125,5 +125,20 @@ export default {
   "start.welcomeText": "Tu cuenta guarda tu progreso en la nube: sigue tu aventura en cualquier dispositivo. Si ya tienes cuenta de Sky Mavis, no necesitas registrarte otra vez.",
   "start.welcomeTitle": "Bienvenido a Lunacia",
   "start.xpLevel": "XP Nv {n}",
-  "start.yesterday": "Ayer, {time}"
+  "start.yesterday": "Ayer, {time}",
+  "start.stageAria": "Aventura elegida",
+  "start.prevSlot": "Ranura anterior",
+  "start.nextSlot": "Ranura siguiente",
+  "start.slotsUsed": "{n} de {total}",
+  "start.newAdventureShort": "Crea un Sapidae nuevo",
+  "start.levelShort": "Nv {n}",
+  "start.level": "Nivel {n}",
+  "start.withAxie": "con {axie}",
+  "start.rotateHint": "Arrastra para girar",
+  "start.infoTitle": "Tu partida",
+  "start.infoQuest": "Misión actual",
+  "start.infoQuestReady": "Lista para entregar",
+  "start.infoNoQuest": "Sin misión seguida",
+  "start.infoSquad": "Escuadrón",
+  "start.infoSince": "Desde"
 };

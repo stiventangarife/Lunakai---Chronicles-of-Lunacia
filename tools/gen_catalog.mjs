@@ -1,5 +1,5 @@
 // Uso: node tools/gen_catalog.mjs ./src supabase/migrations/<fecha>_economy_catalog.sql [supabase/migrations/<fecha>_market_rules.sql]
-// (siempre en una migración NUEVA: `supabase db push` no repite las ya aplicadas). Últimas: 20261101000004 y 20261101000005.
+// (siempre en una migración NUEVA: `supabase db push` no repite las ya aplicadas). Últimas: 20261101000004 y 20261101000005 (+ 20261111000000: solo las filas de la misión de Ochi).
 // Genera supabase/migrations/..._economy_catalog.sql a partir del catálogo del juego (los precios siempre coinciden).
 globalThis.localStorage = { getItem: () => null, setItem() {}, removeItem() {} };
 try { Object.defineProperty(globalThis, 'navigator', { value: { language: 'es', languages: ['es'], onLine: true }, configurable: true }); } catch {}
@@ -37,6 +37,7 @@ const qm = fs.readFileSync(resolve(SRC_DIR, 'rpg/QuestManager.js'), 'utf8');
 for (const m of qm.matchAll(/\n\s{6}(quest_[a-z0-9_]+):\s*\{[\s\S]*?rewards:\s*\{\s*gold:\s*(\d+)/g)) add(`reward:quest:${m[1]}`, { gold: +m[2] });
 const ts = fs.readFileSync(resolve(SRC_DIR, 'rpg/tutorial/TutorialScript.js'), 'utf8');
 add('reward:tut:duel', { gold: +(/duelGold:\s*(\d+)/.exec(ts)[1]) });
+add('reward:tut:ochi_purse', { gold: +(/ochiPurse:\s*(\d+)/.exec(ts)[1]), meta: 1 }); // Hito 124: monedero de Ochi (completa hasta N de oro)
 add('reward:tut:slp_topup', { slp: 50, meta: 1 });                        // completa hasta 50 SLP
 add('reward:tut:speed', { baxs: rows.find((r) => r.key === `speed:${tierOf('iron_sword')}:4`)?.baxs ?? 3 }); // Paladill paga la aceleración ×4
 const seen = new Set(); const uniq = rows.filter((r) => !seen.has(r.key) && seen.add(r.key));

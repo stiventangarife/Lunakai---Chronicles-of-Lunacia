@@ -405,7 +405,9 @@ Object.values(ITEMS_DB).forEach((it) => {
 // Épico en Mística · Místico en Génesis. Cada monstruo suelta sus materiales (BiomeEnemyCatalog.possibleDrops);
 // este es el botín general de cada isla (tier de dificultad: 1 Bosque · 2 Sabana · 3 Ártico · 4 Mística · 5 Génesis).
 // El equipo que cae en combate es solo Común (Bosque y Sabana). Ids de MATERIALS van a la bolsa de la Forja.
-const COMMON_GEAR = Object.keys(TIER0_ITEMS);
+// Hito 124: el Yelmo Bestial ya no cae en combate; se compra a Ochi (misión 2, la primera compra) o se crea en la Forja.
+const NOT_DROPPED = new Set(['beast_helmet']);
+const COMMON_GEAR = Object.keys(TIER0_ITEMS).filter((id) => !NOT_DROPPED.has(id));
 export const TIER_DROPS = {
   1: [...COMMON_GEAR, 'mat_slime_goo', 'food_fruit'],
   2: [...COMMON_GEAR, 'mat_slime_goo', 'mat_chimera_tail'],
@@ -419,5 +421,5 @@ export const ROLE_DROPS = {};
 
 export const LEVEL_DROPS = {
   level_1_tutorial: ['wood_sword'],
-  level_2_plains: ['composite_bow', 'beast_helmet', 'wooden_buckler'],
+  level_2_plains: ['composite_bow', 'wooden_buckler'],
 };

@@ -1,6 +1,6 @@
 // MapRegistry.js - Master 3x3 World Grid (9 Macro-Zones, 5 Biomes & 2x2 Sub-Quadrants)
 import { MERGED_ZONES, MERGED_NPC_POSITIONS, mergedZonesOf, createFerryNpcDef } from './islands/IslandWorldLayout.js';
-import { OCHI_SPOT, FORGE_USE_SPOT, PALADILL_SPOT, SCROLL_KEEPER_SPOT, villagePoint } from './ForestVillageLayout.js';
+import { OCHI_SPOT, FORGE_USE_SPOT, PALADILL_SPOT, SCROLL_KEEPER_SPOT } from './ForestVillageLayout.js';
 import * as i18n from '../../i18n/i18n.js';
 
 /**
@@ -72,12 +72,9 @@ export const ISLANDS_REGISTRY = {
     icon: '◆',
     description: i18n.t('places.forestDesc'),
     landmarks: [
-      { id: 'dojo', name: i18n.t('places.forestDojo'), icon: '◆', coords: villagePoint('dojo'), desc: i18n.t('places.forestDojoDesc') },
       { id: 'shop', name: i18n.t('places.forestShop'), icon: '◆', coords: { x: OCHI_SPOT.x, z: OCHI_SPOT.z }, desc: i18n.t('places.forestShopDesc') },
       { id: 'forge', name: i18n.t('places.forestForge'), icon: '◆', coords: { x: FORGE_USE_SPOT.x, z: FORGE_USE_SPOT.z }, desc: i18n.t('places.forestForgeDesc') },
-      { id: 'village', name: i18n.t('places.forestVillage'), icon: '◆', coords: villagePoint('house_4'), desc: i18n.t('places.forestVillageDesc') },
-      { id: 'elder_tree', name: i18n.t('places.forestElderTree'), icon: '◆', coords: { x: -8.0, z: -25.0 }, desc: i18n.t('places.forestElderTreeDesc') },
-      { id: 'ancient_shrine', name: i18n.t('places.forestShrine'), icon: '◆', coords: { x: 115.0, z: 65.0 }, desc: i18n.t('places.forestShrineDesc') }
+      { id: 'elder_tree', name: i18n.t('places.forestElderTree'), icon: '◆', coords: { x: -8.0, z: -25.0 }, desc: i18n.t('places.forestElderTreeDesc') }
     ]
   },
   island_savannah: {

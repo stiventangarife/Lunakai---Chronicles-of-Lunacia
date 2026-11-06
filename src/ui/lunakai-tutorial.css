@@ -129,3 +129,111 @@ body.lk-dialog-open .lk-interact-prompt { display: none !important; }
 #lk-tut-coach.lk-ctut--hint .lk-ctut__card { grid-template-columns: auto minmax(0, 1fr); align-items: center; gap: 12px; text-align: left; }
 #lk-tut-coach.lk-ctut--hint .lk-ctut__coach { display: block; }
 #lk-tut-coach.lk-ctut--hint .lk-ctut__head { justify-content: flex-start; }
+
+/* ── Tutorial rápido (combate 1 y combate final) ─────────────────────────────────────────────── */
+/* Aviso amable cuando se intenta otra cosa («Primero muévete a la casilla marcada») */
+.lk-ctut .lk-ctut__nudge { display: none; margin: 6px 0 0; padding: 5px 10px; border-radius: 8px; font: 700 .82rem/1.3 var(--lk-font-ui, 'Nunito Sans', sans-serif); color: #3B2A10; background: #F3D58A; box-shadow: 0 1px 0 rgba(0, 0, 0, .25); }
+.lk-ctut .lk-ctut__nudge.lk-is-on { display: block; }
+/* Barra de turnos iluminada 2 s cuando Paladill la señala */
+#initiative-timeline.lk-tut-timeline { border-radius: 14px; animation: lkTutTimeline 1s ease-in-out 2; box-shadow: 0 0 0 2px #F3D58A, 0 0 18px 4px rgba(243, 213, 138, .55); }
+@keyframes lkTutTimeline { 50% { box-shadow: 0 0 0 3px #FFE7A6, 0 0 26px 8px rgba(255, 231, 166, .75); } }
+/* Ultimate lista en el combate final: el botón brilla más */
+#spell-slot-ult.lk-tut-ult-call { animation: lkTutUlt 1.1s ease-in-out infinite; }
+@keyframes lkTutUlt { 50% { filter: brightness(1.35) drop-shadow(0 0 14px rgba(255, 214, 102, .95)); transform: scale(1.06); } }
+@media (prefers-reduced-motion: reduce) {
+  #initiative-timeline.lk-tut-timeline, #spell-slot-ult.lk-tut-ult-call { animation: none; }
+  #spell-slot-ult.lk-tut-ult-call { filter: brightness(1.25) drop-shadow(0 0 10px rgba(255, 214, 102, .9)); }
+}
+/* Forja: aviso de la demo bajo el tiempo restante */
+.lk-forge-demo { display: block; margin-top: 4px; font-style: italic; opacity: .78; }
+/* «Pasar turno» en el tutorial: misma forma, solo parpadea (sin cambiar borde, sombra, radio ni tamaño) */
+#ui-overlay #btn-end-turn.lk-tut-blink { animation: lkTutBlink 0.9s ease-in-out infinite; }
+@keyframes lkTutBlink { 50% { filter: brightness(1.35) saturate(1.15); opacity: .72; } }
+@media (prefers-reduced-motion: reduce) { #ui-overlay #btn-end-turn.lk-tut-blink { animation: none; filter: brightness(1.25); } }
+
+/* ══ Hito 126 · Recorridos de paneles (rpg/ui/PanelTour.js: Escuadrón, Koliseo) y punto de «Nuevo» en el HUD (Escuadrón, Koliseo, Códice) ═════════════ */
+.lk-sqt { position: fixed; z-index: 1600; box-sizing: border-box; pointer-events: auto; padding: 14px 16px 12px; border-radius: 16px; color: #EFE8DA;
+  background: radial-gradient(120% 120% at 50% 0%, rgba(54, 42, 24, .97), rgba(14, 17, 30, .97) 72%);
+  box-shadow: 0 0 0 1px rgba(238, 211, 154, .55), 0 0 0 4px rgba(11, 15, 28, .75), 0 18px 44px rgba(0, 0, 0, .55);
+  opacity: 0; transform: translateY(6px); transition: opacity .22s ease, transform .28s cubic-bezier(.2, 1.3, .4, 1), top .25s ease, left .25s ease; }
+.lk-sqt.lk-sqt--in { opacity: 1; transform: none; }
+.lk-sqt__head { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; }
+.lk-sqt__dots { display: inline-flex; gap: 4px; }
+.lk-sqt__dots i { width: 18px; height: 5px; border-radius: 3px; background: rgba(239, 232, 218, .18); }
+.lk-sqt__dots i.lk-is-full { background: #D3AE6C; }
+.lk-sqt__dots i.lk-is-half { background: linear-gradient(90deg, #EED39A 50%, rgba(239, 232, 218, .18) 50%); }
+.lk-sqt__badge { font: 800 .68rem/1 var(--lk-font-ui); letter-spacing: .08em; text-transform: uppercase; color: #D3AE6C; }
+.lk-sqt__title { margin: 2px 0 6px; font: 700 1.05rem/1.2 var(--lk-font-display, var(--lk-font-ui)); color: #FFF4D6; }
+.lk-sqt__text { margin: 0 0 12px; font: 500 .9rem/1.45 var(--lk-font-ui); }
+.lk-sqt__text b { color: #EED39A; }
+.lk-sqt__acts { display: flex; justify-content: flex-end; align-items: center; gap: 10px; }
+.lk-sqt__skip { border: 0; background: none; color: rgba(239, 232, 218, .7); font: 700 .8rem/1 var(--lk-font-ui); cursor: pointer; padding: 6px 8px; }
+.lk-sqt__skip:hover { color: #FFF4D6; }
+.lk-sqt-focus { position: relative; z-index: 2; border-radius: 14px; box-shadow: 0 0 0 2px #EED39A, 0 0 22px 4px rgba(238, 211, 154, .45) !important; animation: lkSqtPulse 1.6s ease-in-out infinite; }
+@keyframes lkSqtPulse { 50% { box-shadow: 0 0 0 3px #EED39A, 0 0 30px 8px rgba(238, 211, 154, .6); } }
+.lk-sq-help { font: 800 1.05rem/1 var(--lk-font-ui); margin-left: auto; }
+.lk-sq-help + .lk-btn-close-x { margin-left: 8px; }
+.lk-ow-menu .lk-btn-circle-icon.lk-has-new { position: relative; }
+/* (Hito 130: el punto de «Nuevo» pasa a .lk-nb, de NewBadges.js; bloque al final del archivo) */
+html.lk-reduce-motion .lk-sqt-focus { animation: none; }
+@media (prefers-reduced-motion: reduce) { .lk-sqt-focus { animation: none; } .lk-sqt { transition: none; } }
+.lk-sqt .lk-btn { min-height: 34px; padding: 6px 16px; font-size: .84rem; }
+
+/* ══ Hito 129 · Recorridos de paneles como «coach marks»: foco que atenúa el resto, flecha hacia la zona, Atrás y Esc ══ */
+/* Foco: hueco con borde dorado y una sombra enorme que oscurece lo demás; no recibe clics y se desliza entre pasos */
+.lk-sqt-spot { position: fixed; left: 0; top: 0; z-index: 1599; pointer-events: none; border-radius: 14px;
+  box-shadow: 0 0 0 2px var(--lk-gilt-300), 0 0 0 100vmax rgba(6, 9, 18, .52), 0 0 26px 6px color-mix(in srgb, var(--lk-gilt-300) 45%, transparent);
+  transition: transform .32s var(--lk-ease), width .32s var(--lk-ease), height .32s var(--lk-ease), opacity .2s; }
+.lk-sqt-spot.lk-is-off { opacity: 0; }
+/* La zona resaltada ya no necesita su propio anillo (lo dibuja el foco) */
+.lk-sqt-focus { box-shadow: none !important; animation: none !important; }
+
+/* Tarjeta: cristal nocturno con filo dorado (Crónica Celeste) */
+.lk-sqt { padding: 14px 16px 12px; border-radius: 16px; color: var(--lk-ivory-100);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--lk-night-800) 98%, transparent), color-mix(in srgb, var(--lk-night-900) 98%, transparent));
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--lk-gilt-300) 55%, transparent), 0 18px 44px rgba(0, 0, 0, .55); }
+.lk-sqt:focus-within { outline: none; }
+/* Flecha que apunta a la zona (--ax = centro de la zona dentro de la tarjeta) */
+.lk-sqt__arrow { position: absolute; left: var(--ax, 50%); width: 14px; height: 14px; margin-left: -7px; transform: rotate(45deg);
+  background: var(--lk-night-800); box-shadow: inset 1px 1px 0 color-mix(in srgb, var(--lk-gilt-300) 55%, transparent); }
+.lk-sqt[data-side="below"] .lk-sqt__arrow { top: -7px; }
+.lk-sqt[data-side="above"] .lk-sqt__arrow { bottom: -7px; background: var(--lk-night-900); box-shadow: inset -1px -1px 0 color-mix(in srgb, var(--lk-gilt-300) 55%, transparent); }
+.lk-sqt[data-side="none"] .lk-sqt__arrow, .lk-sqt.lk-sqt--free .lk-sqt__arrow { display: none; }
+/* Cabecera: paso actual y «Saltar» */
+.lk-sqt__head { justify-content: space-between; margin-bottom: 6px; }
+.lk-sqt__badge { color: var(--lk-gilt-300); letter-spacing: .12em; }
+.lk-sqt__skip { margin: -6px -8px -6px 0; color: color-mix(in srgb, var(--lk-ivory-200) 70%, transparent); }
+.lk-sqt__skip:hover, .lk-sqt__skip:focus-visible { color: var(--lk-ivory-50); }
+.lk-sqt__title { margin: 0 0 6px; font: 400 1.2rem/1.2 var(--lk-font-display); color: var(--lk-ivory-50); }
+.lk-sqt__text { margin: 0 0 12px; font-size: .88rem; line-height: 1.5; color: var(--lk-ivory-100); }
+.lk-sqt__text b { color: var(--lk-gilt-300); }
+/* Enlace al Códice (último paso) */
+.lk-sqt__codex { display: inline-flex; align-items: center; gap: 8px; margin: -4px 0 12px; padding: 0; border: 0; background: none; cursor: pointer;
+  font: 800 .8rem/1.3 var(--lk-font-ui); color: var(--lk-gilt-300); text-decoration: underline; text-underline-offset: 3px; }
+.lk-sqt__codex svg { width: 16px; height: 16px; flex: none; }
+.lk-sqt__codex:hover { color: var(--lk-ivory-50); }
+/* Pie: progreso a la izquierda, acciones a la derecha */
+.lk-sqt__foot { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding-top: 10px; border-top: 1px solid color-mix(in srgb, var(--lk-gilt-300) 18%, transparent); }
+.lk-sqt__dots { gap: 6px; }
+.lk-sqt__dots i { width: 8px; height: 8px; border-radius: 50%; background: color-mix(in srgb, var(--lk-ivory-200) 25%, transparent); transition: width .2s, background .2s; }
+.lk-sqt__dots i.lk-is-done { background: color-mix(in srgb, var(--lk-gilt-300) 60%, transparent); }
+.lk-sqt__dots i.lk-is-on { width: 20px; border-radius: var(--lk-r-pill); background: var(--lk-gilt-300); }
+.lk-sqt__acts { display: inline-flex; align-items: center; gap: 6px; }
+.lk-sqt__back { border: 0; background: none; cursor: pointer; padding: 6px 10px; border-radius: var(--lk-r-pill); font: 700 .8rem/1 var(--lk-font-ui); color: color-mix(in srgb, var(--lk-ivory-200) 80%, transparent); }
+.lk-sqt__back:hover, .lk-sqt__back:focus-visible { color: var(--lk-ivory-50); background: color-mix(in srgb, var(--lk-ivory-50) 8%, transparent); }
+@media (prefers-reduced-motion: reduce) { .lk-sqt-spot, .lk-sqt__dots i { transition: none; } }
+html.lk-reduce-motion .lk-sqt-spot, html.lk-reduce-motion .lk-sqt { transition: none; }
+
+/* ══ Hito 130 · Avisos de «Nuevo» en los botones del HUD (NewBadges.js): punto o número, late 3 veces y queda fijo ══ */
+.lk-nb { position: absolute; top: -0.125rem; right: -0.125rem; z-index: 1; pointer-events: none; box-sizing: border-box;
+  display: grid; place-items: center; background: var(--lk-gold-atia-bright); color: var(--lk-ink-900);
+  box-shadow: 0 0 0 0.125rem var(--lk-ink-900), 0 0 0.5rem color-mix(in srgb, var(--lk-gold-atia-bright) 55%, transparent); }
+.lk-nb--dot { width: 0.75rem; height: 0.75rem; border-radius: 50%; }
+.lk-nb--count { top: -0.3125rem; right: -0.3125rem; min-width: 1.125rem; height: 1.125rem; padding: 0 0.3rem; border-radius: 999px;
+  font: 800 0.66rem/1 var(--lk-font-ui); font-variant-numeric: tabular-nums; letter-spacing: 0; }
+.lk-nb--ping { animation: lkNbPing 0.9s var(--lk-ease-soft, ease-in-out) 3; }
+@keyframes lkNbPing {
+  45% { transform: scale(1.3); box-shadow: 0 0 0 0.125rem var(--lk-ink-900), 0 0 0 0.375rem color-mix(in srgb, var(--lk-gold-atia-bright) 30%, transparent), 0 0 0.75rem color-mix(in srgb, var(--lk-gold-atia-bright) 70%, transparent); }
+}
+html.lk-reduce-motion .lk-nb--ping { animation: none; }
+@media (prefers-reduced-motion: reduce) { .lk-nb--ping { animation: none; } }

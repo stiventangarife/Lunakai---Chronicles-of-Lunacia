@@ -1,6 +1,7 @@
 # Hito 38 — Vida persistente, turnos alternados y correcciones (huellas, barquero, habilidades del Sapidae)
 
 > **Estado:** completado en la versión de prueba (18-oct-2026).
+> **Actualización (Hito 115, 2-nov-2026):** tras una derrota (fuera del tutorial) el escuadrón ya no despierta en el dojo, sino frente al altar de Atia del pueblo del Bosque (`ATIA_RESPAWN_SPOT`). La vida sigue como aquí se describe: quien cae vuelve con 1 de vida.
 > **Pedido:** revisar y corregir cinco errores encontrados al jugar. Solo se cambió lo pedido.
 
 ## 1. Vida persistente

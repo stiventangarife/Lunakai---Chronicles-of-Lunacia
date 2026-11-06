@@ -304,7 +304,7 @@ export class IslandTrees extends GenshinTrees {
     const puffs = [{ c: crownCenter.clone(), r: 11 }, { c: crownCenter.clone().add(new THREE.Vector3(0, 6, 0)), r: 8 }];
     for (let l = 0; l < 5; l++) {
       const a = (l / 5) * Math.PI * 2 + rng() * 0.5;
-      const start = trunk.end.clone().multiplyScalar(0.7);
+      const start = trunk.curve.getPointAt(0.7); // Hito 136: sobre el tronco curvado
       const limb = this._branch(start, new THREE.Vector3(Math.cos(a), 0.75, Math.sin(a)), 14 + rng() * 4, 1.6, 0.6, 8, 4, seed + 20 + l, 0.3);
       geos.push(limb.geo);
       puffs.push({ c: limb.end.clone().add(new THREE.Vector3(0, 2.5, 0)), r: 8 + rng() * 2 });
@@ -330,7 +330,7 @@ export class IslandTrees extends GenshinTrees {
     for (let l = 0; l < limbs; l++) {
       const a = (l / limbs) * Math.PI * 2 + rng() * 0.8;
       const t = 0.45 + rng() * 0.4;
-      const start = new THREE.Vector3(0, -0.3, 0).lerp(trunk.end, t);
+      const start = trunk.curve.getPointAt(t); // Hito 136: sobre el tronco curvado (antes, en la recta)
       const limb = this._branch(start, new THREE.Vector3(Math.cos(a), 0.7 + rng() * 0.6, Math.sin(a)), 1.4 + rng() * 1.3, 0.12, 0.03, 5, 3, seed + 30 + l, 0.6);
       geos.push(limb.geo);
       // Small twig at the limb end

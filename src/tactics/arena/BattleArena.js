@@ -992,6 +992,7 @@ export class BattleArena {
     this._fadeItems = [];
     const tmpM = new THREE.Matrix4();
     const tmpP = new THREE.Vector3();
+    const tmpS = new THREE.Vector3();
     for (const mesh of this.trees.meshes) {
       // Geometría propia por malla (las arquetipo se comparten entre mallas) para su atributo aFade
       const src = mesh.geometry;
@@ -1005,23 +1006,34 @@ export class BattleArena {
       mesh.geometry = geo;
       patch(mesh.material);
       const items = [];
+      // Tamaño de cada árbol (para saber si tapa a una unidad o si hay una unidad debajo de su copa)
+      if (!src.boundingSphere) src.computeBoundingSphere();
+      const bs = src.boundingSphere;
       for (let i = 0; i < mesh.count; i++) {
         mesh.getMatrixAt(i, tmpM);
         tmpP.setFromMatrixPosition(tmpM);
+        tmpS.setFromMatrixScale(tmpM);
         const cell = this.cellAt(tmpP.x, tmpP.z);
         const onBoard = cell && cellExists(cell.k);
-        items.push({ x: tmpP.x, z: tmpP.z, onBoard, f: 1 });
+        const sc = Math.max(tmpS.x, tmpS.z), r = bs ? bs.radius * sc : 1.5;
+        const canopy = THREE.MathUtils.clamp(r * 0.6, 0.9, 3.2);
+        const top = bs ? tmpP.y + (bs.center.y + bs.radius) * tmpS.y : tmpP.y + 4;
+        items.push({ x: tmpP.x, z: tmpP.z, onBoard, f: 1, canopy, top });
       }
       this._fadeItems.push({ mesh, fade, items, srcGeo: src, geo });
     }
   }
 
-  _updateOcclusionFade(dt, camera, target) {
+  _updateOcclusionFade(dt, camera, target, points = null) {
     if (!this._fadeItems || !camera) return;
     const ox = target ? target.x : 0, oz = target ? target.z : 0;
     let cx = camera.position.x - ox, cz = camera.position.z - oz;
     const len = Math.hypot(cx, cz) || 1;
+    const elevTan = Math.max(0.2, (camera.position.y - (target ? target.y : 0)) / len); // pendiente de la vista
     cx /= len; cz /= len;
+    // Unidades vivas (los puntos u:… del tramado): un árbol que tapa a una o la tiene bajo la copa se vuelve
+    // transparente entero, sin depender del ratón
+    const units = points ? points.filter((p) => typeof p.key === 'string' && p.key.startsWith('u:')) : [];
     // Medio ancho del tablero a lo largo de la dirección de la cámara y en perpendicular
     const along = Math.abs(this.halfW * cx) + Math.abs(this.halfD * cz);
     const lateral = Math.abs(this.halfW * cz) + Math.abs(this.halfD * cx);
@@ -1029,13 +1041,22 @@ export class BattleArena {
     for (const f of this._fadeItems) {
       let dirty = false;
       f.items.forEach((it, i) => {
-        if (it.onBoard) return;
-        const vx = it.x - ox, vz = it.z - oz;
-        const d = vx * cx + vz * cz;                 // hacia la cámara
-        const l = Math.abs(vx * cz - vz * cx);       // de lado
-        const inFront = smooth(along - 2.5, along + 0.5, d) * (1 - smooth(lateral + 0.5, lateral + 3.5, l));
-        // Hito 37: más suave (el tramado por unidad de ArenaOcclusionDither hace el trabajo fino)
-        const goal = 1 - inFront * 0.6;
+        let goal = 1;
+        if (!it.onBoard) {
+          const vx = it.x - ox, vz = it.z - oz;
+          const d = vx * cx + vz * cz;                 // hacia la cámara
+          const l = Math.abs(vx * cz - vz * cx);       // de lado
+          const inFront = smooth(along - 2.5, along + 0.5, d) * (1 - smooth(lateral + 0.5, lateral + 3.5, l));
+          // Hito 37: más suave (el tramado por unidad de ArenaOcclusionDither hace el trabajo fino)
+          goal = 1 - inFront * 0.6;
+        }
+        for (const u of units) {
+          const ux = it.x - u.x, uz = it.z - u.z;
+          const d = ux * cx + uz * cz;                 // cuánto más cerca de la cámara está el árbol que la unidad
+          const l = Math.abs(ux * cz - uz * cx);
+          const reach = Math.max(0, it.top - u.y) / elevTan + it.canopy; // hasta dónde llega a taparla
+          if (d > -it.canopy && d < reach && l < it.canopy + 0.35) { goal = Math.min(goal, it.onBoard ? 0.4 : 0.15); break; }
+        }
         const nf = it.f + (goal - it.f) * k;
         if (Math.abs(nf - it.f) > 0.002) { it.f = nf; f.fade.setX(i, nf); dirty = true; }
       });
@@ -1053,7 +1074,7 @@ export class BattleArena {
   update(dt, time, camera = null, target = null, occlusionPoints = null) {
     this.time.value += dt;
     for (const fn of this._updatables) fn(dt);
-    this._updateOcclusionFade(dt, camera, target);
+    this._updateOcclusionFade(dt, camera, target, occlusionPoints);
     updateOcclusionPoints(occlusionPoints || [], dt);
   }
 

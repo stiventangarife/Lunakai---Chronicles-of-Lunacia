@@ -669,6 +669,7 @@ export class VfxBridge {
   // ------------------------------------------------------------ lanzamiento
   _onCast(ctx) {
     if (!this.enabled || !ctx || !ctx.spell || !ctx.caster) return;
+    if (this.game?.gridManager?.fastForward) return; // Arena PvP: puesta al día sin efectos
     const fx = this.effectFor(ctx.spell);
     if (!fx) return;
     const ab = this.core?.ABS[fx.key];
@@ -720,7 +721,8 @@ export class VfxBridge {
       const nAl = typeof ab.allies === 'function' ? ab.allies() : ab.allies;
       // sin receptor declarado: el objetivo (antes se quedaba en la casilla de delante; Hito 102)
       const rc = ab.receiver || (nAl > 0 ? 'ally' : 'target');
-      if (rc === 'ally' && core.ALLY_POS?.[0] && core.allies?.[0]) selfRecv = { lab: core.ALLY_POS[0].clone(), dummy: core.allies[0] };
+      if (rc === 'caster') { /* el efecto ya dibuja al receptor en el lanzador (Hito 113): sin remapeo */ }
+      else if (rc === 'ally' && core.ALLY_POS?.[0] && core.allies?.[0]) selfRecv = { lab: core.ALLY_POS[0].clone(), dummy: core.allies[0] };
       else if (rc === 'target') selfRecv = { lab: anc.t.clone(), dummy: core.target };
       if (selfRecv) { const ax = anc.t.clone().sub(anc.c).setY(0).normalize(); labC = selfRecv.lab.clone(); labB = selfRecv.lab.clone().addScaledVector(ax, 7.1); }
     }

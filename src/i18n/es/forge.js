@@ -6,7 +6,7 @@ export default {
   "forge.bagRune": "Bolsa · runa de clase al azar",
   "forge.baxsTitle": "bAXS (comisión y rapidez)",
   "forge.axsTitle": "AXS (Mercado entre jugadores: equipo, runas y charms)",
-  "forge.biomeAny": "Todas las islas",
+  "forge.biomeAny": "Todas las tierras",
   "forge.biomeArctic": "Ártico",
   "forge.biomeDungeon": "Génesis",
   "forge.biomeForest": "Bosque",
@@ -104,4 +104,5 @@ export default {
   "forge.whereGet": "Dónde conseguirlo",
   "forge.youHave": "tienes {n}",
   "forge.yourGear": "Tu equipo",
+  "forge.demoNote": "Demo: tiempos acelerados. En el juego completo la forja tarda más.",
 };

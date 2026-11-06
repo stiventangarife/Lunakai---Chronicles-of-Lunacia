@@ -1,4 +1,5 @@
-// BattleMaps.js - Los 15 mapas de combate (3 por bioma) y su selección (Hito 35).
+// BattleMaps.js - Los 15 mapas de combate (3 por bioma) y su selección (Hito 35), y las 6 versiones espejo de la
+// Arena PvP (fase P5).
 // Datos puros: la leyenda de las casillas está en BattleMapLayout.js.
 //
 // · Combates normales: uno de los 3 mapas del bioma al azar, sin repetir el último de ese bioma.
@@ -327,6 +328,141 @@ export const BATTLE_MAPS = {
     ],
     seed: 3543,
   },
+  // ─────────────────────── ⚔️ ARENA PvP (fase P5): versiones espejo ───────────────────────
+  // Simétricas con un giro de media vuelta (180°): los dos bandos tienen el mismo tablero, cada uno desde su lado.
+  // Salen de la mitad de un bando del mapa original (tools/pvp/mirror-map.mjs) y solo se usan en la Arena
+  // (`pvp: true`: fuera de la selección por bioma). Lista de la Arena y medidas: docs/PLAN_ARENA_PVP.md, sección 16.
+  pvp_savannah_oasis: {
+    id: 'pvp_savannah_oasis',
+    biome: 'savannah',
+    name: 'Hidden Oasis (Arena)',
+    nameEs: 'Oasis Escondido (Arena)',
+    pvp: true,
+    mirrorOf: 'savannah_oasis',
+    layout: [
+      '###..E..###',
+      '##..E.E..##',
+      '#....E.C..#',
+      '..R........',
+      '....www....',
+      '..,wwwww,..',
+      '....www....',
+      '........R..',
+      '#..C.P....#',
+      '##..P.P..##',
+      '###..P..###',
+    ],
+    seed: 3612,
+  },
+  pvp_savannah_canyon: {
+    id: 'pvp_savannah_canyon',
+    biome: 'savannah',
+    name: 'Sandstone Canyon (Arena)',
+    nameEs: 'Cañón de Arenisca (Arena)',
+    pvp: true,
+    mirrorOf: 'savannah_canyon',
+    layout: [
+      '######.E.E..E.',
+      '####..R......E',
+      '###.,....C...#',
+      '##...R..R...##',
+      '#...C....,.###',
+      'P......R..####',
+      '.P..P.P.######',
+    ],
+    terrainRise: 3.8,
+    seed: 3613,
+  },
+  pvp_arctic_glacier_pass: {
+    id: 'pvp_arctic_glacier_pass',
+    biome: 'arctic',
+    name: 'Glacier Pass (Arena)',
+    nameEs: 'Paso Glaciar (Arena)',
+    pvp: true,
+    mirrorOf: 'arctic_glacier_pass',
+    layout: [
+      '#.E.E.#',
+      '..E.E..',
+      '.......',
+      '..~~...',
+      '.....R.',
+      'C..,..C',
+      'C..,..C',
+      '.R.....',
+      '...~~..',
+      '.......',
+      '..P.P..',
+      '#.P.P.#',
+    ],
+    terrainRise: 2.6,
+    seed: 3622,
+  },
+  pvp_arctic_boreal_camp: {
+    id: 'pvp_arctic_boreal_camp',
+    biome: 'arctic',
+    name: 'Boreal Camp (Arena)',
+    nameEs: 'Campamento Boreal (Arena)',
+    pvp: true,
+    mirrorOf: 'arctic_boreal_camp',
+    layout: [
+      '####.EE.####',
+      '####E..E####',
+      '####.R..####',
+      '.....,,..R..',
+      '.....CC.....',
+      '.....CC.....',
+      '..R..,,.....',
+      '####..R.####',
+      '####P..P####',
+      '####.PP.####',
+    ],
+    seed: 3623,
+  },
+  pvp_mystic_glow_swamp: {
+    id: 'pvp_mystic_glow_swamp',
+    biome: 'mystic',
+    name: 'Glowing Swamp (Arena)',
+    nameEs: 'Pantano Luminoso (Arena)',
+    pvp: true,
+    mirrorOf: 'mystic_glow_swamp',
+    layout: [
+      '##..EEE..##',
+      '#....E....#',
+      '..ww...C...',
+      '.www....ww.',
+      '.....,..ww.',
+      '.C..www..C.',
+      '.ww..,.....',
+      '.ww....www.',
+      '...C...ww..',
+      '#....P....#',
+      '##..PPP..##',
+    ],
+    seed: 3631,
+  },
+  pvp_mystic_crystal_isles: {
+    id: 'pvp_mystic_crystal_isles',
+    biome: 'mystic',
+    name: 'Crystal Isles (Arena)',
+    nameEs: 'Islas de Cristal (Arena)',
+    pvp: true,
+    mirrorOf: 'mystic_crystal_isles',
+    layout: [
+      '##.E.E.E.##',
+      '#....E....#',
+      '#..C...C..#',
+      '~~~~=~=~~~~',
+      '~~...~...~~',
+      '~~.C.~.C.~~',
+      '~~...~...~~',
+      '~~~~=~=~~~~',
+      '#..C...C..#',
+      '#....P....#',
+      '##.P.P.P.##',
+    ],
+    floating: true,
+    seed: 3632,
+  },
 };
 
 const _parsed = new Map();
@@ -338,8 +474,9 @@ export function getBattleMap(id) {
   return _parsed.get(id);
 }
 
+/** Mapas del bioma para los combates normales (las versiones espejo de la Arena, `pvp: true`, no entran). */
 export function getBattleMapsForBiome(arenaBiome) {
-  return Object.values(BATTLE_MAPS).filter((m) => m.biome === arenaBiome).map((m) => m.id);
+  return Object.values(BATTLE_MAPS).filter((m) => m.biome === arenaBiome && !m.pvp).map((m) => m.id);
 }
 
 const _lastPick = {};

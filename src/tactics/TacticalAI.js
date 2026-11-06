@@ -40,6 +40,11 @@ export class TacticalAI {
       prioritizedHeroes.sort((a, b) => taunts(b) - taunts(a));
     }
 
+    // Objetivo fijado por el combate (guion del tutorial: las quimeras van a por el Sapidae)
+    const forcedId = enemyUnit.config && enemyUnit.config.aiTargetId;
+    const forced = forcedId ? heroes.find((h) => h.id === forcedId) : null;
+    if (forced) prioritizedHeroes.splice(0, prioritizedHeroes.length, forced);
+
     // Miedo: no puede atacar; se aleja todo lo que pueda y termina el turno
     if (statuses && statuses.isFeared(enemyUnit)) {
       for (let i = 0; i < 3 && enemyUnit.currentPM > 0 && !this.turnManager.isCombatOver; i++) {
@@ -93,7 +98,7 @@ export class TacticalAI {
 
     // 5. If enemy still has PA, chain secondary attacks or debuffs!
     while (enemyUnit.currentPA >= 3 && !enemyUnit.isDead && !this.turnManager.isCombatOver) {
-      const aliveHeroes = this.turnManager.units.filter(u => u.team === 'player' && !u.isDead);
+      const aliveHeroes = forced && !forced.isDead ? [forced] : this.turnManager.units.filter(u => u.team === 'player' && !u.isDead);
       if (aliveHeroes.length === 0) break;
       const comboHit = await this._tryAttack(enemyUnit, aliveHeroes);
       if (!comboHit || this.turnManager.isCombatOver) break;

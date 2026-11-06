@@ -126,13 +126,55 @@ export class WanderingMonsters {
   }
 
   /**
+   * Tutorial rápido: el Slime Knight del combate final ronda el claro del Gran Árbol de Atia (id 'tut_boss').
+   * Lleva la configuración del combate (levelConfig → main._startBattle). No reaparece.
+   */
+  async spawnTutorialKnight(spot, levelConfig) {
+    const existing = this.monsters.find((m) => m.id === 'tut_boss');
+    if (existing) { existing.levelConfig = levelConfig; return existing; }
+    this.defeatedIds.delete('tut_boss');
+    this.isCombatEnabled = true;
+    const r = 2.6;
+    const knight = await this.spawnMonster({
+      id: 'tut_boss',
+      name: i18n.t('enemies.arch.treant_flower.name'),
+      badge: 'chimera',
+      tier: 2,
+      modelType: 'treant_flower',
+      x: spot.x,
+      z: spot.z,
+      scale: 1.25,
+      tintColor: null,
+      biome: 'forest',
+      packData: null,
+      patrolPoints: [
+        new THREE.Vector3(spot.x + r, 0, spot.z),
+        new THREE.Vector3(spot.x, 0, spot.z + r),
+        new THREE.Vector3(spot.x - r, 0, spot.z),
+        new THREE.Vector3(spot.x, 0, spot.z - r)
+      ],
+      detectionRadius: 6.0,
+      encounterRadius: 2.0,
+      patrolSpeed: 1.2,
+      chaseSpeed: 3.6
+    });
+    if (!knight) return null;
+    knight.levelConfig = levelConfig;
+    // Sin flecha propia: la del navegador de la misión (TutorialDirector.navTarget) ya lo señala
+    knight.keepAwake = true; // sigue animado aunque esté lejos (antes lo hacía la flecha)
+    this.om?.environmentSystem?.markShadowCastersDirty?.();
+    return knight;
+  }
+
+  /**
    * Cleans up all procedural monsters from the scene when changing zones.
    * Keeps the tutorial slime if present in Dojo.
    */
   clearProceduralMonsters() {
-    const toRemove = this.monsters.filter(m => m.id !== 'slime_garden_1');
+    const keep = (m) => m.id === 'slime_garden_1' || m.id === 'tut_boss';
+    const toRemove = this.monsters.filter(m => !keep(m));
     toRemove.forEach(m => this._disposeMonster(m));
-    this.monsters = this.monsters.filter(m => m.id === 'slime_garden_1');
+    this.monsters = this.monsters.filter(keep);
     this.isEncounterTriggered = false;
   }
 
@@ -1205,7 +1247,7 @@ export class WanderingMonsters {
         distToPlayer = Math.hypot(dx, dz);
         // Hito 106 (rendimiento): un mob que patrulla lejos del jugador se queda quieto (sin animación ni IA);
         // los de misión siguen activos para que su flecha-baliza responda. A media distancia, un fotograma de cada dos.
-        if (m.state === 'PATROL' && !m.questArrow && distToPlayer > farFreeze) return;
+        if (m.state === 'PATROL' && !m.questArrow && !m.keepAwake && distToPlayer > farFreeze) return;
         m._lodThrottled = distToPlayer > nearUpdate;
       }
 

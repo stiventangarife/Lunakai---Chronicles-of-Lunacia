@@ -17,7 +17,7 @@ const TRIAD_LABEL = { assault: i18n.t('combatUi.triadAssault'), bastion: i18n.t(
 /** ¿Hay sistema de Ultimates y una Ultimate para este combate? */
 export function hasUltimate(game) {
   const u = game?.spellManager?.ultimates;
-  return Boolean(u && u.spell && !u.isTutorial);
+  return Boolean(u && u.spell && !u.isTutorial && !game.pvpBattle); // Arena PvP: sin Ultimate
 }
 
 /** Estado visual del botón para la unidad del turno. */
@@ -45,7 +45,9 @@ export function paintUltimate(game, btn, unit = game?.activeUnit) {
   const wrap = btn.closest('.lk-cb-ult-wrap') || btn;
   if (!hasUltimate(game)) { wrap.hidden = true; return; }
   const v = ultimateView(game, unit);
-  wrap.hidden = !unit || unit.team !== 'player';
+  // Solo la lanza el Sapidae: en el turno del Axie principal el botón no aparece
+  const sap = game.spellManager.ultimates.sapidae;
+  wrap.hidden = !unit || !sap || unit !== sap;
   btn.dataset.ult = v.state;
   btn.style.setProperty('--p', v.bond);
   btn.classList.toggle('lk-is-ready', v.state === 'ready');

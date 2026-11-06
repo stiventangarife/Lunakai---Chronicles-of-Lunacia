@@ -92,3 +92,10 @@ export function showZoneBanner(zoneName, badge, ms = 3600, zoneId = null) {
     outTimer = setTimeout(() => root.classList.add('hidden'), 600);
   }, ms);
 }
+
+/** Quita el rótulo al instante y cancela su cuenta atrás (p. ej. la cinemática del prólogo, que cubre la carga inicial del mundo). */
+export function hideZoneBanner() {
+  clearTimeout(timer); clearTimeout(outTimer);
+  const root = (el && el.isConnected) ? el : document.getElementById('lk-zone-banner');
+  if (root) root.classList.add('hidden');
+}

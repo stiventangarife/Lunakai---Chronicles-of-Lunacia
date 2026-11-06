@@ -55,9 +55,9 @@ export default {
   "settings.kJournal": "Diario de misiones",
   "settings.kMap": "Mapa del mundo",
   "settings.kMove": "Moverse",
-  "settings.kOrbit": "Orbitar cámara",
+  "settings.kOrbit": "Mover la cámara",
   "settings.kPause": "Pausa",
-  "settings.kRotate": "Rotar cámara 45°",
+  "settings.kRotate": "Rotar cámara 90°",
   "settings.keepPlaying": "Seguir jugando",
   "settings.keyRmb": "Clic der.",
   "settings.keySpace": "Espacio",
@@ -134,5 +134,10 @@ export default {
   "settings.combatNumbersDesc": "Daño, curas y avisos que flotan sobre las unidades",
   "settings.cnFull": "Todos",
   "settings.cnDamage": "Solo daño",
-  "settings.cnOff": "Ocultos"
+  "settings.cnOff": "Ocultos",
+  "settings.combatCamera": "Cámara de combate",
+  "settings.combatCameraDesc": "A dónde va la cámara al cambiar de turno",
+  "settings.ccFollow": "Cada turno",
+  "settings.ccMine": "Mis unidades",
+  "settings.ccFixed": "Fija"
 };

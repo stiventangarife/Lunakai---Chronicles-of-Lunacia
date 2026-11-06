@@ -108,6 +108,28 @@ Si la entrega trae migraciones nuevas en `supabase/migrations/`, aplícalas **en
 
 Si hay que repetirlas, ejecútalas todas y en este mismo orden (las de catálogo reescriben la lista entera). El regalo de AXS a las partidas existentes se da una sola vez aunque se repita la primera.
 
+## Koliseo y Arena PvP (Hitos 122–123): servidor
+
+**Migraciones, en este orden** (SQL Editor o `npx supabase@latest db push`):
+
+| Hito | Migración |
+|---|---|
+| 122 Desafío de la Bruma | `20261104000001_koliseo_bruma.sql`, `20261105000000_koliseo_rewards.sql` |
+| 123 Arena PvP | `20261106000000_arena_pvp.sql`, `20261106000001_arena_realtime.sql`, `20261107000000_arena_snapshot_visuals.sql`, `20261108000000_arena_arbiter.sql`, `20261109000000_arena_maps.sql`, `20261110000000_arena_stats.sql` |
+
+**Árbitro de la Arena** (Edge Function `pvp-arbiter`): una sola vez, secreto `PVP_ARBITER_KEY`, extensiones pg_net y pg_cron, fila de `pvp_arbiter_config` y tarea programada. Paso a paso con PowerShell: `docs/PLAN_ARENA_PVP.md`, sección 15. Sin CLI instalado: `npx supabase@latest …` (entrar con `login` o con un token en `$env:SUPABASE_ACCESS_TOKEN`).
+
+**Cada vez que cambien las reglas del combate** (cartas, estados, daño, mapas o equipos de la Arena), volver a copiar el motor y desplegar el árbitro, mejor sin partidas en curso:
+```powershell
+node tools/pvp/arbiter/build.mjs
+npx supabase@latest functions deploy pvp-arbiter --no-verify-jwt --use-api
+```
+`node tools/pvp/arbiter/build.mjs --check` avisa si la copia del árbitro no es la del juego actual.
+
+**Al subir el juego:** solo hace falta `src/` si solo cambió código. `supabase/`, `tools/` y `docs/` no van al hosting. Purga la CDN y pide a quien tenga el juego abierto que recargue: en la Arena los dos jugadores deben tener la misma versión (si no, la partida va al árbitro).
+
+**Estadísticas de la Arena** (solo el equipo): `select jsonb_pretty(public.pvp_stats(30));` en el SQL Editor. Resumen y mantenimiento: `docs/HITO_123_ARENA_PVP.md`.
+
 ## Actualizar el juego ya publicado: versión de los assets (Hito 109)
 
 Los modelos, la música y los efectos se guardan **un año** en el navegador de cada jugador sin volver a preguntar al servidor (`.htaccess`, `_headers`, `netlify.toml`, `vercel.json`). Por eso, si reemplazas un archivo de `assets/` conservando su nombre, quien ya jugó seguiría viendo o escuchando el viejo.

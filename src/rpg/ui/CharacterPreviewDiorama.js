@@ -5,6 +5,10 @@ import { SapidaeModularController } from '../SapidaeModularController.js';
 import { axieMixerService } from '../AxieMixerService.js';
 import { applyToonOutline } from '../stylized/ToonOutline.js';
 import { sapidaeModelUrl } from '../SapidaeModels.js';
+import { disposeAxieWeapons } from '../WeaponVisuals.js';
+import { releaseClone } from '../../render/ReleaseGltf.js';
+import { cloneGLTF, holdGLTF, unholdGLTF } from '../../render/ModelCache.js';
+import { perfMark } from '../../debug/PerfProbe.js';
 
 export class CharacterPreviewDiorama {
   constructor(containerEl) {
@@ -194,18 +198,26 @@ export class CharacterPreviewDiorama {
     const token = (this._loadToken = (this._loadToken || 0) + 1);
 
     // Clear old model from group
-    if (this.currentModel) {
-      this.characterGroup.remove(this.currentModel);
-      this.currentModel = null;
-    }
     if (this.mixer) {
       this.mixer.stopAllAction();
+      try { if (this.currentModel) this.mixer.uncacheRoot(this.currentModel); } catch (_) { /* opcional */ }
       this.mixer = null;
     }
+    // Hito 113 (memoria): el Sapidae anterior se libera de verdad (antes solo se quitaba del grupo y cada cambio
+    // Ema ↔ Kai dejaba ~150 MB de imágenes decodificadas en el navegador hasta que el recolector decidía)
+    if (this.currentModel) this._releaseCurrentSapidae();
 
     try {
-      const gltf = await this.loader.loadAsync(sapidaeModelUrl(modelName));
-      if (token !== this._loadToken) return; // ya se pidió otro modelo: este no se usa
+      // Hito 113 (memoria): la copia sale de ModelCache, la misma caché del mundo y del combate. Las imágenes del GLB
+      // (~150–165 MB decodificadas) existen una sola vez y las comparten el mundo, el visor de la Mochila y el creador;
+      // antes cada diorama cargaba y decodificaba su propio GLB. Geometría propia (aquí se quitan los colores de vértice).
+      // Se reserva ANTES de pedirla: mientras este diorama use la copia, evictGLTF no puede cerrar las imágenes compartidas
+      const url = sapidaeModelUrl(modelName);
+      holdGLTF(url);
+      let gltf;
+      try { gltf = await cloneGLTF(url, { cloneGeometry: true }); } catch (e) { unholdGLTF(url); throw e; }
+      gltf.__lkPath = url;
+      if (token !== this._loadToken) { unholdGLTF(url); releaseClone(gltf); return; } // ya se pidió otro modelo: este no se usa
       const model = gltf.scene;
 
       // 1. Create a discrete cartoon ramp gradient map for MeshToonMaterial (3-step cel-shading matching Axie)
@@ -285,9 +297,10 @@ export class CharacterPreviewDiorama {
       model.position.set(0, 0, 0);
 
       // Por si acaso: nunca más de un Sapidae en el diorama
-      if (this.currentModel && this.currentModel !== model) this.characterGroup.remove(this.currentModel);
+      if (this.currentModel && this.currentModel !== model) this._releaseCurrentSapidae();
       if (this.mixer) { this.mixer.stopAllAction(); this.mixer = null; }
       this.currentModel = model;
+      this._currentGltf = gltf;
       this.characterGroup.add(model);
 
       // Play Idle Animation
@@ -341,8 +354,34 @@ export class CharacterPreviewDiorama {
   /**
    * Loads or swaps companion Axie beside the Sapidae hero
    */
+  /**
+   * Hito 113 — Devuelve un compañero a la librería del mixer. Antes loadCompanion solo lo sacaba del grupo: la librería
+   * guarda cada Axie que crea hasta que se le llama a dispose() (lo dice Unit.dispose), así que cada cambio de compañero
+   * en el selector dejaba un Axie entero en memoria (~110 MB; 20 cambios entre los dos iniciales llevaron el heap de
+   * ~0,6 a ~2,9 GB). Mismo orden que Unit.dispose: armas, dispose() del Axie y esqueletos.
+   */
+  _disposeCompanion(comp = this.currentCompanion) {
+    if (!comp) return;
+    const root = comp.wrapper || comp.model || null;
+    try {
+      const skels = new Set();
+      if (root) root.traverse((o) => { if (o.isSkinnedMesh && o.skeleton) skels.add(o.skeleton); });
+      if (root) disposeAxieWeapons(root);
+      if (comp.axie) comp.axie.__lkDisposed = true; // AxieMixerService.loadAxieHero lo mira antes de hacer el retrato
+      if (comp.axie && typeof comp.axie.dispose === 'function') comp.axie.dispose();
+      skels.forEach((s) => { try { s.dispose(); } catch (_) { /* opcional */ } });
+    } catch (e) {
+      console.warn('[CharacterPreviewDiorama] No se pudo liberar el compañero:', e);
+    }
+    if (root && root.parent) root.parent.remove(root);
+    if (comp === this.currentCompanion) this.currentCompanion = null;
+  }
+
   async loadCompanion(axieId = '10455', genes = null) {
-    // Clear previous companion
+    // Cada petición lleva su número: con cambios rápidos, solo vale la última (las demás se liberan al llegar)
+    const token = (this._companionToken = (this._companionToken || 0) + 1);
+    // Retira y libera el compañero anterior
+    this._disposeCompanion();
     while (this.companionGroup.children.length > 0) {
       this.companionGroup.remove(this.companionGroup.children[0]);
     }
@@ -355,6 +394,9 @@ export class CharacterPreviewDiorama {
         renderer: this.renderer,
         scene: this.scene
       });
+
+      // Se pidió otro compañero (o se cerró el visor) mientras este cargaba: ya no hace falta
+      if (token !== this._companionToken || !this.renderer) { this._disposeCompanion(res); return; }
 
       const companionObj = res?.wrapper || res?.model;
       if (res && companionObj) {
@@ -515,8 +557,34 @@ export class CharacterPreviewDiorama {
     return dataUrl;
   }
 
+  /**
+   * Hito 113 (memoria): quita del visor el Sapidae mostrado y lo libera (GPU e imágenes decodificadas). Cancela antes sus
+   * repintados pendientes (leen las imágenes originales, que se cierran aquí) y su contorno.
+   */
+  _releaseCurrentSapidae() {
+    const model = this.currentModel;
+    const gltf = this._currentGltf;
+    this.currentModel = null;
+    this._currentGltf = null;
+    this.activeAction = null;
+    if (this.toonOutline) { try { this.toonOutline.dispose(); } catch (_) { /* opcional */ } this.toonOutline = null; }
+    if (model) {
+      if (model.parent) model.parent.remove(model);
+      const timers = model.userData && model.userData._deferTimers;
+      if (timers) Object.values(timers).forEach((t) => { if (t) clearTimeout(t); });
+    }
+    if (gltf && gltf.__lkPath) { unholdGLTF(gltf.__lkPath); gltf.__lkPath = null; }
+    const st = releaseClone(gltf); // solo lo propio de la copia: las texturas e imágenes son de la caché y las usa también el mundo
+    if (st) perfMark(`memoria: copia del Sapidae liberada (${st.geometrias} geometrías, ${st.esqueletos} esqueletos)`);
+  }
+
   dispose() {
     this.stop();
+    this._companionToken = (this._companionToken || 0) + 1; // una carga en curso se libera al llegar
+    this._disposeCompanion();
+    this._releaseCurrentSapidae();
+    // Hito 113 (memoria): cada diorama tiene su propio controlador de teñido y sus cachés (~120 MB en el creador)
+    try { this.modularController?.releaseCaches?.(); } catch (_) { /* opcional */ }
 
     if (this.toonOutline) {
       this.toonOutline.dispose();
@@ -543,6 +611,9 @@ export class CharacterPreviewDiorama {
 
     if (this.renderer) {
       this.renderer.dispose();
+      // Hito 135: cerrar el contexto WebGL ya. Sin esto queda vivo hasta que el navegador lo recoge y, tras unas cuantas
+      // aperturas del creador / visor, Chrome supera su límite (~16) y cierra el MÁS ANTIGUO: el del juego (pantalla negra).
+      try { this.renderer.forceContextLoss(); } catch (_) { /* opcional */ }
       this.renderer = null;
     }
   }

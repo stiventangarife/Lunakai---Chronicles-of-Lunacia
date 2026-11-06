@@ -1,6 +1,7 @@
 # Hito 25: Cuentas (Sign in with Sky Mavis + correo) y guardado en la nube
 
 > **Estado:** código listo y probado. Falta la configuración (Supabase + Ronin Developer Console), que hace el dueño del proyecto.
+> **Actualización (Hito 115, 2-nov-2026):** el botón «Entrar con correo» se quitó de la pantalla de inicio; solo quedan Sky Mavis e invitado. El código del formulario y del código por correo sigue en `StartScreenUI` y `AuthService`, sin forma de abrirlo.
 > **Requisito cubierto:** *Accounts and onboarding* de la Ronda 2 de la Vibeathon.
 
 ## 1. Qué se construyó

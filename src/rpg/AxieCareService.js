@@ -162,6 +162,11 @@ export class AxieCareService {
   }
 
   // ------------------------------------------------ bajada del vínculo
+  /** Durante el tutorial el vínculo no baja por tiempo: la Ultimate del combate final necesita el 100 %. */
+  _bondLocked() {
+    try { return Boolean(typeof window !== 'undefined' && window.lunakaiTutorial?.director?.bondLocked); } catch { return false; }
+  }
+
   /**
    * Al cargar la partida: −5 % por día que pasó desde la última vez que se jugó (proporcional).
    * Empieza también la cuenta de tiempo de juego. Devuelve el % perdido.
@@ -170,7 +175,7 @@ export class AxieCareService {
     const st = this._state();
     const now = this.now();
     let lost = 0;
-    if (typeof st.lastSeenAt === 'number' && now > st.lastSeenAt) {
+    if (typeof st.lastSeenAt === 'number' && now > st.lastSeenAt && !this._bondLocked()) {
       const loss = Math.round(((now - st.lastSeenAt) / DAY_MS) * OFFLINE_DECAY_PER_DAY * 10) / 10;
       if (loss > 0) {
         const r = this.bond.lose(heroId, loss);
@@ -199,7 +204,7 @@ export class AxieCareService {
     let lost = 0;
     while (this._playMs >= DECAY_STEP_MS) {
       this._playMs -= DECAY_STEP_MS;
-      if (now - (st.careAt[heroId] || 0) >= DECAY_STEP_MS) {
+      if (now - (st.careAt[heroId] || 0) >= DECAY_STEP_MS && !this._bondLocked()) {
         const r = this.bond.lose(heroId, DECAY_BOND);
         lost += r.lost;
         if (r.lost > 0) this._emit({ ok: true, kind: 'decay', heroId, before: r.before, after: r.after, gained: -r.lost });

@@ -294,7 +294,7 @@ export class SquadHUD {
         </div>`;
 
       return `<button type="button" class="lk-party-med ${isMain ? 'lk-is-main' : ''}" data-hero-id="${heroId}" aria-label="${i18n.t('squadHud.medAria', { name: esc(base.name), lv: prog.level, hp: currHP, max: stats.maxHP })}">
-          <span class="lk-pm-frame"><img class="squad-avatar-img" src="${portraitUrl || ''}" alt="" style="${portraitUrl ? '' : 'display:none'}">${ring}<span class="lk-pm-lv">${prog.level}</span></span>
+          <span class="lk-pm-frame"><img class="squad-avatar-img${isSapidaeHero ? '' : ' lk-pm-axie'}" src="${portraitUrl || ''}" alt="" style="${portraitUrl ? '' : 'display:none'}">${ring}<span class="lk-pm-lv">${prog.level}</span></span>
           <span class="lk-pm-hp ${hpPct <= 30 ? 'lk-is-low' : ''}"><i style="width:${hpPct}%"></i></span>
         </button>`;
     }).join('');

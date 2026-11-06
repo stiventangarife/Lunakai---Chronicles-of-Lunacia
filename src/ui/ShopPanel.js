@@ -79,11 +79,13 @@ export function attachShop(game) {
         <h3><small data-ref="place">${i18n.t('shop.shop')}</small><span data-ref="name">${i18n.t('shop.merchant')}</span></h3>
         <div class="lk-segmented" data-ref="mode" role="tablist" aria-label="${i18n.t('shop.modeLabel')}"><button type="button" aria-pressed="true" data-m="buy">${i18n.t('shop.buy')}</button><button type="button" aria-pressed="false" data-m="sell">${i18n.t('shop.sell')}</button><button type="button" aria-pressed="false" data-m="market">${i18n.t('market.mode')}</button></div>
         <div class="lk-wallet" aria-label="${i18n.t('shop.coins')}"><span class="lk-res-pill" title="${i18n.t('shop.gold')}"><img class="lk-cur-ico" src="${curIcon('gold')}" alt="${i18n.t('shop.gold')}"><span data-ref="gold">0</span></span><span class="lk-res-pill lk-cur" title="${i18n.t('shop.slpTitle')}"><img class="lk-cur-ico" src="${curIcon('slp')}" alt="SLP"><span data-ref="slp">0</span></span><span class="lk-res-pill lk-cur" title="${i18n.t('shop.axsTitle')}"><img class="lk-cur-ico" src="${curIcon('axs')}" alt="AXS"><span data-ref="axs">0</span></span><span class="lk-res-pill lk-cur" title="${i18n.t('shop.baxsTitle')}"><img class="lk-cur-ico" src="${curIcon('baxs')}" alt="bAXS"><span data-ref="baxs">0</span></span></div>
+        <button type="button" class="lk-btn-close-x lk-cdx-help" data-codex="economy" aria-label="${i18n.t('codex.help')}" title="${i18n.t('codex.help')}">?</button>
         <button type="button" class="lk-btn-close-x" data-act="close" aria-label="${i18n.t('shop.close')}">${sprite('i-close')}</button>
       </div>
       <div class="lk-shop-body">
         <div class="lk-shop-main">
           <div class="lk-shop-bar"><div class="lk-codex__filters" data-ref="tabs"></div><span class="lk-shop-restock" data-ref="restock"></span></div>
+          <div class="lk-shop-guide" data-ref="guide" hidden></div>
           <div class="lk-shop-grid" data-ref="grid"></div>
           <div class="lk-shop-buyback" data-ref="buyback" hidden></div>
         </div>
@@ -93,12 +95,12 @@ export function attachShop(game) {
   document.body.appendChild(modal);
   if (!document.getElementById('lk-market-css')) { // Hito 77: el precio editable del Mercado, con el mismo aspecto que la cantidad
     const st = document.createElement('style'); st.id = 'lk-market-css';
-    st.textContent = '.lk-sp-qty .lk-step .lk-mk-price{width:64px;height:34px;border:0;background:none;text-align:center;font:900 .95rem var(--lk-font-ui);color:var(--lk-ivory-50);font-variant-numeric:tabular-nums;-moz-appearance:textfield;appearance:textfield}.lk-mk-price::-webkit-inner-spin-button,.lk-mk-price::-webkit-outer-spin-button{-webkit-appearance:none;margin:0}.lk-mk-price:focus-visible{outline:2px solid var(--lk-gilt-300);border-radius:8px}.lk-mk-sep{width:1px;height:18px;background:rgba(211,174,108,.3);margin:0 2px}';
+    st.textContent = '.lk-shop-guide[hidden]{display:none}.lk-shop-guide{display:flex;align-items:center;gap:10px;margin:0;padding:8px 12px;border-radius:12px;border:1px solid rgba(232,196,120,.55);background:linear-gradient(90deg,rgba(120,84,30,.45),rgba(40,30,18,.35));color:var(--lk-ivory-50);font:700 .86rem var(--lk-font-ui)}.lk-shop-guide img{width:34px;height:34px;border-radius:50%;flex:none;object-fit:cover;object-position:50% 12%;background:rgba(0,0,0,.25);border:1px solid rgba(232,196,120,.6)}.lk-shop-guide span{flex:1}.lk-shop-guide .lk-btn{flex:none;padding:6px 12px;font-size:.8rem}.lk-it.lk-is-guide{box-shadow:0 0 0 2px var(--lk-gilt-300),0 0 14px 3px rgba(240,200,110,.55);animation:lkGuidePulse 1.4s ease-in-out infinite}@keyframes lkGuidePulse{50%{box-shadow:0 0 0 3px var(--lk-gilt-300),0 0 22px 6px rgba(240,200,110,.75)}}@media (prefers-reduced-motion: reduce){.lk-it.lk-is-guide{animation:none}}' + '.lk-sp-qty .lk-step .lk-mk-price{width:64px;height:34px;border:0;background:none;text-align:center;font:900 .95rem var(--lk-font-ui);color:var(--lk-ivory-50);font-variant-numeric:tabular-nums;-moz-appearance:textfield;appearance:textfield}.lk-mk-price::-webkit-inner-spin-button,.lk-mk-price::-webkit-outer-spin-button{-webkit-appearance:none;margin:0}.lk-mk-price:focus-visible{outline:2px solid var(--lk-gilt-300);border-radius:8px}.lk-mk-sep{width:1px;height:18px;background:rgba(211,174,108,.3);margin:0 2px}';
     document.head.appendChild(st);
   }
   const $ = (r) => modal.querySelector(`[data-ref="${r}"]`);
 
-  const SH = { shop: 'dojo_valley', mode: 'buy', tab: 'all', sel: null, qty: 1 };
+  const SH = { shop: 'dojo_valley', mode: 'buy', tab: 'all', sel: null, qty: 1, guide: null }; // guide (Hito 124): { focus, note(), action }
   const MK = { tab: 'browse', cat: 'all', tier: 0, confirm: null, loaded: false, loading: false, browse: [], mine: [], history: [], blocked: false, price: {}, hints: {} };
   const api = { isOpen: false, open, close, service: ShopService };
 
@@ -119,6 +121,7 @@ export function attachShop(game) {
     const dec = (v) => (Math.round((Number(v) || 0) * 100) / 100).toLocaleString(i18n.lang() === 'es' ? 'es' : 'en', { maximumFractionDigits: 2 });
     $('slp').textContent = fmt(w.slp); $('axs').textContent = dec(w.axs); $('baxs').textContent = dec(w.baxs);
     $('mode').querySelectorAll('button').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.m === SH.mode)));
+    renderGuide();
     if (SH.mode === 'market') { renderMarket(); return; }
     const all = entries();
     $('tabs').innerHTML = TABS[SH.mode].map(([k, n]) => { const c = k === 'all' ? all.length : all.filter((e) => kindOf(e.it) === k).length; return c || k === 'all' ? `<button type="button" class="lk-fchip lk-no-ico" data-k="${k}" aria-pressed="${SH.tab === k}">${n} <span style="opacity:.55">${c}</span></button>` : ''; }).join('');
@@ -133,7 +136,8 @@ export function attachShop(game) {
       const out = buy && e.left === 0, poor = buy && !out && e.price > gold, locked = !buy && e.locked;
       const qty = buy ? ShopService.have(e.id) : e.qty;
       const cap = locked ? (EQ_SLOTS.includes(it.slot) ? i18n.t('shop.wontBuy') : i18n.t('shop.notForSale')) : `${COIN}${fmt(e.price)}`;
-      return `<button type="button" class="lk-it ${e.key === SH.sel ? 'lk-is-sel' : ''} ${out ? 'lk-is-out' : ''} ${poor ? 'lk-is-poor' : ''} ${locked ? 'lk-is-locked' : ''}" data-k="${esc(e.key)}" style="--r:${bg(it)}" aria-label="${esc(it.name)}${qty > 1 ? ` ×${qty}` : ''}"><span class="lk-art">${art(it)}${EQ_SLOTS.includes(it.slot) && it.tier != null ? `<span class="lk-tier">T${it.tier}</span>` : ''}${qty > 1 ? `<span class="lk-qty">×${qty}</span>` : ''}${isNftGear(it) ? nftSeal(i18n.t('market.nftHint')) : ''}</span><span class="lk-cap ${locked ? '' : 'lk-price'}">${cap}</span></button>`;
+      const guide = buy && SH.guide?.focus === e.id && SH.guide.note?.() != null && !SH.guide.done?.();
+      return `<button type="button" class="lk-it ${e.key === SH.sel ? 'lk-is-sel' : ''} ${guide ? 'lk-is-guide' : ''} ${out ? 'lk-is-out' : ''} ${poor ? 'lk-is-poor' : ''} ${locked ? 'lk-is-locked' : ''}" data-k="${esc(e.key)}" style="--r:${bg(it)}" aria-label="${esc(it.name)}${qty > 1 ? ` ×${qty}` : ''}"><span class="lk-art">${art(it)}${EQ_SLOTS.includes(it.slot) && it.tier != null ? `<span class="lk-tier">T${it.tier}</span>` : ''}${qty > 1 ? `<span class="lk-qty">×${qty}</span>` : ''}${isNftGear(it) ? nftSeal(i18n.t('market.nftHint')) : ''}</span><span class="lk-cap ${locked ? '' : 'lk-price'}">${cap}</span></button>`;
     }).join('') || `<p class="lk-sp-empty" style="color:#8D97AF">${SH.mode === 'sell' ? i18n.t('shop.nothingToSell') : i18n.t('shop.nothingHere')}</p>`;
     renderBuyback();
     renderPage(list.find((e) => e.key === SH.sel));
@@ -194,6 +198,19 @@ export function attachShop(game) {
     btn.addEventListener('pointerdown', (ev) => { if (btn.disabled) return; ev.preventDefault(); t0 = performance.now(); raf = requestAnimationFrame(step); });
     ['pointerup', 'pointerleave', 'pointercancel'].forEach((n) => btn.addEventListener(n, stop));
     btn.addEventListener('keydown', (ev) => { if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); done(); } });
+  }
+
+  /** Hito 124: franja de misión encima de la rejilla (la usa la misión de Ochi). Se oculta cuando note() devuelve null. */
+  function renderGuide() {
+    const el = $('guide'), g = SH.guide, txt = g?.note?.();
+    // La columna es una rejilla «barra · objetos (elástica) · recompra»: con la franja visible hay una fila más
+    const show = !!g && txt != null && SH.mode !== 'market';
+    el.parentElement.style.gridTemplateRows = show ? 'auto auto minmax(0,1fr) auto' : '';
+    if (!show) { el.hidden = true; el.innerHTML = ''; return; }
+    el.hidden = false;
+    const act = g.action?.();
+    el.innerHTML = `${g.avatar ? `<img src="${esc(g.avatar)}" alt="">` : ''}<span>${esc(txt)}</span>${act ? `<button type="button" class="lk-btn lk-btn-primary-gold" data-act="guide">${esc(act.label)}</button>` : ''}`;
+    el.querySelector('[data-act="guide"]')?.addEventListener('click', () => { close(); act.run(); });
   }
 
   async function doShop(e) {
@@ -461,13 +478,16 @@ export function attachShop(game) {
     ow.isAnyModalOpen = () => api.isOpen || prev();
   }
 
-  function open(shopId = 'dojo_valley') {
+  /** opts.guide (Hito 124): { focus: id del objeto a resaltar y seleccionar, note: () => texto|null, action: () => { label, run }|null, avatar } */
+  function open(shopId = 'dojo_valley', opts = {}) {
     if (document.body.classList.contains('state-combat') || window.__AXIE_TACTICS_APP__?.gameState === 'BATTLE') return;
     if (!ShopService.def(shopId)) return;
     const lock = ow.tutorialManager?.lockMessage?.('shop'); // Hito 48
     if (lock && !api.isOpen) { ow._showFeatureLockedFeedback?.(lock); return; }
     if (SH.shop !== shopId) { SH.shop = shopId; SH.sel = null; }
     SH.mode = 'buy'; SH.tab = 'all'; SH.qty = 1;
+    SH.guide = opts.guide || null;
+    if (SH.guide?.focus) { SH.tab = 'gear'; SH.sel = SH.guide.focus; }
     if (!api.isOpen) {
       api.isOpen = true;
       ow.npcManager?.hideAllOverlays?.();

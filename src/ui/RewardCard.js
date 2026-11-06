@@ -1,5 +1,5 @@
 // RewardCard.js — Tarjeta «Recompensa» (título, iconos con cantidad y una nota). Se cierra con clic, Espacio, Intro,
-// Escape o E, o sola a los 6 s. La usan el tutorial y abrir bolsas de runa o de charm (Hito 54).
+// Escape o E, o sola a los 6 s (autoCloseMs; 0 = espera al jugador). La usan el tutorial y abrir bolsas de runa o de charm (Hito 54).
 
 import * as i18n from '../i18n/i18n.js';
 
@@ -7,10 +7,10 @@ const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '
 const RC = { common: '#3a4a6e', rare: '#2a5a8a', epic: '#5a2a8a', mystic: '#8a6a1a' };
 
 /**
- * @param {{ title: string, items?: {icon?:string, name:string, qty?:number, rarity?:string}[], note?: string, audio?: object }} o
+ * @param {{ title: string, items?: {icon?:string, name:string, qty?:number, rarity?:string}[], note?: string, audio?: object, autoCloseMs?: number }} o
  * @returns {Promise<void>} cuando se cierra
  */
-export function showRewardCard({ title, items = [], note = '', audio = null }) {
+export function showRewardCard({ title, items = [], note = '', audio = null, autoCloseMs = 6000 }) {
   return new Promise((resolve) => {
     const el = document.createElement('div');
     el.className = 'lk-ui lk-reward';
@@ -33,6 +33,6 @@ export function showRewardCard({ title, items = [], note = '', audio = null }) {
     const onKey = (e) => { if (['Space', 'Enter', 'Escape', 'KeyE'].includes(e.code)) { e.preventDefault(); e.stopImmediatePropagation(); close(); } };
     setTimeout(() => window.addEventListener('keydown', onKey, true), 350);
     el.addEventListener('click', close);
-    setTimeout(close, 6000);
+    if (autoCloseMs > 0) setTimeout(close, autoCloseMs);
   });
 }

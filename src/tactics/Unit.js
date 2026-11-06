@@ -10,6 +10,7 @@ import * as i18n from '../i18n/i18n.js';
 import { cloneGLTF } from '../render/ModelCache.js'; // caché de GLB compartida con el mundo abierto
 import { access, PALETTES } from '../ui/AccessPrefs.js';
 import { TILE_SIZE } from './GridManager.js';
+import { absorbDamage, refillTurn, walkPath, pushSteps, initUnitStats } from './combat/UnitRules.js'; // Arena PvP P0: reglas compartidas con LogicUnit
 
 // Hito 94: los enemigos caben en su casilla. Distancia horizontal de los vértices al origen del modelo (el centro de la
 // casilla), a escala 1; se mide una vez por GLB. Al ser un radio vale para cualquier dirección a la que mire.
@@ -53,46 +54,34 @@ function cloneMaterialFast(mat) {
 }
 
 
+// Efecto de muerte (esfera blanca y estallido): geometrías y materiales compartidos y reutilizados. Antes cada muerte
+// creaba 19–27 materiales nuevos y los destruía al acabar, y el primer KO de cada combate compilaba sus shaders
+// (tirón). Ahora se crean una vez, se precalientan detrás del velo (Unit.deathFxWarmGroup) y se devuelven a un pool.
+const DEATH_FX = { core: null, coreBig: null, coreMat: null, partGeo: null, sets: [] };
+function deathFx() {
+  if (!DEATH_FX.coreMat) {
+    DEATH_FX.core = new THREE.SphereGeometry(0.65, 20, 20);
+    DEATH_FX.coreBig = new THREE.SphereGeometry(0.85, 20, 20);
+    DEATH_FX.coreMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
+    DEATH_FX.partGeo = new THREE.SphereGeometry(0.14, 12, 12);
+  }
+  return DEATH_FX;
+}
+function acquireDeathParticleMats(n) {
+  const set = DEATH_FX.sets.pop() || [];
+  while (set.length < n) set.push(new THREE.MeshBasicMaterial({ color: set.length % 3 === 0 ? 0xfffbeb : 0xffffff, transparent: true, opacity: 1.0 }));
+  for (const m of set) m.opacity = 1.0;
+  return set;
+}
+function releaseDeathParticleMats(set) { if (set && DEATH_FX.sets.length < 6) DEATH_FX.sets.push(set); }
+
 export class Unit {
   constructor(config, gridManager, sceneManager, audio) {
-    this.config = config;
-    this.id = config.id;
-    this.name = config.name;
-    this.archetype = config.archetype || null;
-    this.type = config.type;
-    this.team = config.team;
+    // Estadísticas y estado de combate: los mismos que la unidad lógica del motor sin gráficos (combat/UnitRules.js)
+    initUnitStats(this, config);
     this.gridManager = gridManager;
     this.sceneManager = sceneManager;
     this.audio = audio;
-
-    this.maxHP = config.maxHP || 300;
-    // Vida persistente (18-oct): los héroes entran al combate con la vida que tenían en el mundo abierto
-    this.currentHP = (typeof config.currentHP === 'number' && !isNaN(config.currentHP))
-      ? Math.max(1, Math.min(this.maxHP, Math.round(config.currentHP)))
-      : this.maxHP;
-    this.shield = config.initialShield || 0;
-    this.bonusDamage = config.bonusDamage || 0;
-    this.bonusMeleeDamage = config.bonusMeleeDamage || 0;
-    this.bonusRangedDamage = config.bonusRangedDamage || 0;
-    this.bonusMagicDamage = config.bonusMagicDamage || 0;
-    this.collisionBonus = config.collisionBonus || 0;
-    this.critRate = config.critRate || 0;
-    this.supportPower = config.supportPower || 0;
-    this.skillLevels = config.skillLevels || {};
-    this.maxPA = config.maxPA || 6;
-    this.currentPA = this.maxPA;
-    this.maxPM = config.maxPM || 3;
-    this.currentPM = this.maxPM;
-    this.initiative = config.initiative || 100;
-
-    this.spellIds = config.spellIds || [];
-    this.buffs = [];
-    this.statuses = []; // estados alterados (StatusSystem)
-    // Clase de Axie de la unidad ('Beast', 'Plant', 'Mech'…). La usarán el triángulo elemental y la Ultimate.
-    this.axieClass = config.axieClass || null;
-
-    this.gridX = config.x || 0;
-    this.gridZ = config.z || 0;
 
     this.group = new THREE.Group();
     this.mesh = null;
@@ -101,10 +90,6 @@ export class Unit {
     this.idleClip = null;
     this.runClip = null;
     this.attackClip = null;
-
-    this.isDead = false;
-    this.isMoving = false;
-    this.isActiveTurn = false;
 
     this._flashTimeouts = [];
     this._shakeInterval = null;
@@ -128,6 +113,24 @@ export class Unit {
 
   /** Animación del Axie: la de su arma si la lleva ('Sword.Run') o la normal ('Default.Run'). */
   clip(base) { return this.weaponFamily ? `${this.weaponFamily}.${base}` : `Default.${base}`; }
+
+  /**
+   * Mallas del efecto de muerte para precalentar sus shaders detrás del velo (main._prewarmBattle las añade a la
+   * escena, fuera de la vista, y las quita después del fotograma completo).
+   */
+  static deathFxWarmGroup() {
+    const fx = deathFx();
+    const g = new THREE.Group();
+    g.name = 'death_fx_warmup';
+    const set = acquireDeathParticleMats(1);
+    // + MeshBasic transparente a dos caras: la variante del anillo de impacto (choques del empuje) y del
+    // remate cinemático (pilar y anillos), que antes se compilaba al lanzar la Ultimate
+    const twoSided = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.9, side: THREE.DoubleSide });
+    g.add(new THREE.Mesh(fx.core, fx.coreMat), new THREE.Mesh(fx.partGeo, set[0]), new THREE.Mesh(fx.partGeo, twoSided));
+    g.position.set(0, -60, 0);
+    g.userData.release = () => { releaseDeathParticleMats(set); twoSided.dispose(); };
+    return g;
+  }
 
   getSkillLevel(spellId) {
     return (this.skillLevels && this.skillLevels[spellId]) || 1;
@@ -703,21 +706,7 @@ export class Unit {
   startTurn() {
     this.clearDamageFlash();
     this.setActiveTurn(true);
-    this.currentPA = this.maxPA;
-    this.currentPM = this.maxPM;
-
-    for (let i = this.buffs.length - 1; i >= 0; i--) {
-      const b = this.buffs[i];
-      if (b.type === 'bonusPA') {
-        this.currentPA += b.value;
-      } else if (b.type === 'minusPM') {
-        this.currentPM = Math.max(0, this.currentPM - b.value);
-      }
-      b.duration--;
-      if (b.duration <= 0) {
-        this.buffs.splice(i, 1);
-      }
-    }
+    refillTurn(this);
 
     this.updateHUD();
     this.audio.playTurnStart(this.team === 'player');
@@ -750,57 +739,12 @@ export class Unit {
       if (this.idleClip) this.idleClip.fadeOut(0.12);
     }
 
-    // 1. Clear origin tile reference immediately
-    const originTile = this.gridManager.getTile(this.gridX, this.gridZ);
-    if (originTile && originTile.unit === this) originTile.unit = null;
-
-    for (let i = 1; i < path.length; i++) {
-      const nextStep = path[i];
-      const isFinalStep = (i === path.length - 1);
-
-      // Strict Obstacle Guard: Never step into an obstacle or non-walkable tile
-      const stepTile = this.gridManager.getTile(nextStep.x, nextStep.z);
-      if (!stepTile || !stepTile.walkable || stepTile.obstacle) {
-        console.warn(`[Unit.moveAlongPath] Blocked illegal step onto obstacle/unwalkable cell (${nextStep.x}, ${nextStep.z}) by "${this.name}". Halting movement.`);
-        break;
-      }
-      // Fase 5: nunca terminar (ni detenerse) encima de otra unidad viva; se puede cruzar a un aliado, no quedarse
-      const occupant = stepTile.unit && stepTile.unit !== this && !stepTile.unit.isDead ? stepTile.unit : null;
-      if (occupant && (isFinalStep || occupant.team !== this.team)) {
-        console.warn(`[Unit.moveAlongPath] (${nextStep.x}, ${nextStep.z}) ocupada por "${occupant.name}": "${this.name}" se detiene antes.`);
-        break;
-      }
-
-      await this._slideOrHopToCell(nextStep.x, nextStep.z);
-
-      this.gridX = nextStep.x;
-      this.gridZ = nextStep.z;
-      this.currentPM = Math.max(0, this.currentPM - 1);
-      this.updateHUD();
-
-      // Only assign tile.unit if this is the final destination,
-      // never overwrite an ally standing on an intermediate pass-through cell!
-      if (isFinalStep) {
-        const destTile = this.gridManager.getTile(nextStep.x, nextStep.z);
-        if (destTile) destTile.unit = this;
-      }
-    }
-
-    // Ensure final tile has unit registered (sin pisar a otra unidad viva si el movimiento se detuvo sobre un aliado)
-    let finalTile = this.gridManager.getTile(this.gridX, this.gridZ);
-    if (finalTile && finalTile.unit && finalTile.unit !== this && !finalTile.unit.isDead) {
-      // retrocede por el camino hasta la última casilla libre
-      for (let k = path.length - 1; k >= 0; k--) {
-        const t = this.gridManager.getTile(path[k].x, path[k].z);
-        if (t && (!t.unit || t.unit === this || t.unit.isDead) && t.walkable !== false && !t.obstacle) {
-          this.gridX = path[k].x; this.gridZ = path[k].z;
-          { const wp = this.gridManager.gridToWorld(this.gridX, this.gridZ); if (this.group?.position) { this.group.position.x = wp.x; this.group.position.z = wp.z; } }
-          finalTile = t;
-          break;
-        }
-      }
-    }
-    if (finalTile && (!finalTile.unit || finalTile.unit.isDead || finalTile.unit === this)) finalTile.unit = this;
+    // Pasos, PM y casillas: combat/UnitRules.walkPath (lo mismo que en el motor sin gráficos); aquí, la animación
+    await walkPath(this, path, {
+      step: (x, z) => this._slideOrHopToCell(x, z),
+      afterStep: () => this.updateHUD(),
+      snap: () => { const wp = this.gridManager.gridToWorld(this.gridX, this.gridZ); if (this.group?.position) { this.group.position.x = wp.x; this.group.position.z = wp.z; } },
+    });
 
     // Return to idle animation
     if (this.axie && typeof this.axie.playAnimation === 'function') {
@@ -814,6 +758,7 @@ export class Unit {
   }
 
   _slideOrHopToCell(targetX, targetZ, duration = 0.38) {
+    if (this.gridManager?.fastForward) return this._ffSnap(targetX, targetZ); // Arena PvP: puesta al día sin animaciones
     return new Promise(resolve => {
       const startPos = this.group.position.clone();
       const endPos = this.gridManager.gridToWorld(targetX, targetZ);
@@ -855,6 +800,7 @@ export class Unit {
   }
 
   _hopToCell(targetX, targetZ, duration = 0.45) {
+    if (this.gridManager?.fastForward) return this._ffSnap(targetX, targetZ); // Arena PvP: puesta al día sin animaciones
     return new Promise(resolve => {
       this.isMoving = true;
       const startPos = this.group.position.clone();
@@ -905,54 +851,20 @@ export class Unit {
     });
   }
 
+  /** Arena PvP (P3): coloca la malla en la casilla al momento (puesta al día de una partida tras recargar). */
+  _ffSnap(x, z) {
+    const p = this.gridManager.gridToWorld(x, z);
+    this.group?.position.set(p.x, 0, p.z);
+    return Promise.resolve();
+  }
+
   jumpToCell(targetX, targetZ, duration = 0.45) {
     return this._hopToCell(targetX, targetZ, duration);
   }
 
   async pushback(dx, dz, distance) {
-    let actualPushed = 0;
-    let hitObstacle = false;
-    let collidingUnit = null;
-
-    for (let s = 1; s <= distance; s++) {
-      const testX = this.gridX + dx;
-      const testZ = this.gridZ + dz;
-
-      if (!this.gridManager.isValidCoord(testX, testZ)) {
-        hitObstacle = true;
-        break;
-      }
-
-      const tile = this.gridManager.getTile(testX, testZ);
-      if (!tile.walkable || tile.obstacle) {
-        hitObstacle = true;
-        break;
-      }
-
-      if (tile.unit) {
-        collidingUnit = tile.unit;
-        hitObstacle = true;
-        break;
-      }
-
-      const oldTile = this.gridManager.getTile(this.gridX, this.gridZ);
-      if (oldTile && oldTile.unit === this) oldTile.unit = null;
-      tile.unit = this;
-
-      this.gridX = testX;
-      this.gridZ = testZ;
-      actualPushed++;
-
-      await this._slidePush(testX, testZ, 0.12);
-    }
-
-    const remainingTiles = distance - actualPushed;
-    return {
-      actualPushed,
-      hitObstacle,
-      remainingTiles,
-      collidingUnit
-    };
+    // Reglas del empujón en combat/UnitRules.pushSteps (compartidas con el motor sin gráficos); aquí, el deslizamiento
+    return pushSteps(this, dx, dz, distance, { step: (x, z) => this._slidePush(x, z, 0.12) });
   }
 
   /**
@@ -980,6 +892,7 @@ export class Unit {
   }
 
   _slidePush(targetX, targetZ, duration = 0.12) {
+    if (this.gridManager?.fastForward) return this._ffSnap(targetX, targetZ); // Arena PvP: puesta al día sin animaciones
     return new Promise(resolve => {
       const startPos = this.group.position.clone();
       const endPos = this.gridManager.gridToWorld(targetX, targetZ);
@@ -1014,25 +927,7 @@ export class Unit {
   takeDamage(amount) {
     if (this.isDead) return 0;
     if ((Number(amount) || 0) > 0) this._sapiFace('happy', 'o', 650); // ojos cerrados y «o»: se queja del golpe
-    let actualDamage = Number(amount) || 0;
-
-    if (this.shield > 0) {
-      if (this.shield >= actualDamage) {
-        this.shield -= actualDamage;
-        actualDamage = 0;
-      } else {
-        actualDamage -= this.shield;
-        this.shield = 0;
-      }
-    }
-
-    const cur = typeof this.currentHP === 'number' && !isNaN(this.currentHP) ? this.currentHP : 0;
-    this.currentHP = Math.max(0, cur - actualDamage);
-    // Runas y charms (RuneCharmEffects): sobrevivir a un golpe letal (Puffer's Plight, Wooden Idol) y reaccionar al daño
-    if (this.currentHP <= 0 && typeof this.lethalGuard === 'function' && this.lethalGuard(this)) {
-      this.currentHP = Math.max(1, this.currentHP);
-    }
-    if (this.currentHP > 0 && actualDamage > 0 && typeof this.afterDamage === 'function') this.afterDamage(this);
+    const actualDamage = absorbDamage(this, amount); // escudo, vida, runas y charms (combat/UnitRules.js)
     this.updateHUD();
     this._flashDamage();
 
@@ -1243,9 +1138,8 @@ export class Unit {
     if (this.toonOutline) this.toonOutline.setVisible(false);
     if (this.hudSprite) this.hudSprite.visible = false;
 
-    const coreGeo = new THREE.SphereGeometry(isCinematic ? 0.85 : 0.65, 20, 20);
-    const coreMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
-    const coreSphere = new THREE.Mesh(coreGeo, coreMat);
+    const fx = deathFx();
+    const coreSphere = new THREE.Mesh(isCinematic ? fx.coreBig : fx.core, fx.coreMat);
     coreSphere.position.set(wPos.x, 0.85, wPos.z);
     scene.add(coreSphere);
 
@@ -1274,23 +1168,18 @@ export class Unit {
     });
 
     scene.remove(coreSphere);
-    coreGeo.dispose();
-    coreMat.dispose();
 
     // Shatter into multiple small glowing spheres bursting outward
     setPhase('particles');
     const numParticles = isCinematic ? 26 : 18;
     const particles = [];
-    const sphereGeo = new THREE.SphereGeometry(0.14, 12, 12);
+    const sphereGeo = fx.partGeo;
+    const particleMats = acquireDeathParticleMats(numParticles);
     const particlesGroup = new THREE.Group();
     scene.add(particlesGroup);
 
     for (let i = 0; i < numParticles; i++) {
-      const pMat = new THREE.MeshBasicMaterial({
-        color: i % 3 === 0 ? 0xfffbeb : 0xffffff,
-        transparent: true,
-        opacity: 1.0
-      });
+      const pMat = particleMats[i];
       const pMesh = new THREE.Mesh(sphereGeo, pMat);
       pMesh.position.set(wPos.x, 0.85, wPos.z);
 
@@ -1345,8 +1234,7 @@ export class Unit {
 
     scene.remove(particlesGroup);
     if (lightPool) lightPool.release(flashLight);
-    sphereGeo.dispose();
-    particles.forEach(pt => pt.mat.dispose());
+    releaseDeathParticleMats(particleMats); // compartidos: no se destruyen (sus shaders siguen compilados)
 
     this.group.visible = false;
     setPhase('completed');

@@ -51,4 +51,7 @@ export default {
   "levels.l10.title": "Throne of the Supreme Chimera",
   "levels.l10.subtitle": "Final Duel for Lunacia",
   "levels.l10.badge": "FINAL BOSS",
+  "levels.boss.title": "The Slime Knight",
+  "levels.boss.subtitle": "Dojo Graduation",
+  "levels.place.greatRoots": "Roots of the Great Tree",
 };

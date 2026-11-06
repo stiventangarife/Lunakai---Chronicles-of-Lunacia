@@ -435,7 +435,13 @@ export class EquipmentManager {
   exportSlotData() {
     const heroId = 'kotaro';
     const base = this.heroesBase[heroId];
+    // Axie principal real (el del escuadrón, puesto 1): la tarjeta de la ranura en la pantalla de inicio lo muestra.
+    // `hero` es siempre el Axie con que se creó la partida (puesto interno «kotaro») y no cambia al cambiar de principal.
+    const mainId = this.getSquad()[1];
+    const mb = mainId ? this.heroesBase[mainId] : null;
+    const mainAxie = mb ? { id: mainId, axieId: mb.axieId, heroKey: mb.heroKey, name: mb.name, class: mb.class, image: mb.image || null } : null;
     return {
+      mainAxie,
       hero: {
         id: heroId,
         heroKey: base.heroKey || 'beast_rage',

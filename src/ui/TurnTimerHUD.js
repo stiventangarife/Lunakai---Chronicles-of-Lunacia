@@ -100,6 +100,11 @@ export function attachTurnTimer(game) {
   // ── ¿Hay reloj en este combate?
   const timerAllowed = () => {
     const cfg = game.activeBattleConfig || {};
+    // Sin reloj en todo el tutorial: combates guiados (duelo, Ultimate) aunque la guía ya haya terminado,
+    // y cualquier combate mientras el tutorial del mundo abierto siga en curso
+    const owTut = game.overworldManager?.tutorialManager;
+    if (cfg.tutorialKind || (owTut?.isActive && !owTut.done)) return false;
+    if (cfg.pvp) return false; // Arena PvP: el tiempo del turno lo lleva el servidor (ui/PvpHud.js)
     return timer.enabled && game.gameState === 'BATTLE' && !cfg.isTutorial && !cfg.isTestArena && !game.tutorialManager?.isActive;
   };
 

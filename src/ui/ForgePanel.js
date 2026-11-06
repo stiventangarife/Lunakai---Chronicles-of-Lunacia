@@ -75,6 +75,7 @@ export function attachForge(game) {
           <span class="lk-res-pill lk-cur" title="${i18n.t('forge.axsTitle')}"><img class="lk-cur-ico" src="${CUR.axs[1]}" alt="AXS"><span data-ref="axs">0</span></span>
           <span class="lk-res-pill lk-cur" title="${i18n.t('forge.baxsTitle')}"><img class="lk-cur-ico" src="${CUR.baxs[1]}" alt="bAXS"><span data-ref="baxs">0</span></span>
         </div>
+        <button type="button" class="lk-btn-close-x lk-cdx-help" data-codex="forge" aria-label="${i18n.t('codex.help')}" title="${i18n.t('codex.help')}">?</button>
         <button type="button" class="lk-btn-close-x" data-act="close" aria-label="${i18n.t('forge.close')}">${sprite('i-close')}</button>
       </div>
       <div class="lk-forge-body">
@@ -108,6 +109,7 @@ export function attachForge(game) {
   }
 
   function render() {
+    hideTip(); // Hito 126: al repintar, el material bajo el ratón puede desaparecer y su ficha se quedaría flotando
     if (!api.isOpen) return;
     const w = ForgeService.wallet();
     $('gold').textContent = fmt(w.gold); $('slp').textContent = fmt(w.slp); $('axs').textContent = fmtB(w.axs || 0); $('baxs').textContent = fmtB(w.baxs);
@@ -255,7 +257,7 @@ export function attachForge(game) {
       modal.querySelectorAll(`[data-jobtxt="${j.uid}"]`).forEach((n) => { n.textContent = txt; });
       modal.querySelectorAll(`[data-jobbar="${j.uid}"]`).forEach((n) => { n.style.width = `${p * 100}%`; });
       modal.querySelectorAll(`[data-job="${j.uid}"]`).forEach((n) => { n.textContent = j.ready ? i18n.t('forge.readyCollect') : i18n.t('forge.inForge', { t: fmtH(left) }); });
-      modal.querySelectorAll(`[data-jobbig="${j.uid}"]`).forEach((n) => { n.innerHTML = `<span class="lk-label">${j.ready ? i18n.t('forge.ready') : i18n.t('forge.timeLeft')}</span><b>${j.ready ? i18n.t('forge.collectIt') : fmtH(left)}</b><i class="lk-jbar"><i style="width:${p * 100}%"></i></i><small>${i18n.t('forge.total', { t: fmtH(j.hours) })}${j.speed > 1 ? ` · ${i18n.t('forge.speedTag', { x: j.speed })}` : ''}</small>`; });
+      modal.querySelectorAll(`[data-jobbig="${j.uid}"]`).forEach((n) => { n.innerHTML = `<span class="lk-label">${j.ready ? i18n.t('forge.ready') : i18n.t('forge.timeLeft')}</span><b>${j.ready ? i18n.t('forge.collectIt') : fmtH(left)}</b><i class="lk-jbar"><i style="width:${p * 100}%"></i></i><small>${i18n.t('forge.total', { t: fmtH(j.hours) })}${j.speed > 1 ? ` · ${i18n.t('forge.speedTag', { x: j.speed })}` : ''}</small>${j.ready ? '' : `<small class="lk-forge-demo">${i18n.t('forge.demoNote')}</small>`}`; });
     });
     if (changed && api.isOpen) render();
   }
@@ -305,6 +307,10 @@ export function attachForge(game) {
     mtip.style.transform = above ? 'translateY(-100%)' : 'none';
   };
   const hideTip = () => mtip.classList.remove('lk-is-on');
+  api.hideTip = hideTip; // Hito 126: el tutorial la cierra al poner su guía
+  // La ficha nunca sobrevive a un clic ni a que el ratón salga de la ventana (Hito 126: se quedaba atrapada bajo el velo del tutorial)
+  modal.addEventListener('pointerdown', hideTip, true);
+  modal.addEventListener('mouseleave', hideTip);
   // Tooltip también en los materiales del coste
   $('stage').addEventListener('mouseover', (ev) => { const f = ev.target.closest('.lk-fneed'); if (f) showTip(f); });
   $('stage').addEventListener('focusin', (ev) => { const f = ev.target.closest('.lk-fneed'); if (f) showTip(f); });
@@ -339,6 +345,8 @@ export function attachForge(game) {
     modal.classList.remove('hidden'); void modal.offsetWidth; modal.classList.add('lk-is-open');
     sfx('playBuff');
     FG.sel = null; render();
+    // Hito 126: si el ratón ya estaba encima de un material al abrir, no se enseña su ficha hasta que se mueva
+    mtip.classList.remove('lk-is-on');
   }
   function close() {
     if (!api.isOpen) return;

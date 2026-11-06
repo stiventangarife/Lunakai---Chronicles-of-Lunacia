@@ -1,6 +1,7 @@
 # Hito 50 — Tutorial guiado paso a paso y ajustes del inicio
 
 > **Estado:** completado en la versión de prueba (22-oct-2026).
+> **Actualización (Hito 115, 2-nov-2026):** en el duelo con Paladill el Axie ya no tiene una casilla guiada: si ninguna carta alcanza, se marcan y permiten todas las casillas alcanzables (`freeMove`). En el primer combate guiado el paso del Axie (`step_move_2`) solo permite la casilla (4,6). En los pasos de acariciar y alimentar, la cámara mantiene al Axie a la vista (`OverworldCamera.setFrameTarget`).
 > **Pedido:** que el tutorial bloquee cada acción hasta que el jugador la haga, con flechas y resaltados (tutorial inicial y de combate); en la cinemática, un corazón en el pecho en lugar del hilo y una luna que solo se rompe en parte; arreglar los dos modelos superpuestos al elegir personaje; mover la tienda a (-77.0, 3.7) y que los slimes no ataquen durante el tutorial.
 
 ## 1. Tutorial guiado (mundo abierto)

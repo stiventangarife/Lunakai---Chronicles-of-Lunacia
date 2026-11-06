@@ -5,7 +5,7 @@ export default {
   "misc.hero": "Héroe",
   "misc.meleeDuelist": "Duelista cuerpo a cuerpo",
   "misc.ferryTitle": "Barquero de Lunacia",
-  "misc.ferryBubble": "¡Todos a bordo! ¿A qué isla navegamos hoy?",
+  "misc.ferryBubble": "¡Todos a bordo! ¿A qué tierra navegamos hoy?",
   "misc.baseFemale": "Femenina",
   "misc.baseMale": "Masculina",
   "misc.archSapidaeLeader": "Aventurero Sapidae (Líder)",

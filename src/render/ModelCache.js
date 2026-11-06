@@ -66,16 +66,32 @@ export async function cloneGLTF(path, { cloneGeometry = false } = {}) {
 }
 
 /**
+ * Hito 113: «reservas» de un GLB. Quien comparte las texturas de la copia original durante un tiempo (los dioramas del creador
+ * y del visor) lo reserva con holdGLTF y lo suelta con unholdGLTF; mientras haya reservas, evictGLTF no lo toca. Si se liberara,
+ * las imágenes decodificadas se cierran (ImageBitmap.close) y todo lo que no esté ya en la GPU se vería NEGRO (reproducido:
+ * «texSubImage2D: The source data has been detached»).
+ */
+const HOLDS = new Map();
+export function holdGLTF(path) { HOLDS.set(path, (HOLDS.get(path) || 0) + 1); }
+export function unholdGLTF(path) {
+  const n = (HOLDS.get(path) || 0) - 1;
+  if (n > 0) HOLDS.set(path, n); else HOLDS.delete(path);
+}
+export function isGLTFHeld(path) { return (HOLDS.get(path) || 0) > 0; }
+
+/**
  * Saca un GLB de la caché y libera su memoria de GPU (geometrías, materiales y texturas, que los clones comparten).
  * Solo debe llamarlo quien sepa que ya no queda ningún clon de ese modelo en la escena (p. ej. el pueblo del
  * Bosque al salir de la isla). La próxima vez que se pida, se vuelve a cargar (del caché HTTP, rápido).
  */
 export async function evictGLTF(path) {
   const p = CACHE.get(path);
-  if (!p) return;
+  if (!p) return false;
+  if (isGLTFHeld(path)) { console.info('[ModelCache] No se libera', path, ': hay copias en uso (creador o visor)'); return false; }
+  console.info('[ModelCache] Se libera', path);
   CACHE.delete(path);
   let gltf;
-  try { gltf = await p; } catch { return; }
+  try { gltf = await p; } catch { return false; }
   const seen = new Set();
   gltf.scene.traverse((o) => {
     if (!o.isMesh) return;
@@ -94,4 +110,5 @@ export async function evictGLTF(path) {
       m.dispose();
     });
   });
+  return true;
 }

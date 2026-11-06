@@ -43,5 +43,8 @@ export default {
   "combatFx.ko": "KO",
   "combatFx.total": "Total {n}",
   "combatFx.dodge": "Esquiva",
-  "combatFx.shieldBroken": "−{n} escudo"
+  "combatFx.shieldBroken": "−{n} escudo",
+  "combatFx.miasma": "¡Terreno infectado!",
+  "combatFx.miasmaHit": "Miasma",
+  "combatFx.miasmaWarn": "−{pct} % de vida (−{dmg}) si terminas aquí",
 };

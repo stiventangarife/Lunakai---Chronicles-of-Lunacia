@@ -1,0 +1,27 @@
+// Squad HUD (SquadHUD)
+export default {
+  "squadHud.ap": "AP",
+  "squadHud.bond": "Bond",
+  "squadHud.bondTitle": "Bond {n}%",
+  "squadHud.clickHint": "Click: open their backpack",
+  "squadHud.clsAquatic": "Aquatic",
+  "squadHud.clsBeast": "Beast",
+  "squadHud.clsBird": "Bird",
+  "squadHud.clsBug": "Bug",
+  "squadHud.clsPlant": "Plant",
+  "squadHud.clsReptile": "Reptile",
+  "squadHud.hp": "HP",
+  "squadHud.hpTitle": "{hp}/{max} HP",
+  "squadHud.initiative": "Initiative",
+  "squadHud.lv": "Lv {n}",
+  "squadHud.lvDot": "Lv. {n}",
+  "squadHud.medAria": "{name}, level {lv}, {hp} of {max} HP",
+  "squadHud.mp": "MP",
+  "squadHud.roleHealer": "Healer & control",
+  "squadHud.roleLeader": "Expedition leader",
+  "squadHud.roleMelee": "Melee duelist",
+  "squadHud.roleRanged": "Ranged marksman",
+  "squadHud.slotLeader": "Leader",
+  "squadHud.slotMain": "Main",
+  "squadHud.slotSupport": "Support"
+};

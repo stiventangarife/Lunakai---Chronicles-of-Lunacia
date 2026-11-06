@@ -9,9 +9,10 @@ import './ui/AccessPrefs.js'; // Hito 85: preferencias de accesibilidad aplicada
 if (typeof window !== 'undefined') window.THREE = THREE;
 import { TacticalAudio } from './tactics/TacticalAudio.js';
 import { SceneManager } from './tactics/SceneManager.js';
-import { GridManager } from './tactics/GridManager.js';
+import { GridManager, TILE_SIZE } from './tactics/GridManager.js';
 import { FloatingCombatText } from './tactics/FloatingCombatText.js';
 import { Unit } from './tactics/Unit.js';
+import { miasmaWarmGroup } from './tactics/combat/SpellPresentation.js';
 import { SpellManager, SPELLS_DB } from './tactics/Spells.js';
 import { TurnManager } from './tactics/TurnManager.js';
 import { TacticalAI } from './tactics/TacticalAI.js';
@@ -89,6 +90,7 @@ function tutorialCardOrder(ids) {
 }
 import { renderForecast, clearForecast } from './ui/ForecastPanel.js';
 import { axieMixerService } from './rpg/AxieMixerService.js';
+import { installUiClickSfx } from './audio/UiClickSfx.js'; // Hito 119: clic común de los botones
 import { AXIE_GENES_DECODER } from '@jaatster/threejs-axie-mixer3d-public';
 
 // Pantalla de carga entre zonas con el sistema de diseño (debe ir antes de crear ZoneTransitionManager)
@@ -234,6 +236,17 @@ class AxieTacticsGame {
 
     this._showBattleHUD(false);
 
+    // Hito 119: los efectos (Web Audio) se encienden con el primer gesto (clic, toque o tecla). Antes solo se encendían
+    // al empezar la aventura y los sonidos del inicio de sesión y la creación de personaje no sonaban en la primera visita.
+    const unlockAudio = () => {
+      this.audio.init();
+      this.audio.resume?.();
+      if (this.audio.ctx?.state !== 'running') return; // un toque (pointerdown) no siempre basta: se espera al siguiente evento
+      ['pointerdown', 'pointerup', 'keydown'].forEach((ev) => window.removeEventListener(ev, unlockAudio, true));
+    };
+    ['pointerdown', 'pointerup', 'keydown'].forEach((ev) => window.addEventListener(ev, unlockAudio, { capture: true, passive: true }));
+    installUiClickSfx(this.audio);
+
     // Initialize Start Screen UI & Save Slots Manager
     this.startScreen = new StartScreenUI({
       audio: this.audio,
@@ -280,6 +293,8 @@ class AxieTacticsGame {
     this._isLoadingAdventure = true;
     try {
       this.audio.init();
+      // Hito 119: la música del título se apaga al empezar (el prólogo o la isla ponen la suya)
+      if (this.audio.music?.currentKey === 'TITLE') this.audio.stopMusic?.(900);
 
       // 1. Apply slot data to EquipmentManager (hero, inventory, equipped, progression, unlockedHeroes)
       this.equipmentManager.applySlotData(slotData);
@@ -291,6 +306,7 @@ class AxieTacticsGame {
       await this._startOverworld(withPrologue, slotData);
       // Hito 76: con cuenta, el saldo (oro, SLP y bAXS) es el del servidor
       EconomyService.sync().then(() => this.shop?.showInbox?.()).catch(() => null); // Hito 77: avisos del Mercado
+      this.overworldManager?.koliseoRewards?.check({ force: true }); // Koliseo B4: premios del Desafío de la Bruma
       if (this.saveStatusChip) this.saveStatusChip.setInGame(true);
     } finally {
       this._isLoadingAdventure = false;
@@ -300,6 +316,7 @@ class AxieTacticsGame {
   _returnToTitleScreen() {
     if (this.gameState === 'OVERWORLD') {
       this._saveCurrentProgress();
+      this._flushPortrait(); // Hito 113: el retrato pendiente se hace ahora (va a la lista de partidas)
     }
     if (this.audio && typeof this.audio.stopMusic === 'function') {
       this.audio.stopMusic(800);
@@ -315,6 +332,33 @@ class AxieTacticsGame {
     // Al volver al título se sube ya lo pendiente (para que otro dispositivo vea lo último)
     if (accountManager.mode === 'account') accountManager.cloud.flush().catch(() => null);
     this.startScreen.show();
+  }
+
+  /**
+   * Hito 113 — Hace el retrato de la partida pendiente (ver _saveCurrentProgress). Se llama con un velo delante:
+   * al entrar a un combate y al volver al título. Devuelve una promesa que no falla.
+   */
+  async _flushPortrait() {
+    const pend = this._pendingPortrait;
+    if (!pend) return;
+    this._pendingPortrait = null;
+    const { slotId, appearanceKey } = pend;
+    const stale = () => saveSlotManager.activeSlotId !== slotId || this._portraitKeys?.[slotId] !== appearanceKey;
+    if (stale()) return;
+    const mesh = this.overworldManager?.player?.mesh;
+    if (!mesh || !portraitService) { delete this._portraitKeys[slotId]; return; }
+    const opts = { fullBody: true, isHumanoid: true, zoomFactor: 0.98, yaw: -0.15, pitch: 0.02 };
+    try {
+      const snap = typeof portraitService.captureModelAsync === 'function'
+        ? await portraitService.captureModelAsync('active_player_slot', mesh, opts)
+        : portraitService.captureModel('active_player_slot', mesh, opts);
+      if (!snap) { if (this._portraitKeys[slotId] === appearanceKey) delete this._portraitKeys[slotId]; return; }
+      // Solo si sigue siendo la misma partida y la misma apariencia (si cambió, ya hay otro retrato pendiente)
+      if (stale()) return;
+      saveSlotManager.updateActiveSlot({ sapidaePortrait: snap, sapidaePortraitKey: appearanceKey });
+    } catch (_) {
+      if (this._portraitKeys?.[slotId] === appearanceKey) delete this._portraitKeys[slotId];
+    }
   }
 
   _saveCurrentProgress() {
@@ -345,7 +389,8 @@ class AxieTacticsGame {
     // forma síncrona y congelaba el juego ~10 s justo después de entrar. Mientras tanto se guarda con el retrato anterior.
     let appearanceKey = '';
     try {
-      appearanceKey = JSON.stringify([p?.sapidaeModel || activeSlot?.sapidaeModel || '', p?.customization || activeSlot?.customization || null, exported.equipped || null]);
+      // Hito 113: solo el equipo del Sapidae (antes iba el de todos los héroes: equipar algo a un Axie rehacía el retrato)
+      appearanceKey = JSON.stringify([p?.sapidaeModel || activeSlot?.sapidaeModel || '', p?.customization || activeSlot?.customization || null, (exported.equipped?.sapidae ?? exported.equipped?.kotaro) ?? null]);
     } catch (_) { appearanceKey = String(Math.random()); }
     const slotId = saveSlotManager.activeSlotId;
     this._portraitKeys = this._portraitKeys || {};
@@ -353,25 +398,15 @@ class AxieTacticsGame {
     const needPortrait = !currentPortrait || appearanceKey !== knownKey;
     if (needPortrait && this.overworldManager?.player?.mesh && portraitService) {
       this._portraitKeys[slotId] = appearanceKey;
-      // 29-oct: se espera a que el jugador termine de cambiarse (equipar varias piezas seguidas = un solo retrato)
-      clearTimeout(this._portraitTimer);
-      this._portraitTimer = setTimeout(() => {
-      if (saveSlotManager.activeSlotId !== slotId || this._portraitKeys[slotId] !== appearanceKey) return;
-      const mesh = this.overworldManager?.player?.mesh;
-      if (!mesh) { delete this._portraitKeys[slotId]; return; }
-      const opts = { fullBody: true, isHumanoid: true, zoomFactor: 0.98, yaw: -0.15, pitch: 0.02 };
-      const job = typeof portraitService.captureModelAsync === 'function'
-        ? portraitService.captureModelAsync('active_player_slot', mesh, opts)
-        : Promise.resolve().then(() => portraitService.captureModel('active_player_slot', mesh, opts));
-      job.then((snap) => {
-        if (!snap) { if (this._portraitKeys[slotId] === appearanceKey) delete this._portraitKeys[slotId]; return; }
-        // Solo si sigue siendo la misma partida y la misma apariencia (si cambió, ya hay otro retrato en camino)
-        if (saveSlotManager.activeSlotId !== slotId || this._portraitKeys[slotId] !== appearanceKey) return;
-        saveSlotManager.updateActiveSlot({ sapidaePortrait: snap, sapidaePortraitKey: appearanceKey });
-      }).catch(() => { if (this._portraitKeys[slotId] === appearanceKey) delete this._portraitKeys[slotId]; });
-      }, 2000);
+      // Hito 113: el retrato ya no se hace a los 2 s de cambiar el equipo (bloqueaba hasta 4,3 s con la Mochila abierta:
+      // una sola subida de textura en el contexto de retratos). Queda pendiente y se hace en un momento tapado por un
+      // velo: al entrar a un combate (_startBattle) o al volver al título. Solo se usa en la lista de partidas.
+      this._pendingPortrait = { slotId, appearanceKey };
     }
-    const portraitKey = needPortrait ? (activeSlot?.sapidaePortraitKey || null) : appearanceKey;
+    // Hito 113: con un retrato pendiente la ranura conserva su clave anterior (si se guardara la nueva sin haber hecho el
+    // retrato, la próxima sesión creería que la imagen ya coincide y no lo rehacería nunca)
+    const portraitPending = Boolean(this._pendingPortrait && this._pendingPortrait.slotId === slotId);
+    const portraitKey = (needPortrait || portraitPending) ? (activeSlot?.sapidaePortraitKey || null) : appearanceKey;
 
     saveSlotManager.updateActiveSlot({
       level: this.equipmentManager.heroProgression?.kotaro?.level || 1,
@@ -388,6 +423,7 @@ class AxieTacticsGame {
       unlockedHeroes: exported.unlockedHeroes || ['kotaro'],
       squad: exported.squad,
       accountAxies: exported.accountAxies,
+      mainAxie: exported.mainAxie,
       zone: {
         mapId: mapId,
         name: zoneName,
@@ -401,7 +437,8 @@ class AxieTacticsGame {
         visitedZones: wmm ? Array.from(wmm.visitedZones) : ['zone_2_2']
       },
       questProgress: qm ? qm.exportSaveData() : null,
-      tutorialProgress: tm ? tm.exportSaveData() : null
+      tutorialProgress: tm ? tm.exportSaveData() : null,
+      codexProgress: this.overworldManager?.codexModal?.exportSaveData() || null // Hito 126
     });
 
     // Perfil de la cuenta: recordar que el jugador ya terminó la introducción
@@ -417,6 +454,11 @@ class AxieTacticsGame {
           this._saveCurrentProgress();
         }
       });
+    }
+
+    // Hito 126: páginas leídas del Códice
+    if (this.overworldManager) {
+      this.overworldManager.onCodexChange = () => { if (this.gameState !== 'BATTLE') this._saveCurrentProgress(); };
     }
 
     // 2. Quest changes (objectives, steps, turn-in)
@@ -458,6 +500,7 @@ class AxieTacticsGame {
         this.tutorialManager.nudge?.();
         return;
       }
+      if (this.pvpBattle) { this.pvpBattle.endTurn(); return; } // Arena PvP: el fin de turno va por la partida
       if (this.activeUnit && this.activeUnit.team === 'player' && !this.activeUnit.isMoving) {
         if (this.tutorialManager.isActive && this.tutorialManager.getCurrentStepId() === 'step_end_turn') {
           this.tutorialManager.advanceStep();
@@ -512,20 +555,35 @@ class AxieTacticsGame {
     }, true);
 
     // Victory modal action buttons
-    document.getElementById('btn-restart').addEventListener('click', () => {
+    // Reintentar: el combate vuelve a empezar con la vida que se tenía al entrar
+    const restartBattle = () => {
       document.getElementById('gameover-modal').classList.add('hidden');
-      // Reintentar: el combate vuelve a empezar con la vida que se tenía al entrar
+      // Koliseo: un combate solo se empieza desde el panel (el servidor da su token); reintentar = volver
+      if (this.activeBattleConfig?.koliseo) { this._returnToOverworld(this.lastBattleOutcome !== 'DEFEAT'); return; }
       if (this._battleStartHP && this.equipmentManager) {
         Object.entries(this._battleStartHP).forEach(([id, hp]) => this.equipmentManager.setCurrentHP(id, hp, { silent: true }));
       }
       this.gameState = 'BATTLE';
       this._showBattleHUD(true);
       this._startBattle(this.activeBattleConfig || this.currentLevel);
+    };
+    // Combate final del tutorial: tras perder, el botón principal (Espacio) reintenta al momento y el secundario
+    // vuelve al pueblo (CombatEndScreen._setRestart('swap')).
+    document.getElementById('btn-restart').addEventListener('click', async () => {
+      if (this._endSwap) {
+        this._endSwap = false;
+        document.getElementById('gameover-modal').classList.add('hidden');
+        await this._returnToOverworld(false);
+        return;
+      }
+      restartBattle();
     });
 
     const btnReturnOverworld = document.getElementById('btn-return-overworld');
     if (btnReturnOverworld) {
       btnReturnOverworld.addEventListener('click', async () => {
+        if (this._endSwap && this.lastBattleOutcome === 'DEFEAT') { this._endSwap = false; restartBattle(); return; }
+        this._endSwap = false;
         document.getElementById('gameover-modal').classList.add('hidden');
         const isVictory = (this.lastBattleOutcome !== 'DEFEAT');
         await this._returnToOverworld(isVictory);
@@ -653,6 +711,7 @@ class AxieTacticsGame {
           this.tutorialManager.nudge?.();
           return;
         }
+        if (this.pvpBattle) { this.pvpBattle.endTurn(); return; } // Arena PvP: el fin de turno va por la partida
         if (this.activeUnit && this.activeUnit.team === 'player' && !this.activeUnit.isMoving) {
           if (this.tutorialManager.isActive && this.tutorialManager.getCurrentStepId() === 'step_end_turn') {
             this.tutorialManager.advanceStep();
@@ -908,6 +967,7 @@ class AxieTacticsGame {
   }
 
   async _returnToOverworld(isVictory = true) {
+    if (this.pvpBattle) { this.pvpBattle.dispose(); this.pvpBattle = null; } // Arena PvP: sesión, HUD y reglas de la partida
     this.gameState = 'OVERWORLD';
     document.body.classList.remove('state-combat');
     this._showBattleHUD(false);
@@ -924,6 +984,8 @@ class AxieTacticsGame {
     this.combatText.clear();
     this.gridManager.clearObstacles();
     this.gridManager.clearHighlights();
+    // Rastro de Miasma, zonas y modificadores del Koliseo: no siguen vivos en el mundo abierto
+    try { this.spellManager?.releaseBattle?.(); } catch (e) { console.warn('[combate] releaseBattle', e); }
     // Hito 35: libera el escenario del mapa de bioma (se construye de nuevo en el siguiente combate)
     if (this.sceneManager.arena) this.sceneManager.setArena(null);
 
@@ -1008,10 +1070,50 @@ class AxieTacticsGame {
     };
   }
 
+  /**
+   * Hito 113 — Mientras se monta el combate el tablero no se dibuja.
+   * gameState pasa a 'BATTLE' al empezar, y _animate dibujaba entonces la escena a medio construir: cada material nuevo
+   * (arena, sombras, unidades) se enlazaba de forma síncrona al dibujarse (12,9 s de getProgramParameter medidos, ~10 s
+   * en el primer combate), antes de que _prewarmBattle pudiera compilarlo en paralelo. Con la bandera, _animate no
+   * dibuja hasta que el precalentado termina. `window.lkNoBattleGate = true` lo desactiva para comparar.
+   * Cuenta de usos (no booleano) por si dos entradas se solapan; se suelta sola a los 40 s por seguridad.
+   * @returns {() => void} función que suelta la bandera (idempotente)
+   */
+  _gateBattleRender() {
+    this._battleBuilding = (this._battleBuilding || 0) + 1;
+    let released = false;
+    const release = () => {
+      if (released) return;
+      released = true;
+      this._battleBuilding = Math.max(0, (this._battleBuilding || 1) - 1);
+      clearTimeout(watchdog);
+    };
+    const watchdog = setTimeout(() => { if (!released) { console.warn('[combate] El dibujo del tablero llevaba 40 s suspendido: se reanuda.'); release(); } }, 40000);
+    return release;
+  }
+
   async _startBattle(levelOrConfig) {
+    const release = this._gateBattleRender();
+    perfMark('combate: inicio (dibujo del tablero suspendido)');
+    try {
+      if (this._pendingPortrait) {
+        perfMark('combate: retrato pendiente de la partida');
+        await Promise.race([this._flushPortrait(), new Promise((r) => setTimeout(r, 15000))]);
+      }
+      await this._startBattleBody(levelOrConfig);
+    } finally {
+      release();
+      perfMark('combate: listo (el tablero se vuelve a dibujar)');
+    }
+  }
+
+  async _startBattleBody(levelOrConfig) {
     const lvlCfg = (levelOrConfig && typeof levelOrConfig === 'object') ? levelOrConfig : LEVELS_CONFIG[levelOrConfig];
-    // Cartas de partes del escuadrón (también en el tutorial, para que el Axie use las suyas)
-    try { await this._resolvePartCards(); } catch (e) { console.warn('[Lunakai] Cartas de partes:', e); }
+    // Arena PvP (fase P3): la partida (rpg/arena/PvpBattle.js) viaja en la configuración del combate
+    this.pvpBattle = lvlCfg?.pvp || null;
+    // Cartas de partes del escuadrón (también en el tutorial, para que el Axie use las suyas). En la Arena no hacen falta.
+    if (!this.pvpBattle) { try { await this._resolvePartCards(); } catch (e) { console.warn('[Lunakai] Cartas de partes:', e); } }
+    perfMark('combate: cartas de partes');
     this.gameState = 'BATTLE';
     this._showBattleHUD(true);
     document.body.classList.add('state-combat');
@@ -1107,10 +1209,13 @@ class AxieTacticsGame {
       this.sceneManager.applyBiome(biome);
       this.gridManager.setupBiome(config.biome, config.obstacles);
     }
+    perfMark('combate: escenario montado');
 
     // Reset camera to default tactical framing at the start of each combat
     this.sceneManager.resetCamera();
     this.sceneManager.updateCameraPosition(0.016, 1.0);
+
+    if (config.pvp) return this._startPvpBattleBody(config);
 
     // Hero Spells Map
     const HERO_SPELLS = {
@@ -1162,7 +1267,8 @@ class AxieTacticsGame {
       currentHP: startHP('sapidae'),
       maxPA: sapStats ? sapStats.maxPA : sapidaeClassDef.maxPA,
       maxPM: sapStats ? sapStats.maxPM : sapidaeClassDef.maxPM,
-      initiative: sapStats ? sapStats.initiative : (sapidaeClassDef.initiative || 90),
+      // En el tutorial, 90: juega primero (Sapidae → Slime → Axie → Guardián con los turnos alternos)
+      initiative: config.isTutorial ? 90 : (sapStats ? sapStats.initiative : (sapidaeClassDef.initiative || 90)),
       bonusDamage: sapStats ? sapStats.bonusDamage : 0,
       bonusMeleeDamage: sapStats ? (sapStats.bonusMeleeDamage || 0) : 0,
       bonusRangedDamage: sapStats ? (sapStats.bonusRangedDamage || 0) : 0,
@@ -1279,6 +1385,9 @@ class AxieTacticsGame {
         scale: e.scale,
         tintColor: e.tintColor || null,
         axieClass: e.axieClass || null, // clase elemental opcional del enemigo (triángulo ±15 %)
+        aiTargetId: e.aiTargetId || null, // objetivo fijado para la IA (guion del tutorial)
+        mechanic: e.mechanic || null,     // mecánica propia del jefe (p. ej. 'miasma' del Slime Knight del tutorial)
+        damageMult: e.damageMult || null, // multiplicador de daño propio (Slime Knight del tutorial: ×2)
         spellIds: e.spellIds,
         ...(e.facing !== undefined ? { initialFacing: e.facing } : {})
       }, this.gridManager, this.sceneManager, this.audio));
@@ -1292,6 +1401,7 @@ class AxieTacticsGame {
     });
 
     await Promise.all(this.units.map(u => u.loadModel()));
+    perfMark('combate: modelos de las unidades cargados');
 
     // Automatically request 3D portraits for all units participating in this battle without touching their live mesh
     this.units.forEach(u => {
@@ -1301,8 +1411,8 @@ class AxieTacticsGame {
       }
     });
 
-    // Turnos alternados jugador/enemigo según la iniciativa; el tutorial mantiene el orden de siempre (Sapidae y luego Axie)
-    this.turnManager.alternateTeams = !config.isTutorial;
+    // Turnos alternados jugador/enemigo según la iniciativa, también en el tutorial: Sapidae → Slime → Axie → Guardián
+    this.turnManager.alternateTeams = true;
     this.turnManager.setUnits(this.units);
 
     // Duo Ultimate: la decide la clase del Axie principal (squad[1]); exige vínculo al 100 % al entrar
@@ -1318,7 +1428,7 @@ class AxieTacticsGame {
 
     // Hito 48: duelo de entrenamiento — termina cuando alguien baja al umbral de vida (nadie gana ni pierde)
     this.lastDuelOutcome = null;
-    this.turnManager.endRule = config.duel ? (units) => {
+    this.turnManager.endRule = config.duel && config.duel.threshold > 0 ? (units) => {
       const th = config.duel.threshold ?? 0.3;
       const low = (u) => u.isDead || (u.currentHP || 0) <= (u.maxHP || 1) * th;
       if (units.some((u) => u.team === 'enemy' && low(u))) return 'yield';
@@ -1326,21 +1436,73 @@ class AxieTacticsGame {
       return null;
     } : null;
 
+    // Combate 1 del tutorial: el tablero empieza girado un cuarto de vuelta (como pulsar Q), para ver
+    // de frente el lado del Sapidae y del Axie. R vuelve al ángulo de siempre.
+    if (config.isTutorial) {
+      this.sceneManager.rotateLeft();
+      this.sceneManager.updateCameraPosition(0.016, 1.0);
+    }
+
     // Precalentado del combate ANTES de abrir el velo: efectos de las cartas, shaders de toda la
     // escena (arena, unidades, VFX) con el render target del composer y texturas en la GPU.
     // Antes esto ocurría con el velo ya abierto y daba el tirón del primer turno.
+    // Koliseo B3: modificador semanal de la Bruma que afecta a todas las unidades (fuera del Koliseo, sin efecto)
+    const kolMod = config.koliseo?.modifier || null;
+    this.spellManager.battleMods = {
+      range: kolMod === 'thick_mist' ? -1 : 0,
+      firstRoundPM: kolMod === 'icy_wind' ? -1 : 0,
+    };
     await this._prewarmBattle();
+    // Volumen de clic de cada unidad (clic en el modelo = su casilla): se mide ahora, detrás del velo
+    for (const u of this.units) { try { this._unitPickShape(u); } catch { /* se mide al primer uso */ } }
 
     if (config.isTutorial) {
       this.turnManager.startCombat();
       this.tutorialManager.startTutorial();
     } else {
       this.tutorialManager.completeTutorial();
-      // Duelo con Paladill y prueba de la Ultimate: guiados paso a paso (TutorialManager.startDynamic). Antes de
-      // empezar el combate, para que el reloj de turno no arranque en el primer turno guiado.
-      if (config.tutorialKind === 'duel' || config.tutorialKind === 'ult') this.tutorialManager.startDynamic(config.tutorialKind);
+      // Prueba de la Ultimate (tutorial antiguo): guiada paso a paso (TutorialManager.startDynamic). El duelo con
+      // Paladill ya es un entrenamiento libre y el combate final del tutorial no fuerza pasos.
+      if (config.tutorialKind === 'ult') this.tutorialManager.startDynamic(config.tutorialKind);
       this.turnManager.startCombat();
     }
+  }
+
+  /**
+   * Arena PvP (fase P3): las 4 unidades igualadas de la partida (tactics/sim/PvpRoster.js) en lugar del escuadrón y los
+   * enemigos. Sin runas, charms, Ultimate, IA ni reloj local: el tiempo lo lleva el servidor. La partida se conecta
+   * (PvpBattle.onBattleReady) cuando el primer turno ya ha empezado.
+   */
+  async _startPvpBattleBody(config) {
+    const pvp = config.pvp;
+    this._battleUsesPersistentHP = false;
+    this._battleStartHP = null;
+    this.lastDuelOutcome = null;
+    for (const c of pvp.unitConfigs()) {
+      const u = new Unit(c, this.gridManager, this.sceneManager, this.audio);
+      if (c.partCollections) u.partCollections = c.partCollections; // VFX de las partes de colección
+      this.units.push(u);
+    }
+    this.spellManager.runeCharms.setupCombat(this.units, { enabled: false });
+    await Promise.all(this.units.map((u) => u.loadModel()));
+    perfMark('combate: modelos de las unidades cargados (Arena)');
+    this.units.forEach((u) => {
+      if (u.type === 'sapidae') { pvp.sapidaePortrait(u); return; } // el suyo, con su personalización
+      const key = u.config?.axieId ? u.config.axieId : (u.type || u.id);
+      if (!portraitService.hasPortrait(key)) this._requestPortrait(key);
+    });
+    this.turnManager.alternateTeams = true;
+    this.turnManager.setUnits(this.units);
+    this.spellManager.ultimates.setupCombat({ units: this.units, mainHeroId: null, bond: 0 });
+    this.turnManager.endRule = null;
+    pvp.prepareRules();
+    this.sceneManager.resetCamera();
+    this.sceneManager.updateCameraPosition(0.016, 1.0);
+    await this._prewarmBattle();
+    for (const u of this.units) { try { this._unitPickShape(u); } catch { /* se mide al primer uso */ } }
+    this.tutorialManager.completeTutorial();
+    this.turnManager.startCombat();
+    pvp.onBattleReady();
   }
 
   /**
@@ -1361,9 +1523,20 @@ class AxieTacticsGame {
         // agotaba el tope y terminaba de compilarse ya con el velo abierto.
         await cap(this.vfxBridge._prewarm, 8000);
       }
+      perfMark('combate: VFX preparados');
       const sm = this.sceneManager;
+      // Efecto de muerte (esfera y estallido): sus shaders se compilan ahora y no en el primer KO del combate
+      const deathWarm = Unit.deathFxWarmGroup();
+      sm.scene.add(deathWarm);
+      // Marcas de impacto del suelo (mapa + dos caras): su shader y sus texturas, aquí y no en el primer choque
+      const decalWarm = GridManager.decalWarmGroup();
+      sm.scene.add(decalWarm);
+      // Rastro de Miasma (base morada, humo con textura y burbujas): sus materiales exactos, aquí y no al aparecer
+      const miasmaWarm = miasmaWarmGroup();
+      sm.scene.add(miasmaWarm);
       // Tope de 6 s (antes 3): el velo sigue cerrado y lo que no se termine aquí se compila ya en el combate
       const res = await cap(warmupRender(sm.renderer, sm.scene, sm.camera, { target: sm.composer ? sm.composer.readBuffer : null, deadline: performance.now() + 6000 }), 6000);
+      perfMark('combate: warmupRender (compilación en paralelo) terminado');
       // Un fotograma detrás del velo con TODO el escenario a la vista: three solo sube la geometría a la
       // GPU (y compila los shaders de la pasada de sombras) la primera vez que dibuja cada malla, y antes
       // eso pasaba al girar o alejar la cámara por primera vez (fotogramas de 60–160 ms).
@@ -1374,7 +1547,13 @@ class AxieTacticsGame {
         if (sm.composer) sm.composer.render(); else sm.renderer.render(sm.scene, sm.camera);
       } finally {
         for (const o of flipped) o.frustumCulled = true;
+        sm.scene.remove(deathWarm);
+        deathWarm.userData.release?.();
+        sm.scene.remove(decalWarm);
+        decalWarm.userData.release?.();
+        sm.scene.remove(miasmaWarm);
       }
+      perfMark('combate: fotograma completo detrás del velo');
       if (res) console.log(`[combate] Precalentado: ${res.programs} programas nuevos, ${res.textures} texturas, fotograma completo ${Math.round(performance.now() - t1)} ms, total ${Math.round(performance.now() - t0)} ms`);
     } catch (e) {
       console.warn('[combate] precalentado omitido', e);
@@ -1397,6 +1576,8 @@ class AxieTacticsGame {
         return;
       }
 
+      if (this.pvpBattle) { this.pvpBattle.onTurnChange(activeUnit, meta); return; } // Arena PvP: sin IA
+      if (this.tutorialManager.isActive) this.tutorialManager.onTurnStart?.(activeUnit); // pasos de «turno enemigo»
       if (activeUnit.team === 'player') {
         if (this.tutorialManager.isActive) {
           this.tutorialManager._renderStep();
@@ -1409,6 +1590,7 @@ class AxieTacticsGame {
     };
 
     this.turnManager.onVictory = async () => {
+      if (this.pvpBattle) { this.pvpBattle.onCombatEnd('player'); return; } // Arena PvP: pantalla propia
       this._writeBackSquadHP();
       this._cleanCombatUIForEnd();
       // 1. Brief pause for last enemy's finisher impact sound and camera shake
@@ -1416,6 +1598,12 @@ class AxieTacticsGame {
 
       const config = this.activeBattleConfig || LEVELS_CONFIG[this.currentLevel] || LEVELS_CONFIG[1];
       if (config.duel) this.lastDuelOutcome = this.turnManager.endReason || 'yield';
+      // Koliseo (fase B2): el resultado se informa al servidor mientras sale la pantalla de victoria
+      if (config.koliseo) this.overworldManager?.koliseoRun?.onBattleEnd({ win: true, rounds: this.turnManager.round || 1 });
+      // Hito 126: las quimeras vencidas se desvelan en el Bestiario del Códice (los duelos y el PvP no cuentan)
+      if (!config.duel) {
+        try { this.overworldManager?.codexModal?.recordBeasts((this.units || []).filter((u) => u.team === 'enemy').map((u) => u.type)); } catch (e) { console.warn('[Codex] bestiario', e); }
+      }
 
       // Mark level as completed and unlock next level if campaign level
       if (typeof this.currentLevel === 'number') {
@@ -1498,8 +1686,8 @@ class AxieTacticsGame {
 
       // Botín: objetos a la mochila y materiales (1–2 por cada uno que cae) a la bolsa de la Forja
       const lootIds = (config.rewardItems || []).filter(isLootId);
-      // Axie Care: cada victoria da comida para el compañero (una baya; a veces un pastelito)
-      if (!config.isTutorial && !config.tutorialKind) {
+      // Axie Care: cada victoria da comida para el compañero (una baya; a veces un pastelito). Koliseo: sin botín.
+      if (!config.isTutorial && !config.tutorialKind && !config.koliseo) {
         if (ITEMS_DB.food_berry) lootIds.push('food_berry');
         if (ITEMS_DB.food_rice_cake && Math.random() < 0.25) lootIds.push('food_rice_cake');
       }
@@ -1509,7 +1697,7 @@ class AxieTacticsGame {
       }
       // Runas y charms neutros (Hito 54): un charm (10 %) y una runa (5 %) por victoria, el doble contra jefes
       const rcLoot = [];
-      if (!config.isTutorial && !config.tutorialKind) {
+      if (!config.isTutorial && !config.tutorialKind && !config.koliseo) {
         const boss = Boolean(config.isBoss) || DynamicCombatFactory.isBossEncounter(null, null, config.enemies || []);
         const mult = boss ? RUNE_CHARM_DROP.bossMult : 1;
         [['charms', RUNE_CHARM_DROP.charm], ['runes', RUNE_CHARM_DROP.rune]].forEach(([kind, p]) => {
@@ -1521,7 +1709,7 @@ class AxieTacticsGame {
       }
       // Hito 74: un poco de oro por cada victoria contra quimeras (20–45). Ni el tutorial ni los duelos de entrenamiento.
       let goldView = [];
-      if (!config.isTutorial && !config.tutorialKind && !config.duel) {
+      if (!config.isTutorial && !config.tutorialKind && !config.duel && !config.koliseo) {
         // Hito 76: con cuenta, la cantidad la decide el servidor; sin conexión queda pendiente y se cobra al volver
         let gold = null, pending = false, local = !EconomyService.active;
         if (!local) {
@@ -1546,7 +1734,9 @@ class AxieTacticsGame {
       const hpNow = allies.reduce((t, u) => t + Math.max(0, u.currentHP || 0), 0);
       const hpMax = allies.reduce((t, u) => t + (u.maxHP || 0), 0);
 
+      this._endSwap = false;
       this.endScreen.showVictory({
+        hint: config.isTutorial && lootIds.includes('wood_sword') ? i18n.t('game.tutSwordHint') : null,
         subtitle: [config.duel ? (this.lastDuelOutcome === 'yield' ? i18n.t('game.duelYieldShort') : i18n.t('game.trainingEnded')) : config.title, config.biomeName, i18n.t(rounds === 1 ? 'game.roundOne' : 'game.roundMany', { n: rounds })].filter(Boolean).join(' · '),
         moons: [
           { label: i18n.t('game.moonVictory'), on: true },
@@ -1568,6 +1758,7 @@ class AxieTacticsGame {
     };
 
     this.turnManager.onDefeat = async () => {
+      if (this.pvpBattle) { this.pvpBattle.onCombatEnd('enemy'); return; }
       this._writeBackSquadHP();
       this._cleanCombatUIForEnd();
       this.sceneManager.shake(0.5);
@@ -1584,6 +1775,7 @@ class AxieTacticsGame {
 
       // Pantalla de derrota (Lunakai UI · etapa 3)
       const config = this.activeBattleConfig || LEVELS_CONFIG[this.currentLevel] || LEVELS_CONFIG[1];
+      if (config.koliseo) this.overworldManager?.koliseoRun?.onBattleEnd({ win: false, rounds: this.turnManager.round || 1 });
       const squadIds = typeof this.equipmentManager.getSquad === 'function' ? this.equipmentManager.getSquad() : [];
       const activeHero = squadIds[1] || this.selectedHeroId || 'kotaro';
       const allies = this.units.filter(u => u.team === 'player' && !u.isGolem);
@@ -1641,11 +1833,16 @@ class AxieTacticsGame {
         endSubtitle += ` · ${i18n.t('game.defeatFoesStanding', { n: foesAlive.length })}`;
       }
 
+      // Entrenamientos y combates del tutorial: sin perder vínculo. El combate final reintenta al momento.
+      const restart = config.tutorialKind === 'boss' ? 'swap' : config.tutorialKind === 'duel' ? 'secondary' : null;
+      this._endSwap = restart === 'swap';
       this.endScreen.showDefeat({
         subtitle: endSubtitle,
         squad,
-        lostLoot: lootView(rollLoot((config.rewardItems || []).filter(isLootId), () => 1)),
-        hints: hints.slice(0, 4)
+        lostLoot: config.koliseo ? [] : lootView(rollLoot((config.rewardItems || []).filter(isLootId), () => 1)),
+        hints: hints.slice(0, 4),
+        noBondLoss: Boolean(config.isTutorial || config.tutorialKind || config.koliseo), // Koliseo: perder ya cuesta una vida del intento
+        restart
       });
 
       this.lastBattleOutcome = 'DEFEAT';
@@ -1725,6 +1922,22 @@ class AxieTacticsGame {
       return portraitService.ensureAxiePortrait(id, { genes: hit?.[1]?.genes || null, heroId: hit?.[0] || null });
     }
     return portraitService.getPortrait(key);
+  }
+
+  /**
+   * Retrato de una unidad del combate (orden de turnos y panel de la unidad activa). Sin retrato, se pide (request).
+   * Arena PvP: cada Sapidae tiene el suyo, hecho con su modelo y su personalización (PvpBattle.sapidaePortrait); el
+   * retrato genérico del modelo es el del Sapidae del jugador y saldría en los dos.
+   */
+  _unitPortrait(unit, { request = true } = {}) {
+    if (this.pvpBattle && unit?.type === 'sapidae') return this.pvpBattle.sapidaePortrait(unit);
+    const portraitKey = (unit.config && unit.config.axieId) ? unit.config.axieId : (unit.modelType || unit.type || unit.id);
+    const url = portraitService.getPortraitSync(portraitKey) ||
+                portraitService.getPortraitSync(unit.type) ||
+                portraitService.getPortraitSync(unit.id) ||
+                (unit.team === 'player' ? (portraitService.getPortraitSync('shinji') || portraitService.getPortraitSync('kotaro')) : null);
+    if (!url && request) this._requestPortrait(portraitKey);
+    return url;
   }
 
   _getHeroPortrait(heroId, heroBase = null) {
@@ -2009,14 +2222,7 @@ class AxieTacticsGame {
 
       const avatar = ''; // Hito 75: sin emojis; sin retrato se muestra la inicial
 
-      const portraitKey = (unit.config && unit.config.axieId) ? unit.config.axieId : (unit.modelType || unit.type || unit.id);
-      const portraitUrl = portraitService.getPortraitSync(portraitKey) || 
-                          portraitService.getPortraitSync(unit.type) || 
-                          portraitService.getPortraitSync(unit.id) || 
-                          (unit.team === 'player' ? (portraitService.getPortraitSync('shinji') || portraitService.getPortraitSync('kotaro')) : null);
-      if (!portraitUrl) {
-        this._requestPortrait(portraitKey);
-      }
+      const portraitUrl = this._unitPortrait(unit);
 
       const hpPercent = Math.max(0, Math.min(100, (unit.currentHP / unit.maxHP) * 100));
 
@@ -2058,11 +2264,7 @@ class AxieTacticsGame {
 
     document.getElementById('unit-archetype').textContent = archetype;
     const avatarEl = document.getElementById('unit-avatar');
-    const portraitKey = (unit.config && unit.config.axieId) ? unit.config.axieId : (unit.modelType || unit.type || unit.id);
-    const portraitUrl = portraitService.getPortraitSync(portraitKey) || 
-                        portraitService.getPortraitSync(unit.type) || 
-                        portraitService.getPortraitSync(unit.id) || 
-                        (unit.team === 'player' ? (portraitService.getPortraitSync('shinji') || portraitService.getPortraitSync('kotaro')) : null);
+    const portraitUrl = this._unitPortrait(unit, { request: false });
     if (portraitUrl) {
       avatarEl.innerHTML = `<img class="tactical-hud-avatar-img" src="${portraitUrl}" alt="${unit.name}">`;
     } else {
@@ -2145,7 +2347,10 @@ class AxieTacticsGame {
     }
     if (!this.activeUnit || this.activeUnit.team !== 'player') return;
 
-    if (this.tutorialManager.isActive) {
+    // Paso libre del tutorial (todo permitido): se marcan las casillas como en un combate normal
+    const tutStep = this.tutorialManager.isActive ? this.tutorialManager.steps[this.tutorialManager.currentStep] : null;
+    const tutFree = Boolean(tutStep && (tutStep.targetType === 'free_action' || tutStep.id === 'step_battle_flow'));
+    if (this.tutorialManager.isActive && !tutFree) {
       const step = this.tutorialManager.steps[this.tutorialManager.currentStep];
       if (!step || step.id === 'step_intro' || step.targetType === 'dialog' || step.targetType === 'waiting') {
         this.reachableCells = [];
@@ -2284,6 +2489,72 @@ class AxieTacticsGame {
     this._refreshMovementHighlights();
   }
 
+  /**
+   * Casilla bajo el cursor (plano del tablero). Con una carta elegida, el modelo de una unidad cuenta como su
+   * casilla: gana la unidad más cercana a la cámara cuyo modelo corta el rayo y que sea un objetivo válido; si el
+   * rayo solo corta modelos que no son objetivo, se marca la casilla del más cercano (no la del suelo de detrás).
+   */
+  _cellUnderCursor() {
+    this.raycaster.setFromCamera(this.mouse, this.sceneManager.camera);
+    const ray = this.raycaster.ray;
+    const planeHit = this._pickPlaneHit || (this._pickPlaneHit = new THREE.Vector3());
+    planeHit.set(0, 0, 0);
+    ray.intersectPlane(this.planeIntersect, planeHit);
+    const cell = this.gridManager.worldToGrid(planeHit.x, planeHit.z);
+    if (!this.selectedSpell || !this.units || !this.units.length) return cell;
+
+    const valid = this.validSpellCells || [];
+    const isValid = (u) => valid.some((v) => v.x === u.gridX && v.z === u.gridZ);
+    const box = this._pickBox || (this._pickBox = new THREE.Box3());
+    const hit = this._pickHit || (this._pickHit = new THREE.Vector3());
+    let nearAny = null, dAny = Infinity, nearValid = null, dValid = Infinity;
+    for (const u of this.units) {
+      if (!u || u.isDead || !u.group || !u.group.visible) continue;
+      const sh = this._unitPickShape(u);
+      const p = u.group.position;
+      box.min.set(p.x - sh.r, p.y, p.z - sh.r);
+      box.max.set(p.x + sh.r, p.y + sh.h, p.z + sh.r);
+      if (!ray.intersectBox(box, hit)) continue;
+      const d = hit.distanceToSquared(ray.origin);
+      if (d < dAny) { dAny = d; nearAny = u; }
+      if (d < dValid && isValid(u)) { dValid = d; nearValid = u; }
+    }
+    const u = nearValid || nearAny;
+    return u ? { x: u.gridX, z: u.gridZ } : cell;
+  }
+
+  /**
+   * Volumen de clic de una unidad: alto y medio ancho de su modelo en reposo (cajas de la geometría, sin esqueleto
+   * ni raycast contra la malla), medido una vez y guardado en la unidad. Medio ancho limitado a su casilla.
+   */
+  _unitPickShape(u) {
+    const cached = u._pickShape;
+    if (cached && cached.mesh === u.mesh) return cached;
+    const shape = { mesh: u.mesh, h: 1.4, r: TILE_SIZE * 0.32 };
+    if (u.mesh && u.group) {
+      const inv = this._pickInv || (this._pickInv = new THREE.Matrix4());
+      const m = this._pickMat || (this._pickMat = new THREE.Matrix4());
+      const tmp = this._pickTmp || (this._pickTmp = new THREE.Box3());
+      const acc = this._pickAcc || (this._pickAcc = new THREE.Box3());
+      u.group.updateMatrixWorld(true);
+      inv.copy(u.group.matrixWorld).invert();
+      acc.makeEmpty();
+      u.mesh.traverseVisible((o) => {
+        if (!o.isMesh || !o.geometry || !o.geometry.attributes?.position) return;
+        if (!o.geometry.boundingBox) o.geometry.computeBoundingBox();
+        tmp.copy(o.geometry.boundingBox).applyMatrix4(m.multiplyMatrices(inv, o.matrixWorld));
+        acc.union(tmp);
+      });
+      if (!acc.isEmpty() && Number.isFinite(acc.max.y)) {
+        shape.h = THREE.MathUtils.clamp(acc.max.y, 0.6, 3.2);
+        const r = Math.max(-acc.min.x, acc.max.x, -acc.min.z, acc.max.z) * 0.8; // 0,8: brazos, colas y armas no cuentan
+        shape.r = THREE.MathUtils.clamp(r, 0.3, TILE_SIZE * 0.42);
+      }
+    }
+    u._pickShape = shape;
+    return shape;
+  }
+
   _handleHover() {
     if (this.turnManager?.isCombatOver) { this.hoverCell = null; return; } // fin del combate: el tablero ya no responde
     if (!this.activeUnit || this.activeUnit.isMoving) {
@@ -2291,11 +2562,7 @@ class AxieTacticsGame {
       return;
     }
 
-    this.raycaster.setFromCamera(this.mouse, this.sceneManager.camera);
-    const planeHit = new THREE.Vector3();
-    this.raycaster.ray.intersectPlane(this.planeIntersect, planeHit);
-
-    const cell = this.gridManager.worldToGrid(planeHit.x, planeHit.z);
+    const cell = this._cellUnderCursor();
     this.hoverCell = cell;
 
     if (!cell) {
@@ -2349,6 +2616,7 @@ class AxieTacticsGame {
       }
     } else {
       this._hideForecast();
+      this._showZoneWarn(cell); // Rastro de Miasma: «−50 % de vida (−158) si terminas aquí»
       const reachable = this.reachableCells.find(c => c.x === cell.x && c.z === cell.z);
       const tutBlocked = this.tutorialManager.isActive && reachable && !this.tutorialManager.isCellAllowed(cell.x, cell.z);
       if (reachable && !tutBlocked) {
@@ -2376,12 +2644,10 @@ class AxieTacticsGame {
     }
     if (!this.activeUnit || this.activeUnit.team !== 'player' || this.activeUnit.isMoving) return;
     if (this.turnManager?.turnEnding) return; // Fase 5: el turno ya se está pasando, no se admiten más órdenes
+    if (this.pvpBattle && !this.pvpBattle.canAct()) return; // Arena PvP: turno del rival, jugada en marcha o sin tiempo
 
     if (!this.hoverCell && this.sceneManager && this.mouse) {
-      this.raycaster.setFromCamera(this.mouse, this.sceneManager.camera);
-      const planeHit = new THREE.Vector3();
-      this.raycaster.ray.intersectPlane(this.planeIntersect, planeHit);
-      this.hoverCell = this.gridManager.worldToGrid(planeHit.x, planeHit.z);
+      this.hoverCell = this._cellUnderCursor();
     }
     if (!this.hoverCell) return;
 
@@ -2398,7 +2664,12 @@ class AxieTacticsGame {
                       (this.tutorialManager.isActive && this.tutorialManager.isCellAllowed(cell.x, cell.z));
       if (isValid) {
         const spell = this.selectedSpell;
-        await this.spellManager.castSpell(this.activeUnit, spell, cell);
+        if (this.pvpBattle) {
+          // Arena PvP: la orden se comprueba, se aplica y se manda al servidor (PvpBattle → PvpSession)
+          if (!await this.pvpBattle.localOrder({ t: 'cast', unit: this.activeUnit.id, spell: spell.id, x: cell.x, z: cell.z })) return;
+        } else {
+          await this.spellManager.castSpell(this.activeUnit, spell, cell);
+        }
 
         this._updateHUD(this.activeUnit);
         this._updateTimelineUI(this.turnManager.queue);
@@ -2436,7 +2707,11 @@ class AxieTacticsGame {
 
       const reachable = this.reachableCells.find(c => c.x === cell.x && c.z === cell.z);
       if (reachable && reachable.path) {
-        await this.activeUnit.moveAlongPath(reachable.path);
+        if (this.pvpBattle) {
+          if (!await this.pvpBattle.localOrder({ t: 'move', unit: this.activeUnit.id, x: cell.x, z: cell.z })) return;
+        } else {
+          await this.activeUnit.moveAlongPath(reachable.path);
+        }
 
         this._updateHUD(this.activeUnit);
 
@@ -2504,6 +2779,36 @@ class AxieTacticsGame {
   _hideForecast() {
     document.getElementById('combat-forecast').classList.add('hidden');
     clearForecast();
+    if (this._zoneWarnEl) this._zoneWarnEl.hidden = true;
+  }
+
+  /** Aviso sobre una casilla que castiga terminar el turno en ella (Rastro de Miasma): cuánta vida perdería la unidad del turno. */
+  _showZoneWarn(cell) {
+    const u = this.activeUnit, field = this.spellManager?.field;
+    let pct = 0;
+    if (u && u.team === 'player' && field && cell) {
+      for (const zn of field.zonesAt(cell.x, cell.z)) {
+        const fx = zn.owner && zn.owner.team === u.team ? zn.ally : zn.enemy;
+        if (fx && fx.endTurnHpPct > 0) { pct = fx.endTurnHpPct; break; }
+      }
+    }
+    if (!(pct > 0)) { if (this._zoneWarnEl) this._zoneWarnEl.hidden = true; return; }
+    let el = this._zoneWarnEl;
+    if (!el) {
+      el = this._zoneWarnEl = document.createElement('div');
+      el.className = 'lk-zone-warn';
+      el.setAttribute('role', 'status');
+      document.body.appendChild(el);
+    }
+    const dmg = Math.max(1, Math.round((u.maxHP || 0) * pct));
+    el.textContent = i18n.t('combatFx.miasmaWarn', { pct: Math.round(pct * 100), dmg });
+    const p = this.gridManager.gridToWorld(cell.x, cell.z);
+    p.y = 0.25;
+    p.project(this.sceneManager.camera);
+    const rect = this.sceneManager.renderer.domElement.getBoundingClientRect();
+    el.style.left = `${rect.left + (p.x * 0.5 + 0.5) * rect.width}px`;
+    el.style.top = `${rect.top + (-p.y * 0.5 + 0.5) * rect.height}px`;
+    el.hidden = false;
   }
 
   _showSpellTooltip(index, e) {
@@ -2559,11 +2864,17 @@ class AxieTacticsGame {
     const dt = Math.min(rawDt, document.hidden && this.gameState === 'BATTLE' ? 2 : 0.1);
     const time = this.clock.getElapsedTime();
 
+    // Hito 131: la pantalla de título (y la creación de personaje) tapa todo el mundo. Al volver desde una partida el
+    // estado seguía en OVERWORLD y el mundo se actualizaba y dibujaba a pantalla completa detrás, sin verse.
+    if (this.startScreen?.isOpen) return;
+
     if (this.gameState === 'INTRO' || this.gameState === 'OVERWORLD' || (this.gameState === 'LOADING' && this.overworldManager && this.overworldManager.isReadyToRender)) {
       this.overworldManager.update(dt, time);
       this.overworldManager.render(time, dt);
       if (this.gameState === 'OVERWORLD') this._tickOverworldRegen(dt);
     } else if (this.gameState === 'BATTLE') {
+      // Hito 113: el tablero se está montando detrás del velo; dibujarlo ahora compilaría sus shaders uno a uno y sin paralelo
+      if (this._battleBuilding > 0 && !window.lkNoBattleGate) return;
       if (this._hoverDirty) { this._hoverDirty = false; this._handleHover(); }
       // Hito 89: durante la pausa de impacto las unidades no avanzan (dt 0); cámara, efectos y textos sí
       const udt = this.sceneManager.unitDt ? this.sceneManager.unitDt(dt) : dt;

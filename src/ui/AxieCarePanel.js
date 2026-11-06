@@ -183,6 +183,21 @@ export function attachAxieCare(game) {
       </div>`;
   }
 
+  function updatePetCountdown() {
+    const btn = panel.querySelector('[data-act="pet"]');
+    if (!btn) return;
+    const s = service.status();
+    const waiting = btn.classList.contains('lk-is-wait');
+    if (s.petReady) { if (waiting) render(); return; }
+    const pct = Math.max(0, Math.min(100, (1 - s.petLeftMs / PET_COOLDOWN_MS) * 100));
+    btn.style.setProperty('--pp', `${pct.toFixed(1)}%`);
+    const small = btn.querySelector('.lk-care__pet-txt small');
+    const go = btn.querySelector('.lk-care__pet-go');
+    const t = fmtTime(s.petLeftMs);
+    if (small) small.textContent = i18n.t('care.availableIn', { t });
+    if (go) go.textContent = t;
+  }
+
   function place() {
     if (!open) return;
     const p = screenOf(1.7);
@@ -193,6 +208,9 @@ export function attachAxieCare(game) {
     const y = Math.round(Math.max(12, Math.min(innerHeight - h - 12, p.y - h * 0.6)));
     // Solo se mueve si el Axie se desplaza de verdad: así el panel no tiembla y los botones son fáciles de pulsar
     if (placed && Math.abs(x - placed.x) < 4 && Math.abs(y - placed.y) < 4) return;
+    // Durante el tutorial el panel se queda quieto: el señalador y el hueco del velo apuntan a sus botones
+    const tut = game.overworldManager?.tutorialManager;
+    if (placed && tut?.isActive && !tut.done) return;
     placed = { x, y };
     panel.style.transform = `translate(${x}px, ${y}px)`;
   }
@@ -317,9 +335,10 @@ export function attachAxieCare(game) {
     const c = companion();
     if (pos && c && Math.hypot(pos.x - c.position.x, pos.z - c.position.z) > MAX_PANEL_DIST) { hide(); return; }
     place();
-    // Cuenta atrás de la caricia
+    // Cuenta atrás de la caricia: solo se cambian sus textos (repintar todo el panel dos veces por segundo
+    // perdía clics en «Dar» y descolocaba el señalador del tutorial); el panel entero solo cuando queda lista
     tickTimer += 1;
-    if (tickTimer % 30 === 0 && !service.status().petReady) render();
+    if (tickTimer % 30 === 0) updatePetCountdown();
   }
   requestAnimationFrame(loop);
   // «Última vez jugado» (bajada sin jugar): se guarda al cerrar u ocultar la pestaña

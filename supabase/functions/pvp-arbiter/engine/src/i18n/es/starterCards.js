@@ -1,0 +1,23 @@
+// starterCards.js — textos de datos (es). Generado por script (Fase 3 i18n): clave = <prefijo>.<id>.<campo>.
+export default {
+  "starterCards.starter_bing_eyes.description": "Cura 5 HP a un aliado y le da +20 % de daño (2 turnos).",
+  "starterCards.starter_bing_eyes.adaptation": "+1 Rage → Potenciado +20 % (2 turnos).",
+  "starterCards.starter_bing_ears.description": "45–55 de daño. Cura 12 HP a todos los aliados (25 % del ATK).",
+  "starterCards.starter_bing_mouth.description": "50–61 de daño. +20 % de daño a todos los aliados (2 turnos).",
+  "starterCards.starter_bing_mouth.adaptation": "+1 Rage a los aliados → Potenciado +20 % (2 turnos).",
+  "starterCards.starter_bing_horn.description": "45–55 de daño. Aplica Provocación al lanzador (2 turnos).",
+  "starterCards.starter_bing_horn.adaptation": "En Origins apunta solo al enemigo con menos vida; aquí eliges el objetivo.",
+  "starterCards.starter_bing_back.description": "Cura 60 HP a un aliado.",
+  "starterCards.starter_bing_tail.description": "117–143 de daño. +20 % de daño a todos los aliados (2 turnos).",
+  "starterCards.starter_bing_tail.adaptation": "+1 Rage a los aliados → Potenciado +20 % (2 turnos).",
+  "starterCards.starter_pomodoro_eyes.description": "Cura 5 HP a un aliado y le quita hasta 3 perjuicios.",
+  "starterCards.starter_pomodoro_ears.description": "+60 de escudo a un aliado y −20 % de daño recibido (2 turnos).",
+  "starterCards.starter_pomodoro_ears.adaptation": "Bulwark → Protegido −20 % (2 turnos); Cocoon no existe en el motor.",
+  "starterCards.starter_pomodoro_mouth.description": "+20 de escudo a todos los aliados.",
+  "starterCards.starter_pomodoro_horn.description": "+50 de escudo y −20 % de daño recibido (2 turnos) al lanzador. +20 de escudo a todos los aliados.",
+  "starterCards.starter_pomodoro_horn.adaptation": "Ethereal/Banish no existen: el escudo de 20 «al desterrarse» se da al lanzarla. Sin robo de carta.",
+  "starterCards.starter_pomodoro_back.description": "45–55 de daño (+10 por cada aliado con escudo, máx. +40).",
+  "starterCards.starter_pomodoro_back.adaptation": "«+10 ATK cada vez que da escudo a otro aliado» → +10 por aliado con escudo al golpear.",
+  "starterCards.starter_pomodoro_tail.description": "+60 de escudo a un aliado y −20 % de daño recibido (2 turnos).",
+  "starterCards.starter_pomodoro_tail.adaptation": "Bulwark → Protegido −20 % (2 turnos); Cocoon no existe en el motor.",
+};

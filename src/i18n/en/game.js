@@ -96,5 +96,6 @@ export default {
   "game.spellCooldown1": "Recharging: ready in 1 turn",
   "game.spellCooldownN": "Recharging: ready in {n} turns",
   "game.spellLocked": "Unlocks at level {n}",
-  "game.levelShortN": "Lv. {n}"
+  "game.levelShortN": "Lv. {n}",
+  "game.tutSwordHint": "Wooden Sword: press [I] to equip it · Space · Continue",
 };

@@ -1,0 +1,23 @@
+// starterCards.js — textos de datos (en). Generado por script (Fase 3 i18n): clave = <prefijo>.<id>.<campo>.
+export default {
+  "starterCards.starter_bing_eyes.description": "Heals an ally for 5 HP and gives it +20% damage (2 turns).",
+  "starterCards.starter_bing_eyes.adaptation": "+1 Rage → Empowered +20% (2 turns).",
+  "starterCards.starter_bing_ears.description": "45–55 damage. Heals all allies for 12 HP (25% of ATK).",
+  "starterCards.starter_bing_mouth.description": "50–61 damage. +20% damage to all allies (2 turns).",
+  "starterCards.starter_bing_mouth.adaptation": "+1 Rage to allies → Empowered +20% (2 turns).",
+  "starterCards.starter_bing_horn.description": "45–55 damage. Applies Taunt to the caster (2 turns).",
+  "starterCards.starter_bing_horn.adaptation": "In Origins it only targets the lowest-HP enemy; here you choose the target.",
+  "starterCards.starter_bing_back.description": "Heals an ally for 60 HP.",
+  "starterCards.starter_bing_tail.description": "117–143 damage. +20% damage to all allies (2 turns).",
+  "starterCards.starter_bing_tail.adaptation": "+1 Rage to allies → Empowered +20% (2 turns).",
+  "starterCards.starter_pomodoro_eyes.description": "Heals an ally for 5 HP and removes up to 3 debuffs.",
+  "starterCards.starter_pomodoro_ears.description": "+60 shield to an ally and −20% damage taken (2 turns).",
+  "starterCards.starter_pomodoro_ears.adaptation": "Bulwark → Guarded −20% (2 turns); Cocoon doesn't exist in the engine.",
+  "starterCards.starter_pomodoro_mouth.description": "+20 shield to all allies.",
+  "starterCards.starter_pomodoro_horn.description": "+50 shield and −20% damage taken (2 turns) to the caster. +20 shield to all allies.",
+  "starterCards.starter_pomodoro_horn.adaptation": "Ethereal/Banish don't exist: the 20 shield \"on banish\" is granted on cast. No card draw.",
+  "starterCards.starter_pomodoro_back.description": "45–55 damage (+10 per shielded ally, max +40).",
+  "starterCards.starter_pomodoro_back.adaptation": "\"+10 ATK each time it shields another ally\" → +10 per shielded ally when it hits.",
+  "starterCards.starter_pomodoro_tail.description": "+60 shield to an ally and −20% damage taken (2 turns).",
+  "starterCards.starter_pomodoro_tail.adaptation": "Bulwark → Guarded −20% (2 turns); Cocoon doesn't exist in the engine.",
+};

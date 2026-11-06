@@ -1,6 +1,7 @@
 # Hito 93: Retratos de Axies por ID, equipo fuera del escuadrón y retratos de NPC
 
 > **Estado:** en la versión de prueba (27-oct-2026), pendiente de probarlo en el juego.
+> **Actualización (Hito 115, 2-nov-2026):** la tarjeta de cada ranura en la selección de aventura muestra el Axie principal actual (`slot.mainAxie`, guardado desde `getSquad()[1]`) y no el Axie de creación (`slot.hero`). Su retrato sale de lo ya guardado; no se genera ninguna foto al pintar la tarjeta.
 > **Pedido:** (1) el Axie que se carga por ID no tenía retrato; (2) al sacar un Axie del escuadrón debe salir también de la mochila, pero conservar su equipo, runas y charms, con un botón para devolver el equipo; (3) actualizar los retratos de los NPC.
 
 ## 1. Retrato de los Axies cargados por ID

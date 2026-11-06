@@ -55,9 +55,9 @@ export default {
   "settings.kJournal": "Quest journal",
   "settings.kMap": "World map",
   "settings.kMove": "Move",
-  "settings.kOrbit": "Orbit camera",
+  "settings.kOrbit": "Pan the camera",
   "settings.kPause": "Pause",
-  "settings.kRotate": "Rotate camera 45°",
+  "settings.kRotate": "Rotate camera 90°",
   "settings.keepPlaying": "Keep playing",
   "settings.keyRmb": "Right click",
   "settings.keySpace": "Space",
@@ -134,5 +134,10 @@ export default {
   "settings.combatNumbersDesc": "Damage, healing and alerts floating over units",
   "settings.cnFull": "All",
   "settings.cnDamage": "Damage only",
-  "settings.cnOff": "Hidden"
+  "settings.cnOff": "Hidden",
+  "settings.combatCamera": "Combat camera",
+  "settings.combatCameraDesc": "Where the camera goes when the turn changes",
+  "settings.ccFollow": "Every turn",
+  "settings.ccMine": "My units",
+  "settings.ccFixed": "Fixed"
 };

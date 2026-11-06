@@ -56,12 +56,21 @@ export class TutorialManager {
         targetType: 'end_turn'
       },
       {
+        // Turno del Slime: Paladill avisa y la barra de turnos se ilumina (el paso avanza solo al volver tu turno)
+        id: 'step_enemy_1',
+        kicker: i18n.t('tutorialCombat.kickerPaladill'),
+        title: i18n.t('tutorialCombat.step.enemy1.title'),
+        text: i18n.t('tutorialCombat.step.enemy1.text'),
+        highlightTimeline: true,
+        targetType: 'enemy_turn'
+      },
+      {
+        // La casilla se calcula con la posición real del Slime tras su turno (_resolveCells)
         id: 'step_move_2',
         kicker: i18n.t('tutorialCombat.kickerAxie'),
         title: i18n.t('tutorialCombat.step.move2.title'),
         text: i18n.t('tutorialCombat.step.move2.text'),
-        allowedCell: { x: 4, z: 6 },
-        allowedCells: [{ x: 4, z: 6 }, { x: 3, z: 6 }, { x: 3, z: 7 }],
+        allowedCell: { x: 3, z: 6 },
         targetType: 'cell'
       },
       {
@@ -77,8 +86,22 @@ export class TutorialManager {
         kicker: i18n.t('tutorialCombat.kickerAxie'),
         title: i18n.t('tutorialCombat.step.attack2.title'),
         text: i18n.t('tutorialCombat.step.attack2.text'),
-        allowedCell: { x: 4, z: 7 },
+        allowedCell: { x: 4, z: 6 },
         targetType: 'cell'
+      },
+      {
+        id: 'step_end_turn',
+        kicker: i18n.t('tutorialCombat.kickerAxie'),
+        title: i18n.t('tutorialCombat.step.endTurn2.title'),
+        text: i18n.t('tutorialCombat.step.endTurn2.text'),
+        targetType: 'end_turn'
+      },
+      {
+        id: 'step_enemy_2',
+        kicker: i18n.t('tutorialCombat.kickerRival'),
+        title: i18n.t('tutorialCombat.step.enemy2.title'),
+        text: i18n.t('tutorialCombat.step.enemy2.text'),
+        targetType: 'enemy_turn'
       },
       {
         id: 'step_battle_flow',
@@ -104,6 +127,7 @@ export class TutorialManager {
    *  · ult: tu Sapidae lanza la Ultimate (botón → objetivo); tu Axie pasa turno; tras la Ultimate, libre.
    */
   startDynamic(kind) {
+    this._freeDismissed = false;
     this.dynamic = { kind, guided: new Set(), cur: null, lastUnit: null, freeShown: false };
     this.isActive = true;
     this.currentStep = 0;
@@ -175,11 +199,20 @@ export class TutorialManager {
     if (usable.length) return { id: 'step_select_spell_1', targetType: 'spell_slot', kicker: a.name, title: i18n.t('tutorialCombat.pickCard.title'), text: i18n.t('tutorialCombat.pickCard.text'), allowedSpellIndexes: usable, allowedSpellIndex: usable[0] };
     if (!C.moved && a.currentPM > 0) {
       const cells = (g.gridManager.getReachableCells(a.gridX, a.gridZ, a.currentPM, a) || []).filter((c) => !g.gridManager.getTile(c.x, c.z)?.unit);
+      // El Axie se mueve con total libertad: sus cartas pueden pedir distancia (AL 2) y la casilla más cercana a
+      // Paladill no siempre sirve. Todas las casillas alcanzables quedan marcadas y permitidas, y puede seguir
+      // moviéndose mientras le queden PM (el Sapidae mantiene la casilla guiada).
+      const isSap = a.id === 'sapidae' || a === g.spellManager?.ultimates?.sapidae;
+      if (!isSap && cells.length) {
+        return { id: 'step_move_1', freeMove: true, targetType: 'cell', kicker: a.name, title: i18n.t('tutorialCombat.moveFree.title'), text: i18n.t('tutorialCombat.moveFree.text', { name: foe.name }), allowedCells: cells.map((c) => ({ x: c.x, z: c.z })) };
+      }
       let best = null, bd = Infinity;
       for (const c of cells) { const d = Math.abs(c.x - fc.x) + Math.abs(c.z - fc.z); if (d < bd) { bd = d; best = c; } }
       if (best) return { id: 'step_move_1', targetType: 'cell', kicker: a.name, title: i18n.t('tutorialCombat.approach.title', { name: foe.name }), text: i18n.t('tutorialCombat.approach.text'), allowedCell: { x: best.x, z: best.z } };
     }
-    return endStep(i18n.t('tutorialCombat.passTurn'), i18n.t('tutorialCombat.farText', { name: foe.name }));
+    // Pegado a Paladill pero sin carta que alcance (AL mínimo 2): «lejos» no sería cierto
+    const adjacent = Math.abs(a.gridX - fc.x) + Math.abs(a.gridZ - fc.z) <= 1;
+    return endStep(i18n.t('tutorialCombat.passTurn'), i18n.t(adjacent ? 'tutorialCombat.noReachText' : 'tutorialCombat.farText', { name: foe.name }));
   }
 
   /** Avanza la guía dinámica según lo que acaba de hacer el jugador y recalcula el paso. */
@@ -187,7 +220,8 @@ export class TutorialManager {
     const D = this.dynamic;
     const step = this.steps[this.currentStep];
     if (D.cur && step) {
-      if (step.id === 'step_move_1') D.cur.moved = true;
+      // Movimiento libre del Axie: mientras le queden PM puede seguir moviéndose; solo se da por movido al agotarlos
+      if (step.id === 'step_move_1') D.cur.moved = !(step.freeMove && D.cur.unit.currentPM > 0);
       else if (step.id === 'step_attack_1') D.cur.cast = true;
       else if (step.id === 'step_end_turn') D.guided.add(D.cur.unit);
     }
@@ -205,10 +239,63 @@ export class TutorialManager {
     return Boolean(step.allowUlt);
   }
 
-  /** Recuerda dónde pulsar cuando se intenta otra cosa (la franja y la flecha se sacuden). */
+  /** Recuerda dónde pulsar cuando se intenta otra cosa: la franja se sacude y dice, con amabilidad, qué toca. */
   nudge() {
     if (!this.isActive || !this.overlay) return;
     this.overlay.classList.remove('lk-ctut--nudge'); void this.overlay.offsetWidth; this.overlay.classList.add('lk-ctut--nudge');
+    const step = this.steps[this.currentStep];
+    const el = this.overlay.querySelector('[data-ref="nudge"]');
+    if (!step || !el) return;
+    const key = step.targetType === 'spell_slot' ? 'card'
+      : step.targetType === 'end_turn' ? 'endTurn'
+      : step.targetType === 'ult' ? 'ult'
+      : step.targetType === 'enemy_turn' || step.targetType === 'waiting' ? 'wait'
+      : step.targetType === 'cell' ? (/attack/.test(step.id) ? 'target' : 'move') : null;
+    if (!key) return;
+    el.textContent = i18n.t(`tutorialCombat.nudge.${key}`);
+    el.classList.add('lk-is-on');
+    clearTimeout(this._nudgeTimer);
+    this._nudgeTimer = setTimeout(() => el.classList.remove('lk-is-on'), 2600);
+  }
+
+  /**
+   * Cambio de turno en el combate guiado (main.js, antes de pintar): un paso de «turno enemigo» se muestra mientras
+   * juega la quimera y, al volver el turno al jugador, la guía pasa al siguiente paso.
+   */
+  onTurnStart(unit) {
+    if (!this.isActive || this.dynamic || !unit) return;
+    const step = this.steps[this.currentStep];
+    if (!step || step.targetType !== 'enemy_turn') return;
+    if (unit.team === 'player') this.advanceStep();
+    else this._renderStep();
+  }
+
+  /** Casillas del guion que dependen de dónde está el Slime ahora (empujones, su propio turno). */
+  _resolveCells(step) {
+    const g = this.game;
+    if (!g || !step || this.dynamic) return true;
+    if (step.id !== 'step_attack_1' && step.id !== 'step_move_2' && step.id !== 'step_attack_2') return true;
+    const scout = (g.units || []).find((u) => u.id === 'quimera_scout' && !u.isDead);
+    if (!scout) return false;
+    const sc = { x: scout.gridX, z: scout.gridZ };
+    if (step.id !== 'step_move_2') { step.allowedCell = sc; return true; }
+    const a = g.activeUnit;
+    if (!a || a.team !== 'player') return true;
+    const gm = g.gridManager;
+    const free = (c) => !gm.getTile(c.x, c.z)?.unit;
+    const near = (c) => Math.abs(c.x - sc.x) + Math.abs(c.z - sc.z) === 1;
+    const reach = (gm.getReachableCells(a.gridX, a.gridZ, a.currentPM, a) || []).filter(free);
+    const spots = reach.filter(near);
+    // Ya está al lado: no hace falta moverse
+    if (near({ x: a.gridX, z: a.gridZ })) { step.allowedCell = { x: a.gridX, z: a.gridZ }; step._skip = true; return true; }
+    step._skip = false;
+    const pick = spots.find((c) => c.x === 3 && c.z === 6)
+      || spots.sort((p, q) => (Math.abs(p.x - a.gridX) + Math.abs(p.z - a.gridZ)) - (Math.abs(q.x - a.gridX) + Math.abs(q.z - a.gridZ)))[0];
+    if (pick) { step.allowedCell = { x: pick.x, z: pick.z }; delete step.allowedCells; return true; }
+    // Ninguna casilla al lado al alcance: que se acerque libremente (todas las alcanzables valen)
+    step.allowedCell = null;
+    step.allowedCells = reach.map((c) => ({ x: c.x, z: c.z }));
+    return true;
   }
 
   _initOverlay() {
@@ -226,6 +313,7 @@ export class TutorialManager {
             <h3 id="tut-title" class="lk-ctut__title"></h3>
             <p id="tut-text" class="lk-ctut__text"></p>
             <div class="lk-ctut__concepts" data-ref="concepts"></div>
+            <p class="lk-ctut__nudge" data-ref="nudge" role="status"></p>
           </div>
           <button id="tut-btn-next" type="button" class="lk-btn lk-btn-primary-gold lk-ctut__go"><span data-ref="goTxt">${i18n.t('tutorialCombat.start')}</span><small>${i18n.t('tutorialCombat.enterKey')}</small></button>
         </div>`;
@@ -266,6 +354,8 @@ export class TutorialManager {
             this.game.turnManager.startCombat();
           }
         } else if (step && (step.id === 'step_battle_flow' || step.targetType === 'free_action')) {
+          // Cerrada una vez, la tarjeta «¡Buen trabajo!» ya no vuelve en los turnos siguientes
+          this._freeDismissed = true;
           if (this.overlay) {
             this.overlay.classList.add('hidden');
           }
@@ -336,7 +426,15 @@ export class TutorialManager {
       }
     }
     const worldPos = this.game.gridManager.gridToWorld(cellX, cellZ);
-    this.arrowBaseY = 1.45;
+    // Altura: casilla vacía → justo encima del suelo; con unidad → un poco por encima de su cabeza (alto medido
+    // del modelo, el mismo del clic). Antes 1,45 fijo: quedaba muy alta en las casillas y sobre unidades pequeñas.
+    const g = this.game;
+    const unit = (g.units || []).find((u) => u && !u.isDead && u.gridX === cellX && u.gridZ === cellZ);
+    let top = 0;
+    if (unit && unit.group) {
+      try { top = unit.group.position.y + (g._unitPickShape ? g._unitPickShape(unit).h : 1.2); } catch { top = 1.2; }
+    }
+    this.arrowBaseY = unit ? top + 0.3 : 0.4;
     this.arrowGroup.position.set(worldPos.x, this.arrowBaseY, worldPos.z);
     this.arrowGroup.visible = true;
   }
@@ -365,12 +463,16 @@ export class TutorialManager {
     if (this.groundRing) {
       const pulse = 1.0 + Math.sin(time * 6.0) * 0.12;
       this.groundRing.scale.set(pulse, pulse, 1.0);
+      // el aro va pegado al suelo aunque la flecha suba y baje (antes flotaba con ella)
+      this.groundRing.position.y = 0.035 - this.arrowGroup.position.y;
     }
   }
 
   startTutorial() {
+    this._freeDismissed = false;
     this.dynamic = null;
     this.steps = this.dojoSteps;
+    this._timelineLit = null;
     this.isActive = true;
     this.currentStep = 0;
     this.hideArrow();
@@ -410,8 +512,34 @@ export class TutorialManager {
   }
 
   _renderStep() {
-    const step = this.steps[this.currentStep];
+    let step = this.steps[this.currentStep];
     if (!step) return;
+    // Casillas que siguen al Slime; si ya no está (caso raro), el combate queda libre
+    if (!this._resolveCells(step)) {
+      const free = this.steps.findIndex((s) => s.id === 'step_battle_flow');
+      if (free >= 0 && free !== this.currentStep) { this.currentStep = free; step = this.steps[free]; }
+    } else if (step._skip && step.id === 'step_move_2') {
+      // El Axie ya está junto al Slime: directo a elegir la carta
+      this.currentStep++;
+      step = this.steps[this.currentStep];
+    }
+    if (step.highlightTimeline && this._timelineLit !== step) {
+      this._timelineLit = step;
+      const tl = document.getElementById('initiative-timeline');
+      if (tl) {
+        tl.classList.remove('lk-tut-timeline'); void tl.offsetWidth; tl.classList.add('lk-tut-timeline');
+        clearTimeout(this._timelineTimer);
+        this._timelineTimer = setTimeout(() => tl.classList.remove('lk-tut-timeline'), 2000);
+      }
+    }
+    const nudgeEl = this.overlay && this.overlay.querySelector('[data-ref="nudge"]');
+    if (nudgeEl) nudgeEl.classList.remove('lk-is-on');
+    // Combate libre con la tarjeta ya cerrada: cada inicio de turno volvía a llamar aquí y la reabría
+    if (this._freeDismissed && (step.targetType === 'free_action' || step.id === 'step_battle_flow')) {
+      if (this.overlay) this.overlay.classList.add('hidden');
+      this._markUi(step);
+      return;
+    }
 
     if (this.game) {
       if (!this.game.activeUnit) {
@@ -487,7 +615,7 @@ export class TutorialManager {
   }
 
   _clearUiMarks() {
-    document.querySelectorAll('.tut-highlight, .tut-dim').forEach((el) => el.classList.remove('tut-highlight', 'tut-dim'));
+    document.querySelectorAll('.tut-highlight, .tut-dim, .lk-tut-blink').forEach((el) => el.classList.remove('tut-highlight', 'tut-dim', 'lk-tut-blink'));
   }
 
   _markUi(step) {
@@ -505,7 +633,8 @@ export class TutorialManager {
     const ult = document.getElementById('spell-slot-ult');
     if (ult) ult.classList.add(step.allowUlt ? 'tut-highlight' : 'tut-dim');
     const btnEnd = document.getElementById('btn-end-turn');
-    if (btnEnd) btnEnd.classList.add(step.id === 'step_end_turn' ? 'tut-highlight' : 'tut-dim');
+    // «Pasar turno» conserva su forma: solo parpadea cuando toca pulsarlo (lk-tut-blink, lunakai-tutorial.css)
+    if (btnEnd) btnEnd.classList.add(step.id === 'step_end_turn' ? 'lk-tut-blink' : 'tut-dim');
   }
 
   isCellAllowed(x, z) {
@@ -551,6 +680,7 @@ export class TutorialManager {
   }
 
   completeTutorial() {
+    this._freeDismissed = false;
     this.isActive = false;
     this.dynamic = null;
     this.steps = this.dojoSteps;
@@ -558,7 +688,7 @@ export class TutorialManager {
     this.hideArrow();
     const slot0 = document.getElementById('spell-slot-0');
     const btnEnd = document.getElementById('btn-end-turn');
-    [slot0, btnEnd].forEach(el => el && el.classList.remove('tut-highlight'));
+    [slot0, btnEnd].forEach(el => el && el.classList.remove('tut-highlight', 'lk-tut-blink'));
     if (this.overlay) {
       this.overlay.classList.add('hidden');
     }

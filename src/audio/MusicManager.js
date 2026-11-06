@@ -3,6 +3,7 @@ import { v as withVersion } from '../render/AssetVersion.js'; // Hito 109: versi
 
 export const MUSIC_TRACKS = {
   CINEMATICA: './assets/sounds/CINEMATICA.mp3',
+  TITLE: './assets/sounds/AVATAR_THEME_V1.mp3', // Hito 119: inicio de sesión, partidas y creación de personaje
   PROLOGO: './assets/sounds/PROLOGO.mp3', // Hito 68: pieza a medida de la cinemática del prólogo
   FOREST: './assets/sounds/FOREST THEME.mp3',
   SAVANNA: './assets/sounds/SAVANNA THEME.mp3',
@@ -23,7 +24,7 @@ export const MUSIC_TRACKS = {
  */
 export const MUSIC_TARGET_LUFS = -20.5;
 export const TRACK_LUFS = {
-  CINEMATICA: -21.0, PROLOGO: -21.5, FOREST: -18.7, SAVANNA: -18.6, ARCTIC: -20.9, MYSTIC: -20.8, MAZMORRA: -20.1,
+  CINEMATICA: -21.0, TITLE: -18.0, PROLOGO: -21.5, FOREST: -18.7, SAVANNA: -18.6, ARCTIC: -20.9, MYSTIC: -20.8, MAZMORRA: -20.1,
   BATTLE: -13.5, BATTLE_BOSS: -15.0, VICTORY: -12.2, DEFEAT: -15.8,
 };
 export function trackGain(key) {
@@ -116,6 +117,7 @@ export class MusicManager {
     if (!MUSIC_TRACKS[trackKey]) return;
 
     // If already playing this track smoothly, simply update target volume if needed
+    const baseMultiplier = volumeMultiplier;   // Hito 119: el reintento tras el primer gesto parte del valor sin igualar
     volumeMultiplier *= trackGain(trackKey);   // Hito 91: todas las pistas al mismo nivel
     if (this.currentKey === trackKey && this.currentAudio && !this.currentAudio.paused) {
       this.currentVolumeMultiplier = volumeMultiplier;
@@ -133,7 +135,9 @@ export class MusicManager {
       this._fadeInterval = null;
     }
 
-    const prevAudio = this.currentAudio;
+    // Hito 119: si es la misma pista (reintento de una que el navegador retuvo hasta el primer gesto), no hay «anterior»
+    // que apagar: antes el fundido la pausaba y rebobinaba al terminar y la música del título se cortaba a los 1,5 s.
+    const prevAudio = this.currentAudio === nextAudio ? null : this.currentAudio;
     const prevKey = this.currentKey;
 
     this.currentKey = trackKey;
@@ -157,7 +161,7 @@ export class MusicManager {
       const playPromise = nextAudio.play();
       if (playPromise && typeof playPromise.catch === 'function') {
         playPromise.catch(() => {
-          this.pendingTrack = { trackKey, options: { loop, fadeDuration, volumeMultiplier } };
+          this.pendingTrack = { trackKey, options: { loop, fadeDuration, volumeMultiplier: baseMultiplier } };
         });
       }
       return;
@@ -168,7 +172,7 @@ export class MusicManager {
     const playPromise = nextAudio.play();
     if (playPromise && typeof playPromise.catch === 'function') {
       playPromise.catch(() => {
-        this.pendingTrack = { trackKey, options: { loop, fadeDuration, volumeMultiplier } };
+        this.pendingTrack = { trackKey, options: { loop, fadeDuration, volumeMultiplier: baseMultiplier } };
       });
     }
 
@@ -209,6 +213,14 @@ export class MusicManager {
    */
   playCinematic() {
     this.playTrack('CINEMATICA', { loop: true, fadeDuration: 800, volumeMultiplier: 0.85 });
+  }
+
+  /**
+   * Hito 119: música del inicio de sesión, la lista de partidas y la creación de personaje (AVATAR_THEME_V1).
+   * Si el navegador aún no deja sonar, espera al primer gesto.
+   */
+  playTitle() {
+    this.playTrack('TITLE', { loop: true, fadeDuration: 1500, volumeMultiplier: 0.85 });
   }
 
   /**

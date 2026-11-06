@@ -125,7 +125,6 @@ export class PlayerEntity {
     this.radius = 0.65;
     this.isSaluting = false;
 
-    this._createUnderFeetAura();
     this._createQuestNavArrow();
   }
 
@@ -137,65 +136,16 @@ export class PlayerEntity {
     };
   }
 
-  _createUnderFeetAura() {
-    // Ground circle removed per user request (prevents slope clipping)
-    // Keep subtle soft shadow disc
-    const shadowGeo = new THREE.CircleGeometry(0.55, 24);
-    shadowGeo.rotateX(-Math.PI / 2);
-    const shadowMat = new THREE.MeshBasicMaterial({
-      color: 0x050f1a,
-      transparent: true,
-      opacity: 0.35,
-      depthWrite: false
-    });
-    const shadowMesh = new THREE.Mesh(shadowGeo, shadowMat);
-    shadowMesh.position.y = 0.02;
-    this.group.add(shadowMesh);
-  }
-
   _createQuestNavArrow() {
-    // Floating 3D Navigation Guide at waist height (1.35m) - zero ground clipping on slopes
-    this.navArrowGroup = new THREE.Group();
-    this.navArrowGroup.position.y = 1.35;
-    this.navArrowGroup.visible = false;
-
-    // Glowing golden guidance material
-    const navMat = new THREE.MeshStandardMaterial({
-      color: 0xffd700,
-      emissive: 0xff9900,
-      emissiveIntensity: 1.25,
-      roughness: 0.2,
-      metalness: 0.7
-    });
-
-    // 3D forward-pointing faceted pointer crystal
-    const crystalGeo = new THREE.ConeGeometry(0.20, 0.55, 4);
-    crystalGeo.rotateX(Math.PI / 2);
-    crystalGeo.rotateZ(Math.PI / 4);
-    this.navCrystalMesh = new THREE.Mesh(crystalGeo, navMat);
-    this.navCrystalMesh.position.set(0, 0, 1.35);
-    this.navArrowGroup.add(this.navCrystalMesh);
-
-
-    // Sin PointLight: al mostrarse/ocultarse o crearse en mitad del juego cambia el número de luces
-    // y three.js recompila TODOS los shaders iluminados (tirón). El brillo lo dan el material emisivo y el bloom.
-
-    this.group.add(this.navArrowGroup);
-
+    // Hito 136: la flecha dorada que flotaba delante del personaje se quitó; ahora guía la «Chispa guía»
+    // (OverworldManager._updateGuide). Se conserva el objetivo por si otro sistema lo consulta.
+    this.navArrowGroup = null;
+    this.navCrystalMesh = null;
     this.navTargetWorldPos = null;
-    this.navTargetAngle = 0;
-    this.currentNavAngle = 0;
   }
 
   setNavTarget(targetWorldPos, visible = true) {
-    if (!targetWorldPos || !visible) {
-      this.navTargetWorldPos = null;
-      if (this.navArrowGroup) this.navArrowGroup.visible = false;
-      return;
-    }
-
-    this.navTargetWorldPos = targetWorldPos;
-    if (this.navArrowGroup) this.navArrowGroup.visible = true;
+    this.navTargetWorldPos = (targetWorldPos && visible) ? targetWorldPos : null;
   }
 
   async loadModel(renderer = null) {
@@ -920,31 +870,6 @@ export class PlayerEntity {
       }
     }
 
-    // Update floating 3D navigation guide & guiding wisps
-    if (this.navArrowGroup && this.navArrowGroup.visible && this.navTargetWorldPos) {
-      const dx = this.navTargetWorldPos.x - this.position.x;
-      const dz = this.navTargetWorldPos.z - this.position.z;
-      const dist = Math.sqrt(dx * dx + dz * dz);
-
-      if (dist > 0.45) {
-        const targetAngle = Math.atan2(dx, dz);
-
-        let diff = targetAngle - this.currentNavAngle;
-        while (diff < -Math.PI) diff += Math.PI * 2;
-        while (diff > Math.PI) diff -= Math.PI * 2;
-        this.currentNavAngle += diff * Math.min(1.0, 14.0 * dt);
-
-        this.navArrowGroup.rotation.y = this.currentNavAngle;
-
-        // Floating vertical oscillation at waist height (1.35m + bob)
-        this.navArrowGroup.position.y = 1.35 + Math.sin(time * 3.5) * 0.12;
-
-        const pulse = Math.sin(time * 5.0) * 0.08;
-        if (this.navCrystalMesh) {
-          this.navCrystalMesh.scale.set(1.0 + pulse, 1.0 + pulse, 1.0 + pulse);
-        }
-      }
-    }
   }
 
   dispose() {

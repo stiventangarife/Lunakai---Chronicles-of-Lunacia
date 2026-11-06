@@ -8,13 +8,23 @@ import { OutputPass } from '../../vendor/postprocessing/OutputPass.js';
 import { TransientLightPool } from './combat/TransientLightPool.js';
 import { access } from '../ui/AccessPrefs.js';
 
+// Cámara isométrica del combate: ángulo fijo (diagonal del tablero, inclinación isométrica de 35,26°) y campo de
+// visión estrecho para que casi no haya perspectiva (lo lejano no se encoge ni lo cercano se deforma al acercarse).
+// Para encuadrar lo mismo que con los 36° de antes, la cámara se aleja ISO_K veces: las distancias y el zoom siguen
+// en las unidades de siempre (cameraDistance 12–38) y solo la posición final se multiplica.
+const BASE_FOV = 36;
+const ISO_FOV = 14;
+const ISO_K = Math.tan(THREE.MathUtils.degToRad(BASE_FOV / 2)) / Math.tan(THREE.MathUtils.degToRad(ISO_FOV / 2));
+const ISO_PITCH = Math.tan(THREE.MathUtils.degToRad(35.264)); // altura / distancia horizontal
+const ISO_SPAN = Math.hypot(1, ISO_PITCH);                    // distancia real / distancia horizontal
+
 export class SceneManager {
   constructor(canvasContainer) {
     this.container = canvasContainer;
     this.scene = new THREE.Scene();
 
     const aspect = window.innerWidth / window.innerHeight;
-    this.camera = new THREE.PerspectiveCamera(36, aspect, 0.1, 1000);
+    this.camera = new THREE.PerspectiveCamera(ISO_FOV, aspect, 0.5, 1000);
     
     this.cameraDistance = 21.0;
     this.cameraElevation = 14.5;
@@ -61,6 +71,8 @@ export class SceneManager {
 
     this._initPostProcessing();
     this._initAtmosphere();
+    // Niebla del bioma tal como se pidió; cada fotograma se desplaza lo que la cámara isométrica se aleja de más
+    this._fogBase = this.scene.fog ? { near: this.scene.fog.near, far: this.scene.fog.far } : null;
     this._initLighting();
     // Luces puntuales fijas para los efectos breves: el número de luces nunca cambia → sin recompilar shaders
     this.lightPool = new TransientLightPool(this.scene, 2); // 2: cada luz cuesta algo de GPU aunque esté a 0
@@ -321,6 +333,7 @@ export class SceneManager {
       this.scene.fog.color.setHex(biome.fog.color);
       this.scene.fog.near = biome.fog.near;
       this.scene.fog.far = biome.fog.far;
+      this._fogBase = { near: biome.fog.near, far: biome.fog.far };
       this.scene.background.setHex(biome.fog.color);
     }
 
@@ -505,8 +518,8 @@ export class SceneManager {
 
     this.container.addEventListener('mousedown', e => {
       if (e.button === 2) {
-        // Right-click: Orbit rotation & elevation tilt
-        this.dragMode = 'orbit';
+        // Clic derecho: mueve el tablero como el central (la vista es isométrica fija: ya no orbita ni se inclina)
+        this.dragMode = 'pan';
         this.prevMousePos = { x: e.clientX, y: e.clientY };
       } else if (e.button === 1) {
         // Middle-click / Scroll wheel drag: Ground grab-and-pan
@@ -605,16 +618,20 @@ export class SceneManager {
     });
   }
 
+  // Q / E: un cuarto de vuelta, así el tablero sigue viéndose en diagonal (isométrico)
   rotateLeft() {
-    this.targetAngle += Math.PI / 4;
+    this.targetAngle += Math.PI / 2;
   }
 
   rotateRight() {
-    this.targetAngle -= Math.PI / 4;
+    this.targetAngle -= Math.PI / 2;
   }
 
+  /** Ángulo de la cámara al empezar el combate. Arena PvP (P3): el bando B mira desde el otro lado (+π). */
+  get homeAngle() { return (3 * Math.PI) / 4 + (this.flipSide ? Math.PI : 0); }
+
   resetCamera(focusTarget = null) {
-    this.targetAngle = (3 * Math.PI) / 4;
+    this.targetAngle = this.homeAngle;
     this.cameraDistance = this.defaultDistance;
     this.cameraElevation = this.defaultElevation;
     if (focusTarget) {
@@ -628,6 +645,13 @@ export class SceneManager {
     this.targetLookAt.set(position.x, 0, position.z);
   }
 
+  /** Al empezar el turno de `unit`: centra la cámara según Opciones › Cámara de combate (cada turno / mis unidades / fija). */
+  focusOnTurn(position, unit) {
+    const mode = access.combatCamera;
+    if (mode === 'fixed' || (mode === 'mine' && unit?.team !== 'player')) return;
+    this.focusOn(position);
+  }
+
   startCinematicZoom(worldPos, distance = 13.5, elevation = 7.8) {
     this.cameraDistance = distance;
     this.cameraElevation = elevation;
@@ -638,7 +662,7 @@ export class SceneManager {
     this.cameraDistance = this.defaultDistance;
     this.cameraElevation = this.defaultElevation;
     this.targetLookAt.set(0, 0, 0);
-    this.targetAngle = (3 * Math.PI) / 4;
+    this.targetAngle = this.homeAngle;
   }
 
   setTimeScale(scale) {
@@ -713,13 +737,21 @@ export class SceneManager {
     const shakeX = sh ? sh.x : 0;
     const shakeY = sh ? sh.y : 0;
 
-    const camX = this.currentLookAt.x + Math.sin(this.currentAngle) * this.currentDistance + shakeX;
-    const camZ = this.currentLookAt.z + Math.cos(this.currentAngle) * this.currentDistance;
-    const camY = this.currentElevation + shakeY;
+    // Isométrica: la altura sale de la distancia (inclinación fija) y todo se aleja ISO_K (campo de visión estrecho).
+    // El temblor se escala igual para que se note lo mismo en pantalla.
+    const horiz = this.currentDistance * ISO_K;
+    const camX = this.currentLookAt.x + Math.sin(this.currentAngle) * horiz + shakeX * ISO_K;
+    const camZ = this.currentLookAt.z + Math.cos(this.currentAngle) * horiz;
+    const camY = this.currentLookAt.y + horiz * ISO_PITCH + shakeY * ISO_K;
+    if (this._fogBase && this.scene.fog) {
+      const extra = this.currentDistance * ISO_SPAN * (ISO_K - 1);
+      this.scene.fog.near = this._fogBase.near + extra;
+      this.scene.fog.far = this._fogBase.far + extra;
+    }
 
     this.camera.position.set(camX, camY, camZ);
     this.camera.lookAt(
-      this.currentLookAt.x + shakeX * 0.5,
+      this.currentLookAt.x + shakeX * 0.5 * ISO_K,
       this.currentLookAt.y,
       this.currentLookAt.z
     );

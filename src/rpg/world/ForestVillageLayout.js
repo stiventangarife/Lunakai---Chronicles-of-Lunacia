@@ -90,3 +90,6 @@ export const PALADILL_SPOT = { ...villagePoint('dojo', 0, 8.9), rotation: villag
 
 /** Donde queda el jugador tras la cinemática: frente al maestro, mirándole. */
 export const PALADILL_GREET_SPOT = { ...villagePoint('dojo', 0, 12.5), yaw: villageFacing('dojo') + Math.PI };
+
+/** Dónde reaparece el jugador al perder un combate: delante del altar de Atia, al final de la calle, mirando al pueblo. */
+export const ATIA_RESPAWN_SPOT = { ...villagePoint('altar', 0, 5.0), yaw: villageFacing('altar') };

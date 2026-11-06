@@ -13,7 +13,9 @@
 
 import * as THREE from 'three';
 import { GATHER_KINDS, GATHER_RULES } from '../tactics/data/GatheringCatalog.js';
-import { equipAxieWeapon } from './WeaponVisuals.js';
+import { equipAxieWeapon, weaponObjects } from './WeaponVisuals.js';
+import { warmupObjects } from '../render/RenderWarmup.js';
+import { perfMark } from '../debug/PerfProbe.js';
 import { formatWait } from './GatheringService.js';
 import * as i18n from '../i18n/i18n.js';
 
@@ -250,10 +252,40 @@ export class AxieSession extends Session {
     this.phase = 'approach';
     // el arma se va cargando mientras corre
     this.equipReady = false;
-    Promise.resolve(equipAxieWeapon(this.ax, this.ctx.player.companionMesh, this.weapon)).then((ok) => { this.equipReady = true; this.equipOk = ok !== false; }).catch(() => { this.equipReady = true; this.equipOk = false; });
+    Promise.resolve(equipAxieWeapon(this.ax, this.ctx.player.companionMesh, this.weapon))
+      .then(async (ok) => { await this._warmWeapon(); this.equipReady = true; this.equipOk = ok !== false; })
+      .catch(() => { this.equipReady = true; this.equipOk = false; });
   }
 
   _play(name, opts = {}) { try { return this.ax.playAnimation(name, opts); } catch { return false; } }
+
+  /**
+   * Hito 113 — Precompila el arma del mixer (hacha, caña) que el Axie acaba de equipar, mientras corre hacia el árbol o la
+   * orilla. Antes se dibujaba por primera vez al llegar y su shader (`M_Rock` en el hacha) bloqueaba el fotograma de 0,1 a
+   * 2,5 s. El arma se oculta durante el precompilado (una vez resuelta la promesa de equiparla y antes del siguiente
+   * fotograma). `window.lkNoToolWarm = true` lo desactiva para comparar.
+   */
+  async _warmWeapon() {
+    const ow = this.ctx.ow, root = this.ctx.player && this.ctx.player.companionMesh;
+    if (!ow || !ow.renderer || !ow.scene || !ow.camera || !root || (typeof window !== 'undefined' && window.lkNoToolWarm)) return;
+    const objs = weaponObjects(root);
+    if (!objs.length) return;
+    const env = ow.environmentSystem;
+    const composer = env && env.isPostProcessingActive !== false && env.composer;
+    const target = composer ? (composer.readBuffer || null) : null;
+    const t0 = performance.now();
+    perfMark('tala/pesca: precompilando herramienta');
+    const was = objs.map((o) => o.visible);
+    objs.forEach((o) => { o.visible = false; });
+    try {
+      const r = await warmupObjects(ow.renderer, ow.scene, ow.camera, objs, { target, deadline: t0 + 2500 });
+      perfMark(`tala/pesca: herramienta lista (${r.programs} programas nuevos, ${r.textures} texturas, ${Math.round(performance.now() - t0)} ms)`);
+    } catch (e) {
+      console.warn('[GatheringActors] Precalentado de la herramienta omitido:', e);
+    } finally {
+      objs.forEach((o, i) => { o.visible = was[i]; });
+    }
+  }
 
   /** Mueve el Axie hacia un punto; true al llegar. */
   _walkTo(target, speed, dt, arrive = 0.25) {

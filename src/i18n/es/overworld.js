@@ -23,7 +23,7 @@ export default {
   "overworld.lockMap": "El mapa se desbloquea al graduarte en el Dojo.",
   "overworld.lockBackpack": "La Mochila se abre tras tu primer combate.",
   "overworld.lockChronicle": "Habla primero con el Maestro Paladill [E].",
-  "overworld.lockSquad": "El Escuadrón se desbloquea al reclutar a Bing en la Sabana.",
+  "overworld.lockSquad": "El Escuadrón se desbloquea al terminar tu entrenamiento en el Dojo.",
   "overworld.openChronicle": "Abrir la Crónica [J]",
   "overworld.catMain": "Misión principal",
   "overworld.catSide": "Encargo",
@@ -36,5 +36,11 @@ export default {
   "overworld.victory": "¡VICTORIA!",
   "overworld.victoryDesc": "Las criaturas salvajes han sido derrotadas.",
   "overworld.dojoRest": "DESCANSO EN EL DOJO",
-  "overworld.dojoRestDesc": "Tus héroes se recuperan en el Dojo. Prepárate y vuelve al combate."
+  "overworld.dojoRestDesc": "Tus héroes se recuperan en el Dojo. Prepárate y vuelve al combate.",
+  "overworld.atiaRest": "DESCANSO EN EL ALTAR DE ATIA",
+  "overworld.atiaRestDesc": "Tus héroes se recuperan junto al Altar de Atia. Prepárate y vuelve al combate.",
+  "overworld.newSquad": "Nuevo: organiza tu equipo",
+  "overworld.newKoliseo": "Nuevo: Arena PvP y Desafío de la Bruma",
+  "overworld.newCodex": "{n} páginas sin leer",
+  "overworld.newCodexOne": "1 página sin leer"
 };

@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>Lunakai · Arena PvP · combate del juego (P3)</title>
+<!-- Arena PvP, fase P3. Abrir con el servidor del juego: http://localhost:8082/tools/pvp/pvp-battle.html?n=6
+     Cada partida se juega al azar en el motor sin gráficos desde el bando A (HeadlessCombat.fromMatch) y se repite en el
+     combate del juego (PvpBattle: Unit, GridManager, SpellManager con VFX, TurnManager SIN modo simulación, con sus
+     esperas y sus pasos diferidos) visto desde el bando B. Las partidas impares empiezan con una puesta al día (la
+     mitad de las órdenes sin animaciones, como al recargar). La huella tras cada orden debe ser idéntica. -->
+<script type="importmap">
+{ "imports": {
+  "three": "../../vendor/three.module.js",
+  "three/addons/": "../../vendor/",
+  "three/examples/jsm/": "../../vendor/",
+  "@jaatster/threejs-axie-mixer3d-public": "../../vendor/axie-mixer3d/index.js",
+  "@jaatster/threejs-axie-mixer3d-public/three": "../../vendor/axie-mixer3d/three.js"
+} }
+</script>
+<style>body{font:14px/1.5 system-ui,sans-serif;background:#0e1424;color:#e8ecf6;padding:24px}pre{white-space:pre-wrap}.ok{color:#9fd8a3}.bad{color:#ff8a80}</style>
+</head>
+<body>
+<h1>Arena PvP · combate del juego visto desde B ↔ motor sin gráficos visto desde A</h1>
+<pre id="out">Cargando…</pre>
+<script type="module">
+const out = document.getElementById('out');
+const log = (t, cls = '') => { out.innerHTML += `\n<span class="${cls}">${t}</span>`; };
+out.textContent = '';
+// El tiempo corre 50 veces más rápido (mismas esperas y en el mismo orden; solo más cortas)
+const nativeTimeout = window.setTimeout.bind(window);
+window.setTimeout = (fn, ms = 0, ...a) => nativeTimeout(fn, Math.max(0, ms) * 0.02, ...a);
+window.requestAnimationFrame = (cb) => nativeTimeout(() => cb(performance.now() + 1e6), 0);
+
+const THREE = await import('three');
+const { GridManager } = await import('../../src/tactics/GridManager.js');
+const { Unit } = await import('../../src/tactics/Unit.js');
+const { SpellManager } = await import('../../src/tactics/Spells.js');
+const { TurnManager } = await import('../../src/tactics/TurnManager.js');
+const { getBattleMap } = await import('../../src/tactics/maps/BattleMaps.js');
+const { HeadlessCombat } = await import('../../src/tactics/sim/HeadlessCombat.js');
+const { mulberry32 } = await import('../../src/tactics/sim/SeededRandom.js');
+const { PvpBattle } = await import('../../src/rpg/arena/PvpBattle.js');
+const { variantId } = await import('../../src/tactics/data/VariantCards.js');
+const { SPELLS_DB } = await import('../../src/tactics/data/SpellsDB.js');
+
+const noop = () => {};
+const scene = new THREE.Scene();
+const sceneManager = new Proxy({ scene, camera: new THREE.PerspectiveCamera(), lightPool: undefined, composer: undefined, renderer: undefined, flipSide: false },
+  { get: (t, k) => (k in t ? t[k] : noop), set: (t, k, v) => { t[k] = v; return true; } });
+const audio = new Proxy({ isMuted: false }, { get: (t, k) => (k in t ? t[k] : k === 'combat' || k === 'then' ? undefined : noop), set: (t, k, v) => { t[k] = v; return true; } });
+const combatText = new Proxy({}, { get: (t, k) => (k === 'then' ? undefined : noop) });
+
+const MAPS = ['forest_maple_glade', 'savannah_canyon', 'arctic_glacier_pass', 'mystic_glow_swamp', 'genesis_royal_garden', 'forest_river_ford'];
+const CLS = ['beast', 'plant', 'aquatic', 'bird', 'bug', 'reptile'];
+const SAPS = ['crafter', 'shepard', 'lunalogist', 'stargazer'];
+const allIds = Object.keys(SPELLS_DB);
+const snap = (k, name) => {
+  const cls = CLS[k % CLS.length];
+  const parts = allIds.filter((id) => id.startsWith(`part_${cls}_`));
+  const cards = Array.from({ length: 6 }, (_, i) => parts[(k * 5 + i * 11) % parts.length]);
+  const v = { id: variantId(cards[0], 'Prueba', 2), baseId: cards[0], name: 'Prueba', stage: 2 };
+  cards[0] = v.id;
+  return { name, sapidaeClass: SAPS[k % 4], sapidaeModel: 'sapidae-m-a', axie: { axieId: String(4000 + k), name: `Axie ${k}`, class: cls, cards, variants: [v], collections: [] } };
+};
+
+/** Partida al azar en el motor sin gráficos (bando A). */
+async function record(match, pickSeed) {
+  const c = HeadlessCombat.fromMatch(match, 'A').start();
+  const pick = mulberry32(pickSeed);
+  const orders = [];
+  let n = 0;
+  while (!c.over && n++ < 1500) {
+    const legal = c.legalOrders();
+    const casts = legal.filter((o) => o.t === 'cast'), moves = legal.filter((o) => o.t === 'move'), r = pick();
+    const o = r < 0.03 ? { t: 'timeout' } : casts.length && r < 0.6 ? casts[Math.floor(pick() * casts.length)]
+      : moves.length && r < 0.85 ? moves[Math.floor(pick() * moves.length)] : legal.find((x) => x.t === 'end');
+    orders.push({ ...o, h: await c.apply(o) });
+  }
+  return { orders, start: null, result: c.result };
+}
+
+/** El mismo registro en el combate del juego, visto desde B. */
+async function playGame(match, rec, { catchUp = 0 } = {}) {
+  const grid = new GridManager(scene);
+  const game = { units: [], gridManager: grid, sceneManager, audio, combatText };
+  const sm = new SpellManager(grid, sceneManager, audio, combatText, game);
+  const tm = new TurnManager(sceneManager, audio);
+  sm.bindTurnManager(tm);
+  Object.assign(game, { spellManager: sm, turnManager: tm });
+  const battle = new PvpBattle({ game, match: { ...match, side: 'B' } });
+  grid.loadLayout(getBattleMap(battle.setup.mapId), {});
+  for (const c of battle.unitConfigs()) game.units.push(new Unit(c, grid, sceneManager, audio));
+  tm.alternateTeams = true;
+  tm.setUnits(game.units);
+  tm.onVictory = () => battle.onCombatEnd('player');
+  tm.onDefeat = () => battle.onCombatEnd('enemy');
+  battle.prepareRules();
+  battle._playEndBanner = async () => {};
+  tm.startCombat();
+  await tm.settled();
+  battle.catchUpTo(catchUp);
+  const hashes = [];
+  let error = null;
+  for (const { h, ...o } of rec.orders) {
+    try { hashes.push(await battle.apply(o)); } catch (e) { error = e.code || String(e); break; }
+  }
+  const res = battle.result;
+  for (const u of game.units) { scene.remove(u.group); u.dispose?.(); }
+  battle.dispose();
+  sm.releaseBattle?.();
+  return { hashes, error, result: res, flip: sceneManager.flipSide };
+}
+
+const N = Number(new URLSearchParams(location.search).get('n')) || 6;
+let bad = 0, orders = 0;
+const t0 = performance.now();
+for (let k = 0; k < N; k++) {
+  const match = { id: `t${k}`, seed: (0x27D4EB2F * (k + 3)) >>> 0, map: MAPS[k % MAPS.length], tieBreak: k % 2 ? 'A' : 'B', maxRounds: k === 2 ? 4 : 25,
+    A: snap(k, 'Ana'), B: snap(k + 2, 'Bea'), nextSeq: 0 };
+  const rec = await record(match, 900 + k);
+  const catchUp = k % 2 ? Math.floor(rec.orders.length / 2) : 0;
+  const g = await playGame(match, rec, { catchUp });
+  orders += rec.orders.length;
+  const diff = g.hashes.length !== rec.orders.length ? g.hashes.length : g.hashes.findIndex((h, i) => h !== rec.orders[i].h);
+  const sameEnd = (g.result?.winnerSide || null) === (rec.result?.winnerSide || null) && (g.result?.reason || null) === (rec.result?.reason || null);
+  if (diff < 0 && sameEnd) log(`✓ ${match.map} · ${rec.orders.length} órdenes${catchUp ? ` (${catchUp} sin animación)` : ''} · ${rec.result?.reason}:${rec.result?.winnerSide}`, 'ok');
+  else { bad++; log(`✗ ${match.map}: se separa en la orden ${diff} ${JSON.stringify(rec.orders[diff] || null)} error=${g.error} final ${JSON.stringify(g.result)} / ${JSON.stringify(rec.result)}`, 'bad'); }
+}
+log(`\n${bad ? `✗ ${bad} partidas distintas` : `✓ ${N} partidas idénticas`} · ${orders} órdenes · ${((performance.now() - t0) / 1000).toFixed(1)} s`, bad ? 'bad' : 'ok');
+window.pvpBattleResult = { n: N, bad, orders };
+</script>
+</body>
+</html>

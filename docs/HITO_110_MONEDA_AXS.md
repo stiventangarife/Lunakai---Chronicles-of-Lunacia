@@ -1,5 +1,7 @@
 # Hito 110: Moneda AXS en el Mercado entre jugadores
 
+> **Actualización (Hito 115, 2-nov-2026):** se quitó el icono de candado de la runa y el charm que regala el tutorial en el panel de Runas y charms (`boundTag`). La regla no cambia: siguen ligados a la partida y no se comercian.
+
 **Problema:** el Mercado de equipo, runas y charms usaba **bAXS** (Hito 78). En el ecosistema de Axie Infinity y Ronin, el bAXS es una recompensa por jugar y no se puede intercambiar. La moneda que sí se intercambia entre jugadores es el **AXS**.
 
 ## Economía tras el cambio

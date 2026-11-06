@@ -10,7 +10,7 @@
 // (o de nivel > 1) cuentan como terminadas.
 // Consola: lunakaiTutorial.goto('forge_talk') · .skip() · .state()
 
-import { STEPS, ORDER, PHASES, DIALOGS, COACH, LOCKED, REWARDS } from './TutorialScript.js';
+import { STEPS, ORDER, PHASES, DIALOGS, COACH, LOCKED, REWARDS, LEGACY_STEPS } from './TutorialScript.js';
 import { PrologueCinematic } from '../cinematic/PrologueCinematic.js';
 import { LEVELS_CONFIG } from '../../tactics/LevelsDatabase.js';
 import { ITEMS_DB } from '../../tactics/ItemDatabase.js';
@@ -18,6 +18,7 @@ import { MATERIALS } from '../../tactics/data/EconomyCatalog.js';
 import { ForgeService } from '../ForgeService.js';
 import { GatheringService } from '../GatheringService.js';
 import { BondService } from '../BondService.js';
+import { PET_BOND } from '../AxieCareService.js';
 import { RuneCharmService } from '../RuneCharmService.js';
 import { RUNE_BY_ID, CHARM_BY_ID } from '../../tactics/data/RunesCharms.js';
 import { FORGE_SPOT } from '../world/ForgeStation.js';
@@ -27,6 +28,8 @@ import { showRewardCard } from '../../ui/RewardCard.js';
 import { FORGE_TREE_SPOT, PALADILL_SPOT, PALADILL_GREET_SPOT } from '../world/ForestVillageLayout.js';
 import * as i18n from '../../i18n/i18n.js';
 import { EconomyService } from '../../net/EconomyService.js';
+import { hideZoneBanner } from '../ui/ZoneBanner.js';
+import { newBadges } from '../../ui/NewBadges.js';
 
 const PALADILL = { speaker: i18n.t('tutorialDirector.paladillSpeaker'), title: i18n.t('tutorialDirector.paladillTitle'), avatar: './assets/portraits/paladill.png', npcId: 'paladill' };
 const PALADILL_POS = { x: PALADILL_SPOT.x, z: PALADILL_SPOT.z }; // delante del dojo del pueblo
@@ -36,12 +39,17 @@ const QUEST = 'quest_slime_purification';
 const ICON = (n) => `./assets/ui/icons/${n}.png`;
 const GOLD_ICON = curIcon('gold'); // la misma moneda que la Forja y la Tienda (Hito 54)
 const idx = (step) => ORDER.indexOf(step);
+const TUTORIAL_BOND_START = 92; // + caricia (PET_BOND 5) + mandarina lunar (3) = 100 %
+// Combate final: el Slime Knight ronda el claro en (-2.4, -6.1), lejos de objetos y de Ema la herbolaria, a ~37 m
+// de Paladill. Si se pierde y se vuelve al mundo, el jugador aparece unos 10 m antes, del lado del pueblo.
+const KNIGHT_SPOT = { x: -2.4, z: -6.1 };
+const KNIGHT_RETURN_SPOT = { x: -12.2, z: -8.0 };
 const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 
 /** Desde qué paso queda desbloqueada cada función. */
 const UNLOCK_AT = {
-  questBook: 'defend', combat: 'defend', inventory: 'equip_talk', forge: 'forge_talk', care: 'bond_talk',
-  runes: 'runes_talk', squad: 'done', worldMap: 'done', shop: 'done', gather: 'done',
+  questBook: 'defend', combat: 'defend', inventory: 'equip_sword', forge: 'forge_talk', care: 'bond_talk',
+  runes: 'runes_talk', squad: 'done', worldMap: 'done', shop: 'done', gather: 'done', koliseo: 'done',
 };
 
 export class TutorialDirector {
@@ -88,7 +96,8 @@ export class TutorialDirector {
   get equipLockItem() { return this.isActive && !this.done && this.step === 'equip_sword' ? 'wood_sword' : null; }
 
   isFeatureUnlocked(name) {
-    if (name === 'squad') return this._squadReady(); // Hito 75: al reclutar a Bing
+    if (name === 'squad') return this.done || this._squadReady(); // Hito 126: al graduarse (antes, Hito 75: al reclutar a Bing)
+    if (name === 'codex') return this.done || !this.isActive; // Hito 126: el Códice llega con la graduación
     if (!this.isActive || this.done) return true;
     const at = UNLOCK_AT[name];
     return at ? idx(this.step) >= idx(at) : true;
@@ -125,11 +134,12 @@ export class TutorialDirector {
   loadSaveData(save, heroLevel = 1) {
     if (save && save.v === 2) {
       this.done = Boolean(save.done);
-      this.step = STEPS[save.step] ? save.step : 'defend';
+      // Tutorial rápido: los pasos que ya no existen (duelo, prueba de la Ultimate…) pasan a su equivalente
+      const st = LEGACY_STEPS[save.step] || save.step;
+      this.step = STEPS[st] ? st : 'defend';
       this.flags = { ...(save.flags || {}) };
       this.bondBefore = save.bondBefore ?? null;
-      // Un combate que se quedó a medias vuelve a su conversación
-      if (this.bondBefore != null && this.step === 'ult_talk') this._restoreBond();
+      if (this.bondBefore != null) this._restoreBond(); // vínculo «prestado» por la antigua prueba de la Ultimate
     } else if ((save && Object.keys(save).length) || heroLevel > 1) {
       this.done = true; // partidas de antes del Hito 48
     } else {
@@ -138,6 +148,12 @@ export class TutorialDirector {
     this.isActive = !this.done;
     // Hito 75: las partidas que ya tenían a Bing no repiten el mini-tutorial del Escuadrón
     if (!this.flags.squadIntro) this.flags.squadIntro = this._squadReady() ? 'done' : 'waiting';
+    // Hito 126: el mini-tutorial se divide en el recorrido de la primera apertura (squadTour) y el paso de Bing
+    // (squadIntro: waiting · open · place · done). «Cargar mis Axies» ya va en el recorrido.
+    if (!this.flags.squadTour) this.flags.squadTour = this.flags.squadIntro === 'done' ? 'done' : 'pending';
+    // Hito 126: recorrido del Koliseo en su primera apertura (las partidas ya graduadas también lo ven una vez)
+    if (!this.flags.koliseoTour) this.flags.koliseoTour = 'pending';
+    if (this.flags.squadIntro === 'load') this.flags.squadIntro = 'done';
     this._loaded = true;
     if (this.done) this._applyDone();
     this._updateHUDButtonsState();
@@ -182,7 +198,7 @@ export class TutorialDirector {
     c.onChange((r) => {
       if (!r?.ok) return;
       if (r.kind === 'pet' && this.step === 'pet') this._go('feed');
-      else if (r.kind === 'feed' && (this.step === 'feed' || this.step === 'pet')) { this._go('ult_talk', { talkNow: true }); }
+      else if (r.kind === 'feed' && (this.step === 'feed' || this.step === 'pet')) { this._go('runes_talk', { talkNow: true }); }
     });
   }
 
@@ -197,15 +213,28 @@ export class TutorialDirector {
     this._save();
   }
 
+  /** Cámara: mantiene al Axie compañero a la vista mientras se acaricia y se alimenta (OverworldCamera.setFrameTarget). */
+  _frameAxie(on) {
+    const cam = this.om?.cameraController;
+    if (!cam?.setFrameTarget) return;
+    cam.setFrameTarget(on ? () => this.om?.player?.companionGroup || null : null);
+  }
+
   _enterStep(step, { resumed = false, talkNow = false } = {}) {
     const def = STEPS[step];
     this._spotlightOff();
     this._lockPortals(true);
     this._updateHUDButtonsState();
+    this._frameAxie(step === 'pet' || step === 'feed');
     if (this.care) {
       this.care.cooldownFree = ['bond_talk', 'pet', 'feed'].includes(step);
-      // Hito 54: en el tutorial la caricia y la comida llenan el vínculo (mitad y resto: 100 % al terminar)
-      this.care.tutorialFill = ['pet', 'feed'].includes(step);
+      // El vínculo del tutorial empieza en TUTORIAL_BOND_START y la caricia (+5) y la mandarina (+3) suben lo que
+      // anuncia el panel: 92 → 97 → 100 (antes, Hito 54, se rellenaba la mitad y el resto sin coincidir con el texto)
+      this.care.tutorialFill = false;
+    }
+    if (step === 'pet') BondService.set(this._mainAxie(), TUTORIAL_BOND_START);
+    else if (step === 'feed' && BondService.get(this._mainAxie()) < TUTORIAL_BOND_START + PET_BOND) {
+      BondService.set(this._mainAxie(), TUTORIAL_BOND_START + PET_BOND); // partida retomada en este paso
     }
     this.om?.inventoryModal?.setTutorialLock?.(step === 'equip_sword', step === 'equip_sword' ? 'wood_sword' : null);
     this._syncQuest();
@@ -216,10 +245,16 @@ export class TutorialDirector {
     if (step === 'chop') { try { GatheringService.reset('tree_forest_forge'); } catch { /* nada */ } }
     if (step === 'forge_open' || step === 'forge_evolve' || step === 'forge_speed' || step === 'forge_collect') this._onForge();
     if (step === 'feed') {
-      if (BondService.get(this._mainAxie()) >= 100) { this._go('ult_talk', { talkNow: true }); return; } // ya está lleno
+      if (BondService.get(this._mainAxie()) >= 100) { this._go('runes_talk', { talkNow: true }); return; } // ya está lleno
       this._ensureFood();
     }
     if (step === 'runes') { this._ensureRuneReward(); this._checkRunes(); }
+    if (step === 'boss') {
+      // La Ultimate del combate final necesita el vínculo al 100 % (se entra tocando al Slime Caballero en el mundo)
+      const main = this._mainAxie();
+      if (BondService.get(main) < 100) BondService.set(main, 100);
+      this._ensureKnight();
+    }
     if (def.kind === 'talk') this._autoTalk();
   }
 
@@ -238,10 +273,11 @@ export class TutorialDirector {
 
   /** NPCManager: al hablar con Paladill. Devuelve true si el tutorial se encarga. */
   handlePaladill() {
-    if (!this.isActive || this.done) return false;
+    if (this.done) { this._offerTraining(); return true; }
+    if (!this.isActive) return false;
     const def = STEPS[this.step];
     if (def.kind === 'talk') { this._talk(); return true; }
-    const remind = { equip_sword: 'remind_equip_sword', chop: 'remind_chop', forge_open: 'remind_forge', forge_evolve: 'remind_forge', forge_speed: 'remind_forge', forge_collect: 'remind_forge', pet: 'remind_pet', feed: 'remind_pet', runes: 'remind_runes' }[this.step];
+    const remind = { equip_sword: 'remind_equip_sword', chop: 'remind_chop', forge_open: 'remind_forge', forge_evolve: 'remind_forge', forge_speed: 'remind_forge', forge_collect: 'remind_forge', pet: 'remind_pet', feed: 'remind_pet', runes: 'remind_runes', boss: 'remind_boss' }[this.step];
     this._say(DIALOGS[remind] || DIALOGS.ambient);
     return true;
   }
@@ -267,36 +303,84 @@ export class TutorialDirector {
     if (this.step !== step) return;
     switch (step) {
       case 'defend': this._battle('dojo'); break;
-      case 'equip_talk': this._go('equip_sword'); break;
-      case 'duel_talk': this._battle('duel'); break;
       case 'forge_talk': this._giveForgeBundle().then(() => this._go('chop')); break;
       case 'bond_talk': this._go('pet'); break;
-      case 'ult_talk': this._startUltTrial(); break;
       case 'runes_talk': this._giveRunes().then(() => this._go('runes')); break;
-      case 'grad_talk': this._graduate(); break;
+      case 'boss_talk': this._go('boss'); break;
       default: break;
     }
   }
 
   // ================================================================ combates
   _battle(kind) {
-    const base = { dojo: LEVELS_CONFIG[1], duel: LEVELS_CONFIG.tut_duel, ult: LEVELS_CONFIG.tut_ult }[kind];
-    if (!base || !this.om?.startTutorialBattle) return;
-    const main = this._mainAxie();
-    const cfg = { ...base, heroPositions: (base.heroPositions || []).map((h) => ({ ...h, id: main })), tutorialKind: kind };
+    const cfg = this._battleConfig(kind);
+    if (!cfg || !this.om?.startTutorialBattle) return;
     this._spotlightOff();
     this.hideBanner();
     this.om.startTutorialBattle(`tut_${kind}`, cfg);
   }
 
-  _startUltTrial() {
-    // Hito 54: el vínculo ya está al 100 % por la caricia y la comida (Paladill ya no lo «presta»). Por si una partida
-    // antigua llega aquí con menos, se completa sin devolverlo después.
+  /** Configuración de un combate del tutorial con el Axie principal real. */
+  _battleConfig(kind) {
+    const base = { dojo: LEVELS_CONFIG[1], duel: LEVELS_CONFIG.tut_duel, boss: LEVELS_CONFIG.tut_boss }[kind];
+    if (!base) return null;
     const main = this._mainAxie();
-    if (BondService.get(main) < 100) BondService.set(main, 100);
-    this.bondBefore = null;
-    this._save();
-    this._battle('ult');
+    return { ...base, heroPositions: (base.heroPositions || []).map((h) => ({ ...h, id: main })), tutorialKind: kind };
+  }
+
+  // ================================================================ combate final (Slime Knight)
+  /** El Slime Knight aparece en el claro del Gran Árbol mientras dura el paso «boss» (y vuelve si hace falta). */
+  _ensureKnight() {
+    const mon = this.om?.monsters;
+    // _knightDown: ya vencido (la graduación espera a la tarjeta y el paso sigue en «boss» unos segundos)
+    if (!mon?.spawnTutorialKnight || this._knightSpawning || this._knightDown || this.step !== 'boss' || this.done) return;
+    if (mon.monsters?.some((m) => m.id === 'tut_boss')) return;
+    const cm = this.om?.worldMapManager?.currentMapDef;
+    if (cm && (cm.gx !== 2 || cm.gy !== 2)) return; // solo en la Isla del Bosque (zona 2_2, la del pueblo)
+    this._knightSpawning = true;
+    mon.spawnTutorialKnight(KNIGHT_SPOT, this._battleConfig('boss'))
+      .catch((e) => console.warn('[Tutorial] Slime Knight', e))
+      .finally(() => { this._knightSpawning = false; });
+  }
+
+  _knight() { return this.om?.monsters?.monsters?.find((m) => m.id === 'tut_boss') || null; }
+
+  /** El vínculo no baja durante el tutorial (AxieCareService pregunta aquí antes de restar por tiempo). */
+  get bondLocked() { return this.isActive && !this.done; }
+
+  _removeKnight() {
+    const mon = this.om?.monsters;
+    if (!mon || !this._knight()) return;
+    try { mon._disposeMonster?.(this._knight()); mon.monsters = mon.monsters.filter((m) => m.id !== 'tut_boss'); } catch { /* nada */ }
+  }
+
+  // ================================================================ entrenamiento opcional (después del tutorial)
+  /** Paladill ofrece un duelo de entrenamiento: más fuerte que antes y hasta que alguien cae (0 % de vida). */
+  _offerTraining() {
+    const ds = this.om?.dialogSystem;
+    if (!ds || ds.isActive) return;
+    const node = {
+      ...PALADILL,
+      html: this._fmt(DIALOGS.train_offer[0]),
+      choices: [
+        { text: i18n.t('tutorialScript.choice.trainYes'), sub: i18n.t('tutorialScript.choice.trainYesSub'), onSelect: () => { this._wantDuel = true; } },
+        // Koliseo (fase B1): Paladill también lleva al panel del Koliseo
+        { text: i18n.t('koliseo.paladill.choice'), sub: i18n.t('koliseo.paladill.choiceSub'), onSelect: () => { this._wantKoliseo = true; } },
+        { text: i18n.t('tutorialScript.choice.trainNo'), leave: true },
+      ],
+    };
+    this._wantDuel = false;
+    this._wantKoliseo = false;
+    this._talking = true;
+    ds.startDialogue([node], () => {
+      this._talking = false;
+      if (this._wantDuel) { this._wantDuel = false; this._battle('duel'); }
+      else if (this._wantKoliseo) {
+        this._wantKoliseo = false;
+        // El diálogo devuelve el control al mundo en el siguiente fotograma: se abre justo después
+        setTimeout(() => this.om?.toggleKoliseo?.('bruma'), 120);
+      }
+    });
   }
 
   _restoreBond() {
@@ -312,17 +396,20 @@ export class TutorialDirector {
     const kind = String(monsterId).slice(4);
     if (kind === 'dojo') {
       if (!victory) { this._go('defend'); return; }
+      // La pantalla de victoria ya muestra la Espada de madera y «Pulsa [I]»: directo a equiparla
       this.qm?.advanceStep(QUEST, 'defend_dojo', true);
-      this._reward({ title: i18n.t('tutorialDirector.reward.dojoTitle'), items: [this._itemView('wood_sword')] }).then(() => this._go('equip_talk', { talkNow: true }));
-    } else if (kind === 'duel') {
-      this.flags.duelOutcome = this.game?.lastDuelOutcome === 'yield' ? 'yield' : 'stop';
-      this.qm?.advanceStep(QUEST, 'duel_paladill', true);
-      this._go('forge_talk', { talkNow: true });
-    } else if (kind === 'ult') {
-      this._restoreBond();
-      if (!victory) { this._go('ult_talk'); this._save(); return; }
-      this.qm?.advanceStep(QUEST, 'bond_axie', true);
-      this._go('runes_talk', { talkNow: true });
+      this._go('equip_sword');
+    } else if (kind === 'boss') {
+      if (victory) { this._knightDown = true; this._graduate(); return; }
+      // Sin castigo: el escuadrón vuelve unos metros antes del claro y el Slime Knight sigue allí
+      try {
+        const y = this.om.getGroundHeight ? this.om.getGroundHeight(KNIGHT_RETURN_SPOT.x, KNIGHT_RETURN_SPOT.z) : 0;
+        this.om.player?.teleport(KNIGHT_RETURN_SPOT.x, y, KNIGHT_RETURN_SPOT.z);
+        this.om.cameraController?.setFollowTarget(this.om.player, true);
+      } catch { /* nada */ }
+      const k = this._knight();
+      if (k) { k.state = 'PATROL'; k.alertTimer = 0; }
+      this._say(DIALOGS.boss_retry);
     }
   }
 
@@ -439,16 +526,32 @@ export class TutorialDirector {
     if (t) t.innerHTML = this._fmt(i18n.t('tutorialDirector.runesProgress', { rune: eq.rune ? i18n.t('tutorialDirector.runeDone') : i18n.t('tutorialDirector.runeTodo'), charm: hasCharm ? i18n.t('tutorialDirector.charmDone') : i18n.t('tutorialDirector.charmTodo') }));
     if (eq.rune && hasCharm) {
       this.qm?.advanceStep(QUEST, 'equip_runes', true);
-      this._go('grad_talk');
-      // la conversación espera a que se cierre la Mochila
+      // Al cerrar la Mochila, Paladill anuncia al Slime Knight (la conversación espera a que no haya ventanas)
+      this._go('boss_talk');
       this._autoTalk();
     }
   }
 
   // ================================================================ graduación y «Saltar tutorial»
-  _graduate() {
+  /** Victoria contra el Slime Knight: «¡Graduación del Dojo completada!» → «¿Te está gustando Lunakai?» → mundo libre. */
+  async _graduate() {
+    this.qm?.advanceStep(QUEST, 'defeat_knight', true);
     this.qm?.advanceStep(QUEST, 'graduate', true);
+    // La tarjeta espera a que el jugador la cierre; la invitación al feedback sale después, a partir de ese clic
+    await this._reward({ title: i18n.t('tutorialDirector.reward.graduationTitle'), items: [], note: this._fmt(`${DIALOGS.graduation[0]} ${DIALOGS.graduation[1]}`), autoCloseMs: 0 });
+    const ask = !this.flags.feedbackAsked;
+    this.flags.feedbackAsked = true; // una sola vez por partida (se guarda en _markDone)
     this._markDone(true);
+    if (ask) this._askFeedback();
+  }
+
+  /** Hito 121: invitación a enviar feedback (cuando el mundo ya está a la vista). Hasta el Hito 120 aquí se abría el mapa. */
+  _askFeedback(tries = 0) {
+    const fp = this.om?.feedbackPanel;
+    const ready = this.game?.gameState === 'OVERWORLD' && this.om?.state === 'EXPLORING' && !document.body.classList.contains('state-combat');
+    if (!fp) return;
+    if (!ready) { if (tries < 20) setTimeout(() => this._askFeedback(tries + 1), 250); return; }
+    fp.invite().catch((e) => console.warn('[Tutorial] Feedback', e));
   }
 
   _markDone(celebrate = true) {
@@ -457,17 +560,19 @@ export class TutorialDirector {
     this.isActive = false;
     this.step = 'done';
     this._restoreBond();
+    this._removeKnight(); // «Saltar tutorial» con el Slime Knight en el claro
     if (this.care) this.care.cooldownFree = false;
     try { if (this.qm?.getQuest?.(QUEST)?.status !== 'completed') this.qm?.completeQuest?.(QUEST); } catch (e) { console.warn('[Tutorial] Misión', e); }
     this._applyDone();
     if (celebrate && !wasDone) {
-      this._renderBanner(STEPS.done, 7, true);
+      this._renderBanner(STEPS.done, STEPS.done.phase, true);
       setTimeout(() => this.hideBanner(), 8000);
     }
     this._save();
   }
 
   _applyDone() {
+    this._frameAxie(false);
     this._spotlightOff();
     this._coachOff();
     this.om?.inventoryModal?.setTutorialLock?.(false, null);
@@ -520,6 +625,7 @@ export class TutorialDirector {
     om.squadHUD?.container?.classList.add('hidden');
     om.minimapHUD?.hide?.();
     this.hideBanner();
+    hideZoneBanner(); // el rótulo «Bosque» de la carga inicial no debe verse sobre la cinemática
     const veil = document.createElement('div');
     veil.className = 'lk-cine-veil';
     veil.innerHTML = `<div class="lk-cine-veil__load"><span>${i18n.t('tutorialDirector.openingChronicle')}</span><i><b data-ref="bar"></b></i></div>`;
@@ -580,6 +686,7 @@ export class TutorialDirector {
     if (this.step.startsWith('forge_')) this._onForge();
     if (this.step === 'forge_close' && !this.om?.forgeModal?.isOpen && !this._rewardOpen) this._forgeReward();
     if (this.step === 'equip_sword' && this._swordOn()) this._completeEquip();
+    if (this.step === 'boss' && this.om?.state === 'EXPLORING') this._ensureKnight();
     // la franja vuelve al salir de un combate o de una ventana
     if (this.game?.gameState === 'OVERWORLD' && this.bannerEl?.classList.contains('hidden') && !this.isCutsceneActive) this._render();
   }
@@ -594,7 +701,7 @@ export class TutorialDirector {
     this.qm?.advanceStep(QUEST, 'equip_sword', true);
     this.om?.inventoryModal?.setTutorialLock?.(false, null);
     this._spotlightOff();
-    this._go('duel_talk', { talkNow: true });
+    this._go('forge_talk', { talkNow: true });
   }
 
   _ensureItem(id) {
@@ -611,10 +718,12 @@ export class TutorialDirector {
   _syncQuest() {
     const qm = this.qm;
     if (!qm) return;
-    const q = qm.getQuest?.(QUEST);
+    // La misión original, no getQuest(): getQuest devuelve una copia (con los textos formateados) y marcar sus pasos
+    // no cambiaba nada (el panel seguía en «Fortalece el vínculo con tu Axie» durante el combate final)
+    const q = qm.quests?.[QUEST] || null;
     if (q && q.status !== 'completed' && q.status !== 'active' && q.status !== 'ready_to_turn_in') q.status = 'active';
     const i = idx(this.step);
-    [['defend_dojo', 'equip_talk'], ['equip_sword', 'duel_talk'], ['duel_paladill', 'forge_talk'], ['evolve_sword', 'bond_talk'], ['bond_axie', 'runes_talk'], ['equip_runes', 'grad_talk']]
+    [['defend_dojo', 'equip_sword'], ['equip_sword', 'forge_talk'], ['evolve_sword', 'bond_talk'], ['bond_axie', 'runes_talk'], ['equip_runes', 'boss_talk']]
       .forEach(([sid, from]) => { if (i >= idx(from)) { const st = q?.objective?.steps?.find((s) => s.id === sid); if (st && !st.done) st.done = true; } });
     qm._notify?.();
   }
@@ -625,6 +734,11 @@ export class TutorialDirector {
     if (this.step === 'chop') return { ...TREE_POS, name: i18n.t('tutorialDirector.nav.forgeTree') };
     if (this.step.startsWith('forge_')) return { ...FORGE_POS, name: i18n.t('places.forestForge') };
     if (this.step === 'pet' || this.step === 'feed' || this.step === 'runes' || this.step === 'equip_sword') return null;
+    if (this.step === 'boss') {
+      const k = this._knight();
+      const p = k ? { x: k.group.position.x, z: k.group.position.z } : KNIGHT_SPOT;
+      return { ...p, name: i18n.t('enemies.arch.treant_flower.name') };
+    }
     return { ...PALADILL_POS, name: i18n.t('tutorialDirector.paladillSpeaker') };
   }
 
@@ -648,12 +762,14 @@ export class TutorialDirector {
   }
 
   /**
-   * Mini-tutorial tras reclutar a Bing: abrir el Escuadrón → colocar a Bing en un puesto de apoyo → «Cargar mis Axies».
-   * Estado en flags.squadIntro: waiting · open · place · load · done.
+   * Mini-tutorial tras reclutar a Bing: abrir el Escuadrón → colocar a Bing en un puesto de apoyo.
+   * Estado en flags.squadIntro: waiting · open · place · done (Hito 126: «Cargar mis Axies» va en el recorrido
+   * de la primera apertura, flags.squadTour: pending · done, rpg/ui/SquadTour.js).
    */
   _updateSquadIntro() {
     if (!this.om || !this.em || !this._loaded) return;
-    const ready = this._squadReady();
+    // botón desbloqueado y punto de «Nuevo» (Hito 126): se repinta cuando cambia algo de lo que dependen
+    const ready = `${this._squadReady()}|${this.done}|${this.flags.squadTour}|${this.flags.koliseoTour}|${this.flags.squadSeen}|${this.flags.koliseoSeen}`;
     if (ready !== this._squadWasReady) { this._squadWasReady = ready; this._updateHUDButtonsState(); }
     const sm = this.om.squadModal;
     if (sm && !sm.__lkIntroHook) {
@@ -661,17 +777,80 @@ export class TutorialDirector {
       sm.onAccountLoad = (r) => { try { prev?.(r); } finally { this._onSquadAccountLoad(r); } };
       sm.__lkIntroHook = true;
     }
+    if (sm && !sm.__lkTourHook) {
+      // Hito 126: la primera apertura tras graduarse lanza el recorrido de 3 tarjetas (SquadTour.js)
+      const prevOpen = sm.onOpen;
+      sm.onOpen = () => { try { prevOpen?.(); } finally { this._maybeSquadTour(); } };
+      sm.onTourDone = (completed) => {
+        if (completed && this.flags.squadTour !== 'done') { this.flags.squadTour = 'done'; this._setSquadIntro(this.flags.squadIntro); }
+        this._updateHUDButtonsState();
+        this._updateGuide();
+      };
+      sm.__lkTourHook = true;
+    }
+    const kp = this.om?.koliseoPanel;
+    if (kp && !kp.__lkTourHook) {
+      // Hito 126: el Koliseo tiene su propio recorrido (Arena · Bruma · Clasificación) en la primera apertura
+      const prevOpen = kp.onOpen;
+      kp.onOpen = () => { try { prevOpen?.(); } finally { this._maybeKoliseoTour(); } };
+      kp.__lkTourHook = true;
+    }
     if (!this.done) return; // primero el entrenamiento del Dojo
     let st = this.flags.squadIntro;
     if (st === 'waiting' && this.em.unlockedHeroes.includes('bing')) st = this._setSquadIntro('open');
-    if (st !== 'open' && st !== 'place' && st !== 'load') { this._squadBanner(null); return; }
+    // Mientras se ve el recorrido, la franja de Bing espera
+    if ((st !== 'open' && st !== 'place') || sm?.tourActive) { this._squadBanner(null); return; }
     const inSquad = this.em.getSquad().includes('bing');
-    if (st === 'open' && sm?.isOpen) st = this._setSquadIntro(inSquad ? 'load' : 'place');
-    if (st === 'place' && inSquad) { st = this._setSquadIntro('load'); this.om?.audio?.playBuff?.(); }
+    if (st === 'open' && sm?.isOpen) st = this._setSquadIntro(inSquad ? 'done' : 'place');
+    if (st === 'place' && inSquad) st = this._setSquadIntro('done');
+    if (st === 'done') { this._onBingPlaced(); return; }
     const bing = sm?.root?.querySelector('.lk-ax-card[data-id="bing"]');
     document.querySelectorAll('#squad-modal .lk-sqi-pulse').forEach((el) => { if (el !== bing || st !== 'place') el.classList.remove('lk-sqi-pulse', 'tutorial-spotlight-target'); });
     if (st === 'place' && bing && !bing.classList.contains('lk-sqi-pulse')) bing.classList.add('lk-sqi-pulse', 'tutorial-spotlight-target');
     this._squadBanner(this._squadGuideVisible() ? st : null);
+  }
+
+  /** Hito 126: recorrido del Escuadrón en la primera apertura (o si se cortó al cerrar el panel). */
+  _maybeSquadTour() {
+    this._markPanelSeen('squadSeen');
+    if (!this.done || this.flags.squadTour === 'done') return;
+    const sm = this.om?.squadModal;
+    if (!sm?.isOpen || sm.tourActive) return;
+    this._squadBanner(null);
+    setTimeout(() => { if (sm.isOpen && !sm.tourActive && this.flags.squadTour !== 'done') sm.startTour(); }, 220); // tras la animación de apertura
+  }
+
+  /** Hito 126: Bing ya está en un puesto de apoyo: fin del mini-tutorial del Escuadrón. */
+  _onBingPlaced() {
+    this._squadBanner(null);
+    this._updateGuide();
+    this.om?.audio?.playBuff?.();
+    this.om?._showBannerMessage?.(i18n.t('tutorialDirector.squad.doneTitle'), i18n.t('tutorialDirector.squad.doneBing'));
+  }
+
+  /** Hito 126: recorrido del Koliseo en la primera apertura tras graduarse (o si se cortó al cerrarlo). */
+  _maybeKoliseoTour() {
+    this._markPanelSeen('koliseoSeen');
+    if (!this.done || this.flags.koliseoTour === 'done') return;
+    const kp = this.om?.koliseoPanel;
+    if (!kp?.isOpen || kp.tourActive) return;
+    setTimeout(() => {
+      if (!kp.isOpen || kp.tourActive || this.flags.koliseoTour === 'done') return;
+      kp.startTour({ onDone: (completed) => {
+        if (!completed || this.flags.koliseoTour === 'done') return;
+        this.flags.koliseoTour = 'done';
+        try { this.game?._saveCurrentProgress?.(); } catch { /* nada */ }
+        this._updateHUDButtonsState();
+      } });
+    }, 220);
+  }
+
+  /** Hito 130: el aviso de «Nuevo» se apaga al abrir el panel (el recorrido sigue saliendo si no se terminó). */
+  _markPanelSeen(flag) {
+    if (!this.done || !this._loaded || this.flags[flag]) return;
+    this.flags[flag] = true;
+    try { this.game?._saveCurrentProgress?.(); } catch { /* nada */ }
+    this._updateHUDButtonsState();
   }
 
   _setSquadIntro(st) {
@@ -681,7 +860,7 @@ export class TutorialDirector {
   }
 
   _onSquadAccountLoad(r) {
-    if (this.flags.squadIntro !== 'load') return;
+    if (this.flags.squadIntro !== 'load') return; // Hito 126: ya no hay paso «load» (va en el recorrido); se deja por si acaso
     this._setSquadIntro('done');
     this._squadBanner(null);
     this._updateGuide();
@@ -696,26 +875,22 @@ export class TutorialDirector {
     const sm = om.squadModal;
     if (sm?.isOpen) return true;
     if (om.state !== 'EXPLORING') return false;
-    if (om.inventoryModal?.isOpen || om.settingsModal?.isOpen || om.questBookModal?.isOpen || om.worldMapManager?.worldMapModal?.isOpen || om.forgeModal?.isOpen) return false;
+    if (om.inventoryModal?.isOpen || om.settingsModal?.isOpen || om.questBookModal?.isOpen || om.worldMapManager?.worldMapModal?.isOpen || om.forgeModal?.isOpen || om.feedbackPanel?.isOpen || om.koliseoPanel?.isOpen) return false;
     return Boolean(document.getElementById('btn-open-squad')?.getClientRects().length);
   }
 
   /** Guía del mini-tutorial del Escuadrón (la usa _updateGuide cuando el entrenamiento ya terminó). */
   _computeSquadGuide() {
     const st = this.flags.squadIntro;
-    if (st !== 'open' && st !== 'place' && st !== 'load') return null;
-    if (!this._squadGuideVisible()) return null;
+    if (st !== 'open' && st !== 'place') return null;
+    if (!this._squadGuideVisible() || this.om.squadModal?.tourActive) return null;
     const sm = this.om.squadModal;
     if (!sm?.isOpen) {
-      return { sel: '#btn-open-squad', html: i18n.t(st === 'open' ? 'tutorialDirector.squad.guideOpen' : 'tutorialDirector.squad.guideReopen'), keys: ['KeyK'] };
+      return { sel: '#btn-open-squad', html: i18n.t(st === 'open' ? 'tutorialDirector.squad.guideOpen' : 'tutorialDirector.squad.guideReopen'), keys: ['KeyT'] };
     }
     const win = sm.root?.querySelector('.lk-squad');
-    if (st === 'place') {
-      // Todo el panel queda libre (se puede arrastrar o usar «Añadir al escuadrón»); Bing late en la colección
-      return { el: win, html: i18n.t('tutorialDirector.squad.guidePlace'), keys: ['Escape'], soft: true, noClick: true };
-    }
-    const btn = sm.root?.querySelector('[data-ref="loadAx"]');
-    return { el: btn, html: i18n.t('tutorialDirector.squad.guideLoad'), keys: ['Escape'], soft: true, scroll: true };
+    // place: todo el panel queda libre (se puede arrastrar o usar «Añadir al escuadrón»); Bing late en la colección
+    return { el: win, html: i18n.t('tutorialDirector.squad.guidePlace'), keys: ['Escape'], soft: true, noClick: true };
   }
 
   _squadBanner(st) {
@@ -725,11 +900,11 @@ export class TutorialDirector {
       if (b.dataset.step && b.dataset.step.startsWith('sq_')) { b.classList.add('hidden'); b.classList.remove('tutorial-spotlight-banner', 'lk-tut--low'); b.dataset.step = ''; }
       return;
     }
-    const n = { open: 0, place: 1, load: 2 }[st];
+    const n = { open: 0, place: 1 }[st];
     const $ = (r) => b.querySelector(`[data-ref="${r}"]`);
     const key = `sq_${st}`;
     if (b.dataset.step === key && !b.classList.contains('hidden')) return;
-    $('phases').innerHTML = [0, 1, 2].map((i) => `<i class="${i < n ? 'lk-is-full' : i === n ? 'lk-is-half' : ''}"></i>`).join('');
+    $('phases').innerHTML = [0, 1].map((i) => `<i class="${i < n ? 'lk-is-full' : i === n ? 'lk-is-half' : ''}"></i>`).join('');
     $('badge').textContent = i18n.t('tutorialDirector.squad.badge', { n: n + 1 });
     $('title').textContent = i18n.t(`tutorialDirector.squad.${st}Title`);
     $('text').innerHTML = i18n.t(`tutorialDirector.squad.${st}Text`);
@@ -796,8 +971,15 @@ export class TutorialDirector {
     catcher.addEventListener('pointerdown', (e) => e.stopPropagation());
     catcher.addEventListener('click', (e) => {
       e.preventDefault(); e.stopPropagation();
-      const t = this._spotTarget;
-      if (t && this._guide && !this._guide.noClick) { t.click(); setTimeout(() => this._updateGuide(), 60); }
+      // Las ventanas se repintan (p. ej. el panel de cuidados cada pocos segundos): si el elemento señalado ya no
+      // está en la página, se busca el actual antes de pasarle el clic (antes el clic se perdía)
+      let t = this._spotTarget;
+      if ((!t || !t.isConnected) && this._guide) {
+        const g = this._computeGuide();
+        t = g ? (g.el || (g.sel ? document.querySelector(g.sel) : null)) : null;
+        if (t) { this._spotTarget = t; this._guide.target = t; }
+      }
+      if (t && t.isConnected && this._guide && !this._guide.noClick) { t.click(); setTimeout(() => this._updateGuide(), 60); }
     });
     this._catchEl = catcher;
     this.overlayEl = overlay;
@@ -857,6 +1039,13 @@ export class TutorialDirector {
     set('btn-open-quest-book', this.isFeatureUnlocked('questBook'));
     set('btn-open-world-map', this.isFeatureUnlocked('worldMap'));
     set('btn-open-squad', this.isFeatureUnlocked('squad'));
+    // Hito 126 / 130: aviso de «Nuevo» en el Escuadrón y el Koliseo hasta abrirlos por primera vez (NewBadges.js)
+    const fresh = (tour, seen) => Boolean(this.done && this._loaded && this.flags[tour] !== 'done' && !this.flags[seen]);
+    newBadges.set('btn-open-squad', { on: fresh('squadTour', 'squadSeen'), hint: i18n.t('overworld.newSquad'), prio: 3 });
+    newBadges.set('btn-open-koliseo', { on: fresh('koliseoTour', 'koliseoSeen'), hint: i18n.t('overworld.newKoliseo'), prio: 2 });
+    set('btn-open-koliseo', this.isFeatureUnlocked('koliseo'));
+    set('btn-open-codex', this.isFeatureUnlocked('codex'));
+    this.om?._updateCodexDot?.();
   }
 
   // ------------------------------------------------ guía paso a paso
@@ -871,6 +1060,7 @@ export class TutorialDirector {
     if (!om || g?.gameState !== 'OVERWORLD' || om.state !== 'EXPLORING') return null;
     if (om.dialogSystem?.isActive || om.isLoadingZone) return null;
     if (om.settingsModal?.isOpen || om.questBookModal?.isOpen || om.worldMapManager?.worldMapModal?.isOpen) return null;
+    if (om.feedbackPanel?.isOpen) return null; // Hito 121: el formulario de feedback se puede abrir en cualquier paso
     const vis = (el) => Boolean(el && el.isConnected && el.getClientRects().length && getComputedStyle(el).visibility !== 'hidden');
     const q = (sel, root = document) => { const el = root.querySelector(sel); return vis(el) ? el : null; };
     const inv = om.inventoryModal;
@@ -983,6 +1173,7 @@ export class TutorialDirector {
     const g = this._guide;
     if (!g) return true;
     if ((g.keys || []).includes(code)) return true;
+    if (code === 'KeyF') return true; // Hito 121: el feedback se puede abrir en cualquier paso
     // Esc solo para cerrar una ventana del propio paso (nunca abre el menú con la guía puesta)
     if (code === 'Escape') return Boolean(this.om?.inventoryModal?.isOpen || this.om?.forgeModal?.isOpen || this.om?.squadModal?.isOpen);
     return false;
@@ -1041,6 +1232,10 @@ export class TutorialDirector {
 
   _spotlightOn(el, g) {
     this._spotTarget?.classList.remove('tutorial-spotlight-target');
+    // Hito 126: una ficha abierta (material de la Forja, objeto de la Mochila…) quedaría atrapada bajo el velo: el ratón ya no
+    // le llega y no se cierra, y si cae sobre el hueco de la guía tapa el botón que hay que pulsar (p. ej. «Acelerar ×4»)
+    this.om?.forgeModal?.hideTip?.();
+    document.querySelectorAll('.lk-mat-tip.lk-is-on, .lk-tt-item.lk-is-on').forEach((t) => t.classList.remove('lk-is-on'));
     // Cuando la guía señala algo que abre una ventana desde el mundo (el botón de la Mochila, el Axie) o
     // el panel de cuidados, el juego no debe creer que ya hay una ventana abierta: si no, el botón, la
     // tecla U y el clic sobre el compañero se ignoran, y el panel de cuidados se cierra solo. El velo y el
@@ -1083,7 +1278,17 @@ export class TutorialDirector {
     const r = rr || t.getBoundingClientRect();
     if (!r.width && !r.height) return;
     const pad = 6, x1 = Math.max(0, r.left - pad), y1 = Math.max(0, r.top - pad), x2 = Math.min(innerWidth, r.right + pad), y2 = Math.min(innerHeight, r.bottom + pad);
-    const poly = `polygon(evenodd, 0px 0px, 100vw 0px, 100vw 100vh, 0px 100vh, 0px 0px, ${x1}px ${y1}px, ${x2}px ${y1}px, ${x2}px ${y2}px, ${x1}px ${y2}px, ${x1}px ${y1}px)`;
+    // Hito 121: segundo hueco sobre el botón de feedback, que funciona en cualquier paso del tutorial. Se vuelve
+    // al primer hueco y a la esquina por el mismo camino para que los tramos de unión no encierren área.
+    let fbHole = '';
+    const fb = document.getElementById('btn-open-feedback');
+    const fr = fb && fb !== t && fb.getClientRects().length ? fb.getBoundingClientRect() : null;
+    if (fr && fr.width && fr.height) {
+      const f1 = Math.max(0, fr.left - 3), g1 = Math.max(0, fr.top - 3), f2 = Math.min(innerWidth, fr.right + 3), g2 = Math.min(innerHeight, fr.bottom + 3);
+      const overlaps = f1 < x2 && f2 > x1 && g1 < y2 && g2 > y1;
+      if (!overlaps) fbHole = `, ${f1}px ${g1}px, ${f2}px ${g1}px, ${f2}px ${g2}px, ${f1}px ${g2}px, ${f1}px ${g1}px, ${x1}px ${y1}px, 0px 0px`;
+    }
+    const poly = `polygon(evenodd, 0px 0px, 100vw 0px, 100vw 100vh, 0px 100vh, 0px 0px, ${x1}px ${y1}px, ${x2}px ${y1}px, ${x2}px ${y2}px, ${x1}px ${y2}px, ${x1}px ${y1}px${fbHole})`;
     this.overlayEl.style.clipPath = poly; this.overlayEl.style.webkitClipPath = poly;
     const box = document.getElementById('tutorial-spotlight-box');
     if (box) { Object.assign(box.style, { top: `${y1}px`, left: `${x1}px`, width: `${x2 - x1}px`, height: `${y2 - y1}px` }); box.classList.remove('hidden'); }
@@ -1117,19 +1322,27 @@ export class TutorialDirector {
     const g = this.game;
     const cfg = g?.activeBattleConfig;
     const kind = cfg?.tutorialKind;
-    const inFight = g?.gameState === 'BATTLE' && !document.body.classList.contains('state-combat-ended') && (kind === 'duel' || kind === 'ult');
+    const inFight = g?.gameState === 'BATTLE' && !document.body.classList.contains('state-combat-ended') && (kind === 'duel' || kind === 'ult' || kind === 'boss');
     if (!inFight) { this._coachOff(); return; }
     // Mientras la guía del combate (TutorialManager) lleva el paso a paso, el consejo no se muestra
     if (g.tutorialManager?.dynamic) { this._coachOff(); return; }
     let html = '';
     const ult = g.spellManager?.ultimates;
     const btn = document.getElementById('spell-slot-ult');
-    if (kind === 'duel') html = COACH.duel;
+    let call = false;
+    if (kind === 'boss') {
+      // Combate final: sin pasos forzados. Avisos: el Miasma (cuando aparece) y la Ultimate (desde la ronda 2)
+      const round = g.turnManager?.round || 1;
+      const ultReady = ult && ult.spell && !ult.used && ult.bond >= 100 && ult.axie && !ult.axie.isDead && ult.sapidae && !ult.sapidae.isDead && round >= (ult.minRound ?? 2);
+      const miasma = (g.spellManager?.field?.zones || []).some((z) => z.kind === 'miasma');
+      if (ultReady) { html = COACH.boss_ult; call = true; } else if (miasma) html = COACH.boss_miasma; else html = COACH.boss;
+    } else if (kind === 'duel') html = COACH.duel;
     else if (ult?.used) html = COACH.ult_done;
     else if (g.activeUnit && g.activeUnit.team === 'player' && g.activeUnit !== ult?.sapidae) html = COACH.ult_axie;
     else html = COACH.ult_wait;
     const ready = kind === 'ult' && ult && !ult.used && ult.check?.(g.activeUnit)?.ok;
     btn?.classList.toggle('tut-highlight', Boolean(ready));
+    btn?.classList.toggle('lk-tut-ult-call', call);
     const t = this.coachEl.querySelector('[data-ref="text"]');
     if (t && t.innerHTML !== html) t.innerHTML = html;
     this.coachEl.classList.remove('hidden');
@@ -1137,15 +1350,15 @@ export class TutorialDirector {
 
   _coachOff() {
     this.coachEl?.classList.add('hidden');
-    document.getElementById('spell-slot-ult')?.classList.remove('tut-highlight');
+    document.getElementById('spell-slot-ult')?.classList.remove('tut-highlight', 'lk-tut-ult-call');
   }
 
   // ------------------------------------------------ tarjeta de recompensa
   _itemView(id) { const it = ITEMS_DB[id]; return it ? { icon: it.icon, name: it.name, rarity: it.rarity } : { icon: ICON('gift'), name: id }; }
   _matView(id, n = 1) { const m = MATERIALS[id]; return { icon: m?.icon || ICON('material'), name: m?.name || id, qty: n, rarity: m?.rarity }; }
 
-  _reward({ title, items = [], note = '' }) {
+  _reward({ title, items = [], note = '', autoCloseMs }) {
     this._rewardOpen = true;
-    return showRewardCard({ title, items, note, audio: this.om?.audio }).then(() => { this._rewardOpen = false; });
+    return showRewardCard({ title, items, note, audio: this.om?.audio, autoCloseMs }).then(() => { this._rewardOpen = false; });
   }
 }

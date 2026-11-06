@@ -3,7 +3,8 @@
 // - Invocaciones sin barra de vida (Barricada, Hollow Trunk): bloquean paso y línea de visión
 //   durante N rondas fijas y desaparecen solas. Indestructibles mientras duran.
 // - Zonas (Pozo Gravitatorio…): casillas alteradas durante N rondas. Al empezar su turno dentro
-//   de la zona, cada unidad recibe el efecto según su equipo respecto al creador.
+//   de la zona, cada unidad recibe el efecto según su equipo respecto al creador. Algunas castigan al
+//   TERMINAR el turno dentro (endTurnHpPct: Rastro de Miasma).
 //
 // "N rondas fijas": colocado en la ronda R, desaparece al empezar la ronda R + N.
 
@@ -76,6 +77,23 @@ export class BattlefieldObjects {
           pm: fx.pm ? Math.abs(fx.pm) : undefined, pa: fx.pa ? Math.abs(fx.pa) : undefined,
         });
       }
+    }
+  }
+
+  /**
+   * Al terminar el turno de una unidad: zonas que castigan quedarse (Rastro de Miasma del Slime Knight del tutorial:
+   * fx.endTurnHpPct = parte de la vida máxima que se pierde). Una sola vez por turno aunque haya zonas superpuestas.
+   */
+  onTurnEnd(unit) {
+    if (!unit || unit.isDead || unit.isGolem) return;
+    for (const zn of this.zonesAt(unit.gridX, unit.gridZ)) {
+      const friendly = zn.owner && zn.owner.team === unit.team;
+      const fx = friendly ? zn.ally : zn.enemy;
+      if (!fx || !(fx.endTurnHpPct > 0)) continue;
+      const dmg = Math.max(1, Math.round((unit.maxHP || 0) * fx.endTurnHpPct));
+      const actual = unit.takeDamage(dmg);
+      this.events?.emit('field:zoneHurt', { unit, damage: actual, kind: zn.kind, source: zn.owner });
+      return;
     }
   }
 
