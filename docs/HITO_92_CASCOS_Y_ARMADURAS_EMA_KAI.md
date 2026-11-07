@@ -85,5 +85,5 @@ No hizo falta tocar a quien usa el controlador: el mundo, el inventario, el comb
 ## 7. Pendiente
 
 - Probarlo en el juego: equipar y desequipar en el inventario, entrar en combate y ver el retrato del escuadrón.
-- La cola alta de Ema (peinado E) queda aplastada en forma de aleta por detrás con cualquier casco. Si no convence, se puede ocultar solo para ese peinado o hacer en Blender una versión de la cola para cascos.
+- La cola alta de Ema (peinado E) queda aplastada en forma de aleta por detrás con cualquier casco. Si no convence, se puede ocultar solo para ese peinado o hacer en Blender una versión de la cola para cascos. **[Resuelto · revisión del 7-nov-2026: el usuario confirma que ya no ocurre.]**
 - Armas con malla propia (siguen siendo las de `WeaponVisuals`).

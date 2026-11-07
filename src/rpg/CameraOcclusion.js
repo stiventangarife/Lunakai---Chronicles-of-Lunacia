@@ -12,6 +12,12 @@
 //
 // Hito 79: cajas orientadas (giran con cada casa, en vez de una caja alineada al mundo que en una casa girada es
 // mucho más grande que la casa) y lo pequeño (faroles, postes, carteles, vallas, cajas) ya no acerca la cámara.
+//
+// Hito 141: la prueba es una esfera que viaja por el segmento (radio `pad`, 0,35 m desde la cámara), no un rayo fino.
+// Cajas: cada caja se agranda `pad` en sus tres ejes (es algo más prudente que la esfera en las esquinas: nunca deja
+// pasar). Terreno: una muestra cada ~0,75 m (antes 12 en total) y, en los últimos 2 m (donde queda la cámara), un anillo
+// de 3 puntos a `pad` de la línea, para no meterse en un saliente que cae entre dos muestras.
+// `inside()` mira todas las celdas que toca la esfera (antes solo la del centro: una caja de la celda vecina no contaba).
 import * as THREE from 'three';
 
 const CELL = 8;
@@ -210,15 +216,26 @@ export class CameraOcclusion {
         }
       }
     }
-    // Terreno (laderas y paredes entre la cámara y el personaje)
+    // Terreno (laderas y paredes entre la cámara y el personaje). Hito 141: esfera de radio `pad` (mín. 0,3 m)
     const om = this.om;
     if (om && typeof om.getGroundHeight === 'function') {
-      const N = 12;
+      const r = Math.max(0.3, pad);
+      const L = Math.hypot(dx, dy, dz);
+      const N = Math.min(48, Math.max(12, Math.ceil(L / 0.75)));
+      const lh = Math.hypot(dx, dz) || 1;
+      const ux = dx / lh, uz = dz / lh;                               // dirección en planta
+      const ring = L > 0 ? 2.0 / L : 1;                               // fracción final con anillo (últimos 2 m)
       for (let i = 1; i <= N; i++) {
         const t = i / N;
         if (t >= best) break;
         const x = a.x + dx * t, y = a.y + dy * t, z = a.z + dz * t;
-        if (om.getGroundHeight(x, z) + 0.35 > y) { best = Math.min(best, Math.max(0, t - 1 / N)); this.lastHit = 'terrain'; break; }
+        let hit = om.getGroundHeight(x, z) + r > y;
+        if (!hit && t >= 1 - ring) {
+          // borde de la esfera: a los lados y por detrás, el suelo no puede pasar del centro de la esfera
+          hit = om.getGroundHeight(x - uz * r, z + ux * r) > y || om.getGroundHeight(x + uz * r, z - ux * r) > y
+            || om.getGroundHeight(x + ux * r, z + uz * r) > y;
+        }
+        if (hit) { best = Math.min(best, Math.max(0, t - 1 / N)); this.lastHit = 'terrain'; break; }
       }
     }
     return best;
@@ -226,13 +243,20 @@ export class CameraOcclusion {
 
   /** ¿El punto está dentro (o a menos de `pad` m) de alguna caja? (la cámara metida en una casa) */
   inside(p, pad = 0.25) {
-    const c = this.grid.get(key(Math.floor(p.x * INV), Math.floor(p.z * INV)));
-    if (!c) return false;
-    for (let i = 0; i < c.length; i++) {
-      const o = c[i], e = o.e;
-      if (p.x < o.minX - pad || p.x > o.maxX + pad || p.y < o.minY - pad || p.y > o.maxY + pad || p.z < o.minZ - pad || p.z > o.maxZ + pad) continue;
-      const lx = e[0] * p.x + e[4] * p.y + e[8] * p.z + e[12], ly = e[1] * p.x + e[5] * p.y + e[9] * p.z + e[13], lz = e[2] * p.x + e[6] * p.y + e[10] * p.z + e[14];
-      if (lx > o.lx0 - pad * o.px && lx < o.lx1 + pad * o.px && ly > o.ly0 - pad * o.py && ly < o.ly1 + pad * o.py && lz > o.lz0 - pad * o.pz && lz < o.lz1 + pad * o.pz) return true;
+    // Hito 141: todas las celdas que toca la esfera (antes solo la del centro)
+    const ix0 = Math.floor((p.x - pad) * INV), ix1 = Math.floor((p.x + pad) * INV);
+    const iz0 = Math.floor((p.z - pad) * INV), iz1 = Math.floor((p.z + pad) * INV);
+    const q = ++this._stamp;
+    for (let ix = ix0; ix <= ix1; ix++) for (let iz = iz0; iz <= iz1; iz++) {
+      const c = this.grid.get(key(ix, iz));
+      if (!c) continue;
+      for (let i = 0; i < c.length; i++) {
+        const o = c[i], e = o.e;
+        if (o.q === q) continue; o.q = q;
+        if (p.x < o.minX - pad || p.x > o.maxX + pad || p.y < o.minY - pad || p.y > o.maxY + pad || p.z < o.minZ - pad || p.z > o.maxZ + pad) continue;
+        const lx = e[0] * p.x + e[4] * p.y + e[8] * p.z + e[12], ly = e[1] * p.x + e[5] * p.y + e[9] * p.z + e[13], lz = e[2] * p.x + e[6] * p.y + e[10] * p.z + e[14];
+        if (lx > o.lx0 - pad * o.px && lx < o.lx1 + pad * o.px && ly > o.ly0 - pad * o.py && ly < o.ly1 + pad * o.py && lz > o.lz0 - pad * o.pz && lz < o.lz1 + pad * o.pz) return true;
+      }
     }
     return false;
   }

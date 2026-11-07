@@ -1,5 +1,7 @@
 # Hito 14: Estudio de Personalización Sapidae estilo Dofus, Diorama 3D en Tiempo Real y Selector de Héroe/Compañero
 
+> **Nota (7-nov-2026):** las clases del Sapidae que se nombran aquí son las anteriores al Hito 95. Hoy son Alfarero de Gólems (`crafter`), Comandante de Sombrero (`shepard`), Guardián de Campanas (`lunalogist`) y Rastreador Gogo (`stargazer`); los ids internos no cambiaron. Ver `HITO_95_GOLEMS_Y_CLASES_SAPIDAE.md`.
+
 > **Estado:** Completado y Verificado ✅  
 > **Actualización (21-oct-2026):** el panel de apariencia del estudio usa ahora los modelos **Ema y Kai** de piezas A–E (peinados, ojos, bocas y colores con imagen en cada opción). Ver `HITO_47_SAPIDAE_EMA_KAI.md`. Lo que sigue describe el estudio original con los modelos `sapidae-f-*` / `sapidae-m-*`, que hoy solo usan los NPC.  
 > **Área:** UI / UX / Modelado 3D / Personalización Procedimental / Three.js / Localización  

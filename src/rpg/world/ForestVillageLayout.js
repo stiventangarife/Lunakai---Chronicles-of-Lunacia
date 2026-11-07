@@ -50,7 +50,9 @@ export const VILLAGE = [
   { id: 'lamp_3', model: 'lamp', x: -59.1, z: 2.6, yaw: -2.444 },
   { id: 'lamp_4', model: 'lamp', x: -52.1, z: -13.2, yaw: 0.696 },
   { id: 'lamp_5', model: 'lamp', x: -46.9, z: -7.8, yaw: -2.447 },
-  { id: 'lamp_6', model: 'lamp', x: -43.3, z: -20.2, yaw: 0.647 },
+  // Hito 139: antes en (-43.3, -20.2), detrás de PALADILL_GREET_SPOT: tapaba al jugador al terminar la cinemática.
+  // Ahora en el lado A, hacia el final de la calle (cerca del altar de Atia).
+  { id: 'lamp_6', model: 'lamp', x: -92.7, z: 15.8, yaw: 0.647 },
   // Embarcadero de Pomodoro el barquero (43, 132.2)
   { id: 'shop_fish', model: 'shop_fish', x: 36.0, z: 132.0, yaw: 1.2 },
   { id: 'balsa', model: 'balsa', x: 48.5, z: 135.5, yaw: 0.4 }

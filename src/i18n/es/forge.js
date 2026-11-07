@@ -101,6 +101,7 @@ export default {
   "forge.useCraft": "Crear {list}",
   "forge.useEvolve": "Evolucionar a {list}",
   "forge.usedFor": "Se usa para",
+  "forge.usePrompt": "Usar la forja",
   "forge.whereGet": "Dónde conseguirlo",
   "forge.youHave": "tienes {n}",
   "forge.yourGear": "Tu equipo",

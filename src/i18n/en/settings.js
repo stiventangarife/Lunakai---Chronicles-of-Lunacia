@@ -88,6 +88,8 @@ export default {
   "settings.reduceMotionDesc": "Fewer flashes, beams and camera animations",
   "settings.resScale": "Resolution scale",
   "settings.resScaleDesc": "Lower scale, better performance",
+  "settings.dynRes": "Dynamic resolution",
+  "settings.dynResDesc": "Lowers resolution slightly only when the graphics card can't keep 60 FPS",
   "settings.resetTab": "Reset this tab",
   "settings.resume": "Resume",
   "settings.saveExit": "Save and quit",
@@ -139,5 +141,7 @@ export default {
   "settings.combatCameraDesc": "Where the camera goes when the turn changes",
   "settings.ccFollow": "Every turn",
   "settings.ccMine": "My units",
-  "settings.ccFixed": "Fixed"
+  "settings.ccFixed": "Fixed",
+  "settings.applyingGfx": "Applying graphics quality…",
+  "settings.applyingGfxDesc": "This may take a few seconds"
 };

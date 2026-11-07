@@ -164,7 +164,16 @@ export class TutorialDirector {
   onQuestBookClosed() {}
   onInventoryOpened() { this._updateGuide(); }
   onInventoryClosed() { this._updateGuide(); }
-  onSwordEquipped() { if (this.step === 'equip_sword') this._completeEquip(); }
+  // Hito 140: el cambio de paso (franja, rótulo y guía, ~15 ms) va en el fotograma siguiente al clic de «Equipar»:
+  // así el clic solo equipa y repinta la Mochila, y el jugador ve la espada puesta sin esperar al tutorial
+  onSwordEquipped() {
+    if (this.step !== 'equip_sword' || this._equipQueued) return;
+    this._equipQueued = true;
+    requestAnimationFrame(() => setTimeout(() => {
+      this._equipQueued = false;
+      if (this.step === 'equip_sword') this._completeEquip();
+    }, 0));
+  }
   onSlimeDefeated() {}
   onPaladillInitialTalkComplete() {}
   onPaladillRewardDelivered() {}
@@ -973,6 +982,8 @@ export class TutorialDirector {
       e.preventDefault(); e.stopPropagation();
       // Las ventanas se repintan (p. ej. el panel de cuidados cada pocos segundos): si el elemento señalado ya no
       // está en la página, se busca el actual antes de pasarle el clic (antes el clic se perdía)
+      // Objetivo en la escena 3D con acción propia (abrir el panel de cuidados del Axie)
+      if (this._guide?.act) { this._guide.act(); setTimeout(() => this._updateGuide(), 60); return; }
       let t = this._spotTarget;
       if ((!t || !t.isConnected) && this._guide) {
         const g = this._computeGuide();
@@ -1112,7 +1123,9 @@ export class TutorialDirector {
           return f ? { el: f, html: i18n.t('tutorialDirector.guide.feed', { axie: esc(axie) }) } : null;
         }
         const r = this._companionRect();
-        return r ? { rect: r, html: i18n.t('tutorialDirector.guide.clickAxie', { axie: esc(axie) }), canvas: true } : null;
+        // Hito 136: el clic en el hueco abre el panel directamente (`act`). Antes pasaba al juego, y si la Sapidae quedaba
+        // delante del Axie (cámara muy cerca) el rayo no le llegaba y no había forma de seguir.
+        return r ? { rect: r, html: i18n.t('tutorialDirector.guide.clickAxie', { axie: esc(axie) }), canvas: true, act: () => this.game?.axieCare?.show?.() } : null;
       }
       case 'runes': {
         const main = this._mainAxie();
@@ -1235,7 +1248,9 @@ export class TutorialDirector {
     // Hito 126: una ficha abierta (material de la Forja, objeto de la Mochila…) quedaría atrapada bajo el velo: el ratón ya no
     // le llega y no se cierra, y si cae sobre el hueco de la guía tapa el botón que hay que pulsar (p. ej. «Acelerar ×4»)
     this.om?.forgeModal?.hideTip?.();
-    document.querySelectorAll('.lk-mat-tip.lk-is-on, .lk-tt-item.lk-is-on').forEach((t) => t.classList.remove('lk-is-on'));
+    // …salvo la ficha que CONTIENE lo que hay que pulsar: al fijar la espada, la guía pasa a «Equipar a Lunara», que está
+    // dentro de la ficha; antes se ocultaba la ficha y el botón quedaba invisible e imposible de pulsar (atasco del tutorial).
+    document.querySelectorAll('.lk-mat-tip.lk-is-on, .lk-tt-item.lk-is-on').forEach((t) => { if (!(el && t.contains(el))) t.classList.remove('lk-is-on'); });
     // Cuando la guía señala algo que abre una ventana desde el mundo (el botón de la Mochila, el Axie) o
     // el panel de cuidados, el juego no debe creer que ya hay una ventana abierta: si no, el botón, la
     // tecla U y el clic sobre el compañero se ignoran, y el panel de cuidados se cierra solo. El velo y el
@@ -1250,7 +1265,7 @@ export class TutorialDirector {
     const txt = document.getElementById('pointer-text');
     if (txt) txt.innerHTML = g.html;
     ptr?.classList.remove('hidden');
-    if (this._catchEl) this._catchEl.hidden = Boolean(g.canvas || g.noClick || !el);
+    if (this._catchEl) this._catchEl.hidden = Boolean(g.noClick || (g.act ? false : (g.canvas || !el)));
     this.bannerEl?.classList.add('tutorial-spotlight-banner');
   }
 

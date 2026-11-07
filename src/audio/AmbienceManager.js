@@ -17,6 +17,7 @@
 
 import { canonicalZoneId } from '../rpg/world/islands/IslandWorldLayout.js';
 import { v as withVersion } from '../render/AssetVersion.js'; // Hito 109: versión en la ruta
+import { loadSoundManifest, soundManifest } from './SoundManifest.js'; // Hito 140: solo se piden los bucles que existen
 
 const TICK_MS = 100;
 const MIX_GAIN = 2.5;
@@ -147,6 +148,9 @@ export class AmbienceManager {
     this.debug = { force: null };
     this.loops = new Map();      // archivo → { state: 'loading'|'ok'|'missing', buf }
     this._dirty = false;
+    // Hito 140: la lista de grabaciones llega antes de montar el primer fondo; si trae bucles y el fondo ya se montó
+    // sin ellos, se rehace (igual que cuando llega una grabación)
+    loadSoundManifest().then((m) => { if (m.ambience.size) this._dirty = true; });
   }
 
   // ---------------------------------------------------------------- montaje
@@ -214,6 +218,10 @@ export class AmbienceManager {
     if (!name || !this.ctx) return null;
     const e = this.loops.get(name);
     if (e) return e.state === 'ok' ? e.buf : null;
+    // Hito 140: solo se pide si está en assets/sounds/sfx/manifest.json (antes, cada bucle que falta daba un 404)
+    const m = soundManifest();
+    if (!m) return null; // la lista aún no llegó: se volverá a preguntar
+    if (!m.ambience.has(name)) { this.loops.set(name, { state: 'missing', buf: null }); return null; }
     const entry = { state: 'loading', buf: null };
     this.loops.set(name, entry);
     fetch(withVersion(LOOP_DIR + name))

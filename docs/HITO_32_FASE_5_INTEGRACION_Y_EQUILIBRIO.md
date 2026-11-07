@@ -1,5 +1,7 @@
 # Hito 32 — Fase 5: integración y equilibrio
 
+> **Nota (7-nov-2026):** las clases del Sapidae que se nombran aquí son las anteriores al Hito 95. Hoy son Alfarero de Gólems (`crafter`), Comandante de Sombrero (`shepard`), Guardián de Campanas (`lunalogist`) y Rastreador Gogo (`stargazer`); los ids internos no cambiaron. Ver `HITO_95_GOLEMS_Y_CLASES_SAPIDAE.md`.
+
 La Fase 5 conecta el motor nuevo (efectos por datos, estados y triángulo de clases) con todo lo que ve y hace el jugador: el pronóstico de daño, los enemigos, el tutorial y una primera pasada de equilibrio.
 
 ## 1. Pronóstico de daño

@@ -165,12 +165,21 @@ class AxieMixerService {
     if (cached) return cached.parts || [];
     if (!this._noApiParts) this._noApiParts = new Set();
     if (this._noApiParts.has(String(axieId))) return [];
+    // Hito 139: las partes ya pedidas en esta sesión del navegador se guardan (sessionStorage): al recargar, el creador
+    // y el selector no vuelven a esperar a la API para montar el mismo Axie
+    const key = `lk_axparts_v1_${axieId}`;
+    try {
+      const saved = sessionStorage.getItem(key);
+      if (saved) return JSON.parse(saved) || [];
+    } catch { /* sin almacenamiento: se pide */ }
     try {
       const data = await Promise.race([
         this.fetchAxieData(String(axieId)),
         new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), 3500)),
       ]);
-      return data?.parts || [];
+      const parts = data?.parts || [];
+      if (parts.length) { try { sessionStorage.setItem(key, JSON.stringify(parts)); } catch { /* lleno o bloqueado */ } }
+      return parts;
     } catch {
       this._noApiParts.add(String(axieId));
       return [];
@@ -207,16 +216,32 @@ class AxieMixerService {
    * Gets or initializes the singleton 3D mixer instance
    * @param {THREE.WebGLRenderer} renderer - The active Three.js WebGLRenderer
    */
+  /**
+   * Hito 139 — Prepara en segundo plano lo que el primer Axie del creador necesita: el mixer (manifiesto de ~8,7 MB) y
+   * las partes de la API de los Axies indicados. No crea modelos ni sube nada a la tarjeta gráfica. Nunca falla.
+   * El mixer se crea con el `renderer` dado solo si aún no existe (el primero que lo pide se queda, como siempre).
+   */
+  prewarm({ renderer = null, axieIds = [] } = {}) {
+    const jobs = axieIds.filter(Boolean).map((id) => this._apiPartsFor(String(id)).catch(() => null));
+    if (renderer && !this.mixerInstance) jobs.push(this.getMixer(renderer).catch(() => null));
+    return Promise.all(jobs);
+  }
+
   async getMixer(renderer) {
-    if (!this.mixerInstance) {
-      this.mixerInstance = await createAxieMixer3D({
+    if (this.mixerInstance) return this.mixerInstance;
+    // Hito 139: una sola creación aunque lo pidan dos a la vez (la precarga del título y el creador)
+    if (!this._mixerPromise) {
+      this._mixerPromise = createAxieMixer3D({
         assetBaseUrl: './assets/axie/',
         resolveAssetUrl: withVersion, // Hito 109: versión en la ruta (también para lo que el mixer pide con fetch)
         renderer: renderer
-      });
-      console.log('[AxieMixerService] Axie 3D Mixer initialized successfully');
+      }).then((m) => {
+        this.mixerInstance = m;
+        console.log('[AxieMixerService] Axie 3D Mixer initialized successfully');
+        return m;
+      }, (err) => { this._mixerPromise = null; throw err; });
     }
-    return this.mixerInstance;
+    return this._mixerPromise;
   }
 
   /**
@@ -246,13 +271,16 @@ class AxieMixerService {
       finalGenes = axieData.newGenes || axieData.genes;
     }
 
+    // Hito 139: las partes de Sky Mavis (nivel de cada parte) se piden a la vez que se prepara el mixer, no después:
+    // antes el creador esperaba a la API (hasta 3,5 s) con el manifiesto ya descargado
+    const apiPartsP = axieData ? Promise.resolve(axieData.parts || []) : this._apiPartsFor(normalizedId);
     const mixer = await this.getMixer(renderer);
     // Partes que el catálogo 3D no tiene con ese nivel o skin (la librería las descartaría sin avisar):
     // se dibuja la combinación más cercana que sí exista (19-oct). Ver fitAxieDescriptor.
     let axie = null;
     try {
       if (typeof mixer.decodeGenes === 'function' && typeof mixer.create === 'function' && mixer.manifest?.assets?.parts) {
-        const apiParts = axieData?.parts || await this._apiPartsFor(normalizedId);
+        const apiParts = await apiPartsP;
         const staged = this.applyApiStages(mixer.decodeGenes(finalGenes).descriptor, apiParts);
         const { descriptor, fixes } = this.fitAxieDescriptor(mixer, staged);
         if (fixes.length) console.info(`[AxieMixerService] Axie #${normalizedId}: partes sin modelo exacto, se usa la más cercana`, fixes);

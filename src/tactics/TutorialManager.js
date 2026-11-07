@@ -282,17 +282,36 @@ export class TutorialManager {
     const a = g.activeUnit;
     if (!a || a.team !== 'player') return true;
     const gm = g.gridManager;
+    const sm = g.spellManager;
+    // Hito 139: la casilla depende de la carta de la ranura [1] (la que pide el paso siguiente). Con un ataque
+    // cuerpo a cuerpo, al lado del Slime como siempre; con uno a distancia, una casilla desde la que le llegue
+    // (mismas reglas que SpellRules.getValidTargetCells: AL mínimo y máximo, línea recta y línea de visión).
+    const sp = a.spellIds?.[0] ? sm?.getSpell(a.spellIds[0], a) : null;
+    const minR = sp ? (sp.minRange ?? 1) : 1;
+    const maxR = sp ? ((a.statuses?.length || sm?.battleMods?.range) ? sm.getEffectiveMaxRange(a, sp) : (sp.maxRange ?? 1)) : 1;
+    const dist = (c) => Math.abs(c.x - sc.x) + Math.abs(c.z - sc.z);
+    const hitsFrom = (c) => {
+      const d = dist(c);
+      if (d < minR || d > maxR) return false;
+      if (sp?.isLinear && c.x !== sc.x && c.z !== sc.z) return false;
+      return !sp?.requiresLoS || gm.hasLineOfSight(c, sc);
+    };
     const free = (c) => !gm.getTile(c.x, c.z)?.unit;
-    const near = (c) => Math.abs(c.x - sc.x) + Math.abs(c.z - sc.z) === 1;
     const reach = (gm.getReachableCells(a.gridX, a.gridZ, a.currentPM, a) || []).filter(free);
-    const spots = reach.filter(near);
-    // Ya está al lado: no hace falta moverse
-    if (near({ x: a.gridX, z: a.gridZ })) { step.allowedCell = { x: a.gridX, z: a.gridZ }; step._skip = true; return true; }
+    const ranged = minR > 1;
+    // Cuerpo a cuerpo: como siempre, pegado al Slime (aunque la carta llegue también a 2)
+    const goodFrom = ranged ? hitsFrom : (c) => dist(c) === 1;
+    const spots = reach.filter(goodFrom);
+    step.title = i18n.t(ranged ? 'tutorialCombat.step.move2Range.title' : 'tutorialCombat.step.move2.title');
+    step.text = i18n.t(ranged ? 'tutorialCombat.step.move2Range.text' : 'tutorialCombat.step.move2.text');
+    // Ya le llega desde donde está: no hace falta moverse
+    if (goodFrom({ x: a.gridX, z: a.gridZ })) { step.allowedCell = { x: a.gridX, z: a.gridZ }; step._skip = true; return true; }
     step._skip = false;
-    const pick = spots.find((c) => c.x === 3 && c.z === 6)
-      || spots.sort((p, q) => (Math.abs(p.x - a.gridX) + Math.abs(p.z - a.gridZ)) - (Math.abs(q.x - a.gridX) + Math.abs(q.z - a.gridZ)))[0];
+    const walk = (c) => Math.abs(c.x - a.gridX) + Math.abs(c.z - a.gridZ);
+    const pick = (!ranged && spots.find((c) => c.x === 3 && c.z === 6))
+      || spots.sort((p, q) => walk(p) - walk(q))[0];
     if (pick) { step.allowedCell = { x: pick.x, z: pick.z }; delete step.allowedCells; return true; }
-    // Ninguna casilla al lado al alcance: que se acerque libremente (todas las alcanzables valen)
+    // Ninguna casilla a tiro al alcance: que se mueva libremente (todas las alcanzables valen)
     step.allowedCell = null;
     step.allowedCells = reach.map((c) => ({ x: c.x, z: c.z }));
     return true;
@@ -519,7 +538,7 @@ export class TutorialManager {
       const free = this.steps.findIndex((s) => s.id === 'step_battle_flow');
       if (free >= 0 && free !== this.currentStep) { this.currentStep = free; step = this.steps[free]; }
     } else if (step._skip && step.id === 'step_move_2') {
-      // El Axie ya está junto al Slime: directo a elegir la carta
+      // El Axie ya tiene al Slime a tiro (a su lado o a distancia, Hito 139): directo a elegir la carta
       this.currentStep++;
       step = this.steps[this.currentStep];
     }

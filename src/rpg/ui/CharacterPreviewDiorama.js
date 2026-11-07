@@ -79,6 +79,9 @@ export class CharacterPreviewDiorama {
       powerPreference: 'high-performance'
     });
     this.renderer.setSize(width, height);
+    // Hito 140: como el juego (SceneManager) y los retratos: sin la comprobación de errores de shader en el primer uso
+    // de cada programa (getProgramInfoLog espera a la tarjeta gráfica: 41 ms medidos al equipar la espada en la Mochila)
+    this.renderer.debug.checkShaderErrors = false;
     // Mismo tope que el juego (1,5): cuesta mucho menos que 2 mientras el mundo sigue dibujándose
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.5));
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;

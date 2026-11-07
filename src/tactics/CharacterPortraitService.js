@@ -494,8 +494,71 @@ export class CharacterPortraitService {
   }
 
   captureModel(id, model, options = {}) {
+    if (!this._renderCapture(id, model, options)) return null;
+    const dataUrl = this.canvas.toDataURL('image/png');
+    this._storeCapture(id, dataUrl, options);
+    return dataUrl;
+  }
+
+  /**
+   * Hito 140 — Como captureModel, pero la imagen se codifica en segundo plano (canvas.toBlob + FileReader) en lugar de
+   * con canvas.toDataURL, que codifica el PNG en el hilo principal (medido: 154 ms al equipar la espada del tutorial).
+   * El resultado es el mismo data URL (se guarda en la ranura y en la caché igual que antes). toBlob copia el lienzo al
+   * llamarlo (además el renderer tiene preserveDrawingBuffer), así que otra foto después no cambia esta.
+   * @returns {Promise<string|null>}
+   */
+  async _captureModelEncoded(id, model, options = {}) {
+    if (!this._renderCapture(id, model, options)) return null;
+    // Sacar la imagen de un lienzo WebGL obliga al navegador a esperar a que la tarjeta gráfica termine el dibujo, y
+    // esa espera bloquea el hilo principal (medido: 96 ms con toBlob, 154 ms con toDataURL). Se espera antes, sin
+    // bloquear, con una valla de WebGL2; si mientras tanto otro retrato usó el lienzo, se vuelve a dibujar este.
+    const seq = this._renderSeq;
+    await this._waitGpuIdle();
+    if (this._renderSeq !== seq && !this._renderCapture(id, model, options)) return null;
+    const canvas = this.canvas;
+    let dataUrl = null;
+    try {
+      if (typeof canvas.toBlob === 'function' && typeof FileReader !== 'undefined') {
+        const blob = await new Promise((res) => canvas.toBlob(res, 'image/png'));
+        if (blob) {
+          dataUrl = await new Promise((res, rej) => {
+            const fr = new FileReader();
+            fr.onload = () => res(String(fr.result || ''));
+            fr.onerror = () => rej(fr.error);
+            fr.readAsDataURL(blob);
+          });
+        }
+      }
+    } catch (_) { dataUrl = null; }
+    if (!dataUrl) dataUrl = canvas.toDataURL('image/png'); // sin toBlob: como antes
+    this._storeCapture(id, dataUrl, options);
+    return dataUrl;
+  }
+
+  /** Hito 140: espera sin bloquear a que la tarjeta gráfica termine lo pedido en el contexto de retratos (tope 1,5 s). */
+  async _waitGpuIdle(maxMs = 1500) {
+    const gl = this.renderer && this.renderer.getContext && this.renderer.getContext();
+    if (!gl || typeof gl.fenceSync !== 'function') return; // WebGL1: sin valla (la copia esperará como antes)
+    let sync = null;
+    try { sync = gl.fenceSync(gl.SYNC_GPU_COMMANDS_COMPLETE, 0); gl.flush(); } catch (_) { return; }
+    if (!sync) return;
+    const t0 = performance.now();
+    try {
+      for (;;) {
+        const st = gl.clientWaitSync(sync, 0, 0);
+        if (st === gl.ALREADY_SIGNALED || st === gl.CONDITION_SATISFIED || st === gl.WAIT_FAILED) break;
+        if (performance.now() - t0 > maxMs || gl.isContextLost()) break;
+        await new Promise((r) => setTimeout(r, 4));
+      }
+    } finally {
+      try { gl.deleteSync(sync); } catch (_) { /* opcional */ }
+    }
+  }
+
+  /** Dibuja el modelo en el lienzo de retratos con su encuadre y lo devuelve a su sitio. true si se dibujó. */
+  _renderCapture(id, model, options = {}) {
     this._initRenderer();
-    if (!this._initialized || !model) return null;
+    if (!this._initialized || !model) return false;
 
     const originalParent = model.parent;
     const originalPos = model.position.clone();
@@ -552,9 +615,26 @@ export class CharacterPortraitService {
 
     this._trackModelTextures(model);
     this.renderer.render(this.scene, this.camera);
+    this._renderSeq = (this._renderSeq || 0) + 1; // Hito 140: _captureModelEncoded comprueba que el lienzo sigue siendo suyo
     this._scheduleGpuRelease();
-    const dataUrl = this.canvas.toDataURL('image/png');
 
+    this.wrapper.remove(model);
+
+    // Restore original transforms unconditionally
+    model.position.copy(originalPos);
+    model.rotation.copy(originalRot);
+    model.scale.copy(originalScale);
+    model.visible = originalVisible;
+
+    // Restore to original parent if previously attached
+    if (originalParent) {
+      originalParent.add(model);
+    }
+    return true;
+  }
+
+  /** Guarda un retrato ya codificado: caché, alias, avisos y copia en el servidor local. */
+  _storeCapture(id, dataUrl, options = {}) {
     this.cache.set(id, dataUrl);
     if (options.aliases && Array.isArray(options.aliases)) {
       options.aliases.forEach(alias => this.cache.set(alias, dataUrl));
@@ -577,21 +657,6 @@ export class CharacterPortraitService {
         }).catch(() => {});
       }
     } catch (_) {}
-
-    this.wrapper.remove(model);
-
-    // Restore original transforms unconditionally
-    model.position.copy(originalPos);
-    model.rotation.copy(originalRot);
-    model.scale.copy(originalScale);
-    model.visible = originalVisible;
-
-    // Restore to original parent if previously attached
-    if (originalParent) {
-      originalParent.add(model);
-    }
-
-    return dataUrl;
   }
 
   /**
@@ -635,7 +700,7 @@ export class CharacterPortraitService {
           }
         }
       }
-      return this.captureModel(id, copy, options);
+      return await this._captureModelEncoded(id, copy, options);
     } catch (e) {
       console.warn('[CharacterPortraitService] Retrato en segundo plano omitido:', e);
       return null;

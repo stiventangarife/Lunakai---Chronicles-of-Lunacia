@@ -1,16 +1,17 @@
 // SfxBank.js — Efectos grabados opcionales (Hito 87). Si el archivo existe, suena; si no, el que llama sintetiza.
 //
 // Carpeta: assets/sounds/sfx/<familia>_<n>.mp3 (p. ej. steps/step_grass_1.mp3 … _4). La lista y los nombres están en
-// docs/AUDIO_ARCHIVOS_A_CONSEGUIR.md. Para no llenar la consola de 404 mientras no haya grabaciones:
-//   1. se pide una sola vez assets/sounds/sfx/CREDITOS.txt (el archivo de créditos que acompaña a las grabaciones);
-//   2. si no existe, no se pide nada más en toda la sesión: todo suena sintetizado;
-//   3. si existe, cada familia se carga la primera vez que se usa (sus variantes; las que falten se ignoran).
+// docs/AUDIO_ARCHIVOS_A_CONSEGUIR.md. Hito 140: solo se pide lo que existe, para no llenar la consola de 404:
+//   1. se lee una sola vez assets/sounds/sfx/manifest.json (SoundManifest.js), con las grabaciones que hay;
+//   2. si no está o está vacía, no se pide nada más en toda la sesión: todo suena sintetizado;
+//   3. cada familia se carga la primera vez que se usa, solo con las variantes que están en la lista.
+//   Al añadir una grabación: ponerla en la lista y subir ASSET_VERSION.
 //
 // play(familia, opts) devuelve true si sonó una grabación; false para que el que llama use su versión sintetizada.
 
 import { v as withVersion } from '../render/AssetVersion.js'; // Hito 109: versión en la ruta
+import { loadSoundManifest } from './SoundManifest.js';
 const SFX_DIR = './assets/sounds/sfx/';
-const PROBE = 'CREDITOS.txt';
 
 /** Variantes de cada familia (las de la lista de archivos a conseguir). */
 export const SFX_FAMILIES = {
@@ -35,8 +36,9 @@ export const SFX_FAMILIES = {
 export class SfxBank {
   constructor(audio) {
     this.audio = audio;
-    this.enabled = null;          // null: sin comprobar · true/false tras pedir CREDITOS.txt
+    this.enabled = null;          // null: sin comprobar · true/false tras leer la lista de grabaciones
     this._probe = null;
+    this._files = null;           // Set de rutas (relativas a sfx/) que existen
     this.families = new Map();    // familia → { state: 'loading'|'ok'|'missing', bufs: [] }
     this._last = new Map();       // familia → última variante (para no repetir)
   }
@@ -45,16 +47,16 @@ export class SfxBank {
 
   _checkFolder() {
     if (this._probe || typeof fetch !== 'function') return;
-    this._probe = fetch(SFX_DIR + PROBE, { method: 'GET', cache: 'no-cache' })
-      .then((r) => { this.enabled = r.ok; })
-      .catch(() => { this.enabled = false; });
+    this._probe = loadSoundManifest().then((m) => { this._files = m.sfx; this.enabled = m.sfx.size > 0; });
   }
 
   _load(family) {
     const n = SFX_FAMILIES[family] || 1;
     const entry = { state: 'loading', bufs: [] };
     this.families.set(family, entry);
-    const urls = n === 1 ? [`${SFX_DIR}${family}.mp3`] : Array.from({ length: n }, (_, i) => `${SFX_DIR}${family}_${i + 1}.mp3`);
+    const names = n === 1 ? [`${family}.mp3`] : Array.from({ length: n }, (_, i) => `${family}_${i + 1}.mp3`);
+    const urls = names.filter((f) => this._files && this._files.has(f)).map((f) => SFX_DIR + f);
+    if (!urls.length) { entry.state = 'missing'; return; } // ninguna variante grabada: sintetizado, sin pedir nada
     Promise.all(urls.map((u) => fetch(withVersion(u)) // Hito 109: versión en la ruta
       .then((r) => (r.ok ? r.arrayBuffer() : null))
       .then((ab) => (ab ? this.ctx.decodeAudioData(ab) : null))
@@ -100,7 +102,7 @@ export class SfxBank {
 
   status() {
     return {
-      carpeta: this.enabled === null ? 'sin comprobar' : this.enabled ? 'sí (CREDITOS.txt encontrado)' : 'no (todo sintetizado)',
+      carpeta: this.enabled === null ? 'sin comprobar' : this.enabled ? `sí (${this._files.size} grabaciones en manifest.json)` : 'no (todo sintetizado)',
       familias: [...this.families].map(([k, v]) => `${k}: ${v.state === 'ok' ? `${v.bufs.length} archivo(s)` : v.state}`),
     };
   }

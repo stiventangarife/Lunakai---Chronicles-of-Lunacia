@@ -75,8 +75,16 @@ export class GridManager extends GridRules {
     };
   }
 
+  /**
+   * Hito 142 · Casillas del 10×10 instanciadas. Antes: una malla por casilla (con su propio material clonado) y otra
+   * por su contorno → ~188 draws de los ~297 de un combate. Ahora cada casilla es un registro { material, position,
+   * userData } (setupBiome sigue asignando `material` igual que antes) y se dibujan con una InstancedMesh por material
+   * en uso (_rebuildTileInstances); los contornos son una sola malla de líneas. Mismo aspecto: mismas geometrías y
+   * materiales (los clones por casilla no se modificaban nunca).
+   */
   _createVisualTiles() {
     const tileGeo = new THREE.BoxGeometry(TILE_SIZE * 0.94, 0.25, TILE_SIZE * 0.94);
+    this._tileGeo = tileGeo;
     
     this.grassTextureLight = TextureGenerator.createGrassTexture(false);
     this.grassTextureDark = TextureGenerator.createGrassTexture(true);
@@ -92,27 +100,69 @@ export class GridManager extends GridRules {
       metalness: 0.04,
     });
 
+    const edges = new THREE.EdgesGeometry(tileGeo);
+    const ep = edges.attributes.position.array;
+    const linePos = [];
+
     this.tileMeshes = [];
     for (let x = 0; x < this.width; x++) {
       this.tileMeshes[x] = [];
       for (let z = 0; z < this.height; z++) {
         const isDark = (x + z) % 2 === 1;
-        const mat = isDark ? matDark.clone() : matLight.clone();
-        const mesh = new THREE.Mesh(tileGeo, mat);
         const worldPos = this.gridToWorld(x, z);
-        mesh.position.set(worldPos.x, -0.125, worldPos.z);
-        mesh.receiveShadow = true;
-        mesh.userData = { gridX: x, gridZ: z, isTile: true };
-        this.legacyTilesGroup.add(mesh);
-        this.tileMeshes[x][z] = mesh;
-
-        const edges = new THREE.EdgesGeometry(tileGeo);
-        const line = new THREE.LineSegments(
-          edges,
-          new THREE.LineBasicMaterial({ color: 0x24461f, transparent: true, opacity: 0.28 })
-        );
-        mesh.add(line);
+        const tile = {
+          material: isDark ? matDark : matLight,
+          position: new THREE.Vector3(worldPos.x, -0.125, worldPos.z),
+          userData: { gridX: x, gridZ: z, isTile: true },
+        };
+        this.tileMeshes[x][z] = tile;
+        for (let i = 0; i < ep.length; i += 3) linePos.push(ep[i] + tile.position.x, ep[i + 1] + tile.position.y, ep[i + 2] + tile.position.z);
       }
+    }
+    edges.dispose();
+
+    const lineGeo = new THREE.BufferGeometry();
+    lineGeo.setAttribute('position', new THREE.Float32BufferAttribute(linePos, 3));
+    const lines = new THREE.LineSegments(lineGeo, new THREE.LineBasicMaterial({ color: 0x24461f, transparent: true, opacity: 0.28 }));
+    lines.name = 'LegacyTileEdges';
+    this.legacyTilesGroup.add(lines);
+
+    this._tileInstances = [];
+    this._tileInstKey = null;
+    this._rebuildTileInstances();
+  }
+
+  /**
+   * Hito 142 · Una InstancedMesh por material en uso en las casillas. Solo rehace si cambió el reparto de materiales
+   * (al cambiar de bioma en setupBiome); el resto de combates reutiliza las mallas.
+   */
+  _rebuildTileInstances() {
+    const groups = new Map();
+    const keyParts = [];
+    for (let x = 0; x < this.tileMeshes.length; x++) {
+      for (let z = 0; z < this.tileMeshes[x].length; z++) {
+        const t = this.tileMeshes[x][z];
+        let list = groups.get(t.material);
+        if (!list) groups.set(t.material, (list = []));
+        list.push(t);
+        keyParts.push(t.material.uuid);
+      }
+    }
+    const key = keyParts.join(',');
+    if (key === this._tileInstKey) return;
+    this._tileInstKey = key;
+    for (const im of this._tileInstances) { this.legacyTilesGroup.remove(im); im.dispose(); }
+    this._tileInstances = [];
+    const m = new THREE.Matrix4();
+    for (const [mat, list] of groups) {
+      const im = new THREE.InstancedMesh(this._tileGeo, mat, list.length);
+      list.forEach((t, i) => im.setMatrixAt(i, m.makeTranslation(t.position.x, t.position.y, t.position.z)));
+      im.instanceMatrix.needsUpdate = true;
+      im.receiveShadow = true;
+      im.name = 'LegacyTilesInst';
+      im.computeBoundingSphere();
+      this.legacyTilesGroup.add(im);
+      this._tileInstances.push(im);
     }
   }
 
@@ -223,6 +273,8 @@ export class GridManager extends GridRules {
         }
       }
     }
+
+    this._rebuildTileInstances(); // Hito 142: los materiales de las casillas se dibujan agrupados
 
     // If custom obstacles are provided by level or dynamic encounter, use ONLY those!
     // Never mix default obstacles with custom obstacles.

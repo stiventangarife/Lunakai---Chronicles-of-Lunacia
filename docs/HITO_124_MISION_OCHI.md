@@ -1,6 +1,6 @@
 # Hito 124: Misión «El mercader del Dojō» (Ochi)
 
-> **Estado:** programado el 4-nov-2026 (v0.5.0). Probado en Node con el flujo completo (26 comprobaciones). Falta la prueba en el navegador y aplicar la migración `20261111000000_quest_merchant_ochi.sql` en Supabase.
+> **Estado:** programado el 4-nov-2026 (v0.5.0). Probado en Node con el flujo completo (26 comprobaciones). Falta la prueba en el navegador y aplicar la migración `20261111000000_quest_merchant_ochi.sql` en Supabase. **[Aplicada · revisión del 7-nov-2026: la migración está aplicada en Supabase y funciona.]**
 > Plan: `docs/PLAN_MISION_OCHI.md`.
 
 ## Qué es
@@ -69,5 +69,5 @@ Una misión principal corta (2–3 min) entre la graduación del Dojō y Bing. E
 ## Puesta en marcha
 
 1. Subir `src/` al hosting y purgar la caché.
-2. Aplicar `supabase/migrations/20261111000000_quest_merchant_ochi.sql` en el SQL Editor de Supabase. **Es obligatoria:** sin ella, con cuenta, el monedero y la recompensa responden `unknown_reward` y no se paga oro, así que un jugador con menos de 60 de oro no podría comprar el casco. Como invitado funciona sin migración.
+2. Aplicar `supabase/migrations/20261111000000_quest_merchant_ochi.sql` en el SQL Editor de Supabase. **Es obligatoria:** sin ella, con cuenta, el monedero y la recompensa responden `unknown_reward` y no se paga oro, así que un jugador con menos de 60 de oro no podría comprar el casco. Como invitado funciona sin migración. **[Aplicada · revisión del 7-nov-2026: la migración está aplicada en Supabase y funciona.]**
 3. No hay que volver a desplegar el árbitro PvP: no cambia ninguna regla de combate.

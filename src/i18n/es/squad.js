@@ -91,7 +91,7 @@ export default {
   "squad.byIdAdd": "Añadir",
   "squad.byIdSearching": "Buscando…",
   "squad.byIdAdded": "{name} se une a la colección (nivel 1)",
-  "squad.byIdErr.empty": "Escribe el ID del Axie (por ejemplo 11968787).",
+  "squad.byIdErr.empty": "Escribe el ID del Axie (por ejemplo 956656).",
   "squad.byIdErr.companion": "{name} ya es tu compañero.",
   "squad.byIdErr.already": "{name} ya está en tu colección.",
   "squad.byIdErr.not_found": "No hay ningún Axie con el ID {id}.",

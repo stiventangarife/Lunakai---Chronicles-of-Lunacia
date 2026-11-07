@@ -1,0 +1,8 @@
+{
+  "engine": "8c7b532e3814165b",
+  "files": 148,
+  "entry": [
+    "src/tactics/sim/PvpBotRunner.js"
+  ],
+  "note": "Copia generada por tools/pvp/bots/build.mjs: no editar."
+}

@@ -2623,3 +2623,10 @@ html.lk-reduce-motion .lk-srow, html.lk-reduce-motion .lk-advstage__3d, html.lk-
 .lk-advstage__name, .lk-advstage__meta, .lk-advstage__where { text-shadow: 0 0.1rem 0.5rem rgba(6, 9, 18, .85); }
 html.lk-reduce-motion .lk-advstage__ring { transition: none; }
 @media (prefers-reduced-motion: reduce) { .lk-advstage__ring { transition: none; } }
+
+/* Hito 139 · Creador: luna de carga mientras el Sapidae o el Axie llegan y se compilan (StartScreenUI._cc3d) */
+.lk-cc-screen .lk-cc-loading { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); pointer-events: none; }
+.lk-cc-screen .lk-cc-loading:not([hidden]) { display: grid; place-items: center; }
+.lk-cc-screen .lk-cc-loading .lk-moon-spin { width: 2.25rem; height: 2.25rem; filter: drop-shadow(0 0 0.5rem rgba(238, 211, 154, .35)); }
+html.lk-reduce-motion .lk-cc-screen .lk-cc-loading .lk-moon-spin { animation: none; }
+@media (prefers-reduced-motion: reduce) { .lk-cc-screen .lk-cc-loading .lk-moon-spin { animation: none; } }

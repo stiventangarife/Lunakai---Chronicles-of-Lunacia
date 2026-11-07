@@ -51,4 +51,4 @@ update public.feedback set status = 'read' where id = 123;
 
 ## 5. Pendiente
 
-- Probarlo en el juego real y aplicar la migración en el proyecto de Supabase.
+- Probarlo en el juego real y aplicar la migración en el proyecto de Supabase. **[Aplicada · revisión del 7-nov-2026: la migración está aplicada en Supabase y funciona.]**

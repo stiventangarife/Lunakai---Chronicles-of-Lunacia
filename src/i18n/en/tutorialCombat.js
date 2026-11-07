@@ -22,6 +22,8 @@ export default {
   "tutorialCombat.step.endTurn.text": "Press <b>End turn</b> or the <kbd>Space</kbd> key.",
   "tutorialCombat.step.move2.title": "Bring your Axie closer",
   "tutorialCombat.step.move2.text": "Click the <b>golden tile</b> to place it next to the Slime Chimera.",
+  "tutorialCombat.step.move2Range.title": "Get your Axie in range",
+  "tutorialCombat.step.move2Range.text": "Its <b>[1]</b> card attacks from afar: click the <b>golden tile</b> so the Slime Chimera is within its range.",
   "tutorialCombat.step.selectSpell2.title": "Pick your Axie's card",
   "tutorialCombat.step.selectSpell2.text": "Press its <b>[1]</b> card in the bottom bar, or the <kbd>1</kbd> key.",
   "tutorialCombat.step.attack2.title": "Finish the Slime Chimera",

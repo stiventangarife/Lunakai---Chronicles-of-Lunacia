@@ -109,4 +109,4 @@ Al cargar una partida se descartan los objetos que ya no existen (mochila y equi
 ## 10. Pendiente
 
 - Modelos 3D del Sapidae para sombreros, armaduras y armas.
-- Las partidas nuevas empiezan con la Mochila vacía: faltan las 3 pociones del inventario inicial (`SaveSlotManager.createSlot` guarda `inventory: []`).
+- Las partidas nuevas empiezan con la Mochila vacía: faltan las 3 pociones del inventario inicial (`SaveSlotManager.createSlot` guarda `inventory: []`). **[Resuelto · revisión del 7-nov-2026: el usuario confirma que ya no ocurre.]**

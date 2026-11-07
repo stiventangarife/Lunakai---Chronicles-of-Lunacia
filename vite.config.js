@@ -8,7 +8,7 @@ module.exports = {
     }
   },
   server: {
-    port: 8081,
+    port: 8082,
     host: true
   }
 };

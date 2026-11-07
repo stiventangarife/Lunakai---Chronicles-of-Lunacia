@@ -14,11 +14,17 @@
 //   lkDebug.perf.scene()            desglose de la escena actual por grupo (visible y oculto)
 //   lkDebug.perf.export()           descarga el último informe en JSON
 //
+// Hito 143: con EXT_disjoint_timer_query_webgl2 (Chrome/Edge) el informe trae «gpuDibujoMs»: tiempo de GPU del dibujo de
+// cada fotograma (GpuTimer). Grabar con DevTools cerrado: con la consola abierta (y extensiones como Three.js DevTools)
+// la CPU va más lenta, los comandos llegan espaciados y ese tiempo sale inflado. «renderer.escala»: ResolutionScale.
+//
 // 29-oct: en Chrome/Edge (API «Long Animation Frames») cada fotograma largo dice QUÉ código lo ocupó: archivo,
 // línea y función de los scripts que más tardaron, más el tiempo de estilos/maquetación y de dibujo. Va en la
 // tabla «framesLargos» del informe y en la columna «codigo» de los tirones. Las marcas lk:* (telón, precalentado…)
 // se ponen solas desde el juego con perfMark() y también salen en el panel Performance de DevTools.
 
+import { gpuTimer } from '../render/GpuTimer.js'; // Hito 143: tiempo de GPU del dibujo
+import { resolutionScale } from '../render/ResolutionScale.js'; // Hito 143
 import { GLTFLoader } from '../../vendor/GLTFLoader.js'; // Hito 113: para etiquetar las imágenes de cada GLB (misma instancia que usan ModelCache y el diorama)
 
 const now = () => performance.now();
@@ -447,6 +453,13 @@ export function installPerfProbe(game) {
       fpsMedio: r1(fr.length / (dur / 1000 || 1)),
       frameMs: { p50: r1(pct(dts, 50)), p95: r1(pct(dts, 95)), p99: r1(pct(dts, 99)), max: Math.round(dts[dts.length - 1] || 0) },
       cpuMs: { p50: r1(pct(cpus, 50)), p95: r1(pct(cpus, 95)), max: Math.round(cpus[cpus.length - 1] || 0) },
+      // Hito 143: tiempo de GPU del dibujo de cada fotograma (solo fotogramas que dibujaron)
+      gpuDibujoMs: (() => {
+        if (!gpuTimer.available) return 'sin medición (el navegador no tiene EXT_disjoint_timer_query_webgl2)';
+        const g = (S.gpuMs || []).slice().sort((a, b) => a - b);
+        if (!g.length) return 'sin muestras';
+        return { p50: r1(pct(g, 50)), p95: r1(pct(g, 95)), max: r1(g[g.length - 1]), fotogramas: g.length };
+      })(),
       porEstado: states,
       gpu: {
         programas: { inicio: S.start.programs, fin: programsCount(), pico: S.peak.programs },
@@ -495,13 +508,15 @@ export function installPerfProbe(game) {
         pixelRatio: renderer.getPixelRatio(),
         tamaño: `${renderer.domElement.width}×${renderer.domElement.height}`,
         sombras: renderer.shadowMap.enabled ? renderer.shadowMap.type : 'off',
+        // Hito 143: escala de resolución (jugador × automática) y sus últimos cambios
+        escala: (({ dinamica, escalaJugador, escalaAuto, cambios }) => ({ dinamica, escalaJugador, escalaAuto, cambios }))(resolutionScale.status()),
       },
     };
   }
 
   function printReport(rep) {
     console.groupCollapsed(`%c[perf] ${rep.fpsMedio} FPS · p95 ${rep.frameMs.p95} ms · ${rep.tirones.length} tirones · ${rep.duracionS} s`, 'color:#7fd;font-weight:bold');
-    console.log('Fotograma (ms):', rep.frameMs, ' CPU del bucle (ms):', rep.cpuMs);
+    console.log('Fotograma (ms):', rep.frameMs, ' CPU del bucle (ms):', rep.cpuMs, ' GPU del dibujo (ms):', rep.gpuDibujoMs);
     console.table(rep.porEstado);
     console.log('GPU:', rep.gpu, ' heap:', rep.heapMB, 'MB', ' renderer:', rep.renderer);
     if (rep.tirones.length) console.table(rep.tirones);
@@ -519,6 +534,9 @@ export function installPerfProbe(game) {
       S.t0 = now();
       S.lastFrameAt = 0;
       S.frames = []; S.hitches = []; S.marks = []; S.longTasks = []; S.loafs = []; S.glSlow = [];
+      S.gpuMs = [];
+      if (S.offGpu) S.offGpu();
+      S.offGpu = gpuTimer.onSample((ms) => { if (S.rec && S.gpuMs.length < 20000) S.gpuMs.push(ms); });
       const mb = () => (performance.memory ? Math.round(performance.memory.usedJSHeapSize / 1048576) : null);
       S.heap = { inicio: mb(), min: mb(), max: mb(), fin: null, muestras: [] };
       clearInterval(S.heapTimer);
@@ -569,6 +587,7 @@ export function installPerfProbe(game) {
       if (!S.rec) { console.log('[perf] No estaba grabando.'); return S.lastReport; }
       S.rec = false;
       clearTimeout(S.autoStopTimer);
+      if (S.offGpu) { S.offGpu(); S.offGpu = null; }
       if (mo) { mo.disconnect(); mo = null; }
       if (po) { po.disconnect(); po = null; }
       if (loafPo) { loafPo.disconnect(); loafPo = null; }

@@ -37,7 +37,7 @@
 - **Los escudos de habilidades duran una ronda.** Antes todo escudo desaparecía al final del turno de quien lo tenía, así que los escudos que el Sapidae se daba a sí mismo (Barricada, Manto, Salto) no protegían nunca. Ahora un escudo dura hasta el final del turno del receptor **en la ronda siguiente**. El escudo inicial de los enemigos sigue caducando como antes.
 - **PA/PM para un aliado se dan en su turno.** Los PA y PM se reponen al empezar cada turno, así que dárselos a una unidad que no está jugando se perdía. Ahora se aplican al empezar su próximo turno (si es la unidad activa, al momento).
 - **"Axie Aliado"** = cualquier aliado que no sea un Sapidae (`allyFilter: 'companion'`).
-- **Pozo Gravitatorio:** se aplica al empezar el turno dentro de la zona; el efecto al cruzarla en mitad de un movimiento queda para más adelante.
+- **Pozo Gravitatorio:** se aplica al empezar el turno dentro de la zona; el efecto al cruzarla en mitad de un movimiento queda para más adelante. **[Resuelto · revisión del 7-nov-2026: el usuario confirma que ya no ocurre.]**
 
 ## Motor (nuevo en esta fase)
 

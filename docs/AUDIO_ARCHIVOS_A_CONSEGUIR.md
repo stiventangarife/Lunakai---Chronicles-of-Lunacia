@@ -161,6 +161,6 @@ La interfaz ya suena sintetizada desde el Hito 86. Estos archivos solo la haría
 
 ---
 
-**Importante (Hito 87):** el juego solo busca las grabaciones de `assets/sounds/sfx/` si existe **`assets/sounds/sfx/CREDITOS.txt`**, aunque esté vacío al principio. Así no salen errores 404 mientras no haya archivos. Los fondos en bucle de `assets/sounds/ambience/` no lo necesitan.
+**Importante (Hito 140):** el juego solo pide las grabaciones que están en **`assets/sounds/sfx/manifest.json`**: `sfx` con las rutas relativas a `assets/sounds/sfx/` (p. ej. `world/chop_wood_1.mp3`) y `ambience` con los bucles de `assets/sounds/ambience/` (p. ej. `river_loop.mp3`). Lo que no esté en la lista suena sintetizado y no se pide, así no salen errores 404. **Al añadir o quitar una grabación, actualiza la lista y sube `ASSET_VERSION`** (`src/render/AssetVersion.js`). Los créditos siguen en `CREDITOS.txt` (el juego ya no lo lee).
 
 **Cuando los tengas:** pon las carpetas en `assets/sounds/sfx/` y avísame. Los conecto en las fases 2 y 3, y los que falten seguirán sonando sintetizados.

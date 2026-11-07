@@ -49,6 +49,14 @@ export class OverworldCamera {
 
     this.mode = 'third_person';
 
+    // Hito 141 · colisión de la cámara (ver update): esfera, distancia mínima y suavizado
+    this.collisionRadius = 0.35; // radio de la esfera que se prueba (m): cubre el plano cercano de la cámara con margen
+    this.minArm = 1.8;           // la cámara no baja de aquí desde la cabeza: si no cabe, sube por encima del personaje
+    this.armHoldS = 0.3;         // al quedar libre, espera antes de volver
+    this.armInRate = 16;         // acercarse o subir: ~0,06 s
+    this.armOutRate = 5;         // alejarse o bajar: ~0,6 s
+    this.armOutMaxSpeed = 6;     // alejarse: tope de velocidad (m/s) para las vueltas largas
+
     this._initInput();
     this.update(0.016);
   }
@@ -319,39 +327,85 @@ export class OverworldCamera {
     this.currentAngle += angleDiff * (1 - Math.exp(-8.0 * dt));
 
     // Spherical to Cartesian with pitch & distance
-    // Hito 74 · brazo de cámara con colisión: si entre el personaje y la cámara hay una casa, una roca o una ladera,
-    // la cámara se pone delante (al instante) y vuelve despacio a su distancia cuando queda libre.
+    // Brazo de cámara con colisión (Hitos 74, 79, 136; reglas actuales del Hito 141):
+    //  · Una esfera de `collisionRadius` (0,35 m) viaja de la cabeza a donde querría estar la cámara (CameraOcclusion.cast).
+    //  · La cámara no baja de `minArm` (1,8 m) desde la cabeza. Si a su ángulo cupiera menos, en vez de acercarse más
+    //    sube por encima del personaje: se busca (bisección, 4 pruebas) el ángulo más bajo con al menos minArm libres.
+    //    Con un obstáculo a media distancia (loma, casa) también sube si así conserva casi toda la distancia (Hito 136).
+    //  · Una sola regla de suavizado para acercarse y para subir: rápido (~0,06 s); al quedar libre espera `armHoldS`
+    //    (0,3 s) y vuelve despacio (~0,6 s, como mucho a 6 m/s). Así pasar junto a una pared no la hace ir y venir.
+    //  · Al final, si la cámara colocada (tras el ajuste al suelo) queda metida en algo, se adelanta hasta salir.
     let armDist = dist;
+    let pitchEff = pitch;
     if (this.occlusion && this.followTarget) {
       this.occlusion.tick();
-      const hd = dist * Math.cos(pitch), hh = dist * Math.sin(pitch);
+      const R = this.collisionRadius, MIN = this.minArm, PMAX = 1.45, FIT = MIN + 0.25;
       this._wantPos = this._wantPos || new THREE.Vector3();
-      this._wantPos.set(this.currentLookAt.x + Math.sin(this.currentAngle) * hd, this.currentLookAt.y + hh, this.currentLookAt.z + Math.cos(this.currentAngle) * hd);
-      let f = this.occlusion.cast(this.currentLookAt, this._wantPos, 0.2);
-      // Hito 79: si el obstáculo solo queda junto a la cámara (pasar al lado de una casa, rozar una esquina) y la cámara
-      // no está dentro de nada, no se acerca: esa esquina se transparenta, como los árboles.
-      if (f >= 0.7 && f < 1 && this.occlusion.inside && !this.occlusion.inside(this._wantPos, 0.3)) f = 1;
-      const target = f < 1 ? Math.max(1.6, dist * f - 0.3) : dist;
-      // Hito 79 · sin rebotes: se acerca rápido pero suave (~0,06 s, no de un fotograma a otro); al quedar libre
-      // espera 0,3 s antes de volver a alejarse, así pasar rozando una esquina no la hace ir y venir.
-      if (this._arm === undefined || !Number.isFinite(this._arm)) { this._arm = target; this._armHold = 0; this._armFree = 9; }
-      this._armFree = f < 1 ? 0 : (this._armFree || 0) + dt;
+      const castAt = (p) => {
+        const hd = dist * Math.cos(p), hh = dist * Math.sin(p);
+        this._wantPos.set(this.currentLookAt.x + Math.sin(this.currentAngle) * hd, this.currentLookAt.y + hh, this.currentLookAt.z + Math.cos(this.currentAngle) * hd);
+        return this.occlusion.cast(this.currentLookAt, this._wantPos, R);
+      };
+      // Retención compartida: mientras algo obligue a acercarse o a subir, no se vuelve atrás hasta pasados armHoldS
+      this._camHold = Math.max(0, (this._camHold || 0) - dt);
+      if (this._lift === undefined || !Number.isFinite(this._lift)) this._lift = 0;
+      // 1) ¿Cabe al ángulo normal? (en metros libres, no en fracción: no depende del zoom)
+      const f0 = castAt(pitch);
+      const free0 = f0 < 1 ? dist * f0 : dist;
+      // Ángulo más bajo (entre pitch y top) con al menos `need` metros libres; null si ni arriba cabe. 4 pruebas.
+      const freeAt = (p) => { const f = castAt(p); return f < 1 ? dist * f : dist; };
+      const findLift = (need, top) => {
+        if (top <= pitch + 0.01 || freeAt(top) < need) return null;
+        let lo = pitch, hi = top;
+        for (let i = 0; i < 3; i++) { const mid = (lo + hi) * 0.5; if (freeAt(mid) >= need) hi = mid; else lo = mid; }
+        return hi - pitch;
+      };
+      let liftWant = 0;
+      if (f0 < 0.6 || free0 < FIT) {
+        // 1º (Hito 136, se mantiene): si subiendo hasta +60° queda libre casi todo el brazo, sube y conserva la distancia
+        // (una loma, una casa a media distancia)
+        let l = findLift(dist * 0.85, Math.min(PMAX, pitch + 1.05));
+        // 2º: si no, y ni el mínimo cabe, sube lo que haga falta hasta casi la vertical. Si ni así (bajo un tejado o un
+        // arco), se queda abajo a minArm y lo que tapa se transparenta.
+        if (l === null && free0 < FIT) l = findLift(FIT, PMAX);
+        liftWant = l ?? 0;
+      }
+      // 2) Subir: rápido; bajar: tras la retención, despacio
+      if (liftWant > this._lift + 0.01) {
+        this._camHold = this.armHoldS;
+        this._lift += (liftWant - this._lift) * (1 - Math.exp(-this.armInRate * dt));
+      } else if (liftWant < this._lift - 0.01 && this._camHold <= 0) {
+        this._lift += (liftWant - this._lift) * (1 - Math.exp(-this.armOutRate * dt));
+      }
+      if (this._lift < 0.002) this._lift = 0;
+      pitchEff = Math.min(PMAX, pitch + this._lift);
+      // 3) Distancia libre al ángulo que se usa
+      let f = (pitchEff === pitch) ? f0 : castAt(pitchEff);
+      // Hito 79 (acotado en el 141): si el obstáculo solo roza el final del brazo y la esfera de la cámara queda bien
+      // fuera de todo, no se acerca: esa esquina se transparenta. Con margen para no cambiar de idea cada fotograma.
+      const cornerOk = this._cornerOk ? f >= 0.72 : f >= 0.8;
+      this._cornerOk = f < 1 && cornerOk && this.occlusion.inside && !this.occlusion.inside(this._wantPos, R + 0.2);
+      if (this._cornerOk) f = 1;
+      const target = f < 1 ? Math.max(MIN, dist * f - 0.05) : dist;
+      if (this._arm === undefined || !Number.isFinite(this._arm)) { this._arm = target; this._armFree = 9; }
+      this._armFree = (f < 1 || this._lift > 0) ? 0 : (this._armFree || 0) + dt;
       if (this._armFree > 1.5) {
-        this._arm += (target - this._arm) * (1 - Math.exp(-12.0 * dt));            // sin obstáculos: sigue la rueda del ratón
+        this._arm += (target - this._arm) * (1 - Math.exp(-12.0 * dt));          // sin obstáculos: sigue la rueda del ratón
       } else if (target < this._arm - 0.05) {
-        this._armHold = 0.3;
-        this._arm += (target - this._arm) * (1 - Math.exp(-18.0 * dt));
-        if (this._arm - target > 2.5) this._arm = target + 2.5;                    // nunca muy dentro del obstáculo
-      } else if (target > this._arm + 0.05) {
-        if (this._armHold > 0) this._armHold -= dt;
-        else this._arm += (target - this._arm) * (1 - Math.exp(-2.5 * dt));        // alejarse: despacio
+        this._camHold = this.armHoldS;
+        this._arm += (target - this._arm) * (1 - Math.exp(-this.armInRate * dt)); // acercarse: rápido
+        if (this._arm - target > 1.0) this._arm = target + 1.0;                    // nunca muy dentro del obstáculo
+      } else if (target > this._arm + 0.05 && this._camHold <= 0) {
+        // alejarse: despacio (~0,6 s en un tramo corto) y nunca a más de armOutMaxSpeed: desde muy cerca hasta un zoom
+        // lejano iba a casi 1 m por fotograma, chocaba otra vez y volvía (bombeo)
+        this._arm += Math.min((target - this._arm) * (1 - Math.exp(-this.armOutRate * dt)), this.armOutMaxSpeed * dt);
       }
       armDist = Math.min(dist, this._arm);
     } else {
       this._arm = dist;
     }
-    const horizontalDist = armDist * Math.cos(pitch);
-    const height = armDist * Math.sin(pitch);
+    const horizontalDist = armDist * Math.cos(pitchEff);
+    const height = armDist * Math.sin(pitchEff);
 
     const camX = this.currentLookAt.x + Math.sin(this.currentAngle) * horizontalDist;
     const camZ = this.currentLookAt.z + Math.cos(this.currentAngle) * horizontalDist;
@@ -380,6 +434,13 @@ export class OverworldCamera {
     }
 
     this.camera.position.set(camX, camY, camZ);
+    // Hito 141 · comprobación final: el ajuste al suelo (o un acercamiento a medias) puede dejar la cámara metida en una
+    // caja. Entonces se adelanta por la línea hacia la cabeza hasta que la esfera queda libre (ver dentro de una pared
+    // es peor que quedar por debajo de minArm).
+    if (this.occlusion && this.followTarget && this.occlusion.inside(this.camera.position, 0.25)) {
+      const f2 = this.occlusion.cast(this.currentLookAt, this.camera.position, 0.25);
+      if (f2 < 1) this.camera.position.lerpVectors(this.currentLookAt, this.camera.position, Math.max(0.05, f2));
+    }
     this.camera.lookAt(this.currentLookAt);
     // Hito 74 · árboles y arbustos que tapan al personaje: se agujerean con un tramado suave
     if (this.occlusion) this.occlusion.updateSeeThrough(this.camera, this.currentLookAt, Boolean(this.followTarget));

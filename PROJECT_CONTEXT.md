@@ -31,7 +31,7 @@ El juego opera bajo una máquina de estados dual controlada por `src/main.js`:
 
 ```
 axie-tactics-web/
-├── server.js                        ← Servidor HTTP Node.js (puerto 8081, APIs de guardado)
+├── server.js                        ← Servidor HTTP Node.js (puerto 8082, APIs de guardado)
 ├── server.py                        ← Servidor alternativo Python 3
 ├── index.html                       ← Entrada HTML única (HUDs, modales, canvases)
 ├── styles.css                       ← Estilos globales (>220KB), temas, HUDs y animaciones GPU
@@ -827,6 +827,82 @@ Detalle y pruebas en `docs/HITO_120_TUTORIAL_RAPIDO_CAMARA_ISOMETRICA_Y_CORRECCI
 - **Textura en KTX2:** es el mismo atlas de madera que `bridge.glb`, ya en KTX2. **Regla:** las texturas de los GLB nuevos van en KTX2 (`KHR_texture_basisu`), no en WebP o PNG (~8 veces menos memoria de vídeo).
 - **Detalle:** `docs/HITO_137_PUENTE_PLANO_DEL_BOSQUE.md`.
 
+
+### 5.62 Estado de pendientes (revisión del 7-nov-2026)
+
+Revisión hecha con el usuario tras leer toda la documentación. Manda sobre las notas de «Pendiente» de los hitos anteriores.
+
+- **Migraciones de Supabase:** todas aplicadas y funcionando (hasta `20261114000000_arena_bots_ready.sql`), incluidas las que los hitos daban como obligatorias: `20261104000000_feedback.sql`, `20261111000000_quest_merchant_ochi.sql` y `20261112000000_tutorial_boss_gold.sql`. Lista completa en `DEPLOYMENT_GUIDE.md`.
+- **Resueltos (ya no ocurren):** pociones iniciales de la partida nueva (Hito 46), Pozo Gravitatorio al cruzarlo a mitad de movimiento (Hito 28), «×1,5» con coma en inglés (Hito 59), cola alta de Ema bajo el casco (Hito 92), VFX y sonidos de los gólems (Hito 95), arte de las Ultimate (Hito 126), tiempo jugado y retratos de ranura sin imagen (Hito 132). Cada hito lleva la marca «Resuelto · revisión del 7-nov-2026».
+- **Siguen pendientes:**
+  - Carga de la partida nueva: `docs/PLAN_CARGA_PARTIDA_NUEVA.md` (fases 0–6, sin empezar).
+  - Equilibrio de la Arena PvP (Reptil 59 %, Lunalogist 55 % en la simulación; `docs/HITO_123_ARENA_PVP.md`). Prioridad baja.
+  - Código sin uso que se puede borrar: `assets/environment/bridge.glb`, `src/rpg/world/ForestDojo.js`, `src/rpg/world/MerchantStall.js`, `src/vfx/modules/mod-toon-piloto.js`.
+- **Datos que mandan cuando los documentos se contradicen:**
+  - **Puerto local: 8082** (`node server.js 8082`).
+  - **Duo Ultimate** (`src/tactics/combat/UltimateSystem.js`): cuesta **6 PA** (todo el turno base del Sapidae), se lanza **desde la ronda 2**, una vez por combate, con el vínculo al 100 % **al entrar** al combate (en combate no cambia), y con el Sapidae y el Axie principal vivos. El efecto depende de cada Ultimate:
+    - Embestida Destructiva (Asalto): AL 1–4 en línea, 150–170 de daño, empuje 3 y 60 de daño por choque.
+    - Égida de Gaia (Bastión): círculo de 3 en el Sapidae; aliados: purificar, escudo 80 y cura 60; enemigos del círculo: 60–80 de daño.
+    - Maelstrom Celeste (Torrente): AL 1–5, cruz 2, 100–120 de daño; −2 PM en su siguiente turno y −1 PA en el siguiente.
+  - **Clases del Sapidae:** las del Hito 95 (arcilla espiritual): Alfarero de Gólems (`crafter`), Comandante de Sombrero (`shepard`), Guardián de Campanas (`lunalogist`) y Rastreador Gogo (`stargazer`). Forjacubiles, Pastor de Estrellas / Susurrador, Lunalogista y Astromante son nombres antiguos.
+
+### 5.63 Creador, farola y Axies a distancia en el tutorial (Hito 139)
+
+- **Creador:** `StartScreenUI._cc3d(kind, load)` carga el Sapidae o el Axie con el grupo oculto, compila con `warmupObjects` y lo enseña; luna de carga `data-ref="ccLoading"`. **Regla:** cualquier carga nueva de un modelo en el creador pasa por `_cc3d`, no por `diorama.loadSapidae/loadCompanion` directamente.
+- **Precarga en el título:** `_schedulePrewarmCreator()` (una vez por sesión, con `requestIdleCallback`, solo si hay una ranura libre) y `axieMixerService.prewarm({ renderer, axieIds })`. `getMixer` comparte una sola promesa (`_mixerPromise`). Las partes de la API se guardan en `sessionStorage` (`lk_axparts_v1_<id>`).
+- **Farola:** `lamp_6` en (−92.7, 15.8) (`ForestVillageLayout.js`).
+- **Tutorial:** `tutorialCardOrder` (`main.js`) pone en la ranura [1] un ataque cuerpo a cuerpo o, si no hay, el mejor a distancia; `TutorialManager._resolveCells` busca para `step_move_2` una casilla desde la que la carta [1] alcance al Slime (mismas reglas que `SpellRules.getValidTargetCells`). Textos `tutorialCombat.step.move2Range.*`.
+- Detalle y medidas: `docs/HITO_139_CREADOR_FAROLA_Y_TUTORIAL_A_DISTANCIA.md`.
+
+### 5.64 Tirones al equipar la espada y ritmo de la victoria (Hito 140)
+
+- **Retratos sin bloqueo:** `CharacterPortraitService.captureModelAsync` dibuja, espera a la GPU con `_waitGpuIdle()` (`fenceSync` + `clientWaitSync` sin bloquear, cada 4 ms) y codifica con `toBlob`. **Regla:** nunca leer una imagen de un canvas WebGL (`toDataURL`, `toBlob`, `readPixels`) sin esperar antes a la GPU; si no, el hilo principal se queda parado hasta que termine.
+- **Retrato del Sapidae:** `EquipmentManager._updateSapidaePortrait()` junta varios cambios en uno (`_portraitQueued`) y lo genera 600 ms después, en un momento libre (`requestIdleCallback`).
+- **Visores:** `CharacterPreviewDiorama` usa `renderer.debug.checkShaderErrors = false`, como el juego y el retratista. **Regla:** cualquier renderer nuevo lo desactiva.
+- **Tutorial:** `TutorialDirector.onSwordEquipped()` avanza el paso en el fotograma siguiente (`_equipQueued`), no dentro del clic.
+- **Victoria:** `Unit.dieCinematic` expone `burstStarted` (promesa) y su pausa baja de 380 a 150 ms; `main.js onVictory` espera el estallido + 250 ms (máximo 1,2 s) en lugar de 450 ms fijos.
+- **Fichas del combate:** `CombatHUD` pone `--art` con ruta absoluta. **Regla:** una URL dentro de una variable CSS se escribe absoluta (si no, se resuelve contra la hoja de estilos: `src/ui/…`).
+- **Grabaciones opcionales:** `src/audio/SoundManifest.js` lee una vez `assets/sounds/sfx/manifest.json` (`sfx`, relativas a `sfx/`; `ambience`, relativas a `ambience/`). `SfxBank` y `AmbienceManager` solo piden lo que está en la lista (sin lista, todo sintetizado). **Regla:** al añadir o quitar una grabación, actualizar la lista y subir `ASSET_VERSION` (ahora `0.4.1`). `CREDITOS.txt` ya no se lee.
+- **Vínculo en el escuadrón:** `SquadHUD` escucha `BondService.onChange` (repinta con `_renderSoon`). **Regla:** todo panel que muestre el vínculo se suscribe a `BondService`.
+- **Cartel de la forja:** `forge.usePrompt` (es/en); `ForgeStation` lo lee con un getter `promptText`. **Regla:** ningún `promptText` escrito a mano.
+- Detalle y medidas: `docs/HITO_140_TIRONES_ESPADA_Y_VICTORIA.md`.
+
+### 5.65 Colisión de la cámara del mundo (Hito 141)
+
+- **Esfera:** `CameraOcclusion.cast(a, b, pad)` prueba una esfera de radio `pad` (cajas agrandadas `pad`; terreno cada ~0,75 m y anillo en los últimos 2 m). `inside()` mira todas las celdas que toca la esfera.
+- **Brazo** (`OverworldCamera.update`): `collisionRadius` 0,35 · `minArm` 1,8 m · subida por bisección (1º conservar el 85 % del brazo hasta +60°; 2º si no cabe `minArm`, subir hasta ~83°) · retención única `_camHold` de `armHoldS` 0,3 s · acercarse ~0,06 s, volver ~0,6 s y ≤ 6 m/s · comprobación final de la esfera tras el ajuste al suelo.
+- **Regla:** la colisión se ajusta solo con esos parámetros del constructor. Ver dentro de una pared es peor que quedar por debajo de `minArm`.
+- Detalle y medidas: `docs/HITO_141_COLISION_DE_CAMARA.md`.
+
+### 5.66 Menos draw calls: tablero y hierba (Hito 142)
+
+- **Tablero del combate:** `GridManager.tileMeshes[x][z]` son registros `{ material, position, userData }`; `_rebuildTileInstances()` dibuja una `InstancedMesh` por material (se llama al crear y al final de `setupBiome`) y los contornos son una sola `LineSegments`.
+- **Hierba y flores del Bosque:** `GenshinGrassField.draws` (`grassNear`, `grassFar`, `flowerNear`, `flowerFar`). Las baldosas son datos (`tiles`: origen, LOD, visible); el descarte por baldosa se hace en `onBeforeRender` con la cámara real (`_cull`) y los datos de cada mata se leen de `uInstTex` con `gl_InstanceID`.
+- **Reglas:** no clonar materiales que no se modifican; las copias de lo mismo, instanciadas.
+- Medidas y otras mejoras pendientes (sombra, `Flower_3_Group`, escena del combate en memoria, luces puntuales): `docs/HITO_142_RENDIMIENTO_DRAW_CALLS.md`.
+
+### 5.67 Escala de resolución y tiempo de GPU (Hito 143)
+
+- **`src/render/ResolutionScale.js`** (`resolutionScale`, consola `lkResolution.status()`): densidad de píxeles = DPR (≤ 1,5) × escala del jugador (Opciones) × automática (0,8–1). Se aplica al renderer y a cada `EffectComposer` registrado. **Regla:** la densidad de píxeles solo se cambia aquí, y todo composer nuevo se registra con `resolutionScale.addComposer()`.
+- **Automática** (Opciones › «Resolución dinámica», `gfx.dynRes`): `resolutionScale.frame(dt, activo, cpuDibujo)` desde `main.js`; baja un 10 % con fotogramas > 18 ms y la GPU como límite, y sube con la GPU < 8,5 ms. Detalle en el documento del hito.
+- **`src/render/GpuTimer.js`**: consulta de tiempo de GPU alrededor del dibujo de cada fotograma (`main.js`); `lkDebug.perf` lo da en `gpuDibujoMs`. **Regla:** medir con DevTools cerrado.
+- Memoria del Sapidae (~150 MB de imágenes de variantes, por diseño) y opciones: `docs/HITO_143_RESOLUCION_DINAMICA_Y_GPU.md`.
+
+---
+
+### 5.68 Cambio de calidad sin congelar y texturas del Sapidae (Hito 144)
+
+- **Sombras en Opciones:** al cambiarlas, `SettingsModal` llama a `onShadowsChanged` → `OverworldManager.prewarmAfterGraphicsChange()`, que suspende el dibujo del mundo, compila con `warmupRender` (en paralelo, tope 20 s) y lo reanuda. La resolución se cambia al terminar, para que no se borre la imagen. Si tarda más de 250 ms se muestra el aviso «Aplicando calidad gráfica…» (`_showGfxNotice`); en el Chrome del usuario la primera vez de cada sesión son unos 8 s. **Regla:** cualquier opción gráfica que cambie la clave de los shaders (sombras, niebla, tone mapping…) debe precalentar así antes del siguiente fotograma.
+- **Texturas del Sapidae:** pelo, cabeza, camisa, ojos y boca de Ema y Kai a 512×512 (`tools/resize_sapidae_variants.py`). El cuerpo sigue a 2048. **Regla:** el código del Sapidae no debe suponer un tamaño fijo de textura.
+- Detalle y medidas: `docs/HITO_144_CALIDAD_SIN_CONGELAR_Y_TEXTURAS_SAPIDAE.md`.
+
+---
+
+### 5.69 Menos memoria de texturas (Hito 145)
+
+- Sapidae de los aldeanos (`sapidae-f-*`, `sapidae-m-*`, `sapidae-female`) con todas sus texturas a 512. Mejillas y pantalón de Ema (jugador) a 256. Kappa y slimes en KTX2: color y normal en UASTC, rugosidad y metal en ETC1S. Texturas del contexto principal 326 → 192 MB.
+- Herramienta: `tools/resize_glb_textures.py`. KTX2 con `tools/ktx/ktx_convert.py`.
+- **Regla:** `lkDebug.gpu` marca «fuera de escena» las texturas que solo se usan como uniforms de un shader (p. ej. el terreno del Bosque). Antes de liberar una, mirar los uniforms activos del programa. Detalle: `docs/HITO_145_TEXTURAS_NPC_SLIMES_KAPPA.md`.
 ---
 
 ## 6. Reglas Inmutables para Desarrolladores y Agentes

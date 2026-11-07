@@ -91,7 +91,7 @@ export default {
   "squad.byIdAdd": "Add",
   "squad.byIdSearching": "Searching…",
   "squad.byIdAdded": "{name} joins the collection (level 1)",
-  "squad.byIdErr.empty": "Type the Axie ID (for example 11968787).",
+  "squad.byIdErr.empty": "Type the Axie ID (for example 956656).",
   "squad.byIdErr.companion": "{name} is already your companion.",
   "squad.byIdErr.already": "{name} is already in your collection.",
   "squad.byIdErr.not_found": "There's no Axie with ID {id}.",

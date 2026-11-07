@@ -1119,18 +1119,21 @@ export class Unit {
       });
     };
 
+    // Hito 140: en el remate cinemático del último enemigo los parpadeos son más rápidos (330 → 210 ms) para que la
+    // secuencia no tenga un momento quieto; las muertes normales siguen igual
+    const blink = isCinematic ? [60, 50, 60, 40] : [90, 80, 90, 70];
     // 1. Flash 1 (White blink)
     setWhiteFlash(true);
     if (this.audio && this.audio.playHit) this.audio.playHit();
-    await new Promise(r => setTimeout(r, 90));
+    await new Promise(r => setTimeout(r, blink[0]));
     setWhiteFlash(false);
-    await new Promise(r => setTimeout(r, 80));
+    await new Promise(r => setTimeout(r, blink[1]));
 
     // 2. Flash 2 (White blink)
     setWhiteFlash(true);
-    await new Promise(r => setTimeout(r, 90));
+    await new Promise(r => setTimeout(r, blink[2]));
     setWhiteFlash(false);
-    await new Promise(r => setTimeout(r, 70));
+    await new Promise(r => setTimeout(r, blink[3]));
 
     // 3. Third beat: Mesh disappears, replaced by a glowing white sphere
     setPhase('core_sphere');
@@ -1171,6 +1174,7 @@ export class Unit {
 
     // Shatter into multiple small glowing spheres bursting outward
     setPhase('particles');
+    if (typeof this._onBurst === 'function') { this._onBurst(); this._onBurst = null; } // Hito 140: aviso a onVictory
     const numParticles = isCinematic ? 26 : 18;
     const particles = [];
     const sphereGeo = fx.partGeo;
@@ -1242,6 +1246,9 @@ export class Unit {
 
   async dieCinematic(sceneManager, audio, vfxManager) {
     this.isDead = true;
+    // Hito 140: main.onVictory espera a que el estallido empiece (en vez de 450 ms fijos) para que el rótulo de victoria
+    // no se pinte encima del destello
+    this.burstStarted = new Promise((r) => { this._onBurst = r; });
     audio?.combat?.faint?.(this);   // Hito 88
     this.clearDamageFlash();
     const tile = this.gridManager.getTile(this.gridX, this.gridZ);
@@ -1258,8 +1265,9 @@ export class Unit {
 
     if (vfxManager) vfxManager.playCinematicFinisher(wPos);
 
-    // Pause for the hit-stop impact feeling (380ms)
-    await new Promise(r => setTimeout(r, 380));
+    // Pausa de impacto (Hito 140: 380 → 150 ms; con 380 el tablero se quedaba quieto y parecía un congelamiento).
+    // La cámara sigue acercándose (startCinematicZoom) y el remate de luz ya está en marcha.
+    await new Promise(r => setTimeout(r, 150));
 
     // Play arcade shatter VFX with cinematic scale
     await this._playArcadeDeathVFX(true);

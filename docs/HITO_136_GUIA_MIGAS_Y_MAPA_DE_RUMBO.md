@@ -125,6 +125,57 @@ Los retratos de Axie son fotos muy ajustadas: orejas, adornos y patas tocan el b
   - Se hacen las mismas llamadas al azar: el bosque conserva la misma colocación, los colores y las formas de copa.
   - Arreglado en `GenshinTrees._buildBroadleaf` (Bosque) y en `IslandTrees` (el árbol gigante de las islas y los árboles secos).
 
+## ID de ejemplo de «Cargar por ID»
+
+- **Fallo:** el ejemplo era `#11968787`, pero ese ID es el del Beast inicial antiguo («Kotaro» / «Rage 5 Evo»), que se sustituyó por Shinji `#10455`. El juego lo sigue tratando como un alias de Shinji para que las partidas viejas se migren solas:
+  - `AxieMixerService.loadAxieHero` y su respaldo sin conexión;
+  - `SaveSlotManager` (migración de ranuras);
+  - `PlayerEntity`;
+  - `SquadHUD`;
+  - `EquipmentManager`;
+  - el retrato de `CharacterPortraitService`.
+
+  Por eso, al probar el ID del ejemplo, aparecía Shinji.
+- **Arreglo:** el ejemplo pasa a `#956656`, un Axie normal que no está en ninguna lista de alias. Se cambia en el campo y la ayuda de la creación de personaje y en el aviso de «Cargar por ID» del Escuadrón (es/en). El alias de las partidas viejas se mantiene.
+
+## Atasco del tutorial al equipar la espada
+
+- **Fallo** (reproducido a 1366 × 768): en el paso «Equipa la espada a Lunara», al pulsar la espada la ficha se fijaba, pero quedaba invisible. El botón «Equipar a Lunara» no se veía ni se podía pulsar, y un segundo clic en la espada cerraba la ficha.
+- **Causa:** al pasar la guía al botón «Equipar» (que está dentro de la ficha), `TutorialDirector._spotlightOn` ocultaba todas las fichas abiertas. Eso se había añadido en el Hito 126 para que una ficha no tapara el hueco de la guía, y aquí ocultaba justo la ficha con el botón.
+- **Arreglo:** ya no se oculta la ficha que contiene el elemento señalado. Comprobado con la Mochila y el tutorial reales: espada → ficha visible con «Equipar a Lunara» en el hueco → la espada queda equipada.
+
+## Atasco del tutorial en «Acaricia a Shinji» (junto a la Forja)
+
+- **Fallo:** con la Forja detrás, el brazo de colisión de la cámara (Hito 74) la acercaba hasta su mínimo (1,6 m): quedaba metida en la cabeza de la Sapidae, que tapaba al Axie.
+  - Con la guía del paso puesta no se podía girar la cámara ni andar.
+  - Los clics del hueco pasaban al juego, y el rayo no llegaba al Axie (detrás de la Sapidae).
+  - Con Ochi pasaba lo mismo con la cámara, aunque ahí el diálogo sí avanzaba.
+- **Arreglo 1 · la cámara sube por encima** (`OverworldCamera.update`): si algo tapa a media distancia, prueba ángulos más altos (+20°, +40° y +60°) y se queda con el primero libre. Al quedar libre abajo vuelve a bajar despacio.
+  - Solo lanza rayos de más cuando hay un obstáculo.
+  - Lo que solo roza la cámara sigue como en el Hito 79.
+  - Vale para todo el mundo, también para los diálogos.
+
+  Medido con la Forja (caja de 6 × 6 × 5,5 m) detrás del jugador:
+
+  | | Antes | Después |
+  |---|---|---|
+  | Cámara–cabeza (paso de cuidados) | 2,1 m | 10,8 m (desde arriba) |
+  | La Sapidae tapa al Axie | sí | no |
+  | Cámara–cabeza (sin encuadre del Axie) | 2,0 m | 11,1 m |
+
+- **Arreglo 2 · el hueco abre el panel:** en el paso de acariciar, el clic dentro del hueco abre el panel de cuidados directamente (`act` en la guía → `axieCare.show()`). Ya no depende de que el rayo llegue al Axie.
+
+## Botín del Slime Caballero (combate final del tutorial)
+
+- **Antes:** no daba nada (`rewardItems: []` y el oro de las victorias excluye los combates del tutorial).
+- **Ahora:**
+  - **Baba de slime ×2–4:** `rewardItems: ['mat_slime_goo', 'mat_slime_goo']` en `LevelsDatabase.tut_boss`; cada entrada da 1–2 y va a la bolsa de la Forja.
+  - **30 de oro:** `REWARDS.bossGold`.
+  - Los dos se ven en la pantalla de victoria.
+- **Oro con cuenta:** lo paga el servidor (`economy_reward('tut:boss')`, una vez por ranura). Hace falta aplicar la migración `supabase/migrations/20261112000000_tutorial_boss_gold.sql`. Sin ella, el servidor responde `unknown_reward` y no da el oro (la Baba sí). **[Aplicada · revisión del 7-nov-2026: la migración está aplicada en Supabase y funciona.]**
+- **Sin cuenta:** se suma en el cliente.
+- **Monedero de Ochi:** como completa hasta 60, con este oro el jugador suele llegar ya con más de 60 y el monedero no da nada (no se muestra su tarjeta). El Yelmo Bestial sigue siendo asequible.
+
 ## Archivos de los ajustes
 
 - `src/rpg/ui/SquadHUD.js`: `lk-pm-axie`.
@@ -135,3 +186,9 @@ Los retratos de Axie son fotos muy ajustadas: orejas, adornos y patas tocan el b
   - el tamaño de `.lk-bag-runes .lk-socket-master-rune img.lk-rune-art`.
 - `assets/ui/runes-charms.json`: solo la entrada `runes/neutral-philosophers-stone`.
 - `src/rpg/world/demo_scena/genshin/GenshinTrees.js` y `src/rpg/world/islands/kit/IslandTrees.js`: ramas sobre el tronco.
+- `src/rpg/ui/StartScreenUI.js` y `src/i18n/{es,en}/squad.js`: ID de ejemplo `956656`.
+- `src/rpg/tutorial/TutorialDirector.js`:
+  - `_spotlightOn` no oculta la ficha que contiene el objetivo;
+  - las guías pueden tener `act` (el clic en el hueco ejecuta la acción); el paso de acariciar lo usa.
+- `src/rpg/OverworldCamera.js`: la cámara sube por encima de un obstáculo en vez de meterse en la cabeza.
+- `src/tactics/LevelsDatabase.js`, `src/rpg/tutorial/TutorialScript.js` (`bossGold`), `src/main.js`, `tools/gen_catalog.mjs` y `supabase/migrations/20261112000000_tutorial_boss_gold.sql`: botín del Slime Caballero.

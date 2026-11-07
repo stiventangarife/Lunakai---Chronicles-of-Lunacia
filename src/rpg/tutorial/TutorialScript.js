@@ -116,6 +116,7 @@ export const LOCKED = {
 /** Recompensas que da el tutorial (también las da «Saltar tutorial» si faltan). */
 export const REWARDS = {
   duelGold: 50,
+  bossGold: 30,    // Hito 136: botín del Slime Caballero (con cuenta lo paga el servidor: reward 'tut:boss', una vez por ranura)
   ochiPurse: 60,   // Hito 124: monedero de Ochi tras la graduación (completa hasta este oro: lo que vale el Yelmo Bestial)
   bundle: { mat_wolf_tooth: 1, mat_wool: 1 },
   rune: 'neutral-pure-power',

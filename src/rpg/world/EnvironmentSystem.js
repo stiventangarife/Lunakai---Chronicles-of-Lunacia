@@ -5,6 +5,7 @@ import { EffectComposer } from '../../../vendor/postprocessing/EffectComposer.js
 import { RenderPass } from '../../../vendor/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from '../../../vendor/postprocessing/UnrealBloomPass.js';
 import { OutputPass } from '../../../vendor/postprocessing/OutputPass.js';
+import { resolutionScale } from '../../render/ResolutionScale.js'; // Hito 143
 
 export const ENVIRONMENT_PRESETS = {
   // Primary Preset: Handcrafted for Macro-Zone [2, 2] (Dojo Valley / Forest of Lunacia)
@@ -349,6 +350,9 @@ export class EnvironmentSystem {
       this.composer.addPass(this.outputPass);
 
       this.isPostProcessingActive = true;
+      // Hito 143: misma densidad de píxeles que el renderer (antes se quedaba con la del arranque y la escala de
+      // resolución de Opciones no reducía lo que dibuja el posprocesado)
+      resolutionScale.addComposer(this.composer);
       console.log('[EnvironmentSystem] Post-processing EffectComposer pipeline attached successfully.');
     } catch (err) {
       console.warn('[EnvironmentSystem] Failed to initialize EffectComposer, falling back to standard WebGL renderer:', err);
@@ -642,6 +646,7 @@ export class EnvironmentSystem {
   dispose() {
     window.removeEventListener('resize', this._onResizeBound);
     if (this.composer) {
+      resolutionScale.removeComposer(this.composer); // Hito 143
       this.composer.reset();
     }
   }

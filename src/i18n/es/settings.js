@@ -88,6 +88,8 @@ export default {
   "settings.reduceMotionDesc": "Menos destellos, rayos y animaciones de cámara",
   "settings.resScale": "Escala de resolución",
   "settings.resScaleDesc": "Menos escala, más rendimiento",
+  "settings.dynRes": "Resolución dinámica",
+  "settings.dynResDesc": "Baja un poco la resolución solo si la tarjeta gráfica no llega a 60 FPS",
   "settings.resetTab": "Restablecer esta pestaña",
   "settings.resume": "Reanudar",
   "settings.saveExit": "Guardar y salir",
@@ -139,5 +141,7 @@ export default {
   "settings.combatCameraDesc": "A dónde va la cámara al cambiar de turno",
   "settings.ccFollow": "Cada turno",
   "settings.ccMine": "Mis unidades",
-  "settings.ccFixed": "Fija"
+  "settings.ccFixed": "Fija",
+  "settings.applyingGfx": "Aplicando calidad gráfica…",
+  "settings.applyingGfxDesc": "Puede tardar unos segundos"
 };

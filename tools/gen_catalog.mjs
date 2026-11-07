@@ -37,6 +37,7 @@ const qm = fs.readFileSync(resolve(SRC_DIR, 'rpg/QuestManager.js'), 'utf8');
 for (const m of qm.matchAll(/\n\s{6}(quest_[a-z0-9_]+):\s*\{[\s\S]*?rewards:\s*\{\s*gold:\s*(\d+)/g)) add(`reward:quest:${m[1]}`, { gold: +m[2] });
 const ts = fs.readFileSync(resolve(SRC_DIR, 'rpg/tutorial/TutorialScript.js'), 'utf8');
 add('reward:tut:duel', { gold: +(/duelGold:\s*(\d+)/.exec(ts)[1]) });
+add('reward:tut:boss', { gold: +(/bossGold:\s*(\d+)/.exec(ts)[1]) });   // Hito 136: botín del Slime Caballero
 add('reward:tut:ochi_purse', { gold: +(/ochiPurse:\s*(\d+)/.exec(ts)[1]), meta: 1 }); // Hito 124: monedero de Ochi (completa hasta N de oro)
 add('reward:tut:slp_topup', { slp: 50, meta: 1 });                        // completa hasta 50 SLP
 add('reward:tut:speed', { baxs: rows.find((r) => r.key === `speed:${tierOf('iron_sword')}:4`)?.baxs ?? 3 }); // Paladill paga la aceleración ×4

@@ -26,12 +26,12 @@ Bajo la lista de ranuras, para la partida elegida:
 - **Misión actual**: la misión que sigue el jugador y su siguiente paso (o «Lista para entregar»). Los atajos del texto («[I]») se muestran como tecla. Se calcula con un `QuestManager` sin juego que solo lee `questProgress` (`_slotQuest`, en caché por ranura y fecha de guardado).
 - **Escuadrón** n / 4 y **Desde** (fecha de creación de la partida).
 - En una ranura vacía el panel no se muestra.
-- **Tiempo jugado:** no se muestra porque el juego no lo guarda. Añadirlo exigiría tocar el guardado.
+- **Tiempo jugado:** no se muestra porque el juego no lo guarda. Añadirlo exigiría tocar el guardado. **[Resuelto · revisión del 7-nov-2026: el usuario confirma que ya no ocurre.]**
 - Pantallas bajas: a ≤ 740 px de alto el paso de la misión ocupa una línea y se oculta la pista de teclado; a ≤ 680 px el panel se oculta. La columna nunca es más alta que el escenario (`contain: size`).
 
 ## Otros
 
-- Si el retrato de una ranura no carga (las partidas sin retrato guardado apuntan a `assets/portraits/<modelo>.png`, que no existe para Ema y Kai), la imagen se oculta en lugar de mostrar el icono de imagen rota.
+- Si el retrato de una ranura no carga (las partidas sin retrato guardado apuntan a `assets/portraits/<modelo>.png`, que no existe para Ema y Kai), la imagen se oculta en lugar de mostrar el icono de imagen rota. **[Resuelto · revisión del 7-nov-2026: el usuario confirma que ya no ocurre.]**
 
 ## Archivos
 

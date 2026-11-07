@@ -248,6 +248,9 @@ export class PvpSession {
   }
 
   _onPresence(state) {
+    // Rival sin presencia en el canal (el servidor lo indica con rivalPresence = false, PLAN_BOTS_ARENA): no hay aviso
+    // de conexión; el reloj del turno sigue funcionando igual.
+    if (this.match?.rivalPresence === false) return;
     const opp = other(this.side);
     const online = Object.values(state || {}).some((metas) => metas.some((m) => m.side === opp));
     if (online === this.opponentOnline) return;

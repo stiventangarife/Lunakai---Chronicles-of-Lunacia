@@ -1,38 +1,141 @@
-# Lunakai: Chronicles of Lunacia - Documentación del Proyecto
+# Lunakai: Chronicles of Lunacia
 
-Bienvenido al repositorio de documentación técnica, arquitectura y especificaciones de **Lunakai: Chronicles of Lunacia** (anteriormente *Axie Tactics*), un RPG táctico 3D con exploración de mundo abierto (*Overworld*) estilizado y combates estratégicos por turnos basado en la propiedad intelectual de Axie Infinity.
+**Lunakai** es un RPG táctico 3D para navegador, ambientado en el universo de **Axie Infinity**. Se explora un mundo abierto con un explorador **Sapidae** y su **Axie compañero**, y se combate por turnos en una cuadrícula, al estilo de *Dofus* y *Final Fantasy Tactics*. Antes se llamaba *Axie Tactics*.
 
-> **Estado actual (5-nov-2026) — versión de prueba v0.5.0:** el mundo jugable son las **5 grandes islas** con dirección de arte Genshin: Bosque, Sabana, Ártico, Mística y **Genesis** (la antigua Mazmorra, rediseñada en el Hito 24).
-> - **Códice de Lunacia (Hito 126, tecla C):** enciclopedia ilustrada del bucle del juego con Bestiario; el Escuadrón (T) se abre al graduarse con un recorrido guiado.
-> - **Misión del mercader Ochi (Hito 124):** tras graduarse, una misión corta enseña la Tienda y el Mercado (comprar y equiparse un casco) antes de ir a por Bing.
-> - **Koliseo (Hitos 122–123, tecla K):** Desafío de la Bruma (reto semanal de 5 combates con clasificación y premios) y **Arena PvP** (duelos 1 contra 1 con el Sapidae y el Axie principal igualados, temporadas con Elo, SLP y bAXS, árbitro en Supabase). Puesta en marcha: `DEPLOYMENT_GUIDE.md` y `docs/PLAN_ARENA_PVP.md`.
-> - **Viaje entre islas:** se habla con el barquero **Kawa** en la playa de cada isla (hasta el Hito 51 era Pomodoro; se llamó Kappa hasta el Hito 56); los portales cardinales están retirados.
-> - **Cuentas y nube (Hito 25):** inicio de sesión con Sky Mavis (el botón de correo se quitó de la pantalla de inicio en el Hito 115) y guardado en Supabase; falta la configuración del servidor.
-> - **Economía (Hito 110):** oro (Ochi, Forja T0, recursos) · SLP (evolución y bolsas) · **AXS** (Mercado entre jugadores de equipo T1–3, runas, charms y bolsas, con sello NFT de Ronin) · bAXS (tasas de la Forja; más adelante, premios de arena y reto semanal).
-> - **Motor de combate nuevo (Hitos 26–32):**
->   - eventos separados de los VFX;
->   - 22 estados alterados y triángulo de clases;
->   - las 24 habilidades de Sapidae;
->   - vínculo y Duo Ultimates, y Axie Care para subir el vínculo;
->   - las 235 cartas de partes con las cartas reales de cada Axie;
->   - pronóstico de daño, enemigos con estados y primera pasada de equilibrio.
-> - **Pruebas de equilibrio:** cada combate queda registrado en el navegador. En la consola (F12), `lkDebug.balanceExport()` descarga el registro (Hito 32).
-> - **VFX y tableros (Hitos 33–37, 42):** efectos del motor propio para todas las cartas, Sapidae, Ultimates y enemigos; 15 mapas de combate por bioma y *dither fading*.
-> - **Economía (Hitos 43–46):** Forja (crear y evolucionar), Tienda del Mercader Ochi, runas y charms con efecto en combate, recolección (pesca, tala, minería y flores) y la lista de ítems del Excel.
-> - **Personaje (Hito 47):** el jugador es **Ema** o **Kai**, con peinado, ojos, boca y colores.
-> - **Inicio de partida (Hito 48):** cinemática del prólogo con final épico y tutorial en 7 fases con el Maestro Paladill (se puede saltar).
-> - **Estatuas de Genesis (Hito 58):** en el Jardín Real, el peluche en el centro y siete estatuas de armas a su alrededor (lanza, hacha, doble, mando, bastón, arco y maná); el Espíritu de Atia es ahora la estatua `atias.glb`.
-> - **Modelos de la Mística (Hito 57):** la casa del Bosque para el astrólogo, `statue_mystic` frente al sauce del pantano (en lugar del pilar de runas) y en la puerta del Observatorio; la flor del pantano ya no está dentro del agua.
-> - **Modelos del Ártico (Hito 56):** casa del Bosque en Pomodoro, el Ermitaño y el Campamento Boreal; tienda para el Chef Boreal; tótem de hielo en el valle de las quimeras; altar de Atia en una zona nueva junto al camino de la playa; banderas y tótem de decoración. Los edificios en pendiente llevan zócalo de piedra (también en la Sabana).
-> - **Modelos de la Sabana (Hito 55):** la casa del Bosque en el campamento de Bing y en lugar de la fragua de Baruk, el altar de Atia en lugar del altar del Sol, un tótem junto a la casa de Bing, una tabla de surf en la playa y la balsa flotando junto al barquero.
-> - **Tutorial y runas como objetos (Hito 54):** el tutorial ya no anuncia el 30 % del duelo, pide cerrar la Forja antes de la recompensa, llena el vínculo con la caricia y la comida y resalta la habilidad del charm. Las runas y los charms ahora se tienen: caen neutros en los combates, salen de las bolsas de runa y de charm de la Forja (de clase, al azar) y se venden en la tienda.
-> - **Memoria y rendimiento (Hito 53):** la cinemática del prólogo ya no guarda las texturas de sus modelos y lo libera todo al terminar; las variantes ocultas del Sapidae (peinados, cabezas, camisas, expresiones) no vuelven a la tarjeta gráfica después de un combate. En el mundo abierto, sombras uno de cada dos fotogramas, sin sombra en la vegetación pequeña y las farolas, un solo esqueleto para el Sapidae del jugador y brillo a media resolución.
-> - **Armas del mixer (Hito 52):** espadas, arcos y bastones de la librería del mixer (un nivel por Tier) en la mano del Sapidae y del Axie, cada uno con su arma; el Axie usa las animaciones del arma. En el Sapidae van en la mano derecha, por el puño y hacia delante, y miden lo mismo en Ema y en Kai.
-> - **Pueblo del Bosque (Hito 51):** el camino de la Isla del Bosque es ahora un pueblo con dojo (y el Maestro Paladill), tienda de Ochi, Forja con su árbol y el Guardián de los Pergaminos, casas, altar de Atia, tótem, parada con bus y farolas; puesto de pescado y balsa junto al barquero, que ahora es **Kawa**. El antiguo Dojō Secreto se retiró y su patio vuelve a tener hierba. Tras la cinemática, la cámara aparece detrás del jugador, frente a Paladill.
-> - **Tutorial guiado (Hito 50):** el tutorial y sus combates señalan cada acción con flecha y resaltado y bloquean todo lo demás hasta hacerla; corazones y media luna en la cinemática, tienda en (-77, 3.7) y slimes ocultos durante el tutorial.
-> - **Rendimiento (Hito 49):** optimización isla por isla y de los tableros de combate sin cambiar la imagen: texturas a 1024, carga diferida, horizonte combinado, menos memoria de GPU (~1220 → ~400 MB) y combates sin tirones al mover la cámara o lanzar habilidades.
->
-> Los hitos 2, 3, 6, 9, 10, 11 y 21 describen sistemas históricos y llevan una nota de estado al principio. Los hitos 4, 12, 14, 15, 25, 29, 30, 38, 42, 43, 44, 45, 48, 49, 50, 93 y 110 llevan una nota de actualización con lo que cambió después. Donde aparece "Mazmorra", hoy es Genesis.
+> **Versión de prueba v0.5.0 (noviembre de 2026).** Se juega en el navegador, sin instalar nada: `node server.js 8082` y abrir `http://localhost:8082`.
+
+---
+
+## 🌙 El mundo
+
+Lunacia son **5 grandes islas** con dirección de arte inspirada en *Genshin Impact*: cel-shading suave, aspecto pictórico y bruma.
+
+- **Bosque**: el Dojo del Maestro Paladill, el pueblo y el río.
+- **Sabana**: mesetas y el campamento de Bing.
+- **Ártico**: hielo y el Campamento Boreal.
+- **Mística**: el pantano y el Observatorio.
+- **Genesis**: el Jardín Real con las estatuas de Atia.
+
+Se viaja entre islas hablando con el barquero **Kawa** en la playa. La historia empieza con una cinemática y un tutorial guiado con el Maestro Paladill. Después, las misiones principales y secundarias llevan por las islas, con una guía de migas doradas hacia cada objetivo.
+
+## 🔁 El bucle de juego
+
+1. **Explorar** la isla, hablar con los NPC y cumplir misiones.
+2. **Combatir** contra las quimeras y los slimes que se encuentran por el mundo.
+3. **Recolectar** recursos (pesca, tala, minería y flores) y **fabricar** en la Forja.
+4. **Mejorar el escuadrón**: equipo, runas, charms, nivel y vínculo con los Axies.
+5. **Competir** en el Koliseo: el reto semanal de la Bruma y la Arena PvP.
+
+## ⚔️ Mecánicas
+
+### Combate táctico
+- Cuadrícula isométrica por turnos, con puntos de acción (**PA**), de movimiento (**PM**) y alcance (**AL**).
+- Cada unidad tiene **6 habilidades** (teclas 1–6).
+- **22 estados alterados** y un **triángulo de clases** que da ±15 % de daño.
+- **Pronóstico de daño** antes de lanzar y enemigos con IA que también usa el pronóstico.
+- **Duo Ultimate** (tecla 7): el Sapidae y su Axie principal lanzan un ataque conjunto.
+  - Necesita el vínculo al 100 % al entrar al combate y que el Axie principal siga vivo.
+  - Cuesta 6 PA, se puede usar desde la ronda 2 y solo una vez por combate.
+  - La Ultimate depende de la **tríada** a la que pertenece la clase del Axie principal:
+
+| Tríada | Clases de Axie | Ultimate | Efecto |
+|---|---|---|---|
+| Asalto | Beast · Bug · Mech | **Embestida Destructiva** | Golpe en línea (AL 1–4) con empuje de 3 casillas; si el empujado choca, daño extra a los dos |
+| Bastión | Plant · Reptile · Dusk | **Égida de Gaia** | Escudo, curación y limpieza de estados negativos para los aliados cercanos |
+| Torrente | Aquatic · Bird · Dawn | **Maelstrom Celeste** | Daño en cruz (AL 1–5) que quita PM y PA a los enemigos en sus próximos turnos |
+
+- **15 tableros** por bioma, con obstáculos y transparencia de lo que tapa la vista.
+
+### El Sapidae
+- El jugador crea su **Sapidae** (de cuerpo femenino o masculino), con peinado, ojos, boca y colores a elegir.
+- Hay **4 clases**: Alfarero de Gólems, Comandante de Sombrero, Guardián de Campanas y Rastreador Gogo.
+  - Cada una tiene sus 6 habilidades y su propio **gólem** de arcilla espiritual.
+  - En total son 24 habilidades, basadas en el lore.
+- Lleva **equipo** visible (cascos, armaduras y armas) que se ve en el mundo y en combate.
+
+### Axies y vínculo
+- El Axie compañero sigue al jugador por el mundo.
+- **Axie Care** (clic en el compañero): acariciar, dar comida y pasear sube el **vínculo**, que desbloquea la Duo Ultimate.
+- El **Escuadrón** (tecla T) organiza a los Axies que combaten.
+
+### Progresión y economía
+- **Forja**: crear y evolucionar equipo.
+- **Tienda** del mercader Ochi y **Mercado** entre jugadores.
+- **Runas y charms** con efecto en combate.
+- Monedas:
+
+| Moneda | Para qué sirve |
+|---|---|
+| **Oro** | Tienda, Forja básica y recursos |
+| **SLP** | Evolución, bolsas y premios de la Arena |
+| **AXS** | Mercado entre jugadores (equipo T1–3, runas, charms y bolsas, con sello NFT de Ronin) |
+| **bAXS** | Tasas de la Forja y premios de la Arena y de la Bruma |
+
+### Koliseo (tecla K)
+- **Desafío de la Bruma**: reto semanal de 5 combates, con clasificación y premios para el top 3.
+- **Arena PvP**: duelos 1 contra 1 con el Sapidae y el Axie principal igualados.
+  - 7 tableros simétricos y turnos de 45 s.
+  - Temporadas mensuales con Elo y premios.
+  - Si no aparece un rival humano, se juega contra bots del servidor que se comportan como jugadores.
+
+### Ayudas
+- **Códice de Lunacia** (tecla C): enciclopedia ilustrada del juego con Bestiario.
+- Recorridos guiados la primera vez que se abre cada panel.
+- El juego está en **dos idiomas** (español e inglés) y tiene **opciones de accesibilidad**: tamaño y velocidad del texto, alto contraste, modos para daltonismo y reducir movimiento.
+
+## 🧬 Integración con Axie Infinity
+
+- **Inicio de sesión con Sky Mavis** y partidas guardadas en la nube (Supabase).
+- **Tus Axies reales**: cada Axie de la cuenta combate con las **cartas de sus partes reales**. Se leen de la API de Sky Mavis; si no está disponible, se calculan a partir de sus genes.
+- **Nivel y AXP**:
+  - el nivel y la AXP de cada Axie se leen de Sky Mavis y se muestran en su ficha;
+  - al ganar un combate, una barra de AXP enseña el progreso, con el tope del nivel 60 y los de cada evolución;
+  - es informativo: el juego no escribe en la cuenta.
+- **235 cartas de partes** con su arte oficial, más los Axies iniciales de *Origins* (**Bing** y **Pomodoro**) con sus cartas originales.
+- **Runas y charms** de *Axie Infinity: Origins*, con efecto en combate:
+  - las runas se equipan en el Axie y los charms en sus cartas de partes;
+  - se consiguen en los combates, en las bolsas de runa y de charm de la Forja o en la Tienda;
+  - se comercian con AXS en el Mercado.
+- **Modelos 3D de los Axies** generados con el **mixer oficial**: partes, animaciones y armas por tier.
+- **Economía conectada**: AXS y SLP, con sello NFT en Ronin para los objetos del Mercado.
+- Personajes y criaturas del lore: Sapidae, quimeras, slimes, Atia y los gólems de arcilla.
+
+## 🧪 Cómo se ha probado
+
+- **Consola de pruebas (`lkDebug`, F12):**
+  - `lkDebug.arena()` abre un combate contra un muñeco que no ataca.
+  - `lkDebug.probar()` lanza cualquier carta contra él. Hay **319 pruebas de habilidades** listadas en [PRUEBAS_HABILIDADES.md](PRUEBAS_HABILIDADES.md).
+  - Una auditoría revisó **328 efectos visuales** sin fallos y 10 pruebas del bucle principal sin errores críticos.
+- **Duo Ultimates:** 33 pruebas comprueban el guardado del vínculo, que cada una de las 9 clases caiga en su tríada, cada requisito por separado y el efecto exacto de cada Ultimate.
+- **Pronóstico frente al daño real:** una prueba compara, carta por carta, el daño que anuncia el pronóstico con el que se aplica de verdad.
+- **Registro de equilibrio:** cada combate queda guardado en el navegador. `lkDebug.balance()` lo muestra y `lkDebug.balanceExport()` lo descarga para analizarlo.
+- **PvP verificable:**
+  - Los dos jugadores ejecutan el mismo motor de combate, sin gráficos y con la misma semilla, y comparan una huella del estado en cada turno.
+  - Un árbitro en el servidor repite las partidas en disputa y sanciona al tramposo.
+  - En `tools/pvp/` hay pruebas del simulador, del árbitro, de los bots, de la paridad entre jugadores, de la equidad de los tableros y del equilibrio.
+- **Rendimiento:**
+  - `lkDebug.perf` graba fotogramas largos, llamadas lentas a WebGL y el tiempo de GPU.
+  - `lkDebug.gpu` mide la memoria de vídeo de cada contexto.
+  - `lkDebug.assets` audita texturas y modelos.
+  - Medido con una RTX 4060 y DevTools cerrado: unos **60 FPS estables** en el mundo abierto. Las texturas se comprimen en KTX2, y la memoria de vídeo bajó de ~1220 MB a ~400 MB en el Hito 49, con más recortes en los Hitos 144 y 145.
+- **Pruebas de juego:** cada cambio se prueba en el navegador con partidas de prueba que se borran al terminar. El tutorial se puede recorrer o saltar desde la consola: `lunakaiTutorial.state()`, `.goto(paso)` y `.skip()`.
+
+## 📌 Estado y pendientes (7-nov-2026)
+
+- Las migraciones de Supabase están todas aplicadas.
+- Los bugs menores que listaban los hitos 28, 46, 59, 92, 95, 126 y 132 ya no ocurren.
+- Siguen abiertos la carga de la partida nueva ([PLAN_CARGA_PARTIDA_NUEVA.md](PLAN_CARGA_PARTIDA_NUEVA.md)) y el equilibrio del PvP.
+- Detalle en `PROJECT_CONTEXT.md` §5.62.
+
+## 📖 Cómo leer esta documentación
+
+- **Arquitectura y reglas para desarrollar:** `PROJECT_CONTEXT.md`, en la raíz del proyecto.
+- **Puesta en marcha del servidor** (cuentas, Koliseo y Arena): `DEPLOYMENT_GUIDE.md` y [PLAN_ARENA_PVP.md](PLAN_ARENA_PVP.md).
+- **Historia del desarrollo:** el índice de hitos de abajo. Cada hito tiene su documento con qué se hizo, por qué y cómo se midió.
+  - Los hitos 2, 3, 6, 9, 10, 11 y 21 describen sistemas históricos y llevan una nota de estado al principio.
+  - Los hitos 4, 12, 14, 15, 25, 29, 30, 38, 42, 43, 44, 45, 48, 49, 50, 93 y 110 llevan una nota con lo que cambió después.
+  - Donde aparece «Mazmorra», hoy es Genesis.
+- **Controles y tecnología:** al final de este documento.
 
 ---
 
@@ -109,7 +212,7 @@ Bienvenido al repositorio de documentación técnica, arquitectura y especificac
     - Estudio de creación de personaje ergonómico en 3 columnas inspirado en *Dofus*.
     - Personalización estética en tiempo real con `SapidaeModularController.js`: peinados, ojos, cornamenta ancestral, tintes RGB y botón "Base Texture".
     - `CharacterPreviewDiorama.js`: Escenario 3D interactivo en la pantalla de inicio con pedestal, controles de rotación 360° y renderizado simultáneo de avatar y compañero Axie.
-    - 4 Clases de Sapidae (Forjacubiles, Pastor de Estrellas, Lunalogista, Astromante) con estadísticas base y previsualización de 6 hechizos.
+    - 4 Clases de Sapidae (Forjacubiles, Pastor de Estrellas, Lunalogista, Astromante) con estadísticas base y previsualización de 6 hechizos. *Desde el Hito 95: Alfarero de Gólems, Comandante de Sombrero, Guardián de Campanas y Rastreador Gogo.*
     - Localización integral de la interfaz de creación al inglés.
 
 15. [**Hito 15: Criaturas Slime 3D en el Overworld, Filtro Fluvial y Depuración de Combate**](HITO_15_CRIATURAS_SLIME_Y_ENCUENTROS_BOSQUE.md)
@@ -563,6 +666,29 @@ Bienvenido al repositorio de documentación técnica, arquitectura y especificac
       - ramas de los árboles sobre el tronco curvado (Bosque e islas).
 137. [**Hito 137: Puente plano del Bosque**](HITO_137_PUENTE_PLANO_DEL_BOSQUE.md)
     - Los puentes y el muelle del Bosque usan `puente_plano.glb`. Su textura pasa de WebP a KTX2 (el mismo atlas de madera que ya había): de ~5,6 MB a ~0,7 MB de memoria de vídeo.
+138. [**Hito 138: Rivales bot en la Arena PvP**](HITO_138_RIVALES_BOT_ARENA.md)
+    - A los 10 s en la cola sin rival humano, se juega contra un bot que se comporta como un jugador: puntos, SLP, clasificación y árbitro como siempre. Los bots juegan desde el servidor (Edge Function `pvp-bot`) con el mismo motor, así que no se pueden manipular desde el navegador.
+
+139. [**Hito 139: Carga del creador, farola del Dojo y Axies a distancia en el primer combate**](HITO_139_CREADOR_FAROLA_Y_TUTORIAL_A_DISTANCIA.md)
+    - Creador: precarga en el título (GLB del Sapidae, mixer y partes de la API de los Axies iniciales), API en paralelo y modelos que aparecen ya compilados con una luna de carga: primera apertura de 1,26 / 2,85 s a 0,98 / 1,65 s (Sapidae / Axie) y parón máximo de 577 a 130 ms.
+    - La farola que tapaba al jugador tras la cinemática (`lamp_6`) pasa a (−92.7, 15.8), hacia el altar de Atia.
+    - Primer combate del tutorial: un Axie que solo ataca a distancia usa su propia carta (antes, los hechizos de Shinji) y la guía le marca una casilla a tiro en lugar de pegarlo al Slime.
+140. [**Hito 140: Tirones al equipar la espada y ritmo de la victoria**](HITO_140_TIRONES_ESPADA_Y_VICTORIA.md)
+    - Equipar la espada: el retrato del Sapidae se genera en segundo plano y se lee de la GPU solo cuando ha terminado de dibujar. Fotogramas de 79–186 ms → máximo 31 ms.
+    - Victoria del primer combate: el remate del último enemigo empieza antes (pausa 380 → 150 ms) y el panel espera al estallido en lugar de a un tiempo fijo.
+    - Hacha al cortar el árbol de la Forja: ya se precompilaba; sin tirones en ninguna medida.
+    - Errores 404: la ficha de las cartas en combate vuelve a mostrar su imagen (ruta absoluta en `--art`), y los sonidos opcionales solo se piden si están en `assets/sounds/sfx/manifest.json`. `ASSET_VERSION` 0.4.1.
+    - El corazón del vínculo del escuadrón se rellena en cuanto sube el vínculo (antes no cambiaba en el tutorial), y el cartel de la forja sale en el idioma elegido.
+141. [**Hito 141: Colisión de la cámara del mundo**](HITO_141_COLISION_DE_CAMARA.md)
+    - Esfera de 0,35 m en vez de rayo fino, mínimo de 1,8 m desde la cabeza (si no cabe, la cámara sube por encima del personaje) y una sola regla de suavizado: rápido al acercarse, 0,3 s de espera y vuelta despacio. En la simulación, la cámara metida en una pared o en el suelo pasa de 4028 fotogramas a 0.
+142. [**Hito 142: Revisión de rendimiento y menos draw calls**](HITO_142_RENDIMIENTO_DRAW_CALLS.md)
+    - Medidas por estado (el límite es la CPU de los draw calls). Tablero del combate instanciado (296 → 113 draws) y hierba y flores en 4 draws (mundo 308 → 251; CPU de dibujo 6,6 → 5,2 ms). Mismo aspecto.
+143. [**Hito 143: Resolución dinámica, tiempo de GPU y memoria del Sapidae**](HITO_143_RESOLUCION_DINAMICA_Y_GPU.md)
+    - La escala de resolución de Opciones ya reduce lo que dibuja el posprocesado (antes no ahorraba GPU). Nueva «Resolución dinámica»: baja hasta un 20 % solo si la GPU no llega a 60 fps y vuelve sola. `lkDebug.perf` mide el tiempo de GPU (`gpuDibujoMs`). Memoria del Sapidae investigada (~150 MB por diseño; opciones en el documento).
+144. [**Hito 144: Cambiar la calidad sin congelar y texturas del Sapidae a 512×512**](HITO_144_CALIDAD_SIN_CONGELAR_Y_TEXTURAS_SAPIDAE.md)
+    - Pasar de Alta a Baja ya no congela el juego: los shaders sin sombras se compilan en paralelo antes de volver a dibujar, con el aviso «Aplicando calidad gráfica…» si tarda (unos 8 s la primera vez en Chrome). Las texturas de las variantes de Ema y Kai pasan a 512×512 (RAM de imágenes 165 → 87 MB, GPU 64 → 40 MB, GLB −2,7 / −2,1 MB). `ASSET_VERSION` 0.4.2.
+145. [**Hito 145: Menos memoria de texturas (NPC Sapidae, slimes y kappa)**](HITO_145_TEXTURAS_NPC_SLIMES_KAPPA.md)
+    - Sapidae de los aldeanos a 512, mejillas y pantalón de Ema a 256, kappa y slimes en KTX2 (UASTC). Texturas del contexto principal 326 → 192 MB, sin diferencia visible de cerca. `ASSET_VERSION` 0.4.3.
 
 > Resumen de los Hitos 129–137 (qué se hizo, rendimiento, reglas nuevas y pendientes): [RESUMEN_HITOS_129_137.md](RESUMEN_HITOS_129_137.md)
 ---
@@ -572,7 +698,7 @@ Bienvenido al repositorio de documentación técnica, arquitectura y especificac
 | Tecla | Acción en el Modo Overworld | Acción en Modo Combate |
 | :---: | :--- | :--- |
 | **`[W] [A] [S] [D]`** / Flechas | Desplazamiento del héroe en 3D. | Desplazamiento de cámara táctica. |
-| **`[E]`** | Interactuar con NPCs y cofres (con el barquero Pomodoro: elegir tierra de destino). | Girar la cámara 90°. |
+| **`[E]`** | Interactuar con NPCs y cofres (con el barquero Kawa: elegir tierra de destino). | Girar la cámara 90°. |
 | **`[Espacio]`** | Avanzar líneas de diálogo. | Pasar turno / Confirmar acción. |
 | **`[I]`** | Abrir / Cerrar Inventario y Habilidades. | — |
 | **`[U]`** | Mochila › Runas y charms. | — |

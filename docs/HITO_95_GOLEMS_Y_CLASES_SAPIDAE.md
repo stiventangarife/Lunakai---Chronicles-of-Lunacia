@@ -95,7 +95,7 @@ Los ataques de la ranura 1 son de un solo objetivo (el tutorial sigue funcionand
 
 ## 5. Pendiente
 
-- VFX propios (para quitar la tabla de alias) y sonidos de los gólems (invocar, pulso, romperse).
+- VFX propios (para quitar la tabla de alias) y sonidos de los gólems (invocar, pulso, romperse). **[Resuelto · revisión del 7-nov-2026: el usuario confirma que ya no ocurre.]**
 - Equilibrio: los números de `GOLEM_DEFS` y de las cartas son una primera versión.
 
 ## 5b. Arte añadido después (28–29 oct)

@@ -6,6 +6,7 @@ import { saveSlotManager } from '../SaveSlotManager.js';
 import { asset, sprite, toast } from '../../ui/lk.js';
 import * as i18n from '../../i18n/i18n.js';
 import { access, accessDefaults } from '../../ui/AccessPrefs.js';
+import { resolutionScale } from '../../render/ResolutionScale.js'; // Hito 143
 
 const K = {
   quality: 'axie_tactics_graphics_quality',
@@ -50,6 +51,7 @@ export class SettingsModal {
     this.renderer = options.renderer || null;
     this.scene = options.scene || null;
     this.audio = options.audio || null;
+    this.onShadowsChanged = options.onShadowsChanged || null; // Hito 144: precalentar los shaders nuevos
     this.onExitToTitle = options.onExitToTitle || null;
     this.onSaveProgress = options.onSaveProgress || null;
 
@@ -62,7 +64,7 @@ export class SettingsModal {
       sfx: parseInt(read(K.sfx, AUDIO_DEFAULTS.sfx), 10),
       amb: parseInt(read(K.amb, AUDIO_DEFAULTS.amb), 10)
     };
-    this.gfx = readJSON(K.gfx, { shadows: true, grass: true, particles: true, sky: true, res: 100 });
+    this.gfx = readJSON(K.gfx, { shadows: true, grass: true, particles: true, sky: true, res: 100, dynRes: true });
     if (this.currentQuality !== 'custom' && PRESET[this.currentQuality]) this.gfx = this._presetValues(this.currentQuality);
     this.prefs = readJSON(K.prefs, PREF_DEFAULTS);
     this.prefs.mute = { ...PREF_DEFAULTS.mute, ...this.prefs.mute };
@@ -122,6 +124,7 @@ export class SettingsModal {
                 ${sw('particles', i18n.t('settings.particles'), i18n.t('settings.particlesDesc'), true)}
                 ${sw('sky', i18n.t('settings.sky'), i18n.t('settings.skyDesc'), true)}
                 <div class="lk-set-row"><span class="lk-t"><b>${i18n.t('settings.resScale')}</b><small>${i18n.t('settings.resScaleDesc')}</small></span><span style="display:flex;align-items:center;gap:10px;min-width:180px"><input class="lk-range" type="range" min="50" max="100" value="100" data-ref="res" aria-label="${i18n.t('settings.resScale')}"><b class="lk-num" data-ref="resNum" style="font-size:.84rem;color:var(--lk-ivory-50);min-width:40px;text-align:right">100%</b></span></div>
+                ${sw('dynRes', i18n.t('settings.dynRes'), i18n.t('settings.dynResDesc'), true)}
               </div>
             </div>
             <div class="lk-pause__pane" data-p="aud" hidden>
@@ -252,6 +255,10 @@ export class SettingsModal {
         this.gfx[k] = on;
         this._setPreset('custom');
         this._applyGraphics();
+      } else if (k === 'dynRes') {
+        // Hito 143: no cambia el preset (no es un ajuste de calidad, solo deja que el juego baje la resolución si hace falta)
+        this.gfx.dynRes = on;
+        this._applyGraphics();
       } else {
         this.prefs[k] = on;
         this._savePrefs();
@@ -322,7 +329,8 @@ export class SettingsModal {
   // ---------------------------------------------------------------- gráficos
   _presetValues(k) {
     const v = PRESET[k];
-    return { shadows: !!v[0], grass: !!v[1], particles: !!v[2], sky: !!v[3], res: v[4] };
+    // Hito 143: la resolución dinámica no forma parte de los presets: se conserva la que haya
+    return { shadows: !!v[0], grass: !!v[1], particles: !!v[2], sky: !!v[3], res: v[4], dynRes: this.gfx ? this.gfx.dynRes !== false : true };
   }
 
   _setPreset(k) {
@@ -344,6 +352,7 @@ export class SettingsModal {
   _paintGfx() {
     const t = this.ref('gfxToggles');
     GFX_KEYS.forEach((k) => t.querySelector(`[data-k="${k}"]`).setAttribute('aria-checked', String(!!this.gfx[k])));
+    t.querySelector('[data-k="dynRes"]')?.setAttribute('aria-checked', String(this.gfx.dynRes !== false));
     const r = this.ref('res');
     r.value = this.gfx.res; this._paintRange(r);
     this.ref('resNum').textContent = `${this.gfx.res}%`;
@@ -352,9 +361,14 @@ export class SettingsModal {
   _applyGraphics() {
     write(K.gfx, this.gfx);
     if (this.renderer) {
-      const base = Math.min(window.devicePixelRatio || 1, 1.5); // mismo tope que SceneManager
-      this.renderer.setPixelRatio(base * (this.gfx.res / 100));
-      this.renderer.setSize(window.innerWidth, window.innerHeight);
+      // Hito 143: la densidad de píxeles la aplica ResolutionScale al renderer Y a los composers de posprocesado (antes
+      // solo al renderer: el posprocesado seguía dibujando la escena a resolución completa)
+      const applyRes = () => {
+        if (!resolutionScale.renderer) resolutionScale.attach(this.renderer);
+        resolutionScale.setUser(this.gfx.res);
+        resolutionScale.setAutoEnabled(this.gfx.dynRes !== false);
+      };
+      const token = this._resToken = (this._resToken || 0) + 1;
       const shadows = !!this.gfx.shadows;
       if (this.renderer.shadowMap.enabled !== shadows) {
         this.renderer.shadowMap.enabled = shadows;
@@ -362,7 +376,17 @@ export class SettingsModal {
           if (!obj.material) return;
           (Array.isArray(obj.material) ? obj.material : [obj.material]).forEach((mat) => { mat.needsUpdate = true; });
         });
-      }
+        // Hito 144: compilar las versiones nuevas en paralelo antes del siguiente fotograma del mundo
+        // (antes se compilaban de forma síncrona al dibujar: Alta → Baja congelaba ~6 s la primera vez).
+        // La resolución se cambia al terminar: redimensionar el canvas lo borra y, mientras se compila, el mundo no se
+        // dibuja; así se sigue viendo la última imagen en lugar de una pantalla vacía.
+        if (typeof this.onShadowsChanged === 'function') {
+          let p;
+          try { p = Promise.resolve(this.onShadowsChanged()); } catch (e) { p = Promise.reject(e); }
+          p.catch((e) => console.warn('[SettingsModal] Precalentado de sombras:', e))
+            .finally(() => { if (token === this._resToken) applyRes(); });
+        } else applyRes();
+      } else applyRes();
     }
     this._emit();
   }
@@ -464,7 +488,7 @@ export class SettingsModal {
 
   _resetPane() {
     const k = this.$('.lk-vtab[aria-selected="true"]').dataset.p;
-    if (k === 'gfx') this.applyQuality('high', { silent: true });
+    if (k === 'gfx') { this.gfx.dynRes = true; this.applyQuality('high', { silent: true }); }
     if (k === 'aud') {
       Object.entries(AUDIO_DEFAULTS).forEach(([ch, v]) => { this.vol[ch] = v; write(K[ch], String(v)); this._setMute(ch, false); this._paintVol(ch); });
       this.prefs.bgMute = true; this.prefs.duckDialog = false;

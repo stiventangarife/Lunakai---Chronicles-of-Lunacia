@@ -127,6 +127,7 @@ export async function waitProgramsReady(renderer, materials, timeoutMs = 8000, a
     }
     if (pending.size) await new Promise((r) => setTimeout(r, 10));
   }
+  return pending.size; // Hito 144: programas que no terminaron a tiempo (diagnóstico)
 }
 
 /**
@@ -150,6 +151,7 @@ export async function warmupRender(renderer, scene, camera, { target = null, dea
   // y se compilarán de nuevo en su viaje; prepararlas ahora solo gasta tiempo y memoria)
   const skip = skipRoots && skipRoots.length ? new Set(skipRoots) : null;
   const textures = await uploadTextures(renderer, scene, slice, skip);
+  const tTex = performance.now(); // Hito 144: tiempos por fase (diagnóstico)
   const before = renderer.info && renderer.info.programs ? renderer.info.programs.length : 0;
   const materials = new Set();
 
@@ -183,10 +185,12 @@ export async function warmupRender(renderer, scene, camera, { target = null, dea
 
   // Terminar de enlazar: con KHR_parallel_shader_compile se espera a que el driver acabe (sin
   // bloquear); sin ella, se fuerza el enlazado aquí, por porciones, detrás del telón.
+  const tCompile = performance.now();
+  let pendingLeft = 0;
   const parallel = !!(renderer.extensions && renderer.extensions.has && renderer.extensions.has('KHR_parallel_shader_compile'));
   const programOf = (m) => { try { return renderer.properties.get(m).currentProgram || null; } catch (_) { return null; } };
   if (parallel) {
-    await waitProgramsReady(renderer, materials, Math.min(deadline, performance.now() + 20000) - performance.now(), late);
+    pendingLeft = await waitProgramsReady(renderer, materials, Math.min(deadline, performance.now() + 20000) - performance.now(), late);
   } else {
     for (const m of materials) {
       if (late()) break;
@@ -197,7 +201,13 @@ export async function warmupRender(renderer, scene, camera, { target = null, dea
   }
 
   const total = renderer.info && renderer.info.programs ? renderer.info.programs.length : 0;
-  return { programs: total - before, total, textures, ms: Math.round(performance.now() - t0) };
+  const end = performance.now();
+  return {
+    programs: total - before, total, textures, ms: Math.round(end - t0),
+    // Hito 144: desglose (ms) y programas sin terminar al cortar por `deadline`
+    texMs: Math.round(tTex - t0), compileMs: Math.round(tCompile - tTex), waitMs: Math.round(end - tCompile),
+    parallel, pendingLeft, cut: late(),
+  };
 }
 
 /**

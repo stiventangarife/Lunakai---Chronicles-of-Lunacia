@@ -7,6 +7,7 @@ import { UnrealBloomPass } from '../../vendor/postprocessing/UnrealBloomPass.js'
 import { OutputPass } from '../../vendor/postprocessing/OutputPass.js';
 import { TransientLightPool } from './combat/TransientLightPool.js';
 import { access } from '../ui/AccessPrefs.js';
+import { resolutionScale } from '../render/ResolutionScale.js'; // Hito 143
 
 // Cámara isométrica del combate: ángulo fijo (diagonal del tablero, inclinación isométrica de 35,26°) y campo de
 // visión estrecho para que casi no haya perspectiva (lo lejano no se encoge ni lo cercano se deforma al acercarse).
@@ -110,6 +111,9 @@ export class SceneManager {
 
     const outputPass = new OutputPass();
     this.composer.addPass(outputPass);
+    // Hito 143: la densidad de píxeles del renderer y de este composer la lleva ResolutionScale (Opciones + automática)
+    resolutionScale.attach(this.renderer);
+    resolutionScale.addComposer(this.composer);
   }
 
   _initAtmosphere() {

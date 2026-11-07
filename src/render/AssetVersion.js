@@ -18,7 +18,7 @@
 
 import { FileLoader, ImageLoader, ImageBitmapLoader } from 'three';
 
-export const ASSET_VERSION = '0.4.0'; // Hito 110: sin cambio (axs.webp es un archivo nuevo de interfaz; las <img> no llevan versión)
+export const ASSET_VERSION = '0.4.3'; // Hito 145: NPC Sapidae a 512, mejillas/pantalón de Ema a 256, kappa y slimes en KTX2
 
 const SKIP = /^(data:|blob:)/i;
 const HAS_V = /[?&]v=/;

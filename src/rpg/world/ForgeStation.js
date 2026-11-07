@@ -5,6 +5,7 @@
 // llama a onUse() (abre la pantalla). La colisión la pone el edificio (ForestVillage).
 
 import * as THREE from 'three';
+import * as i18n from '../../i18n/i18n.js';
 import { FORGE_USE_SPOT, VILLAGE_ZONE } from './ForestVillageLayout.js';
 
 /** Delante de la puerta de la Forja del pueblo; el frente (+z local) mira al camino. */
@@ -60,7 +61,7 @@ export class ForgeStation {
     this.qi.scene.add(group);
     this.group = group;
     this._placeLight();
-    this.node = { id: 'forge_station', type: 'forge', group, radius: USE_RADIUS, promptText: 'Usar la forja', onInteract: () => this.onUse?.() };
+    this.node = { id: 'forge_station', type: 'forge', group, radius: USE_RADIUS, get promptText() { return i18n.t('forge.usePrompt'); }, onInteract: () => this.onUse?.() };
     this.qi.nodes.push(this.node);
   }
 

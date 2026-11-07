@@ -38,7 +38,7 @@
 | 3 — Datos del juego | Objetos, rarezas, habilidades, cartas | «Común · Sabana» en inglés |
 | 4 — Mensajes del sistema | Avisos, errores, red | Etiquetas `label` de `GrandIslandZone` |
 
-Detalles menores conocidos: el cartel de zona recuerda las zonas vistas por nombre, así que puede salir una vez más tras cambiar de idioma; el HUD de combate muestra «×1,5» con coma también en inglés.
+Detalles menores conocidos: el cartel de zona recuerda las zonas vistas por nombre, así que puede salir una vez más tras cambiar de idioma; el HUD de combate muestra «×1,5» con coma también en inglés. **[Resuelto · revisión del 7-nov-2026: el usuario confirma que ya no ocurre.]**
 
 ## 5. Pruebas
 

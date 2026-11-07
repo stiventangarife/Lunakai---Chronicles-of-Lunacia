@@ -95,7 +95,24 @@ Si prefieres ejecutar el servidor Node.js propio incluido en [`server.js`](./ser
 
 La versión que se ve en la pantalla de inicio y en la de selección de personaje («Demo 1 (v0.4.0) - Lunakai») es la constante `GAME_VERSION` de `src/rpg/ui/StartScreenUI.js`. Súbela cuando quieras marcar una entrega nueva (por ejemplo, `0.4.0` → `0.4.1` para correcciones, `0.5.0` para funciones nuevas). Es independiente de la versión de los assets de abajo.
 
-## Base de datos (Supabase): migraciones pendientes
+## Base de datos (Supabase): migraciones
+
+> **Estado (7-nov-2026):** todas las migraciones de `supabase/migrations/` hasta `20261114000000_arena_bots_ready.sql` están **aplicadas** en el proyecto de Supabase y funcionan. Esta sección queda como referencia del orden si hubiera que montar otro proyecto desde cero.
+
+Lista completa, en orden:
+
+| Grupo | Migraciones |
+|---|---|
+| Cuentas y guardado (Hitos 25, 41) | `20261016000000_accounts_and_saves.sql`, `20261019000000_waypoint_addresses.sql` |
+| Economía y Mercado (Hitos 76–78) | `20261026000000_economy.sql` … `20261026000005_market_rules.sql` |
+| Moneda AXS (Hito 110) | `20261101000000_axs.sql` … `20261101000005_market_rules.sql` (detalle abajo) |
+| Feedback (Hito 121) | `20261104000000_feedback.sql` |
+| Desafío de la Bruma (Hito 122) | `20261104000001_koliseo_bruma.sql`, `20261105000000_koliseo_rewards.sql` |
+| Arena PvP (Hito 123) | `20261106000000_arena_pvp.sql` … `20261110000000_arena_stats.sql` |
+| Misión de Ochi (Hito 124) | `20261111000000_quest_merchant_ochi.sql` |
+| Oro del jefe del tutorial (Hito 136) | `20261112000000_tutorial_boss_gold.sql` |
+| Bots de la Arena (Hito 138) | `20261113000000_arena_bots.sql`, `20261114000000_arena_bots_ready.sql` |
+
 
 Si la entrega trae migraciones nuevas en `supabase/migrations/`, aplícalas **en orden** con `supabase db push` o en el SQL Editor de Supabase. Las del Hito 110 (moneda AXS):
 
@@ -129,6 +146,23 @@ npx supabase@latest functions deploy pvp-arbiter --no-verify-jwt --use-api
 **Al subir el juego:** solo hace falta `src/` si solo cambió código. `supabase/`, `tools/` y `docs/` no van al hosting. Purga la CDN y pide a quien tenga el juego abierto que recargue: en la Arena los dos jugadores deben tener la misma versión (si no, la partida va al árbitro).
 
 **Estadísticas de la Arena** (solo el equipo): `select jsonb_pretty(public.pvp_stats(30));` en el SQL Editor. Resumen y mantenimiento: `docs/HITO_123_ARENA_PVP.md`.
+
+## Rivales bot de la Arena (Hito 138): puesta en marcha
+
+Una sola vez, **en este orden** (detalle y comandos: `docs/PLAN_BOTS_ARENA.md`, sección 11):
+
+1. **Subir el juego** con el nuevo `src/rpg/arena/PvpSession.js` y purgar la CDN. Va primero: si los bots entran antes, el jugador vería «rival desconectado».
+2. **Migraciones** `supabase/migrations/20261113000000_arena_bots.sql` y después `20261114000000_arena_bots_ready.sql` (el bot espera a que el jugador tenga el combate en pantalla). SQL Editor o `npx supabase@latest db push`. Todavía no cambian nada para los jugadores.
+3. **Bots:** pegar `tools/pvp/bots/bots.sql` en el SQL Editor. Comprobar: `select count(*) from public.pvp_bots;` → 30.
+4. **Clave:** `npx supabase@latest secrets set PVP_BOT_KEY=<clave larga al azar>`
+5. **Función:**
+   ```powershell
+   node tools/pvp/bots/build.mjs
+   npx supabase@latest functions deploy pvp-bot --no-verify-jwt --use-api
+   ```
+6. **Encender** con la fila de `pvp_bot_config` (URL de la función y la misma clave). Desde ahí, a los 10 s en la cola, se juega contra un bot.
+
+**Apagar:** `delete from public.pvp_bot_config;`. **Cada cambio en las reglas del combate:** volver a copiar y desplegar `pvp-arbiter` **y** `pvp-bot`; `--check` en cada `build.mjs` avisa si una copia está vieja. **Deshacer todo:** `tools/pvp/bots/rollback.sql`.
 
 ## Actualizar el juego ya publicado: versión de los assets (Hito 109)
 

@@ -1,5 +1,5 @@
 // SquadHUD.js - Overworld Squad UI with Stylized Hero Frames, Real-Time 3D Portraits, HP, PA & PM
-import { formatBond } from '../BondService.js';
+import { formatBond, BondService } from '../BondService.js';
 import { portraitService } from '../../tactics/CharacterPortraitService.js';
 import { SAPIDAE_CLASSES } from '../SaveSlotManager.js';
 import { BondDemo } from './CombatEndScreen.js';
@@ -175,6 +175,9 @@ export class SquadHUD {
     if (this.equipmentManager) {
       this.equipmentManager.addListener(this._boundNotify);
     }
+    // Hito 140: el corazón del vínculo se repinta cuando cambia el vínculo (caricia, comida, paseo, derrota). Antes solo
+    // se repintaba al cambiar el equipo y en el tutorial se quedaba con el valor anterior. Varios cambios seguidos: un repintado.
+    this._offBond = BondService.onChange(() => this._renderSoon());
     this.render();
   }
 
@@ -362,6 +365,8 @@ export class SquadHUD {
 
   destroy() {
     portraitService.removeListener(this._boundPortraitListener);
+    if (this._offBond) { this._offBond(); this._offBond = null; }
+    if (this._soon) { clearTimeout(this._soon); this._soon = null; }
     if (this.equipmentManager && this._boundNotify) {
       this.equipmentManager.removeListener(this._boundNotify);
     }

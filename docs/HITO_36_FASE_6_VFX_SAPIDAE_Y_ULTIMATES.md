@@ -1,5 +1,7 @@
 # Hito 36 — Fase 6 (VFX): Sapidae y Ultimates en combate, efectos más grandes
 
+> **Nota (7-nov-2026):** las clases del Sapidae que se nombran aquí son las anteriores al Hito 95. Hoy son Alfarero de Gólems (`crafter`), Comandante de Sombrero (`shepard`), Guardián de Campanas (`lunalogist`) y Rastreador Gogo (`stargazer`); los ids internos no cambiaron. Ver `HITO_95_GOLEMS_Y_CLASES_SAPIDAE.md`.
+
 > **Estado:** completada (18-oct).
 > **Plan:** pestaña «Fase 6 — VFX» del plan de implementación de habilidades.
 

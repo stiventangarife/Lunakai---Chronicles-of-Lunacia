@@ -1,0 +1,854 @@
+// CharacterPortraitService.js - Real-Time 3D Model Snapshot Service for Axie Portraits
+import * as THREE from 'three';
+import { GLTFLoader } from '../../vendor/GLTFLoader.js';
+import { clone as cloneSkinned } from '../../vendor/utils/SkeletonUtils.js';
+
+/**
+ * 29-oct: copia del modelo para el retrato SIN pasar userData por JSON. three.js copia userData con
+ * JSON.parse(JSON.stringify(...)) y el Sapidae guarda ahí texturas y mallas (origMap, sourceMesh del contorno…):
+ * cada copia serializaba sus imágenes con canvas.toDataURL (~60 imágenes, 2,5–3 s de congelamiento por cada
+ * equipar / desequipar). Aquí cada copia recibe una copia superficial del userData de su original (mismas referencias).
+ */
+function cloneWithoutUserDataJson(model) {
+  const src = [];
+  model.traverse((o) => { src.push([o, o.userData]); o.userData = {}; });
+  let copy;
+  try { copy = cloneSkinned(model); } finally { for (const [o, ud] of src) o.userData = ud; }
+  let i = 0;
+  copy.traverse((c) => { const s = src[i++]; if (s && s[1]) c.userData = { ...s[1] }; });
+  return copy;
+}
+import { waitProgramsReady } from '../render/RenderWarmup.js';
+import { cloneGLTF } from '../render/ModelCache.js';
+import { adoptGltf, releaseGltf } from '../render/ReleaseGltf.js';
+import { sapidaeModularController } from '../rpg/SapidaeModularController.js';
+import { sapidaeModelUrl, SAPIDAE_BASES } from '../rpg/SapidaeModels.js';
+
+// 30-oct (memoria de GPU): el contexto de los retratos guardaba para siempre todo lo que subía (cuerpo del Sapidae en
+// 2048, sus texturas teñidas, Axies…: ~70 MB) aunque solo se usa unos segundos en cada autoguardado. Tras este tiempo sin
+// retratos se liberan sus texturas SOLO en este contexto (el mundo las sigue usando); los shaders compilados se conservan,
+// así el próximo retrato solo vuelve a subir texturas (en segundo plano, una por tarea).
+const PORTRAIT_GPU_IDLE_MS = 20000;
+
+export const PRE_RENDERED_PORTRAITS = [
+  'bear-dad',
+  'bear-mom',
+  'dryad-fighter',
+  'dryad-mage',
+  'dryad-range',
+  'slime',
+  'slime-attack',
+  'slime-defese',
+  'slime-forest-a',
+  'slime-forest-b',
+  'slime-fusion',
+  'slime-support',
+  'treant-flower',
+  'werewolf-boss',
+  'wolf-alpha',
+  'wolf-aquatic',
+  'wolf-aquatic-alpha',
+  'wolf-gray',
+  'shinji',
+  'kotaro',
+  'bird-early',
+  'plant-yak',
+  'bing',
+  'pomodoro',
+  'paladill',
+  'kibo',
+  'xia',
+  'sapidae-m-a',
+  'sapidae-m-b',
+  'sapidae-m-c',
+  'sapidae-m-d',
+  'sapidae-m-e',
+  'sapidae-f-a',
+  'sapidae-f-b',
+  'sapidae-f-c',
+  'sapidae-f-d',
+  'sapidae-f-e',
+  'tripp',
+  'statue_atia'
+];
+
+export class CharacterPortraitService {
+  constructor() {
+    this.cache = new Map(); // id -> dataURL
+    this.pending = new Map(); // id -> Promise<dataURL>
+    this.listeners = []; // callbacks: (id, dataUrl) => void
+
+    this.width = 192;
+    this.height = 192;
+
+    this.canvas = null;
+    this.renderer = null;
+    this.scene = null;
+    this.camera = null;
+    this.wrapper = null;
+    this.loader = new GLTFLoader();
+
+    this._initialized = false;
+
+    // Pre-populate cache with static pre-rendered portraits for instant synchronous display
+    this._initStaticPortraits();
+  }
+
+  _initStaticPortraits() {
+    PRE_RENDERED_PORTRAITS.forEach(name => {
+      const url = `./assets/portraits/${name}.png`;
+      this.cache.set(name, url);
+      this.cache.set(name.replace(/-/g, '_'), url);
+    });
+
+    // Register starter hero aliases for instant synchronous lookup by axieId and heroKey
+    const heroAliases = {
+      // Beast Starter (Shinji / Axie #10455)
+      '10455': './assets/portraits/shinji.png',
+      '11968787': './assets/portraits/shinji.png',
+      shinji: './assets/portraits/shinji.png',
+      'shinji-beast': './assets/portraits/shinji.png',
+      beast_rage: './assets/portraits/shinji.png',
+      'beast-rage': './assets/portraits/shinji.png',
+      rage_5_evo: './assets/portraits/shinji.png',
+      'rage-5-evo': './assets/portraits/shinji.png',
+
+      // Bird Starter (Early Bird)
+      '3797905': './assets/portraits/bird-early.png',
+      bird_early: './assets/portraits/bird-early.png',
+      'bird-early': './assets/portraits/bird-early.png',
+      early_bird: './assets/portraits/bird-early.png',
+      'early-bird': './assets/portraits/bird-early.png',
+
+      // Plant Starter (Big Yak)
+      '10830416': './assets/portraits/plant-yak.png',
+      plant_yak: './assets/portraits/plant-yak.png',
+      'plant-yak': './assets/portraits/plant-yak.png',
+      big_yak: './assets/portraits/plant-yak.png',
+      'big-yak': './assets/portraits/plant-yak.png',
+
+      // Master Paladill
+      paladill: './assets/portraits/paladill.png',
+      'maestro paladill': './assets/portraits/paladill.png',
+      'maestro_paladill': './assets/portraits/paladill.png',
+      'mentor del dojo': './assets/portraits/paladill.png',
+
+      // Atia Spirit & Holy Statue
+      statue_atia: './assets/portraits/statue_atia.png',
+      'statue-atia': './assets/portraits/statue_atia.png',
+      atia_spirit: './assets/portraits/statue_atia.png',
+      'espíritu de atia': './assets/portraits/statue_atia.png',
+      'espiritu de atia': './assets/portraits/statue_atia.png',
+      'estatua de atia': './assets/portraits/statue_atia.png',
+      'estatua sagrada de atia': './assets/portraits/statue_atia.png',
+      'alma del gran árbol': './assets/portraits/statue_atia.png',
+      'alma del gran arbol': './assets/portraits/statue_atia.png',
+
+      // Recruits
+      bing: './assets/portraits/bing.png',
+      bing_npc: './assets/portraits/bing.png',
+      pomodoro: './assets/portraits/pomodoro.png',
+      pomodoro_npc: './assets/portraits/pomodoro.png',
+      kotaro: './assets/portraits/kotaro.png',
+      sulfur_guard: './assets/portraits/kotaro.png'
+    };
+
+    Object.entries(heroAliases).forEach(([alias, url]) => {
+      this.cache.set(alias, url);
+      this.cache.set(alias.toLowerCase().trim(), url);
+    });
+
+    // Register campaign level enemy ID aliases for instant mapping
+    const levelAliases = {
+      quimera_scout: 'slime',
+      quimera_guard: 'slime-defese',
+      quimera_pup1: 'slime-support',
+      quimera_pup2: 'slime-attack',
+      quimera_pup3: 'slime',
+      quimera_frost1: 'wolf-alpha',
+      quimera_frost2: 'wolf-gray',
+      quimera_frost3: 'treant-flower',
+      scout_a: 'slime-attack',
+      scout_b: 'slime-attack',
+      larva_a: 'slime',
+      larva_b: 'slime-defese',
+      boss_puffy: 'wolf-alpha',
+      guard_frost_a: 'treant-flower',
+      guard_frost_b: 'wolf-gray',
+      quimera_tank: 'dryad-fighter',
+      quimera_healer1: 'dryad-mage',
+      quimera_healer2: 'dryad-range',
+      quimera_goliath1: 'wolf-aquatic-alpha',
+      quimera_goliath2: 'wolf-aquatic',
+      quimera_dunas: 'slime-forest-a',
+      quimera_frost_brawler: 'wolf-alpha',
+      quimera_frost_shaman: 'treant-flower',
+      quimera_frost_stalker1: 'wolf-gray',
+      quimera_frost_stalker2: 'wolf-gray',
+      commander_brawler: 'bear-dad',
+      commander_sniper: 'slime-fusion',
+      commander_shaman: 'bear-mom',
+      boss_werewolf: 'werewolf-boss',
+      boss_guard_l: 'bear-mom',
+      boss_guard_r: 'bear-dad'
+    };
+
+    Object.entries(levelAliases).forEach(([alias, target]) => {
+      const url = `./assets/portraits/${target}.png`;
+      this.cache.set(alias, url);
+    });
+  }
+
+  _initRenderer(customW = null, customH = null) {
+    const targetW = customW || this.width;
+    const targetH = customH || this.height;
+
+    if (this._initialized) {
+      if (this.canvas && (this.canvas.width !== targetW || this.canvas.height !== targetH)) {
+        this.canvas.width = targetW;
+        this.canvas.height = targetH;
+        this.renderer.setSize(targetW, targetH);
+        this.camera.aspect = targetW / targetH;
+        this.camera.updateProjectionMatrix();
+      }
+      return;
+    }
+    if (typeof document === 'undefined') return;
+
+    this.canvas = document.createElement('canvas');
+    this.canvas.width = targetW;
+    this.canvas.height = targetH;
+
+    this.renderer = new THREE.WebGLRenderer({
+      canvas: this.canvas,
+      alpha: true,
+      antialias: true,
+      preserveDrawingBuffer: true,
+      powerPreference: 'low-power'
+    });
+    this.renderer.debug.checkShaderErrors = false;
+    this.renderer.setSize(targetW, targetH);
+    this.renderer.setPixelRatio(1);
+    if (THREE.SRGBColorSpace) {
+      this.renderer.outputColorSpace = THREE.SRGBColorSpace;
+    }
+
+    this.scene = new THREE.Scene();
+    this.camera = new THREE.PerspectiveCamera(28, targetW / targetH, 0.1, 50);
+
+    // Studio 3-Point Lighting for heroic character portraits
+    const ambientLight = new THREE.AmbientLight(0xffffff, 1.35);
+    this.scene.add(ambientLight);
+
+    const keyLight = new THREE.DirectionalLight(0xfff7ed, 2.2);
+    keyLight.position.set(3, 4, 5);
+    this.scene.add(keyLight);
+
+    const fillLight = new THREE.DirectionalLight(0xe0f2fe, 1.2);
+    fillLight.position.set(-3, 2, 3);
+    this.scene.add(fillLight);
+
+    const rimLight = new THREE.DirectionalLight(0xffffff, 1.5);
+    rimLight.position.set(0, 3, -4);
+    this.scene.add(rimLight);
+
+    this.wrapper = new THREE.Group();
+    this.scene.add(this.wrapper);
+
+    this._initialized = true;
+  }
+
+  /** Apunta las texturas de un modelo que van a vivir en este contexto (para liberarlas luego). */
+  _trackModelTextures(model) {
+    const set = (this._gpuTextures ||= new Set());
+    model.traverse((o) => {
+      for (const m of [].concat(o.material || [])) {
+        if (!m) continue;
+        for (const k in m) { const v = m[k]; if (v && v.isTexture) set.add(v); }
+        if (m.uniforms) for (const k in m.uniforms) { const v = m.uniforms[k] && m.uniforms[k].value; if (v && v.isTexture) set.add(v); }
+      }
+      if (o.isSkinnedMesh && o.skeleton && o.skeleton.boneTexture) set.add(o.skeleton.boneTexture);
+    });
+  }
+
+  _scheduleGpuRelease() {
+    clearTimeout(this._gpuReleaseTimer);
+    this._gpuReleaseTimer = setTimeout(() => this.releaseGpuMemory(), PORTRAIT_GPU_IDLE_MS);
+  }
+
+  /**
+   * La función con la que ESTE renderer escucha el 'dispose' de sus texturas (una por renderer). Llamarla con una textura
+   * la libera solo aquí: texture.dispose() la quitaría también del contexto del mundo.
+   */
+  _textureDisposeListener() {
+    if (this._texDisposeFn !== undefined) return this._texDisposeFn;
+    let fn = null;
+    try {
+      const probe = new THREE.DataTexture(new Uint8Array(4), 1, 1);
+      probe.needsUpdate = true;
+      const before = new Set((probe._listeners && probe._listeners.dispose) || []);
+      this.renderer.initTexture(probe);
+      fn = ((probe._listeners && probe._listeners.dispose) || []).find((f) => !before.has(f)) || null;
+      probe.dispose();
+    } catch (_) { fn = null; }
+    this._texDisposeFn = fn;
+    return fn;
+  }
+
+  /** Libera de este contexto las texturas de los retratos ya hechos. Devuelve cuántas. lkDebug: portraitService.releaseGpuMemory() */
+  releaseGpuMemory() {
+    if (!this.renderer || !this._gpuTextures || this._gpuTextures.size === 0) return 0;
+    if (this._busy > 0 || (this._axieJobs && this._axieJobs.size > 0)) { this._scheduleGpuRelease(); return 0; }
+    const fn = this._textureDisposeListener();
+    if (!fn) return 0;
+    let n = 0;
+    for (const t of this._gpuTextures) {
+      const ls = t._listeners && t._listeners.dispose;
+      if (ls && ls.includes(fn)) {
+        try { fn.call(t, { type: 'dispose', target: t }); n++; } catch (_) { /* nada */ }
+      }
+    }
+    this._gpuTextures.clear();
+    try { this.renderer.renderLists.dispose(); } catch (_) { /* nada */ }
+    return n;
+  }
+
+  addListener(callback) {
+    if (typeof callback === 'function' && !this.listeners.includes(callback)) {
+      this.listeners.push(callback);
+    }
+  }
+
+  removeListener(callback) {
+    this.listeners = this.listeners.filter(cb => cb !== callback);
+  }
+
+  _notify(id, dataUrl) {
+    this.listeners.forEach(cb => {
+      try {
+        cb(id, dataUrl);
+      } catch (err) {
+        console.error('[CharacterPortraitService] Listener error:', err);
+      }
+    });
+  }
+
+  _resolvePortraitId(id) {
+    if (!id) return 'slime';
+    let cleanId = String(id).toLowerCase().trim();
+    if (cleanId.includes('/')) {
+      cleanId = cleanId.split('/').pop();
+    }
+    if (cleanId.endsWith('.png') || cleanId.endsWith('.glb')) {
+      cleanId = cleanId.replace(/\.(png|glb)$/, '');
+    }
+
+    if (this.cache.has(cleanId)) return cleanId;
+
+    if (cleanId === 'shinji' || cleanId === '10455') return 'shinji';
+    if (cleanId === 'kotaro' || cleanId === 'sulfur_guard') return 'kotaro';
+    if (cleanId === 'bing' || cleanId === 'bing_npc') return 'bing';
+    if (cleanId === 'pomodoro' || cleanId === 'pomodoro_npc') return 'pomodoro';
+    if (cleanId.includes('atia') || cleanId.includes('statue')) return 'statue_atia';
+    if (cleanId === 'paladill' || cleanId.includes('paladill')) return 'paladill';
+
+    // Overworld NPC mappings
+    if (cleanId.includes('sentinel') || cleanId.includes('centinela') || cleanId === 'kibo') return 'kibo';
+    if (cleanId.includes('cartographer') || cleanId.includes('exploradora') || cleanId === 'xia') return 'xia';
+    if (cleanId.includes('miner') || cleanId.includes('tripp')) return 'tripp';
+
+    // Sapidae models and NPC names
+    if (cleanId.includes('postman') || cleanId.includes('mensajero') || cleanId.includes('cartero') || cleanId === 'sapidae-m-a' || cleanId === 'sapidae_m_a') return 'sapidae-m-a';
+    if (cleanId.includes('herbalist') || cleanId.includes('rosalba') || cleanId === 'sapidae-f-a' || cleanId === 'sapidae_f_a') return 'sapidae-f-a';
+    if (cleanId.includes('blacksmith') || cleanId.includes('baruk') || cleanId.includes('herrero') || cleanId === 'sapidae-m-b' || cleanId === 'sapidae_m_b') return 'sapidae-m-b';
+    if (cleanId.includes('hunter') || cleanId.includes('zarek') || cleanId.includes('cazador') || cleanId === 'sapidae-m-c' || cleanId === 'sapidae_m_c') return 'sapidae-m-c';
+    if (cleanId.includes('chef') || cleanId === 'sapidae-m-d' || cleanId === 'sapidae_m_d') return 'sapidae-m-d';
+    if (cleanId.includes('hermit') || cleanId.includes('ermitaño') || cleanId.includes('ermitano') || cleanId === 'sapidae-m-e' || cleanId === 'sapidae_m_e') return 'sapidae-m-e';
+    if (cleanId.includes('astrolog') || cleanId === 'sapidae-f-b' || cleanId === 'sapidae_f_b') return 'sapidae-f-b';
+    if (cleanId.includes('polar_sage') || cleanId.includes('sabio') || cleanId === 'sapidae-f-c' || cleanId === 'sapidae_f_c') return 'sapidae-f-c';
+    if (cleanId.includes('oracle') || cleanId.includes('oráculo') || cleanId.includes('oraculo') || cleanId === 'sapidae-f-d' || cleanId === 'sapidae_f_d') return 'sapidae-f-d';
+    if (cleanId.includes('shaman') || cleanId.includes('chamán') || cleanId.includes('chaman') || cleanId === 'sapidae-f-e' || cleanId === 'sapidae_f_e') return 'sapidae-f-e';
+
+    // Normalize hyphenated/underscored chimera model names
+    if (cleanId.includes('slime-attack') || cleanId.includes('slime_attack')) return 'slime-attack';
+    if (cleanId.includes('slime-defese') || cleanId.includes('slime_defese')) return 'slime-defese';
+    if (cleanId.includes('slime-support') || cleanId.includes('slime_support')) return 'slime-support';
+    if (cleanId.includes('slime-forest-a') || cleanId.includes('slime_forest_a')) return 'slime-forest-a';
+    if (cleanId.includes('slime-forest-b') || cleanId.includes('slime_forest_b')) return 'slime-forest-b';
+    if (cleanId.includes('slime-fusion') || cleanId.includes('slime_fusion')) return 'slime-fusion';
+    if (cleanId.includes('wolf-aquatic-alpha') || cleanId.includes('wolf_aquatic_alpha')) return 'wolf-aquatic-alpha';
+    if (cleanId.includes('wolf-aquatic') || cleanId.includes('wolf_aquatic')) return 'wolf-aquatic';
+    if (cleanId.includes('wolf-alpha') || cleanId.includes('wolf_alpha')) return 'wolf-alpha';
+    if (cleanId.includes('wolf-gray') || cleanId.includes('wolf_gray')) return 'wolf-gray';
+    if (cleanId.includes('treant-flower') || cleanId.includes('treant_flower') || cleanId.includes('treant')) return 'treant-flower';
+    if (cleanId.includes('dryad-fighter') || cleanId.includes('dryad_fighter')) return 'dryad-fighter';
+    if (cleanId.includes('dryad-mage') || cleanId.includes('dryad_mage')) return 'dryad-mage';
+    if (cleanId.includes('dryad-range') || cleanId.includes('dryad_range')) return 'dryad-range';
+    if (cleanId.includes('werewolf-boss') || cleanId.includes('werewolf_boss') || cleanId.includes('werewolf')) return 'werewolf-boss';
+    if (cleanId.includes('bear-mom') || cleanId.includes('bear_mom')) return 'bear-mom';
+    if (cleanId.includes('bear-dad') || cleanId.includes('bear_dad')) return 'bear-dad';
+    if (cleanId.includes('slime')) return 'slime';
+
+    // Campaign aliases fallback
+    if (cleanId.includes('scout') || cleanId.includes('larva')) return 'slime';
+    if (cleanId.includes('guard')) return 'slime-defese';
+    if (cleanId.includes('pup1')) return 'slime-support';
+    if (cleanId.includes('pup2')) return 'slime-attack';
+    if (cleanId.includes('pup3')) return 'slime';
+    if (cleanId.includes('brawler')) return 'bear-dad';
+    if (cleanId.includes('sniper')) return 'slime-fusion';
+    if (cleanId.includes('shaman')) return 'bear-mom';
+
+    return cleanId;
+  }
+
+  hasPortrait(id) {
+    if (!id) return false;
+    if (this.cache.has(id)) return true;
+    const resolved = this._resolvePortraitId(id);
+    return this.cache.has(resolved) || PRE_RENDERED_PORTRAITS.includes(resolved);
+  }
+
+  getPortraitSync(id) {
+    if (!id) return null;
+    if (this.cache.has(id)) return this.cache.get(id);
+    const stored = this._storedAxiePortrait(id);
+    if (stored) { this.cache.set(id, stored); return stored; }
+    const resolved = this._resolvePortraitId(id);
+    if (this.cache.has(resolved)) {
+      const url = this.cache.get(resolved);
+      this.cache.set(id, url);
+      return url;
+    }
+    if (PRE_RENDERED_PORTRAITS.includes(resolved)) {
+      const url = `./assets/portraits/${resolved}.png`;
+      this.cache.set(id, url);
+      this.cache.set(resolved, url);
+      return url;
+    }
+    return null;
+  }
+
+  registerPortrait(id, dataUrl) {
+    if (!id || !dataUrl) return;
+    this.cache.set(id, dataUrl);
+    this._notify(id, dataUrl);
+  }
+
+  _resolveModelPath(id) {
+    if (!id) return './assets/models/slime.glb';
+    const resolved = this._resolvePortraitId(id);
+    return SAPIDAE_BASES[resolved] ? sapidaeModelUrl(resolved) : `./assets/models/${resolved}.glb`;
+  }
+
+  async getPortrait(id, modelScene = null, options = {}) {
+    if (!id) return null;
+
+    if (this.cache.has(id)) {
+      return this.cache.get(id);
+    }
+
+    const syncUrl = this.getPortraitSync(id);
+    if (syncUrl) {
+      return syncUrl;
+    }
+
+    if (this.pending.has(id)) {
+      return this.pending.get(id);
+    }
+
+    const promise = (async () => {
+      this._initRenderer();
+      if (!this._initialized) return null;
+
+      let model = null;
+      let loaded = null; // Hito 113: el GLB cargado aquí es solo para esta foto: se libera al terminar
+      // Always load a fresh uncorrupted GLTF model to prevent SkinnedMesh clone destruction
+      const modelPath = this._resolveModelPath(id);
+      try {
+        const gltf = await this.loader.loadAsync(modelPath);
+        loaded = adoptGltf(gltf);
+        model = gltf.scene;
+      } catch (err) {
+        if (modelScene) {
+          model = modelScene;
+        } else {
+          console.warn('[CharacterPortraitService] Could not load model for ' + id + ':', err);
+          return null;
+        }
+      }
+
+      let dataUrl;
+      try {
+        dataUrl = this.captureModel(id, model, options);
+      } finally {
+        // Hito 113 (memoria): geometrías, texturas e imágenes decodificadas del modelo de la foto (un Sapidae son ~150 MB)
+        if (loaded) releaseGltf(loaded);
+      }
+      this.pending.delete(id);
+      return dataUrl;
+    })();
+
+    this.pending.set(id, promise);
+    return promise;
+  }
+
+  captureModel(id, model, options = {}) {
+    this._initRenderer();
+    if (!this._initialized || !model) return null;
+
+    const originalParent = model.parent;
+    const originalPos = model.position.clone();
+    const originalRot = model.rotation.clone();
+    const originalScale = model.scale.clone();
+    const originalVisible = model.visible;
+
+    while (this.wrapper.children.length > 0) {
+      this.wrapper.remove(this.wrapper.children[0]);
+    }
+
+    this.wrapper.add(model);
+    model.visible = true;
+
+    if (id === 'fox' || id.includes('stalker')) {
+      model.scale.set(0.018, 0.018, 0.018);
+    }
+
+    model.updateMatrixWorld(true);
+    const box = new THREE.Box3().setFromObject(model);
+    const center = box.getCenter(new THREE.Vector3());
+    const size = box.getSize(new THREE.Vector3());
+
+    // Center model at the pivot of wrapper
+    model.position.sub(center);
+
+    // Heroic 3/4 front view rotation (turned ~13 degrees towards camera)
+    const yawAngle = options.yaw !== undefined ? options.yaw : -0.22;
+    const pitchAngle = options.pitch !== undefined ? options.pitch : 0.05;
+    this.wrapper.rotation.set(pitchAngle, yawAngle, 0);
+
+    const maxDim = Math.max(size.x, size.y);
+    const fovRad = this.camera.fov * (Math.PI / 180);
+    const isHumanoid = id.startsWith('sapidae') || id === 'xia' || id === 'tripp';
+
+    let cameraDist, yTarget;
+    if (options.fullBody) {
+      // Encuadre de cuerpo entero de pie (desde los cuernos/cabeza hasta los pies)
+      const zoomFactor = options.zoomFactor !== undefined ? options.zoomFactor : 1.10;
+      cameraDist = (size.y * zoomFactor) / (2 * Math.tan(fovRad / 2));
+      yTarget = size.y * (options.yTargetRatio !== undefined ? options.yTargetRatio : 0);
+    } else {
+      const defaultZoom = (options.isAxie || id.startsWith('axie') || /^\d+$/.test(id))
+        ? 0.54
+        : (isHumanoid ? 0.52 : 0.68);
+      const zoomFactor = options.zoomFactor !== undefined ? options.zoomFactor : defaultZoom;
+      cameraDist = (maxDim * zoomFactor) / Math.tan(fovRad / 2);
+
+      const defaultYRatio = isHumanoid ? 0.22 : 0.08;
+      yTarget = size.y * (options.yTargetRatio !== undefined ? options.yTargetRatio : defaultYRatio);
+    }
+    this.camera.position.set(0, yTarget, cameraDist);
+    this.camera.lookAt(0, yTarget, 0);
+
+    this._trackModelTextures(model);
+    this.renderer.render(this.scene, this.camera);
+    this._scheduleGpuRelease();
+    const dataUrl = this.canvas.toDataURL('image/png');
+
+    this.cache.set(id, dataUrl);
+    if (options.aliases && Array.isArray(options.aliases)) {
+      options.aliases.forEach(alias => this.cache.set(alias, dataUrl));
+    }
+    this._notify(id, dataUrl);
+    if (options.aliases && Array.isArray(options.aliases)) {
+      options.aliases.forEach(alias => this._notify(alias, dataUrl));
+    }
+
+    // Persist to disk via server API if available
+    try {
+      // Solo nombres cortos y simples (p. ej. «active_player_slot», «10455»). Las claves de retratos
+      // personalizados incluyen la personalización en JSON: el servidor no puede guardarlas (nombre de
+      // archivo demasiado largo → error 500) y enviarlas solo gastaba tiempo. Esos ya quedan en caché.
+      if (typeof fetch === 'function' && /^[A-Za-z0-9_-]{1,64}$/.test(String(id))) {
+        fetch('/api/save-portrait', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name: id, dataUrl })
+        }).catch(() => {});
+      }
+    } catch (_) {}
+
+    this.wrapper.remove(model);
+
+    // Restore original transforms unconditionally
+    model.position.copy(originalPos);
+    model.rotation.copy(originalRot);
+    model.scale.copy(originalScale);
+    model.visible = originalVisible;
+
+    // Restore to original parent if previously attached
+    if (originalParent) {
+      originalParent.add(model);
+    }
+
+    return dataUrl;
+  }
+
+  /**
+   * 29-oct: como captureModel, pero SIN congelar el juego. Los retratos se dibujan en un segundo contexto WebGL que
+   * no comparte shaders con el del juego: la primera vez que entra un modelo, three compila y enlaza todos sus
+   * shaders al dibujar (síncrono). Medido: 5 shaders del Sapidae ≈ 9,5 s de juego congelado en el primer autoguardado.
+   * Aquí se compila en paralelo (KHR_parallel_shader_compile) esperando sin bloquear, se suben las texturas de una en
+   * una y solo entonces se dibuja. Usa una COPIA del modelo (comparte geometría y materiales): la malla viva del
+   * jugador no sale del mundo mientras se espera.
+   * @returns {Promise<string|null>} dataURL, o null si no se pudo (se reintentará en otro guardado)
+   */
+  async captureModelAsync(id, model, options = {}, { timeoutMs = 15000 } = {}) {
+    this._initRenderer();
+    if (!this._initialized || !model) return null;
+    let copy;
+    try { copy = cloneWithoutUserDataJson(model); } catch (_) { return null; }
+    copy.position.set(0, 0, 0);
+    copy.rotation.set(0, 0, 0);
+    copy.updateMatrixWorld(true);
+    const r = this.renderer;
+    this._busy = (this._busy || 0) + 1;
+    try {
+      this._trackModelTextures(copy);
+      // Solo lo que se ve en el retrato (las variantes ocultas del Sapidae no se compilan ni se suben)
+      const visible = [];
+      const walk = (o) => { if (!o.visible) return; if (o.material) visible.push(o); o.children.forEach(walk); };
+      walk(copy);
+      const proxy = { traverse: (cb) => visible.forEach(cb), traverseVisible: () => {} };
+      r.setRenderTarget(null);
+      const mats = r.compile(proxy, this.camera, this.scene);
+      await waitProgramsReady(r, mats || [], timeoutMs);
+      const seen = new Set();
+      for (const o of visible) {
+        for (const m of [].concat(o.material || [])) {
+          for (const k in m) {
+            const t = m[k];
+            if (!t || !t.isTexture || seen.has(t) || (t.userData && t.userData.lkNoPrewarm)) continue;
+            seen.add(t);
+            try { r.initTexture(t); } catch (_) { /* opcional */ }
+            await new Promise((res) => setTimeout(res, 0)); // una textura por tarea
+          }
+        }
+      }
+      return this.captureModel(id, copy, options);
+    } catch (e) {
+      console.warn('[CharacterPortraitService] Retrato en segundo plano omitido:', e);
+      return null;
+    } finally {
+      this._busy--;
+      if (copy.parent) copy.parent.remove(copy);
+      this._scheduleGpuRelease();
+    }
+  }
+
+  captureAxieHero(id, model, options = {}) {
+    const url = this.captureModel(id, model, Object.assign({
+      isAxie: true,
+      zoomFactor: 0.54,
+      yaw: -0.22,
+      pitch: 0.05,
+      yTargetRatio: 0.08
+    }, options));
+    this._storeAxiePortrait(id);
+    return url;
+  }
+
+  // Retratos de Axies por su ID (los cargados por ID no tienen archivo en assets/portraits): se guardan en el
+  // navegador en WebP pequeño para tenerlos desde el principio en la selección de partida y sin conexión (19-oct).
+  _axiePortraitKey(id) {
+    const k = String(id || '');
+    return /^\d+$/.test(k) ? `lk.axiePortrait.v1.${k}` : null;
+  }
+
+  _storedAxiePortrait(id) {
+    const key = this._axiePortraitKey(id);
+    if (!key) return null;
+    try { return localStorage.getItem(key) || null; } catch { return null; }
+  }
+
+  _storeAxiePortrait(id) {
+    const key = this._axiePortraitKey(id);
+    if (!key || !this.canvas) return;
+    try {
+      let url = this.canvas.toDataURL('image/webp', 0.85);
+      if (!url.startsWith('data:image/webp')) url = this.canvas.toDataURL('image/png');
+      localStorage.setItem(key, url);
+    } catch { /* sin almacenamiento: queda solo en memoria */ }
+  }
+
+  /**
+   * Hito 93: retrato 3D de un Axie por su ID aunque todavía no haya salido en el mundo ni en un combate (los cargados
+   * por ID o de la cuenta que esperan en la colección o en un puesto de apoyo). Carga el Axie fuera de pantalla, le
+   * hace la foto con el encuadre de siempre, la guarda en el navegador y lo libera. Se hacen de uno en uno.
+   * Quien lo pide se entera por addListener (id = axieId). Sin el mezclador 3D listo todavía, devuelve null y se
+   * vuelve a intentar la próxima vez que se pida.
+   * @returns {Promise<string|null>}
+   */
+  ensureAxiePortrait(axieId, { genes = null, heroId = null } = {}) {
+    const id = String(axieId || '');
+    if (!/^\d+$/.test(id)) return Promise.resolve(null);
+    const have = this.getPortraitSync(id);
+    if (have) return Promise.resolve(have);
+    this._axieJobs ||= new Map();
+    if (this._axieJobs.has(id)) return this._axieJobs.get(id);
+    const run = async () => {
+      if (this.getPortraitSync(id)) return this.getPortraitSync(id);
+      const { axieMixerService } = await import('../rpg/AxieMixerService.js');
+      if (!axieMixerService.mixerInstance) return null; // el mundo aún no ha creado el mezclador: luego
+      this._initRenderer();
+      if (!this._initialized) return null;
+      let res = null;
+      try {
+        res = await axieMixerService.loadAxieHero({ axieId: id, genes, renderer: this.renderer, heroId, skipPortrait: true });
+        if (typeof res?.axie?.update === 'function') res.axie.update(0.25); // pose de reposo
+        return res?.wrapper ? this.captureAxieHero(id, res.wrapper) : null;
+      } catch (err) {
+        console.warn(`[CharacterPortraitService] Sin retrato para el Axie #${id}:`, err);
+        return null;
+      } finally {
+        try { if (typeof res?.axie?.dispose === 'function') res.axie.dispose(); } catch { /* nada */ }
+      }
+    };
+    // En cola (uno cada vez) y con un respiro entre uno y otro para no trabar el juego
+    const idle = () => new Promise((r) => (typeof requestIdleCallback === 'function' ? requestIdleCallback(() => r(), { timeout: 1500 }) : setTimeout(r, 200)));
+    const job = (this._axieChain = (this._axieChain || Promise.resolve()).then(idle).then(run))
+      .finally(() => this._axieJobs.delete(id));
+    this._axieJobs.set(id, job);
+    return job;
+  }
+
+  /**
+   * Hito 93: retrato de un Axie con ID para la interfaz. Su foto 3D si ya existe; si no, su imagen del marketplace
+   * (base.image) mientras se hace la foto, y `onReady()` cuando está lista (para volver a dibujar).
+   */
+  axieUrl(base, onReady = null) {
+    const id = base?.axieId ? String(base.axieId) : null;
+    if (!id) return null;
+    const url = this.getPortraitSync(id);
+    if (url) return url;
+    this.ensureAxiePortrait(id, { genes: base.genes || null }).then((u) => { if (u && onReady) onReady(u); }).catch(() => {});
+    return base.image || null;
+  }
+
+  _getSapidaeCacheKey(modelId = 'sapidae-f-a', customization = null, equipped = null, fullBody = true) {
+    const typeStr = fullBody ? 'fullbody' : 'bust';
+    const cStr = customization ? JSON.stringify(customization) : '';
+    const eStr = equipped ? JSON.stringify(equipped) : '';
+    return `sapidae_${typeStr}_${modelId}_${cStr}_${eStr}`;
+  }
+
+  getSapidaePortraitSync(modelId = 'sapidae-f-a', customization = null, equipped = null, options = {}) {
+    const isFullBody = options.fullBody !== undefined ? Boolean(options.fullBody) : true;
+    const customKey = this._getSapidaeCacheKey(modelId, customization, equipped, isFullBody);
+    if (this.cache.has(customKey)) {
+      return this.cache.get(customKey);
+    }
+    if (this.cache.has('sapidae')) {
+      return this.cache.get('sapidae');
+    }
+    return null;
+  }
+
+  async getSapidaeCustomPortrait(modelId = 'sapidae-f-a', customization = null, equipped = null, options = {}) {
+    const isFullBody = options.fullBody !== undefined ? Boolean(options.fullBody) : true;
+    const customKey = this._getSapidaeCacheKey(modelId, customization, equipped, isFullBody);
+    if (this.cache.has(customKey)) {
+      return this.cache.get(customKey);
+    }
+    if (this.pending.has(customKey)) {
+      return this.pending.get(customKey);
+    }
+
+    const promise = (async () => {
+      // Use vertical resolution 240x320 for full body standing, or square 240x240 for bust frame
+      if (isFullBody) {
+        this._initRenderer(240, 320);
+      } else {
+        this._initRenderer(240, 240);
+      }
+      if (!this._initialized) return null;
+
+      const modelPath = sapidaeModelUrl(modelId);
+      // 29-oct: copia del GLB en caché (el mismo que el mundo) en vez de descargarlo y leerlo de nuevo en cada
+      // cambio de equipo (~250 ms por cambio, y la copia no se liberaba nunca). Materiales propios: el teñido no
+      // debe tocar los del original en caché. Al terminar se liberan materiales y geometrías propios (no las texturas).
+      const ownMats = [];
+      let owned = [];
+      try {
+        const gltf = await cloneGLTF(modelPath, { cloneGeometry: true });
+        owned = gltf.ownedGeometries || [];
+        const model = gltf.scene;
+        const cloneMat = (m) => {
+          if (!m) return m;
+          const ud = m.userData; m.userData = {}; // Material.copy pasa userData por JSON (serializaría texturas)
+          try { const c = m.clone(); c.userData = { ...ud }; ownMats.push(c); return c; } finally { m.userData = ud; }
+        };
+        model.traverse((o) => { if (o.isMesh && o.material) o.material = Array.isArray(o.material) ? o.material.map(cloneMat) : cloneMat(o.material); });
+
+        // Avanzar la animación a pose idle para que esté parada naturalmente
+        if (gltf.animations && gltf.animations.length > 0) {
+          const mixer = new THREE.AnimationMixer(model);
+          const idleClip = gltf.animations.find(c => c.name.toLowerCase().includes('idle')) || gltf.animations[0];
+          if (idleClip) {
+            mixer.clipAction(idleClip).play();
+            mixer.update(0.1);
+            model.updateMatrixWorld(true);
+          }
+        }
+
+        // Aplicar personalización modular de pelo, ojos, traje, cuernos
+        if (customization) {
+          sapidaeModularController.applyCustomization(model, customization);
+        }
+        if (equipped) {
+          sapidaeModularController.applyEquipment(model, equipped, customization || {});
+        }
+
+        const captureOpts = {
+          fullBody: isFullBody,
+          isHumanoid: true,
+          zoomFactor: options.zoomFactor !== undefined ? options.zoomFactor : (isFullBody ? 1.10 : 0.38),
+          yTargetRatio: options.yTargetRatio !== undefined ? options.yTargetRatio : (isFullBody ? 0 : 0.30),
+          yaw: options.yaw !== undefined ? options.yaw : -0.18,
+          pitch: options.pitch !== undefined ? options.pitch : 0.03,
+          // Arena PvP: el retrato del rival no debe pasar a ser el genérico del modelo (aliases: [])
+          aliases: Array.isArray(options.aliases) ? options.aliases : ['sapidae', modelId]
+        };
+
+        // En segundo plano: espera a los shaders y sube las texturas de una en una (sin congelar el juego)
+        const dataUrl = (await this.captureModelAsync(customKey, model, captureOpts)) || this.getPortraitSync(modelId) || `./assets/portraits/${modelId}.png`;
+
+        this.pending.delete(customKey);
+        return dataUrl;
+      } catch (err) {
+        console.warn('[CharacterPortraitService] Could not generate custom Sapidae portrait:', err);
+        this.pending.delete(customKey);
+        return this.getPortraitSync(modelId) || `./assets/portraits/${modelId}.png`;
+      } finally {
+        ownMats.forEach((m) => { try { m.dispose(); } catch (_) { /* nada */ } });
+        owned.forEach((g) => { try { g.dispose(); } catch (_) { /* nada */ } });
+      }
+    })();
+
+    this.pending.set(customKey, promise);
+    return promise;
+  }
+
+  preload(characterIds = []) {
+    characterIds.forEach(id => {
+      if (!this.cache.has(id)) {
+        const syncUrl = this.getPortraitSync(id);
+        if (!syncUrl) {
+          this.getPortrait(id);
+        }
+      }
+    });
+  }
+}
+
+export const portraitService = new CharacterPortraitService();

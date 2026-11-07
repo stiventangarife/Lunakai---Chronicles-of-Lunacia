@@ -22,6 +22,8 @@ export default {
   "tutorialCombat.step.endTurn.text": "Pulsa <b>Pasar turno</b> o la tecla <kbd>Espacio</kbd>.",
   "tutorialCombat.step.move2.title": "Acerca a tu Axie",
   "tutorialCombat.step.move2.text": "Haz clic en la <b>casilla dorada</b> para ponerlo junto a la Quimera Slime.",
+  "tutorialCombat.step.move2Range.title": "Pon a tu Axie a distancia",
+  "tutorialCombat.step.move2Range.text": "Su carta <b>[1]</b> ataca desde lejos: haz clic en la <b>casilla dorada</b> para que la Quimera Slime quede a su alcance.",
   "tutorialCombat.step.selectSpell2.title": "Elige la carta de tu Axie",
   "tutorialCombat.step.selectSpell2.text": "Pulsa su carta <b>[1]</b> en la barra de abajo, o la tecla <kbd>1</kbd>.",
   "tutorialCombat.step.attack2.title": "Remata a la Quimera Slime",

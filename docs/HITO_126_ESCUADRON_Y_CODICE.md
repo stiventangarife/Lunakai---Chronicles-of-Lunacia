@@ -99,4 +99,4 @@ Sin cambios en el servidor ni en el árbitro PvP.
 ## Pendiente
 
 - La captura `15_tablero_terrenos` ya no hace falta.
-- Cuando haya arte de las Ultimate (hoy `icon: '✦'`), se puede añadir a su página.
+- Cuando haya arte de las Ultimate (hoy `icon: '✦'`), se puede añadir a su página. **[Resuelto · revisión del 7-nov-2026: el usuario confirma que ya no ocurre.]**

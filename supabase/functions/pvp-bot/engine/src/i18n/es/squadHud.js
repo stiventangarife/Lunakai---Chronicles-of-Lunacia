@@ -1,0 +1,27 @@
+// HUD del escuadrón (SquadHUD)
+export default {
+  "squadHud.ap": "PA",
+  "squadHud.bond": "Vínculo",
+  "squadHud.bondTitle": "Vínculo {n}%",
+  "squadHud.clickHint": "Clic: abrir su mochila",
+  "squadHud.clsAquatic": "Acuático",
+  "squadHud.clsBeast": "Bestia",
+  "squadHud.clsBird": "Pájaro",
+  "squadHud.clsBug": "Bicho",
+  "squadHud.clsPlant": "Planta",
+  "squadHud.clsReptile": "Reptil",
+  "squadHud.hp": "Vida",
+  "squadHud.hpTitle": "{hp}/{max} de vida",
+  "squadHud.initiative": "Iniciativa",
+  "squadHud.lv": "Nv {n}",
+  "squadHud.lvDot": "Nv. {n}",
+  "squadHud.medAria": "{name}, nivel {lv}, {hp} de {max} de vida",
+  "squadHud.mp": "PM",
+  "squadHud.roleHealer": "Sanador y control",
+  "squadHud.roleLeader": "Líder de la expedición",
+  "squadHud.roleMelee": "Duelista cuerpo a cuerpo",
+  "squadHud.roleRanged": "Tirador a distancia",
+  "squadHud.slotLeader": "Líder",
+  "squadHud.slotMain": "Principal",
+  "squadHud.slotSupport": "Apoyo"
+};

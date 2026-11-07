@@ -695,7 +695,23 @@ export class EquipmentManager {
     return true;
   }
 
+  /**
+   * Hito 140 — El retrato del Sapidae ya no se hace en el mismo momento del cambio de equipo (al equipar la espada del
+   * tutorial coincidía con el clic, el cambio de paso y el visor de la Mochila: ~0,4 s de tirón). Se aplaza un poco y
+   * se hace cuando el navegador está libre; varios cambios seguidos dan un solo retrato, con el equipo final.
+   * Mientras tanto se sigue viendo el retrato anterior.
+   */
   _updateSapidaePortrait() {
+    if (this._portraitQueued) return;
+    this._portraitQueued = true;
+    const run = () => { this._portraitQueued = false; this._updateSapidaePortraitNow(); };
+    setTimeout(() => {
+      if (typeof requestIdleCallback === 'function') requestIdleCallback(run, { timeout: 2500 });
+      else run();
+    }, 600);
+  }
+
+  _updateSapidaePortraitNow() {
     try {
       const base = this.heroesBase?.sapidae;
       if (!base) return;

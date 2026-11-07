@@ -106,7 +106,7 @@ export const LEVELS_CONFIG = {
     ],
     obstacles: [],
     rewardRecruits: [],
-    rewardItems: [],
+    rewardItems: ['mat_slime_goo', 'mat_slime_goo'], // Hito 136: 2–4 de Baba de slime (y 30 de oro: REWARDS.bossGold en main.js)
     rewardExp: 120,
     noPersistentHP: true,
   },

@@ -1,5 +1,7 @@
 # Hito 62 — Dos idiomas: Fase 4 (mensajes del sistema y restos)
 
+> **Nota (7-nov-2026):** las clases del Sapidae que se nombran aquí son las anteriores al Hito 95. Hoy son Alfarero de Gólems (`crafter`), Comandante de Sombrero (`shepard`), Guardián de Campanas (`lunalogist`) y Rastreador Gogo (`stargazer`); los ids internos no cambiaron. Ver `HITO_95_GOLEMS_Y_CLASES_SAPIDAE.md`.
+
 > **Estado:** en la versión de prueba (24-oct-2026), pendiente de la revisión del usuario.
 > **Pedido:** traducir los mensajes del sistema y los restos de las fases anteriores, sin tocar la lógica. Cierra el trabajo de idiomas (Hitos 59–62).
 

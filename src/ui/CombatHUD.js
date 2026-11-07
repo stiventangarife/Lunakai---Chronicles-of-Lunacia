@@ -486,6 +486,10 @@ export function attachCombatHUD(game) {
     const k = spellClassKey(s, unit);
     const tipIco = spellIconHtml(s, unit);
     const art = s.icon && /[/.]/.test(s.icon) ? s.icon : '';
+    // Hito 140: url() dentro de una variable CSS se resuelve contra la hoja que la usa (src/ui/ds.generated.css), no
+    // contra la página: con la ruta relativa pedía src/ui/assets/… (404) y la ficha salía sin imagen. Ruta absoluta.
+    let artAbs = '';
+    if (art) { try { artAbs = new URL(art, document.baseURI).href; } catch { artAbs = art; } }
     const stats = [
       `<span class="lk-tt-stat"><i class="lk-tl"><img class="lk-ai" src="${ICON}pa.png" alt="">${i18n.t('combatHud.cost')}</i><b>${i18n.t('combatHud.paN', { n: costOf(unit, s) })}</b></span>`,
       `<span class="lk-tt-stat"><i class="lk-tl"><img class="lk-ai" src="${ICON}range.png" alt="">${i18n.t('combatHud.range')}</i><b>${i18n.t('combatHud.rangeShort')} ${rangeTxt(s)}</b></span>`,
@@ -513,7 +517,7 @@ export function attachCombatHUD(game) {
     const lockWarn = lockLv ? `<p class="lk-cb-tip-warn">${!unit.config?.isSapidae && PARTK[s.part] ? i18n.t('combatHud.lockedAtPart', { n: lockLv, part: i18n.t(PARTK[s.part]) }) : i18n.t('combatHud.lockedAt', { n: lockLv })}</p>` : '';
     const cdWarn = lockWarn ? lockWarn : cdLeft ? `<p class="lk-cb-tip-warn">${i18n.t(cdLeft === 1 ? 'combatHud.readyIn1' : 'combatHud.readyInN', { n: cdLeft })}</p>`
       : spentNow ? `<p class="lk-cb-tip-warn">${i18n.t('combatHud.spentTip')}</p>` : '';
-    return `<div class="lk-tooltip-tactical" style="--c:${tintOf(unit)}${art ? `;--art:url('${art}')` : ''}">
+    return `<div class="lk-tooltip-tactical" style="--c:${tintOf(unit)}${artAbs ? `;--art:url('${artAbs}')` : ''}">
       <header class="${art ? 'lk-has-art' : ''}">${tipIco ? `<span class="lk-cb-tip-cls${s?.part ? ' lk-has-part' : ''}" title="${tipIco.title}">${tipIco.html}</span>` : ''}<div><small>${esc(unit.name)} · ${eff.kind}${s.stage >= 2 ? ' · ' + i18n.t('combatHud.stage2') : ''}${s.collection ? ` · ${esc(String(s.collection).charAt(0).toUpperCase() + String(s.collection).slice(1))}` : ''}</small><b>${esc(s.name)}</b></div></header>
       <div class="lk-tt-body"><div class="lk-tt-stats">${stats.join('')}</div>${breakdown}<p>${esc(s.description || '')}</p>
       ${s.rcNotes?.length ? `<p class="lk-cb-tip-calc">${i18n.t('combatHud.charmsRune', { list: s.rcNotes.map(esc).join(' · ') })}</p>` : ''}

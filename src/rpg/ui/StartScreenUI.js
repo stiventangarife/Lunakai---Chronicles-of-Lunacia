@@ -23,7 +23,9 @@ import {
   KAI_DEFAULTS,
   PIECE_SETS
 } from '../SapidaeModularController.js';
-import { SAPIDAE_BASES, DEFAULT_SAPIDAE_MODEL } from '../SapidaeModels.js';
+import { SAPIDAE_BASES, DEFAULT_SAPIDAE_MODEL, sapidaeModelUrl } from '../SapidaeModels.js';
+import { warmupObjects } from '../../render/RenderWarmup.js'; // Hito 139: el creador muestra los modelos ya compilados
+import { v as withVersion } from '../../render/AssetVersion.js';
 import { CharacterPreviewDiorama } from './CharacterPreviewDiorama.js';
 import { SlotStagePreview } from './SlotStagePreview.js'; // Hito 131: personaje 3D del selector
 import { QuestManager } from '../QuestManager.js'; // Hito 132: misión actual de cada partida (panel «Tu partida»)
@@ -1034,6 +1036,7 @@ export class StartScreenUI {
     if (!list) return;
     const slots = saveSlotManager.getSlots();
     const occupied = slots.filter((s) => s.data);
+    if (occupied.length < slots.length) this._schedulePrewarmCreator(); // Hito 139: hay sitio para crear una aventura
     const recentId = [...occupied].sort((a, b) => (b.data.lastSaved || 0) - (a.data.lastSaved || 0))[0]?.id ?? null;
     if (this._selectedSlot == null || !slots.some((s) => s.id === this._selectedSlot)) {
       this._selectedSlot = recentId ?? slots[0]?.id ?? 1;
@@ -1179,6 +1182,7 @@ export class StartScreenUI {
       <div class="lk-cc-body">
         <div class="lk-cc-stage">
           <div id="dofus-3d-canvas-container" class="lk-cc-canvas"></div>
+          <div class="lk-cc-loading" data-ref="ccLoading" hidden aria-hidden="true"><svg class="lk-moon-spin" viewBox="0 0 24 24"><path d="M15 3a9 9 0 1 0 6 15.7A7.5 7.5 0 1 1 15 3z" fill="currentColor"/></svg></div>
           <div class="lk-cc-badges"><div class="lk-cls-badge" data-ref="badge"></div><div class="lk-stat-chips" data-ref="stats"></div></div>
           <div class="lk-cc-scene"></div>
           <div class="lk-cc-rot"><button type="button" class="lk-btn-circle-icon" data-cc="rotL" aria-label="${i18n.t('startCreator.rotLeft')}">${sprite('i-rotate').replace('<svg ', '<svg style="transform:scaleX(-1)" ')}</button><span>${i18n.t('startCreator.rotHint')}</span><button type="button" class="lk-btn-circle-icon" data-cc="rotR" aria-label="${i18n.t('startCreator.rotRight')}">${sprite('i-rotate')}</button></div>
@@ -1424,10 +1428,10 @@ export class StartScreenUI {
     const grid = this._ccRef('pickGrid');
     grid.innerHTML = `<div class="lk-ax-id" style="grid-column:1/-1">
         <form class="lk-ax-id__form" data-ref="idForm" novalidate>
-          <label class="lk-ax-id__field" for="lk-ax-id-input"><span class="lk-ax-id__hash" aria-hidden="true">#</span><input id="lk-ax-id-input" type="text" inputmode="numeric" autocomplete="off" spellcheck="false" maxlength="120" placeholder="11968787" aria-label="${i18n.t('startCreator.idAria')}" aria-describedby="lk-ax-id-help"></label>
+          <label class="lk-ax-id__field" for="lk-ax-id-input"><span class="lk-ax-id__hash" aria-hidden="true">#</span><input id="lk-ax-id-input" type="text" inputmode="numeric" autocomplete="off" spellcheck="false" maxlength="120" placeholder="956656" aria-label="${i18n.t('startCreator.idAria')}" aria-describedby="lk-ax-id-help"></label>
           <button type="submit" class="lk-btn lk-btn-primary-gold" data-ref="idGo" disabled><span class="lk-b-ico"><img class="lk-ai" src="${CC_ICON('search')}" alt=""></span><span data-ref="idGoTxt">${i18n.t('startCreator.search')}</span></button>
         </form>
-        <p class="lk-ax-id__help" id="lk-ax-id-help">${i18n.t('startCreator.idHelp')} <code>app.axieinfinity.com/…/axies/<b>11968787</b></code></p>
+        <p class="lk-ax-id__help" id="lk-ax-id-help">${i18n.t('startCreator.idHelp')} <code>app.axieinfinity.com/…/axies/<b>956656</b></code></p>
         <div class="lk-ax-id__out" data-ref="pickStatus" aria-live="polite"></div>
         ${back}</div>`;
     this._ccRef('picker').classList.add('lk-is-on');
@@ -1575,7 +1579,7 @@ export class StartScreenUI {
   _ccSetCompanion(hero) {
     this.selectedCompanionKey = hero.heroKey;
     this._ccRenderAxie();
-    if (this.diorama) this.diorama.loadCompanion(hero.axieId, hero.genes);
+    this._cc3d('axie', (d) => d.loadCompanion(hero.axieId, hero.genes));
     if (this.audio && typeof this.audio.playSelect === 'function') this.audio.playSelect();
   }
 
@@ -1733,7 +1737,7 @@ export class StartScreenUI {
           // Cada base con sus piezas por defecto (Kai: A, A, A, camisa D · Ema: A, A, E, camisa B)
           Object.assign(this.customization, { ...(PIECE_SETS[SAPIDAE_BASES[el.dataset.v]?.gender] || PIECE_SETS.f).defaults, hair: 'original', suitColor: 'original', shirt: 'original', pants: 'original', hasHat: false });
           this._ccRenderLook();
-          if (this.diorama) this.diorama.loadSapidae(this.selectedSapidaeModel, this.customization);
+          this._cc3d('sapidae', (d) => d.loadSapidae(this.selectedSapidaeModel, this.customization));
           sfx();
           break;
         case 'trait':
@@ -1869,14 +1873,69 @@ export class StartScreenUI {
         this.diorama = null;
       }
       this.diorama = new CharacterPreviewDiorama(canvasContainer);
-      this.diorama.loadSapidae(this.selectedSapidaeModel, this.customization);
+      this._cc3dPending = new Set();
+      this._cc3d('sapidae', (d) => d.loadSapidae(this.selectedSapidaeModel, this.customization));
 
       const comp = HERO_ROSTER.find(h => h.heroKey === this.selectedCompanionKey) || HERO_ROSTER[0];
       if (comp) {
-        this.diorama.loadCompanion(comp.axieId, comp.genes);
+        this._cc3d('axie', (d) => d.loadCompanion(comp.axieId, comp.genes));
       }
       this.diorama.start();
     }
+  }
+
+  /**
+   * Hito 139 — Carga del Sapidae o del Axie del creador sin tirones: el grupo queda oculto mientras llega el modelo y se
+   * compilan sus shaders (warmupObjects, en paralelo si el navegador lo permite) y solo entonces se enseña. Antes el
+   * primer dibujo compilaba de golpe y congelaba la pantalla (~0,4–0,6 s). Mientras tanto, la luna de carga del escenario.
+   * Cada tipo lleva su número: con cambios rápidos solo cuenta la última petición.
+   */
+  _cc3d(kind, load) {
+    const d = this.diorama;
+    if (!d) return;
+    const group = kind === 'axie' ? d.companionGroup : d.characterGroup;
+    // El mismo Sapidae que ya está: solo cambia su aspecto, sin ocultarlo
+    if (kind === 'sapidae' && d.currentModel && d.currentModelName === this.selectedSapidaeModel) { load(d); return; }
+    this._cc3dTok = this._cc3dTok || {};
+    const t = (this._cc3dTok[kind] = (this._cc3dTok[kind] || 0) + 1);
+    const live = () => this.diorama === d && this._cc3dTok[kind] === t;
+    group.visible = false;
+    this._cc3dPending?.add(kind);
+    this._ccLoadingUi();
+    Promise.resolve().then(() => load(d)).catch(() => null).then(async () => {
+      if (!live()) return;
+      await warmupObjects(d.renderer, d.scene, d.camera, [group], { deadline: performance.now() + 5000 }).catch(() => null);
+      if (live()) group.visible = true;
+    }).finally(() => {
+      if (!live()) return;
+      this._cc3dPending?.delete(kind);
+      this._ccLoadingUi();
+    });
+  }
+
+  _ccLoadingUi() {
+    const el = this._ccRef?.('ccLoading');
+    if (el) el.hidden = !this._cc3dPending?.size;
+  }
+
+  /**
+   * Hito 139 — Precarga del creador mientras el jugador está en la pantalla de título (solo si hay una ranura libre,
+   * es decir, si puede crear una aventura). Una vez por sesión y con el navegador ocioso:
+   *  · descarga a la caché HTTP el GLB del Sapidae por defecto (sin decodificarlo: no ocupa memoria de imágenes ni GPU);
+   *  · prepara el mixer de Axies (manifiesto) con el renderer del juego, que vive toda la sesión;
+   *  · pide las partes de la API de los dos Axies iniciales.
+   */
+  _schedulePrewarmCreator() {
+    if (this._ccPrewarmed) return;
+    this._ccPrewarmed = true;
+    const run = () => {
+      try { fetch(withVersion(sapidaeModelUrl(DEFAULT_SAPIDAE_MODEL))).then((r) => r.arrayBuffer()).catch(() => null); } catch (_) { /* opcional */ }
+      const renderer = window.game?.sceneManager?.renderer || null;
+      const ids = CC_STARTERS.map((k) => HERO_ROSTER.find((h) => h.heroKey === k)?.axieId).filter(Boolean);
+      axieMixerService.prewarm({ renderer, axieIds: ids });
+    };
+    if (typeof window.requestIdleCallback === 'function') window.requestIdleCallback(run, { timeout: 4000 });
+    else setTimeout(run, 1500);
   }
 
   closeHeroSelect({ restoreStage = true } = {}) {

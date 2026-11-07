@@ -131,6 +131,7 @@ export class OverworldManager {
       renderer: this.renderer,
       scene: this.scene,
       audio: this.audio,
+      onShadowsChanged: () => this.prewarmAfterGraphicsChange(), // Hito 144
       onExitToTitle: () => {
         if (typeof this.onExitToTitle === 'function') {
           this.onExitToTitle();
@@ -1381,6 +1382,71 @@ export class OverworldManager {
 
     console.log('[OverworldManager] Initialized successfully with stylized assets, EnvironmentSystem and continuous map system!');
     this.isReadyToRender = true;
+  }
+
+  /**
+   * Hito 144 — Tras cambiar las sombras en Opciones, todos los materiales necesitan otra versión de su shader. Antes se
+   * compilaban de golpe y sin paralelo en el primer fotograma (medido: Alta → Baja, 53 programas, un fotograma de 5,9 s).
+   * Ahora el mundo deja de dibujarse (el canvas conserva la última imagen, detrás del panel) mientras el precalentado
+   * los compila en paralelo; después se reanuda. Si llegan varios cambios seguidos, se encadenan.
+   */
+  prewarmAfterGraphicsChange() {
+    if (!this.isReadyToRender || !this.renderer || !this.scene || !this.camera) return Promise.resolve();
+    const run = async () => {
+      this._renderSuspended = (this._renderSuspended || 0) + 1;
+      // Cartel «Aplicando calidad gráfica…» si tarda más de 250 ms: en algunos navegadores compilar estos shaders lleva
+      // ~8 s cada vez que se abre el juego (no los guardan entre sesiones) y la imagen se queda quieta mientras tanto.
+      const noticeTimer = setTimeout(() => this._showGfxNotice(true), 250);
+      try {
+        // Solo compilar (por porciones y en paralelo), con el mismo destino que el render real y sin las islas inactivas.
+        // Sin el «fotograma completo» del precalentado de viaje: en los cambios siguientes no hay programas nuevos y ese
+        // fotograma solo añadía ~130 ms.
+        const { warmupRender } = await import('../render/RenderWarmup.js');
+        const env = this.environmentSystem;
+        const composer = env && env.isPostProcessingActive !== false && env.composer;
+        const target = composer ? (composer.readBuffer || null) : null;
+        const skipRoots = [this.demoScenaZone, this.savannaZone, ...Object.values(this.grandIslands || {})]
+          .filter((z) => z && z.group && z.isActive === false && z.isLoaded)
+          .map((z) => z.group);
+        // Tope de 20 s (con el cartel a la vista): pasado ese tiempo se vuelve a dibujar aunque quede algo por compilar.
+        // Mientras tanto se ve la última imagen (la resolución se cambia al final).
+        const t0 = performance.now();
+        const res = await warmupRender(this.renderer, this.scene, this.camera, { target, skipRoots, deadline: t0 + 20000 });
+        console.log(`[OverworldManager] Cambio de calidad: ${res.programs} programas nuevos, ${Math.round(performance.now() - t0)} ms`
+          + ` (texturas ${res.texMs} · compilar ${res.compileMs} · esperar ${res.waitMs} ms · paralelo ${res.parallel} · sin terminar ${res.pendingLeft}${res.cut ? ' · cortado' : ''})`);
+      } finally {
+        clearTimeout(noticeTimer);
+        this._showGfxNotice(false);
+        this._renderSuspended = Math.max(0, (this._renderSuspended || 1) - 1);
+      }
+    };
+    this._gfxWarmChain = (this._gfxWarmChain || Promise.resolve()).then(run, run);
+    return this._gfxWarmChain;
+  }
+
+  /** Hito 144: cartel persistente mientras se aplican los cambios de calidad (mismo estilo que los avisos lk-toast,
+   *  debajo de ellos para no taparse con «Calidad … aplicada»). */
+  _showGfxNotice(on) {
+    if (typeof document === 'undefined') return;
+    let el = this._gfxNoticeEl;
+    // Oculto: lk-toast lo sube un 160 % de su alto, pensado para top 22 px; este va más abajo (86 px) y con dos líneas,
+    // así que se sube del todo de forma explícita (si no, se quedaba asomando por arriba)
+    const HIDE = 'translate(-50%, calc(-100% - 110px))';
+    if (!on) { if (el) { el.classList.remove('lk-is-on'); el.style.transform = HIDE; } return; }
+    if (!el) {
+      el = document.createElement('div');
+      el.className = 'lk-toast lk-ui';
+      el.setAttribute('role', 'status');
+      el.setAttribute('aria-live', 'polite');
+      el.style.top = 'calc(86px + env(safe-area-inset-top, 0px))';
+      el.style.transform = HIDE; // entra desde arriba
+      document.body.appendChild(el);
+      void el.offsetWidth; // aplicar la posición inicial antes de la transición
+      this._gfxNoticeEl = el;
+    }
+    el.innerHTML = `<div class="lk-notice"><span aria-hidden="true" style="display:inline-block;width:14px;height:14px;border:2px solid currentColor;border-right-color:transparent;border-radius:50%;animation:lk-spin .9s linear infinite"></span><span>${i18n.t('settings.applyingGfx')}<br><small style="opacity:.75;font-size:.8em">${i18n.t('settings.applyingGfxDesc')}</small></span></div>`;
+    el.style.transform = '';
+    el.classList.add('lk-is-on');
   }
 
   startPrologue() {

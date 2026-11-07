@@ -1,5 +1,7 @@
 # Hito 40 — Atributos, estadísticas base por clase y rol, fichas de daño, Axies por ID y cambio de compañero
 
+> **Nota (7-nov-2026):** las clases del Sapidae que se nombran aquí son las anteriores al Hito 95. Hoy son Alfarero de Gólems (`crafter`), Comandante de Sombrero (`shepard`), Guardián de Campanas (`lunalogist`) y Rastreador Gogo (`stargazer`); los ids internos no cambiaron. Ver `HITO_95_GOLEMS_Y_CLASES_SAPIDAE.md`.
+
 > **Estado:** completado en la versión de prueba (19-oct-2026).
 > **Pedido:** revisar y mejorar los puntos encontrados al jugar. Solo se cambió lo pedido.
 

@@ -40,6 +40,7 @@ import * as i18n from './i18n/i18n.js';
 const SLOT_LABEL = { weapon: i18n.t('system.slotWeapon'), hat: i18n.t('system.slotHat'), shield: i18n.t('system.slotShield'), body: i18n.t('system.slotBody'), boots: i18n.t('system.slotBoots') };
 import { accountManager } from './net/AccountManager.js';
 import { EconomyService } from './net/EconomyService.js';
+import { REWARDS as TUT_REWARDS } from './rpg/tutorial/TutorialScript.js'; // Hito 136: oro del Slime Caballero
 import { MarketService } from './net/MarketService.js';
 import { ForgeService } from './rpg/ForgeService.js';
 import { SaveStatusChip } from './net/SaveStatusChip.js';
@@ -49,6 +50,8 @@ import { VfxBridge } from './vfx/VfxBridge.js';
 import { installTestArena } from './tactics/combat/TestArena.js';
 import { installVfxTour } from './tactics/combat/VfxTour.js';
 import { installPerfProbe, perfMark } from './debug/PerfProbe.js';
+import { gpuTimer } from './render/GpuTimer.js'; // Hito 143: tiempo de GPU del dibujo
+import { resolutionScale } from './render/ResolutionScale.js'; // Hito 143: escala de resolución (Opciones + automática)
 import { installAssetAudit } from './debug/AssetAudit.js';
 import { installKtx2 } from './render/Ktx2.js';
 import { installShadowMapGC } from './render/ShadowMapGC.js';
@@ -74,18 +77,35 @@ import { installBackgroundFrames } from './render/BackgroundFrames.js';
 installBackgroundFrames(); // Hito 82: el combate sigue con el juego minimizado
 
 /**
- * Tutorial (19-oct): las cartas de partes del Axie con un ataque que alcance a 1 casilla en la ranura [1],
- * porque el paso 6 pide usar la [1] contra la Quimera Guardián. null si no tiene ninguno.
+ * Tutorial (19-oct): orden de las cartas de partes del Axie para el combate guiado; el paso 6 pide usar la ranura [1]
+ * contra la Quimera Slime. null si no tiene ninguna carta de ataque desbloqueada.
+ * · Con un ataque que alcance a 1 casilla, ese va en la [1] y el Axie se pone a su lado (como siempre).
+ * · Hito 139: si todos sus ataques son a distancia (AL mínimo 2 o más), va en la [1] el mejor de ellos y la guía le
+ *   marca una casilla a su alcance (TutorialManager._resolveCells). Antes devolvía null y el Axie jugaba el tutorial
+ *   con los hechizos de Shinji.
  */
 function tutorialCardOrder(ids) {
   if (!Array.isArray(ids) || !ids.length) return null;
   const sp = (id) => SPELLS_DB[id];
-  const melee = (s) => s && s.targetType === 'enemy' && (s.effects || []).some((e) => e.type === 'damage')
-    && (s.minRange ?? 1) <= 1 && (s.maxRange ?? 1) >= 1 && (s.paCost ?? 0) <= 6;
+  const attack = (s) => s && s.targetType === 'enemy' && (s.effects || []).some((e) => e.type === 'damage')
+    && (s.paCost ?? 0) <= 6;
+  const melee = (s) => (s.minRange ?? 1) <= 1 && (s.maxRange ?? 1) >= 1;
   // Hito 98: a nivel 1 solo ojos, orejas y boca están desbloqueadas: la carta de la ranura [1] sale de ellas
-  const options = ids.filter((id) => melee(sp(id)) && unlockLevelOf(sp(id)) <= 1);
+  const options = ids.filter((id) => attack(sp(id)) && unlockLevelOf(sp(id)) <= 1);
   if (!options.length) return null;
-  const first = options.find((id) => (sp(id).maxRange || 1) >= 2) || options[0];
+  const close = options.filter((id) => melee(sp(id)));
+  let first;
+  if (close.length) {
+    first = close.find((id) => (sp(id).maxRange || 1) >= 2) || close[0];
+  } else {
+    // A distancia: mejor de un solo objetivo (sin fuego amigo sobre el Sapidae), con el AL mínimo más corto
+    // (menos casillas de separación) y, a igualdad, la más barata
+    const single = (s) => !s.areaType || s.areaType === 'single';
+    first = options.slice().sort((a, b) => {
+      const A = sp(a), B = sp(b);
+      return (single(B) - single(A)) || ((A.minRange ?? 1) - (B.minRange ?? 1)) || ((A.paCost ?? 0) - (B.paCost ?? 0));
+    })[0];
+  }
   return [first, ...ids.filter((id) => id !== first)];
 }
 import { renderForecast, clearForecast } from './ui/ForecastPanel.js';
@@ -1357,8 +1377,8 @@ class AxieTacticsGame {
         supportPower: stats.supportPower || 0,
         skillLevels: prog ? prog.skillLevels : {},
         heroLevel: prog?.level || 1, // Hito 98: cuernos a nivel 3, espalda a 7, cola a 10
-        // Cartas de partes reales (Fase 4). En el tutorial también, con un ataque cuerpo a cuerpo en la ranura [1]
-        // (el paso 6 pide la [1]); si el Axie no tiene ninguno, usa los hechizos de siempre.
+        // Cartas de partes reales (Fase 4). En el tutorial también, con su mejor ataque en la ranura [1] (el paso 6
+        // pide la [1]; cuerpo a cuerpo si tiene, si no a distancia: Hito 139). Sin ataques, los hechizos de siempre.
         spellIds: (isAxie && (config.isTutorial ? tutorialCardOrder(this.partsResolver?.idsFor(baseInfo)) : this.partsResolver?.idsFor(baseInfo))) || (heroId === 'kotaro' ? (baseInfo.spellIds || getHeroSpells(baseInfo.heroKey || baseInfo.axieId)) : (HERO_SPELLS[heroId] || baseInfo.spellIds)) || ['kotaro_slash'],
         scale: isAxie ? 0.88 : heroMeta.scale,
         ...(hp.facing !== undefined ? { initialFacing: hp.facing } : {})
@@ -1593,8 +1613,14 @@ class AxieTacticsGame {
       if (this.pvpBattle) { this.pvpBattle.onCombatEnd('player'); return; } // Arena PvP: pantalla propia
       this._writeBackSquadHP();
       this._cleanCombatUIForEnd();
-      // 1. Brief pause for last enemy's finisher impact sound and camera shake
-      await new Promise(r => setTimeout(r, 450));
+      // 1. Pausa para el remate del último enemigo. Hito 140: en vez de 450 ms fijos (el rótulo entraba en mitad de los
+      // parpadeos y se veía todo quieto), se espera a que su estallido empiece y un poco más (tope 1,2 s)
+      const finisher = (this.units || []).find((u) => u.team === 'enemy' && u.burstStarted);
+      if (finisher) {
+        await Promise.race([finisher.burstStarted.then(() => new Promise((r) => setTimeout(r, 250))), new Promise((r) => setTimeout(r, 1200))]);
+      } else {
+        await new Promise(r => setTimeout(r, 450));
+      }
 
       const config = this.activeBattleConfig || LEVELS_CONFIG[this.currentLevel] || LEVELS_CONFIG[1];
       if (config.duel) this.lastDuelOutcome = this.turnManager.endReason || 'yield';
@@ -1722,6 +1748,13 @@ class AxieTacticsGame {
         }
         if (gold != null) goldView = [{ id: 'gold', name: i18n.t('game.goldLoot', { n: gold }), rarity: 'common', icon: curIcon('gold'), slot: i18n.t('game.goldSlot'), stats: {}, description: i18n.t('game.goldLootDesc') }];
         else if (pending) goldView = [{ id: 'gold', name: i18n.t('game.goldPending'), rarity: 'common', icon: curIcon('gold'), slot: i18n.t('game.goldSlot'), stats: {}, description: i18n.t('game.goldPendingDesc') }];
+      }
+      // Hito 136: el Slime Caballero del tutorial da oro fijo (con cuenta lo paga el servidor, una vez por ranura: 'tut:boss')
+      if (config.tutorialKind === 'boss' && TUT_REWARDS.bossGold > 0) {
+        const gold = TUT_REWARDS.bossGold;
+        if (EconomyService.active) EconomyService.reward('tut:boss').then((r) => { if (r?.error === 'unavailable') this.equipmentManager.addGold(gold); }).catch(() => null);
+        else this.equipmentManager.addGold(gold);
+        goldView = [{ id: 'gold', name: i18n.t('game.goldLoot', { n: gold }), rarity: 'common', icon: curIcon('gold'), slot: i18n.t('game.goldSlot'), stats: {}, description: i18n.t('game.goldLootDesc') }];
       }
       const RC_RAR = (r) => (['rare', 'epic', 'mystic'].includes(r) ? r : 'common');
       const rcView = rcLoot.map(({ kind, x }) => ({ id: `${kind}:${x.id}`, name: x.name, rarity: RC_RAR(x.rarity), icon: runeCharmArt(kind, x.id) || `./assets/ui/icons/${kind === 'runes' ? 'rune' : 'charm'}.png`, slot: kind === 'runes' ? i18n.t('game.rune') : i18n.t('game.charm'), stats: {}, description: `${i18n.t(kind === 'runes' ? 'game.runeNeutralDesc' : 'game.charmNeutralDesc')} ${x.desc || ''}` }));
@@ -2868,9 +2901,15 @@ class AxieTacticsGame {
     // estado seguía en OVERWORLD y el mundo se actualizaba y dibujaba a pantalla completa detrás, sin verse.
     if (this.startScreen?.isOpen) return;
 
+    // Hito 143: CPU y GPU del dibujo de este fotograma (para la escala de resolución automática y lkDebug.perf)
+    let drawMs = 0;
     if (this.gameState === 'INTRO' || this.gameState === 'OVERWORLD' || (this.gameState === 'LOADING' && this.overworldManager && this.overworldManager.isReadyToRender)) {
       this.overworldManager.update(dt, time);
+      const d0 = performance.now();
+      gpuTimer.begin();
       this.overworldManager.render(time, dt);
+      gpuTimer.end();
+      drawMs = performance.now() - d0;
       if (this.gameState === 'OVERWORLD') this._tickOverworldRegen(dt);
     } else if (this.gameState === 'BATTLE') {
       // Hito 113: el tablero se está montando detrás del velo; dibujarlo ahora compilaría sus shaders uno a uno y sin paralelo
@@ -2884,10 +2923,18 @@ class AxieTacticsGame {
       if (this.tutorialManager) {
         this.tutorialManager.update(time);
       }
+      const d0 = performance.now();
+      gpuTimer.begin();
       this.sceneManager.render(time, dt);
+      gpuTimer.end();
+      drawMs = performance.now() - d0;
     } else if (this.gameState === 'CAMP') {
       this.sceneManager.render(time, dt);
     }
+    // Solo en el mundo y en combate a la vista (no en la carga, el título ni la cinemática)
+    const om = this.overworldManager;
+    const playing = this.gameState === 'BATTLE' || (this.gameState === 'OVERWORLD' && om && om.state !== 'CINEMATIC' && !(om._renderSuspended > 0));
+    resolutionScale.frame(rawDt * 1000, playing, drawMs);
   }
 }
 

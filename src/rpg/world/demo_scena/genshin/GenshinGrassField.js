@@ -21,6 +21,13 @@ const MAX_CLEARINGS = 24;
  *  - Per-tile bounding spheres → native THREE frustum culling.
  *  - Real directional shadows (trees / characters) via the built-in shadow chunks.
  *  - Wildflowers (yellow / blue / white) use the same tile system with their own LOD.
+ *
+ * Hito 142 · Un draw por tipo y LOD (hierba cerca / lejos, flores cerca / lejos) en vez de uno por baldosa (~64 draws
+ * en el Bosque). Las baldosas siguen existiendo como datos: update() decide su LOD y si se ven (isla, radio de flores);
+ * justo antes de dibujar (onBeforeRender, con la cámara real) se descartan las que quedan fuera del encuadre con la
+ * misma esfera que usaba three.js, se ordenan de cerca a lejos y su origen va en el array uniforme uTiles. En el shader,
+ * gl_InstanceID da la baldosa (÷ matas por baldosa) y la mata; los datos de cada mata (antes atributos instanciados
+ * aInst / aRank) se leen de una textura. Mismo aspecto y mismo descarte que antes.
  */
 export class GenshinGrassField {
   constructor(parent, terrainData, quality) {
@@ -80,31 +87,137 @@ export class GenshinGrassField {
     // near-only instances by distance before a tile ever switches geometry → no pop-in.
     const grassInst = this._createTuftInstances(quality.grassTuftsNear);
     const farGrass = Math.min(quality.grassTuftsFar, quality.grassTuftsNear);
-    this.geoNear = this._createTuftGeometry(grassInst, quality.grassTuftsNear, 3);
-    this.geoFar = this._createTuftGeometry(grassInst, farGrass, 1);
     this.uniforms.uGrassFarKeep.value = farGrass / quality.grassTuftsNear;
     this._nearCount = quality.grassTuftsNear;
     this._farCount = farGrass;
     const flowerInst = this._createFlowerInstances(quality.flowersPerTile);
     const farFlowers = Math.max(1, Math.round(quality.flowersPerTile * 0.4));
-    this.flowerGeoNear = this._createFlowerGeometry(flowerInst, quality.flowersPerTile);
-    this.flowerGeoFar = this._createFlowerGeometry(flowerInst, farFlowers);
     this.uniforms.uFlowerFarKeep.value = farFlowers / quality.flowersPerTile;
     this._lastLodPos = new THREE.Vector3(1e9, 0, 1e9);
 
+    // Hito 142: datos de cada mata en una textura (la lista lejana es un prefijo de la cercana: comparten textura)
+    this.grassInstTex = this._instTexture(grassInst.inst, quality.grassTuftsNear);
+    this.flowerInstTex = this._instTexture(flowerInst.inst, quality.flowersPerTile);
+    this.grassBase = this._createTuftBase(3);
+    this.grassBaseFar = this._createTuftBase(1);
+    this.flowerBase = this._createFlowerBase();
+    // Esferas de descarte de una baldosa en su origen (las mismas que tenían las geometrías por baldosa)
+    this._grassSphere = this._tileSphere(1.6);
+    this._flowerSphere = this._tileSphere(0.8);
+
+    // Baldosas como datos: origen, LOD y visibilidad (update) · 4 mallas que las dibujan todas
     this.tiles = [];
-    for (let i = 0; i < this.N * this.N; i++) {
-      const grass = new THREE.Mesh(this.geoNear, this.grassMaterial);
-      grass.receiveShadow = true;
-      grass.castShadow = false;
-      grass.matrixAutoUpdate = true;
-      grass.name = 'GenshinGrassTile';
-      const flowers = new THREE.Mesh(this.flowerGeoNear, this.flowerMaterial);
-      flowers.receiveShadow = true;
-      flowers.name = 'GenshinFlowerTile';
-      this.group.add(grass);
-      this.group.add(flowers);
-      this.tiles.push({ grass, flowers });
+    for (let i = 0; i < this.N * this.N; i++) this.tiles.push({ ox: 0, oz: 0, near: true, grass: false, flowers: false });
+    const maxTiles = this.N * this.N;
+    this.draws = {
+      grassNear: this._createDraw('GenshinGrassField_near', this.grassBase, this.grassMaterial, this.grassInstTex, quality.grassTuftsNear, quality.grassTuftsNear, maxTiles),
+      grassFar: this._createDraw('GenshinGrassField_far', this.grassBaseFar, this.grassMaterial, this.grassInstTex, farGrass, quality.grassTuftsNear, maxTiles),
+      flowerNear: this._createDraw('GenshinFlowerField_near', this.flowerBase, this.flowerMaterial, this.flowerInstTex, quality.flowersPerTile, quality.flowersPerTile, maxTiles),
+      flowerFar: this._createDraw('GenshinFlowerField_far', this.flowerBase, this.flowerMaterial, this.flowerInstTex, farFlowers, quality.flowersPerTile, maxTiles),
+    };
+    this._frustum = new THREE.Frustum();
+    this._projScreen = new THREE.Matrix4();
+    this._sph = new THREE.Sphere();
+    this._cullCam = null;
+    this._cullFrame = -1;
+    this._cullSort = [];
+  }
+
+  /** Hito 142 · Textura RGBA float con (localX, localZ, rotY, rand) de cada mata, una por texel. */
+  _instTexture(inst, count) {
+    const W = 256, H = Math.max(1, Math.ceil(count / W));
+    const data = new Float32Array(W * H * 4);
+    data.set(inst.subarray(0, count * 4));
+    const tex = new THREE.DataTexture(data, W, H, THREE.RGBAFormat, THREE.FloatType);
+    tex.minFilter = tex.magFilter = THREE.NearestFilter;
+    tex.generateMipmaps = false;
+    tex.needsUpdate = true;
+    return tex;
+  }
+
+  /** Hito 142 · Esfera de descarte de una baldosa con origen (0, 0): la caja de antes (−0,5…T+0,5, alturas del terreno). */
+  _tileSphere(extraHeight) {
+    const minH = this.data.minHeight - 0.5;
+    const maxH = this.data.maxHeight + extraHeight + 0.5;
+    const box = new THREE.Box3(new THREE.Vector3(-0.5, minH, -0.5), new THREE.Vector3(this.T + 0.5, maxH, this.T + 0.5));
+    return box.getBoundingSphere(new THREE.Sphere());
+  }
+
+  /**
+   * Hito 142 · Una malla que dibuja una lista de baldosas: material propio (comparte los uniformes del campo salvo la
+   * lista de baldosas, la textura de matas y cuántas por baldosa) y geometría instanciada sin atributos por instancia.
+   */
+  _createDraw(name, base, srcMaterial, instTex, perTile, rankDen, maxTiles) {
+    const geo = new THREE.InstancedBufferGeometry();
+    geo.index = base.index;
+    geo.attributes.position = base.attributes.position;
+    geo.attributes.uv = base.attributes.uv;
+    geo.instanceCount = 0;
+    geo.boundingSphere = new THREE.Sphere(new THREE.Vector3(), 1e5);
+    const tiles = Array.from({ length: Math.ceil(maxTiles / 2) }, () => new THREE.Vector4());
+    const material = srcMaterial.clone();
+    // Uniformes compartidos por referencia (viento, tiempo, claros, luces…); propios: la lista y las matas
+    material.uniforms = Object.assign({}, this.uniforms, {
+      uTiles: { value: tiles },
+      uInstTex: { value: instTex },
+      uPerTile: { value: perTile },
+      uRankDen: { value: rankDen },
+    });
+    material.defines = Object.assign({}, material.defines, { GF_MAX_TILES: Math.ceil(maxTiles / 2) * 2 });
+    const mesh = new THREE.Mesh(geo, material);
+    mesh.name = name;
+    mesh.frustumCulled = false;          // el descarte es por baldosa, en onBeforeRender
+    mesh.receiveShadow = true;
+    mesh.castShadow = false;
+    mesh.raycast = () => {};             // como antes: la hierba no es objetivo de clics
+    const draw = { mesh, geo, material, tiles, perTile, list: [] };
+    mesh.onBeforeRender = (renderer, scene, camera) => this._cull(renderer, camera);
+    this.group.add(mesh);
+    return draw;
+  }
+
+  /**
+   * Hito 142 · Antes de dibujar con esta cámara (una vez por cámara y fotograma): baldosas de cada lista dentro del
+   * encuadre, de cerca a lejos (aprovecha el descarte por profundidad, como el orden de three.js para lo opaco).
+   */
+  _cull(renderer, camera) {
+    const frame = renderer.info.render.frame;
+    if (this._cullCam === camera && this._cullFrame === frame) return;
+    this._cullCam = camera; this._cullFrame = frame;
+    this.group.updateWorldMatrix(true, false);
+    const gm = this.group.matrixWorld.elements;
+    this._projScreen.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse);
+    this._frustum.setFromProjectionMatrix(this._projScreen);
+    const cx = camera.matrixWorld.elements[12], cz = camera.matrixWorld.elements[14];
+    const D = this.draws;
+    for (const d of [D.grassNear, D.grassFar, D.flowerNear, D.flowerFar]) d.list.length = 0;
+    const gmat = this.group.matrixWorld;
+    const scale = gmat.getMaxScaleOnAxis();
+    // Esfera de la baldosa en el mundo: la de su geometría (origen local en ox, 0, oz) por la matriz del grupo, igual que
+    // hacía three.js con cada malla
+    const visible = (sphere, t) => {
+      this._sph.center.set(sphere.center.x + t.ox, sphere.center.y, sphere.center.z + t.oz).applyMatrix4(gmat);
+      this._sph.radius = sphere.radius * scale;
+      return this._frustum.intersectsSphere(this._sph);
+    };
+    for (const t of this.tiles) {
+      if (!t.grass && !t.flowers) continue;
+      const wx = gm[0] * (t.ox + this.T * 0.5) + gm[8] * (t.oz + this.T * 0.5) + gm[12];
+      const wz = gm[2] * (t.ox + this.T * 0.5) + gm[10] * (t.oz + this.T * 0.5) + gm[14];
+      const dist = (wx - cx) ** 2 + (wz - cz) ** 2;
+      if (t.grass && visible(this._grassSphere, t)) (t.near ? D.grassNear : D.grassFar).list.push(t, dist);
+      if (t.flowers && visible(this._flowerSphere, t)) (t.near ? D.flowerNear : D.flowerFar).list.push(t, dist);
+    }
+    for (const d of [D.grassNear, D.grassFar, D.flowerNear, D.flowerFar]) {
+      // lista plana [tile, dist, tile, dist…] → orden por distancia
+      const n = d.list.length / 2, idx = this._cullSort; idx.length = n;
+      for (let i = 0; i < n; i++) idx[i] = i;
+      idx.sort((a, b) => d.list[a * 2 + 1] - d.list[b * 2 + 1]);
+      for (let i = 0; i < n; i++) {
+        const t = d.list[idx[i] * 2], v = d.tiles[i >> 1];
+        if (i & 1) { v.z = t.ox; v.w = t.oz; } else { v.x = t.ox; v.y = t.oz; }
+      }
+      d.geo.instanceCount = n * d.perTile;
     }
   }
 
@@ -163,8 +276,8 @@ export class GenshinGrassField {
     return { inst, rank };
   }
 
-  /** One tuft = 3 soft blades. Instances carry (localX, localZ, rotY, rand) + aRank. */
-  _createTuftGeometry(instances, count, segsLOD = 3) {
+  /** One tuft = 3 soft blades (Hito 142: solo la mata; los datos de cada instancia van en una textura). */
+  _createTuftBase(segsLOD = 3) {
     const widthMul = 1.0; // far tufts are widened in the shader (continuous, no swap pop)
     const base = new THREE.BufferGeometry();
     const pos = [];
@@ -205,21 +318,11 @@ export class GenshinGrassField {
     base.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
     base.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
     base.setIndex(idx);
-
-    const geo = new THREE.InstancedBufferGeometry();
-    geo.index = base.index;
-    geo.attributes.position = base.attributes.position;
-    geo.attributes.uv = base.attributes.uv;
-
-    geo.setAttribute('aInst', new THREE.InstancedBufferAttribute(instances.inst.subarray(0, count * 4), 4));
-    geo.setAttribute('aRank', new THREE.InstancedBufferAttribute(instances.rank.subarray(0, count), 1));
-    geo.instanceCount = count;
-    this._setTileBounds(geo, 1.6);
-    return geo;
+    return base;
   }
 
   /** Crossed quads with a procedural 5-petal flower drawn in the fragment shader. */
-  _createFlowerGeometry(instances, count) {
+  _createFlowerBase() {
     const base = new THREE.BufferGeometry();
     const pos = [];
     const uv = [];
@@ -244,23 +347,7 @@ export class GenshinGrassField {
     base.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
     base.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
     base.setIndex(idx);
-    const geo = new THREE.InstancedBufferGeometry();
-    geo.index = base.index;
-    geo.attributes.position = base.attributes.position;
-    geo.attributes.uv = base.attributes.uv;
-    geo.setAttribute('aInst', new THREE.InstancedBufferAttribute(instances.inst.subarray(0, count * 4), 4));
-    geo.setAttribute('aRank', new THREE.InstancedBufferAttribute(instances.rank.subarray(0, count), 1));
-    geo.instanceCount = count;
-    this._setTileBounds(geo, 0.8);
-    return geo;
-  }
-
-  _setTileBounds(geo, extraHeight) {
-    const minH = this.data.minHeight - 0.5;
-    const maxH = this.data.maxHeight + extraHeight + 0.5;
-    geo.boundingBox = new THREE.Box3(new THREE.Vector3(-0.5, minH, -0.5), new THREE.Vector3(this.T + 0.5, maxH, this.T + 0.5));
-    geo.boundingSphere = new THREE.Sphere();
-    geo.boundingBox.getBoundingSphere(geo.boundingSphere);
+    return base;
   }
 
   // -------------------------------------------------------------------------------------
@@ -290,8 +377,23 @@ export class GenshinGrassField {
       #include <common>
       #include <fog_pars_vertex>
       #include <shadowmap_pars_vertex>
-      attribute vec4 aInst;
-      attribute float aRank;
+      // Hito 142: baldosa y mata salen de gl_InstanceID (ver gfInstance)
+      uniform vec4 uTiles[GF_MAX_TILES / 2];
+      uniform highp sampler2D uInstTex;
+      uniform int uPerTile;
+      uniform float uRankDen;
+      vec4 aInst;
+      float aRank;
+      vec3 gfOrigin;
+      void gfInstance() {
+        int tile = gl_InstanceID / uPerTile;
+        int tuft = gl_InstanceID - tile * uPerTile;
+        aInst = texelFetch(uInstTex, ivec2(tuft % 256, tuft / 256), 0);
+        aRank = (float(tuft) + 0.5) / uRankDen;
+        vec4 tp = uTiles[tile / 2];
+        vec2 o = (tile - (tile / 2) * 2) == 0 ? tp.xy : tp.zw;
+        gfOrigin = (modelMatrix * vec4(o.x, 0.0, o.y, 1.0)).xyz;
+      }
       uniform float uTime, uWindStrength, uWindSpeed, uFadeStart, uFadeEnd, uHeightScale;
       uniform float uLodNear, uLodFar, uGrassFarKeep, uFlowerFarKeep, uFlowerCut;
 
@@ -347,7 +449,8 @@ export class GenshinGrassField {
       varying vec3 vTerrainN;
 
       void main() {
-        vec3 origin = (modelMatrix * vec4(0.0, 0.0, 0.0, 1.0)).xyz;
+        gfInstance();
+        vec3 origin = gfOrigin;
         // World-space jitter (breaks the 10 m tile repetition)
         vec2 local = aInst.xy;
         vec2 wxz0 = origin.xz + local;
@@ -501,7 +604,8 @@ export class GenshinGrassField {
       varying vec3 vWorld;
 
       void main() {
-        vec3 origin = (modelMatrix * vec4(0.0, 0.0, 0.0, 1.0)).xyz;
+        gfInstance();
+        vec3 origin = gfOrigin;
         vec2 wxz = origin.xz + aInst.xy;
         float rnd = fract(aInst.w + gHash12(floor(origin.xz * 0.1)) * 0.618);
         vec4 m = terrainMaskAt(wxz);
@@ -656,13 +760,12 @@ export class GenshinGrassField {
         const ix0 = Math.max(ox, Math.min(0, ox + this.T));
         const iz0 = Math.max(oz, Math.min(0, oz + this.T));
         const island = Math.hypot(ix0, iz0) < 153;
-        tile.grass.visible = island;
-        // Flowers only in the inner rings → fewer draw calls (already faded to zero there)
-        tile.flowers.visible = island && d2 < flowerR2;
-        tile.grass.position.set(ox, 0, oz);
-        tile.flowers.position.set(ox, 0, oz);
-        tile.grass.geometry = near ? this.geoNear : this.geoFar;
-        tile.flowers.geometry = near ? this.flowerGeoNear : this.flowerGeoFar;
+        tile.grass = island;
+        // Flowers only in the inner rings (already faded to zero there)
+        tile.flowers = island && d2 < flowerR2;
+        tile.ox = ox;
+        tile.oz = oz;
+        tile.near = near;
       }
     }
   }
@@ -676,8 +779,10 @@ export class GenshinGrassField {
     k = THREE.MathUtils.clamp(k, 0.1, 1);
     const near = Math.max(1, Math.round(this._nearCount * k));
     const far = Math.max(1, Math.round(this._farCount * k));
-    this.geoNear.instanceCount = near;
-    this.geoFar.instanceCount = far;
+    // Hito 142: matas por baldosa de cada lista (el recuento de instancias se fija al dibujar)
+    this.draws.grassNear.perTile = near; this.draws.grassNear.material.uniforms.uPerTile.value = near;
+    this.draws.grassFar.perTile = far; this.draws.grassFar.material.uniforms.uPerTile.value = far;
+    this._cullFrame = -1;
     this.uniforms.uGrassFarKeep.value = far / this._nearCount;
   }
 
@@ -686,7 +791,9 @@ export class GenshinGrassField {
   }
 
   dispose() {
-    [this.geoNear, this.geoFar, this.flowerGeoNear, this.flowerGeoFar].forEach((g) => g && g.dispose());
+    Object.values(this.draws || {}).forEach((d) => { d.geo.dispose(); d.material.dispose(); });
+    [this.grassBase, this.grassBaseFar, this.flowerBase].forEach((g) => g && g.dispose());
+    [this.grassInstTex, this.flowerInstTex].forEach((t) => t && t.dispose());
     this.grassMaterial.dispose();
     this.flowerMaterial.dispose();
   }
